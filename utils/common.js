@@ -22,8 +22,35 @@ export function formatTime(timestamp) {
       return `${hours}:${minutes}`;
     } else {
       const day = messageDate.getDate().toString().padStart(2, '0');
-      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-based
+      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
       return `${day}/${month}`;
     }
   }
+export const calculateAge = (timestamp: { seconds: number; nanoseconds: number }) => {
+  if (!timestamp || !timestamp.seconds) {
+    return null; 
+  }
+
+  const birthDate = new Date(timestamp.seconds * 1000);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+export const convertTimestampToDate = (timestamp) => {
+  if (!timestamp || !timestamp.seconds) {
+      return null;
+  }
+
+  const date = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+  
+  return date.toISOString(); 
+};
+
+
   

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Alert, Keyboard } from 'react-native';
+import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { TextInput, Appbar } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
@@ -13,6 +13,7 @@ import MessageList from '@/components/chat/MessageList';
 
 export default function ChatRoom() {
   const { id } = useLocalSearchParams();  
+  console.log(123, id)
   const router = useRouter();
   const { user } = useAuth();
   const [messages, setMessages] = useState<any[]>([]);
@@ -21,8 +22,7 @@ export default function ChatRoom() {
   const scrollViewRef = useRef(null);
 
   const createRoomIfNotExists = async () => {
-    let roomId = getRoomId(user?.userId, id);
-    console.log(3211, roomId)
+    let roomId = getRoomId(user?.uid, id);
     await setDoc(doc(db, "rooms", roomId), {
       roomId,
       createdAt: Timestamp.fromDate(new Date()),
@@ -47,7 +47,7 @@ export default function ChatRoom() {
     createRoomIfNotExists();
     fetchUserInfo();
 
-    const roomId = getRoomId(user?.userId, id);
+    const roomId = getRoomId(user?.uid, id);
     const docRef = doc(db, "rooms", roomId);
     const messagesRef = collection(docRef, "messages");
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
@@ -74,7 +74,7 @@ export default function ChatRoom() {
     if (!message) return;
 
     try {
-      const roomId = getRoomId(user?.userId, id);
+      const roomId = getRoomId(user?.uid, id);
       const docRef = doc(db, "rooms", roomId);
       const messageRef = collection(docRef, "messages");
 
@@ -83,7 +83,7 @@ export default function ChatRoom() {
       }
 
       await addDoc(messageRef, {
-        userId: user?.userId,
+        uid: user?.uid,
         text: message,
         profileUrl: user?.profileUrl,
         senderName: user?.username,
@@ -105,7 +105,10 @@ export default function ChatRoom() {
   };
 
   return (
-    <>
+    <KeyboardAvoidingView  
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
     <Stack.Screen options={{ headerShown: false }} />
     <View style={styles.container}>
       <ChatRoomHeader router={router} user={userInfo}></ChatRoomHeader>
@@ -124,7 +127,7 @@ export default function ChatRoom() {
         />
       </View>
     </View>
-    </>
+    </KeyboardAvoidingView>
   );
 }
 

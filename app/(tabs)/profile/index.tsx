@@ -1,36 +1,57 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, FlatList } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { StyleSheet, View, FlatList, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import AddPostButton from '@/components/profile/AddPostButton';
-import ProfileHeader from '@/components/profile/ProfileHeader';
+import TopProfile from '@/components/profile/TopProfile';
 import PostCard from '@/components/profile/PostCard';
+import { useFocusEffect } from '@react-navigation/native';
+import { convertTimestampToDate } from '@/utils/common';
 
 const ProfileScreen = () => {
   const { user } = useAuth();
   const [posts, setPosts] = useState([]);
   const [isScroll, setIsScroll] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const postsCollection = collection(db, 'posts');
-        const postsSnapshot = await getDocs(postsCollection);
-        const postsList = postsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setPosts(postsList);
-      } catch (error) {
-        console.error('Error fetching posts:', error);
-      }
-    };
+  const fetchPosts = useCallback(async () => {
+    if (!user) return;
 
-    fetchPosts();
-  }, []);
+    try {
+      const postsCollection = collection(db, 'posts');
+      const userPostsQuery = query(postsCollection, where('userID', '==', user.uid));
+      const postsSnapshot = await getDocs(userPostsQuery);
+      const postsList = postsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      const sortedPosts = postsList.sort((a, b) => {
+        const dateA = convertTimestampToDate(a.timestamp);
+        const dateB = convertTimestampToDate(b.timestamp);
+        return new Date(dateB) - new Date(dateA);
+      });
+
+      setPosts(sortedPosts);
+    } catch (error) {
+      console.error('Error fetching posts:', error);
+    }
+  }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPosts();
+    }, [fetchPosts])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPosts();
+    setRefreshing(false);
+  };
 
   const handleLike = (id) => {
     console.log(`Liked post ${id}`);
@@ -58,20 +79,26 @@ const ProfileScreen = () => {
       onLike={handleLike}
       onComment={handleComment}
       onShare={handleShare}
+      onDeletePost={fetchPosts}
     />
   );
 
   return (
     <View style={{ position: 'relative' }}>
-      <AddPostButton isScroll={isScroll} router={router} />
+      <AddPostButton isScroll={isScroll} router={router} onRefresh={onRefresh}/>
       <FlatList
         data={posts}
         renderItem={renderPost}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<ProfileHeader user={user} onEditProfile={() => console.log('Edit Profile Pressed')} />}
+        ListHeaderComponent={
+          <TopProfile user={user} onEditProfile={() => console.log('Edit Profile Pressed')} />
+        }
         contentContainerStyle={styles.container}
         onScroll={handleScroll}
         onMomentumScrollEnd={handleScrollEnd}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
     </View>
   );

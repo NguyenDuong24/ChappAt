@@ -1,13 +1,20 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
 export const AuthContext = createContext();
 
 export const AuthContextProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(undefined);
+    
+    const [gender, setGender] = useState('');
+    const [name, setName] = useState('');
+    const [age, setAge] = useState('');
+    const [email, setEmail] = useState('');
+    const [icon, setIcon] = useState('');
+    const [password, setPassword] = useState(''); 
 
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (user) => {
@@ -15,30 +22,44 @@ export const AuthContextProvider = ({ children }) => {
                 setIsAuthenticated(true);
                 setUser(user);
                 updateUserData(user.uid);
+                updateIsOnline(user.uid, true); 
             } else {
                 setIsAuthenticated(false);
                 setUser(null);
             }
         });
-        return () => unsub(); // Correctly unsubscribe
+        return () => unsub();
     }, []);
 
-
-    const updateUserData = async (userId) =>{
-        const docRef = doc(db, 'users', userId);
+    const updateUserData = async (uid) => {
+        const docRef = doc(db, 'users', uid);
         const docSnap = await getDoc(docRef);
-        if(docSnap.exists())
-        {
-            let data = docSnap.data();
-            setUser({
-                ...user, username: data.username, profileUrl: data.profileUrl, userId: data.userId
-            })
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setUser((prevUser) => ({
+                ...prevUser,
+                username: data.username,
+                profileUrl: data.profileUrl,
+                age: data.age,
+                gender: data.gender,
+                isOnline: data.isOnline,
+                bio: data.bio,
+            }));
         }
-    }
+    };
+
+    const updateIsOnline = async (uid, status) => {
+        const docRef = doc(db, 'users', uid);
+        await updateDoc(docRef, { isOnline: status });
+    };
 
     const login = async (email, password) => {
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            const response = await signInWithEmailAndPassword(auth, email, password);
+            const loggedInUser = response.user;
+
+            await updateIsOnline(loggedInUser.uid, true);
+
             return { success: true };
         } catch (error) {
             let msg = error.message;
@@ -51,24 +72,33 @@ export const AuthContextProvider = ({ children }) => {
 
     const logout = async () => {
         try {
+            if (user) {
+                await updateIsOnline(user.uid, false); 
+            }
             await signOut(auth);
         } catch (error) {
             console.error('Error logging out:', error);
         }
     };
 
-    const register = async (email, password, username, profileUrl) => {
+    const register = async () => {
         try {
-            const response = await createUserWithEmailAndPassword(auth, email, password);
-            const user = response.user;
+            if (!email || !password || !name || !age || !gender || !icon) {
+                return { success: false, msg: 'Please fill in all fields.' };
+            }
 
-            await setDoc(doc(db, "users", user.uid), {
-                username,
-                profileUrl,
-                userId: user.uid
+            const response = await createUserWithEmailAndPassword(auth, email, password);
+            const newUser = response.user;
+
+            await setDoc(doc(db, "users", newUser.uid), {
+                username: name,
+                profileUrl: icon, 
+                isOnline: true,
+                age,
+                gender,
             });
 
-            return { success: true, data: user };
+            return { success: true, data: newUser };
         } catch (error) {
             let msg = error.message;
             if (msg.includes('(auth/invalid-email)')) msg = 'Invalid email';
@@ -80,7 +110,15 @@ export const AuthContextProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated, login, register, logout }}>
+        <AuthContext.Provider value={{
+            user, isAuthenticated, login, register, logout,
+            gender, setGender,
+            name, setName,
+            age, setAge,
+            email, setEmail,
+            icon, setIcon,
+            password, setPassword 
+        }}>
             {children}
         </AuthContext.Provider>
     );

@@ -13,8 +13,6 @@ const HomeHeader = () => {
   const handleLogout = async () => {
     try {
       await logout();
-      // Điều hướng người dùng về trang đăng nhập sau khi đăng xuất
-      // navigation.navigate('Login');
     } catch (error) {
       console.error('Error logging out:', error);
     }
@@ -58,7 +56,7 @@ const HomeHeader = () => {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: Colors.light.backgroundHeader, // Thay đổi màu sắc của tiêu đề nếu cần thiết
+    backgroundColor: Colors.light.backgroundHeader, 
     justifyContent: 'space-between',
   },
   title: {
@@ -78,12 +76,12 @@ const styles = StyleSheet.create({
   },
   drawerSection: {
     position: 'absolute',
-    top: 56, // Chiều cao của Appbar.Header
+    top: 56, 
     left: 0,
     right: 0,
     backgroundColor: 'white',
     paddingTop: 20,
-    zIndex: 1, // Đảm bảo Drawer xuất hiện trên các thành phần khác
+    zIndex: 1, 
   },
   buttonContainer: {
     padding: 20,

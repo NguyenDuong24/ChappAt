@@ -1,17 +1,18 @@
-import { View, Text, StyleSheet } from 'react-native';
-import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
 import { Avatar } from 'react-native-paper';
+import { formatTime } from '@/utils/common';
 
 export default function MessageItem({ message, currentUser }: any) {
-  const isCurrentUser = message?.userId === currentUser?.userId;
+  const isCurrentUser = message?.uid === currentUser?.uid;
+  const [showTime, setShowTime] = useState(false); 
+
+  const handlePress = () => {
+    setShowTime(prev => !prev); 
+  };
 
   return (
-    <View
-      style={[
-        styles.messageContainer,
-        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
-      ]}
-    >
+    <TouchableOpacity onPress={handlePress} style={[styles.messageContainer, isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage]}>
       {!isCurrentUser && (
         <Avatar.Image
           size={40}
@@ -19,13 +20,20 @@ export default function MessageItem({ message, currentUser }: any) {
           style={styles.avatar}
         />
       )}
-      <View
-        style={[
-          styles.messageBubble,
-          isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble,
-        ]}
-      >
-        <Text style={styles.messageText}>{message?.text}</Text>
+      <View>
+        <View
+          style={[
+            styles.messageBubble,
+            isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble,
+          ]}
+        >
+          <Text style={styles.messageText}>{message?.text}</Text>
+        </View>
+        {showTime && ( 
+          <Text style={styles.timeText}>
+            {formatTime(message?.createdAt)} {}
+          </Text>
+        )}
       </View>
       {isCurrentUser && (
         <Avatar.Image
@@ -34,14 +42,13 @@ export default function MessageItem({ message, currentUser }: any) {
           style={styles.avatar}
         />
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   messageContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     marginVertical: 8,
     paddingHorizontal: 10,
     maxWidth: '80%',
@@ -60,6 +67,7 @@ const styles = StyleSheet.create({
   messageBubble: {
     padding: 10,
     borderRadius: 15,
+    position: 'relative', 
   },
   currentUserBubble: {
     backgroundColor: '#DCF8C6',
@@ -70,5 +78,10 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 16,
   },
+  timeText: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 0,
+    textAlign: 'right',
+  },
 });
- 

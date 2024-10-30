@@ -8,7 +8,7 @@ const StackLayout = () => {
         <Stack.Screen
          name="index"
          options={{
-            headerTitle: "Profile Page",
+            headerShown: false
          }}
         />
     </Stack>

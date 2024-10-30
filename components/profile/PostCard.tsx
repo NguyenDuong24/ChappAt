@@ -6,8 +6,8 @@ import { deleteDoc, doc } from 'firebase/firestore';
 import { auth, db } from '@/firebaseConfig';
 import { formatTime } from '@/utils/common';
 
-const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => {
-  const currentUserId = user?.uid;
+const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }) => {
+  const currentUserId = user?.uid; // Sử dụng optional chaining
   const [imageHeight, setImageHeight] = useState(250);
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -43,7 +43,7 @@ const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => 
               const postRef = doc(db, 'posts', post.id);
               await deleteDoc(postRef);
               console.log('Post deleted:', post.id);
-              onDeletePost(); 
+              onDeletePost();
             } catch (error) {
               console.error('Error deleting post:', error);
             }
@@ -60,14 +60,14 @@ const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => 
         userId: currentUserId,
         text: commentText,
         timestamp: new Date(),
-        username: user.username, 
-        avatar: user.profileUrl, 
+        username: user.username || 'Unknown User', // Cung cấp fallback cho username
+        avatar: user.profileUrl || 'default_avatar_url_here', // Cung cấp fallback cho avatar
       };
       
-      await addComment(post.id, newComment); 
-      post.comments = [...post.comments, newComment]; 
-      setCommentText(''); 
-      setShowCommentInput(false); 
+      await addComment(post.id, newComment);
+      post.comments = [...post.comments, newComment];
+      setCommentText('');
+      setShowCommentInput(false);
     }
   };
 
@@ -75,8 +75,8 @@ const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => 
     <Provider>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Image source={{ uri: user.profileUrl }} style={styles.avatar} />
-          <Text style={styles.username}>{user.username}</Text>
+          <Image source={{ uri: user.profileUrl || 'default_avatar_url_here' }} style={styles.avatar} />
+          <Text style={styles.username}>{user.username || 'Unknown User'}</Text>
           <Text style={styles.time}>{formatTime(post.timestamp)}</Text>
           {post.ownerId === currentUserId && (
             <Menu
@@ -135,9 +135,9 @@ const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => 
 
         {showCommentInput && post.comments && post.comments.map((comment, index) => (
           <View key={index} style={styles.commentContainer}>
-            <Image source={{ uri: comment.avatar }} style={styles.avatar} />
+            <Image source={{ uri: comment.avatar || 'default_avatar_url_here' }} style={styles.avatar} />
             <View style={styles.commentContent}>
-              <Text style={styles.commentUser}>{comment.username}</Text>
+              <Text style={styles.commentUser}>{comment.username || 'Unknown User'}</Text>
               <Text style={styles.commentText}>{comment.text}</Text>
               <Text style={styles.commentTime}>{formatTime(comment.timestamp)}</Text>
             </View>
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
     elevation: 2,
-    padding: 15
+    padding: 15,
   },
   header: {
     marginBottom: 10,

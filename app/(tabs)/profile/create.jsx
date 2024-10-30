@@ -55,6 +55,7 @@ export default function CreatePostScreen() {
         userID: user?.uid
       };
 
+      // Lưu bài viết vào Firestore
       await addDoc(collection(db, 'posts'), newPost);
       router.back();
     } catch (error) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, Image, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { IconButton, Menu, Provider } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { deleteDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { deleteDoc, doc } from 'firebase/firestore';
 import { auth, db } from '@/firebaseConfig';
 import { formatTime } from '@/utils/common';
 
@@ -65,7 +65,6 @@ const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => 
       };
       
       await addComment(post.id, newComment); 
-  
       post.comments = [...post.comments, newComment]; 
       setCommentText(''); 
       setShowCommentInput(false); 
@@ -76,6 +75,8 @@ const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => 
     <Provider>
       <View style={styles.container}>
         <View style={styles.header}>
+          <Image source={{ uri: user.profileUrl }} style={styles.avatar} />
+          <Text style={styles.username}>{user.username}</Text>
           <Text style={styles.time}>{formatTime(post.timestamp)}</Text>
           {post.ownerId === currentUserId && (
             <Menu
@@ -132,9 +133,6 @@ const PostCard = ({ post, user, onLike, onShare, onDeletePost, addComment }) => 
           </View>
         )}
 
-{
-  console.log(1234, formatTime(post.comments[0]?.timestamp))
-}
         {showCommentInput && post.comments && post.comments.map((comment, index) => (
           <View key={index} style={styles.commentContainer}>
             <Image source={{ uri: comment.avatar }} style={styles.avatar} />
@@ -170,9 +168,21 @@ const styles = StyleSheet.create({
     padding: 15
   },
   header: {
+    marginBottom: 10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  username: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: '#333',
+    flex: 1,
   },
   imageContainer: {
     width: '100%',
@@ -221,12 +231,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#ddd',
     backgroundColor: '#f9f9f9',
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 50,
-    marginRight: 8,
   },
   commentContent: {
     flex: 1,

@@ -78,7 +78,8 @@ const addComment = async (postId, newComment) => {
     deletePost,
     toggleLike,
     addComment,
-    sortedPostsByLike
+    sortedPostsByLike,
+    fetchPosts
   };
 };
 

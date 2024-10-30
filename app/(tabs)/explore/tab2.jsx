@@ -1,18 +1,24 @@
-
 import React, { useState, useEffect } from 'react';
-import { View, FlatList, ActivityIndicator, Alert, Text } from 'react-native';
+import { View, FlatList, ActivityIndicator, Alert, Text, RefreshControl } from 'react-native';
 import useExplore from '../../explore/useExplore';
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
 
 const Tab2Screen = () => {
-  const { sortedPostsByLike, loading, error, deletePost, toggleLike, addComment } = useExplore();
+  const { sortedPostsByLike, loading, error, deletePost, toggleLike, addComment, fetchPosts } = useExplore();
   const { user } = useAuth();
   const [updatedPosts, setUpdatedPosts] = useState(sortedPostsByLike);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     setUpdatedPosts(sortedPostsByLike);
   }, [sortedPostsByLike]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchPosts(); // Fetch posts when refreshing
+    setRefreshing(false);
+  };
 
   const handleDeletePost = (id) => {
     Alert.alert(
@@ -66,6 +72,9 @@ const Tab2Screen = () => {
           />
         )}
         contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
     </View>
   );

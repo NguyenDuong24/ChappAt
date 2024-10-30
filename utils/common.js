@@ -26,4 +26,33 @@ export function formatTime(timestamp) {
       return `${day}/${month}`;
     }
   }
+export const calculateAge = (timestamp: { seconds: number; nanoseconds: number }) => {
+  if (!timestamp || !timestamp.seconds) {
+    return null; // Return null if timestamp is not valid
+  }
+
+  const birthDate = new Date(timestamp.seconds * 1000);
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+export const convertTimestampToDate = (timestamp) => {
+  if (!timestamp || !timestamp.seconds) {
+      return null; // Return null if timestamp is not valid
+  }
+
+  // Chuyển đổi timestamp thành đối tượng Date
+  const date = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+  
+  // Trả về chuỗi theo định dạng ISO 8601
+  return date.toISOString(); // Ví dụ: "2024-10-30T05:52:21.000Z"
+};
+
+
   

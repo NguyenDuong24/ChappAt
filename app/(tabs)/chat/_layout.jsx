@@ -1,17 +1,17 @@
 import { View, Text } from 'react-native'
 import React from 'react'
 import { Stack } from 'expo-router'
-import HomeHeader from '@/components/HomeHeader';
+import ChatListHeader from '../../../components/chat/ChatListHeader';
 
 const StackLayout = () => {
   return (
     <Stack>
-        <Stack.Screen
-         name="index"
-         options={{
-            headerTitle: "Chat Page",
-         }}
-        />
+      <Stack.Screen
+        name="index"
+        options={{
+          headerTitle: () => <ChatListHeader title="Trò chuyện" />,
+        }}
+      />
     </Stack>
   )
 }

@@ -3,40 +3,46 @@ import { View, StyleSheet, Text, TouchableOpacity, Alert } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
-import Loading from '@/components/Loading';
-import { FontAwesome } from 'react-native-vector-icons';
+import { FontAwesome } from '@expo/vector-icons';
 
 const SignUpScreen = () => {
   const [username, setUsername] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
-  const [profileUrl, setProfileUrl] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState(''); // New state for confirm password
   const [loading, setLoading] = React.useState(false);
-  
-  
+
   const { register } = useAuth();
   const router = useRouter();
-  const handleLogin = ()=>{
+
+  const handleLogin = () => {
     router.push('signin');
-  }
+  };
 
   const handleSignUp = async () => {
-    if (!username || !password || !email || !profileUrl) {
+    if (!username || !password || !email || !confirmPassword) {
       Alert.alert('Sign Up', "Please fill all the fields");
-      setLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Sign Up', "Passwords do not match");
       return;
     }
 
     setLoading(true);
-    let response = await register(email, password, username, profileUrl);
-    if(!response.success){
-        Alert.alert('Sign In', response.msg);
+    let response = await register(email, password, username);
+    setLoading(false);
+    if (!response.success) {
+      Alert.alert('Sign Up', response.msg);
     }
-
   };
 
   return (
     <View style={styles.container}>
+      <Text style={styles.title}>Create Account</Text>
+      <Text style={styles.subtitle}>Join us to explore the world of opportunities</Text>
+      
       <View style={styles.inputContainer}>
         <FontAwesome name="user" size={20} style={styles.icon} />
         <TextInput
@@ -44,6 +50,8 @@ const SignUpScreen = () => {
           value={username}
           onChangeText={text => setUsername(text)}
           style={styles.input}
+          mode="flat"
+          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }} // Optional: set theme for input
         />
       </View>
       <View style={styles.inputContainer}>
@@ -54,6 +62,8 @@ const SignUpScreen = () => {
           onChangeText={text => setEmail(text)}
           keyboardType="email-address"
           style={styles.input}
+          mode="flat"
+          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }} // Optional: set theme for input
         />
       </View>
       <View style={styles.inputContainer}>
@@ -64,23 +74,27 @@ const SignUpScreen = () => {
           onChangeText={text => setPassword(text)}
           secureTextEntry
           style={styles.input}
+          mode="flat"
+          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }} // Optional: set theme for input
         />
       </View>
       <View style={styles.inputContainer}>
-        <FontAwesome name="image" size={20} style={styles.icon} />
+        <FontAwesome name="lock" size={20} style={styles.icon} />
         <TextInput
-          label="Profile URL"
-          value={profileUrl}
-          onChangeText={text => setProfileUrl(text)}
+          label="Confirm Password"
+          value={confirmPassword}
+          onChangeText={text => setConfirmPassword(text)} // New input for confirm password
+          secureTextEntry
           style={styles.input}
+          mode="flat"
+          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }} // Optional: set theme for input
         />
       </View>
 
-      <View>
+
+      <View style={styles.buttonContainer}>
         {loading ? (
-          <View>
-            <Loading />
-          </View>
+          <Text>Loading...</Text>
         ) : (
           <Button mode="contained" onPress={handleSignUp} style={styles.button}>
             Sign Up
@@ -103,32 +117,45 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#121212', // Dark background color
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#ffffff', // White text for title
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#b0b0b0', // Light gray for subtitle
+    alignSelf: 'center',
+    marginBottom: 30,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1f1f1f', // Dark background for inputs
     borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+    padding: 12,
+    marginBottom: 15,
+    elevation: 2,
   },
   icon: {
     marginRight: 10,
-    color: '#6e6e6e',
+    color: '#b0b0b0', // Light gray for icon
   },
   input: {
     flex: 1,
-    backgroundColor: 'transparent',
+    color: '#ffffff', // White text for input
+  },
+  buttonContainer: {
+    marginTop: 20,
   },
   button: {
-    marginTop: 20,
     borderRadius: 10,
+    paddingVertical: 10,
+    backgroundColor: '#1e90ff', // Button color
   },
   signUpTextContainer: {
     flexDirection: 'row',
@@ -137,12 +164,12 @@ const styles = StyleSheet.create({
   },
   signUpText: {
     fontSize: 16,
-    color: '#6e6e6e',
+    color: '#b0b0b0', // Light gray for sign-up text
   },
   signUpLink: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1e90ff',
+    color: '#1e90ff', // Blue color for sign-up link
   },
 });
 

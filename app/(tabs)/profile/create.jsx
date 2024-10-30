@@ -3,14 +3,20 @@ import { View, StyleSheet, Image, TouchableOpacity, Text } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, setDoc, Timestamp,serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+import { useAuth } from '@/context/authContext';
+
+const storage = getStorage();
 
 export default function CreatePostScreen() {
   const [tag, setTag] = useState('');
   const [content, setContent] = useState('');
   const [image, setImage] = useState(null);
   const router = useRouter();
+  const { user } = useAuth();
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -26,18 +32,38 @@ export default function CreatePostScreen() {
 
   const handleSave = async () => {
     try {
+      let imageUrl = null;
+
+      if (image) {
+        // Tạo tên file duy nhất cho ảnh bằng timestamp và chuỗi ngẫu nhiên
+        const storageRef = ref(storage, `images/${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`);
+
+        // Chuyển đổi URI thành blob
+        const response = await fetch(image);
+        const blob = await response.blob();
+
+        // Tải ảnh lên Firebase Storage
+        await uploadBytes(storageRef, blob);
+
+        // Lấy URL của ảnh sau khi tải lên
+        imageUrl = await getDownloadURL(storageRef);
+      }
+
+      // Tạo đối tượng bài viết với URL của ảnh
       const newPost = {
         tag,
         content,
-        image,
+        image: imageUrl,
         likes: [],
         comments: [],
         shares: 0,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        userID: user?.uid
       };
 
+      // Lưu bài viết vào Firestore
       await addDoc(collection(db, 'posts'), newPost);
-      console.log('Post saved successfully');
+      // Trở lại màn hình trước đó
       router.back();
     } catch (error) {
       console.error('Error adding post: ', error);
@@ -58,7 +84,7 @@ export default function CreatePostScreen() {
       <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
         <Text style={styles.imagePickerText}>Pick an image</Text>
       </TouchableOpacity>
-      {image && <Image source={{ uri: image }} style={styles.image} resizeMode="contain"/>}
+      {image && <Image source={{ uri: image }} style={styles.image} resizeMode="contain" />}
       <Button mode="contained" onPress={handleSave} style={styles.button}>
         Save Post
       </Button>

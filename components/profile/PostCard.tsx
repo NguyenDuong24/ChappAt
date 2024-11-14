@@ -1,19 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { StyleSheet, View, Text, Image, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { IconButton, Menu, Provider } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { auth, db } from '@/firebaseConfig';
 import { formatTime } from '@/utils/common';
+import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
+import { Colors } from '@/constants/Colors'; // Import Colors
+import { useRouter } from 'expo-router';
+import CustomImage from '../common/CustomImage'
 
 const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }) => {
-  const currentUserId = user?.uid; // Sử dụng optional chaining
+  const { theme } = useContext(ThemeContext); // Lấy theme từ context
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Chọn màu theo theme
+  const router = useRouter();
+  const currentUserId = user?.uid;
   const [imageHeight, setImageHeight] = useState(250);
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
   const isLiked = post.likes && post.likes.includes(currentUserId);
-
+  console.log(321, post.image)
   useEffect(() => {
     if (post.image) {
       Image.getSize(post.image, (width, height) => {
@@ -60,8 +67,8 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
         userId: currentUserId,
         text: commentText,
         timestamp: new Date(),
-        username: user.username || 'Unknown User', // Cung cấp fallback cho username
-        avatar: user.profileUrl || 'default_avatar_url_here', // Cung cấp fallback cho avatar
+        username: user.username || 'Unknown User',
+        avatar: user.profileUrl || 'default_avatar_url_here',
       };
       
       await addComment(post.id, newComment);
@@ -73,11 +80,11 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
 
   return (
     <Provider>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: currentThemeColors.background, borderBottomColor: currentThemeColors.border }]}>
         <View style={styles.header}>
           <Image source={{ uri: user.profileUrl || 'default_avatar_url_here' }} style={styles.avatar} />
-          <Text style={styles.username}>{user.username || 'Unknown User'}</Text>
-          <Text style={styles.time}>{formatTime(post.timestamp)}</Text>
+          <Text style={[styles.username, { color: currentThemeColors.text }]}>{user.username || 'Unknown User'}</Text>
+          <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>{formatTime(post.timestamp)}</Text>
           {post.ownerId === currentUserId && (
             <Menu
               style={{ position: 'absolute', top: 35, width: 'auto' }}
@@ -85,7 +92,7 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
               onDismiss={closeMenu}
               anchor={
                 <TouchableOpacity onPress={openMenu}>
-                  <MaterialIcons name="more-vert" size={24} color="black" />
+                  <MaterialIcons name="more-vert" size={24} color={currentThemeColors.icon} />
                 </TouchableOpacity>
               }
             >
@@ -93,27 +100,25 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
             </Menu>
           )}
         </View>
-        <Text style={styles.paragraph}>{post.content}</Text>
+        <Text style={[styles.paragraph, { color: currentThemeColors.text }]}>{post.content}</Text>
 
         {post.image && (
-          <TouchableOpacity onPress={() => console.log(post.id)} style={[styles.imageContainer, { height: imageHeight }]}>
-            <Image source={{ uri: post.image }} style={styles.image} resizeMode="contain" />
-          </TouchableOpacity>
+          <CustomImage source={post.image} style={[styles.imageContainer, { height: imageHeight }]}></CustomImage>
         )}
 
         <View style={styles.content}>
           <View style={styles.actions}>
             <TouchableOpacity onPress={() => onLike(post.id, currentUserId, isLiked)} style={styles.actionButton}>
-              <IconButton icon="heart" size={20} iconColor={isLiked ? 'red' : 'grey'} />
-              <Text style={styles.actionText}>{post.likes.length}</Text>
+              <IconButton icon="heart" size={20} iconColor={isLiked ? currentThemeColors.tint : currentThemeColors.icon} />
+              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>{post.likes.length}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowCommentInput(!showCommentInput)} style={styles.actionButton}>
-              <IconButton icon="comment" size={20} />
-              <Text style={styles.actionText}>{post.comments ? post.comments.length : 0}</Text>
+              <IconButton icon="comment" size={20} iconColor={currentThemeColors.icon} />
+              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>{post.comments ? post.comments.length : 0}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onShare(post.id)} style={styles.actionButton}>
-              <IconButton icon="share" size={20} />
-              <Text style={styles.actionText}>{post.shares}</Text>
+              <IconButton icon="share" size={20} iconColor={currentThemeColors.icon} />
+              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>{post.shares}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -121,25 +126,26 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
         {showCommentInput && (
           <View style={styles.commentInputContainer}>
             <TextInput
-              style={styles.commentInput}
+              style={[styles.commentInput, { borderColor: currentThemeColors.border }]}
               placeholder="Add a comment..."
               value={commentText}
               onChangeText={setCommentText}
               onSubmitEditing={handleAddComment}
+              placeholderTextColor={currentThemeColors.placeholderText}
             />
             <TouchableOpacity onPress={handleAddComment}>
-              <Text style={styles.commentButton}>Send</Text>
+              <Text style={[styles.commentButton, { color: currentThemeColors.tint }]}>Send</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {showCommentInput && post.comments && post.comments.map((comment, index) => (
-          <View key={index} style={styles.commentContainer}>
+        {post.comments && post.comments.map((comment, index) => (
+          <View key={index} style={[styles.commentContainer, { backgroundColor: currentThemeColors.background }]}>
             <Image source={{ uri: comment.avatar || 'default_avatar_url_here' }} style={styles.avatar} />
             <View style={styles.commentContent}>
-              <Text style={styles.commentUser}>{comment.username || 'Unknown User'}</Text>
-              <Text style={styles.commentText}>{comment.text}</Text>
-              <Text style={styles.commentTime}>{formatTime(comment.timestamp)}</Text>
+              <Text style={[styles.commentUser, { color: currentThemeColors.text }]}>{comment.username || 'Unknown User'}</Text>
+              <Text style={[styles.commentText, { color: currentThemeColors.text }]}>{comment.text}</Text>
+              <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>{formatTime(comment.timestamp)}</Text>
             </View>
           </View>
         ))}
@@ -154,8 +160,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-    backgroundColor: '#fff',
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: {
@@ -181,7 +185,6 @@ const styles = StyleSheet.create({
   username: {
     fontWeight: 'bold',
     fontSize: 16,
-    color: '#333',
     flex: 1,
   },
   imageContainer: {
@@ -206,7 +209,6 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 14,
-    color: '#999',
     marginBottom: 8,
   },
   actions: {
@@ -222,33 +224,27 @@ const styles = StyleSheet.create({
   actionText: {
     marginLeft: 4,
     fontSize: 16,
-    color: '#333',
   },
   commentContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-    backgroundColor: '#f9f9f9',
   },
   commentContent: {
+    justifyContent: 'center',
     flex: 1,
     paddingVertical: 4,
   },
   commentUser: {
     fontWeight: 'bold',
-    fontSize: 18,
-    color: '#333',
+    fontSize: 16,
   },
   commentText: {
-    fontSize: 13,
-    color: '#333',
-    marginBottom: 2,
+    fontSize: 14,
+    marginBottom: 4,
   },
   commentTime: {
     fontSize: 12,
-    color: '#999',
   },
   commentInputContainer: {
     flexDirection: 'row',
@@ -258,13 +254,11 @@ const styles = StyleSheet.create({
   commentInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ddd',
     borderRadius: 5,
     padding: 8,
     marginRight: 8,
   },
   commentButton: {
-    color: '#007BFF',
     fontWeight: 'bold',
   },
 });

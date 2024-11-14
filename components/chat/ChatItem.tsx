@@ -2,21 +2,22 @@ import { db } from '@/firebaseConfig';
 import { calculateAge, formatTime, getRoomId } from '@/utils/common';
 import { useRouter } from 'expo-router';
 import { collection, doc, DocumentData, onSnapshot, orderBy, query } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { TouchableOpacity } from 'react-native';
-import { Avatar, Text, useTheme } from 'react-native-paper';
+import React, { useEffect, useState, useContext } from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Avatar, Text } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Colors } from '@/constants/Colors';
+import { ThemeContext } from '@/context/ThemeContext';  // Import your theme context
+import { Colors } from '@/constants/Colors';  // Assuming Colors contains both light and dark colors
 
 const ChatItem = ({ item, noBorder = false, currenUser }) => {
-  const { colors } = useTheme();
+  const { theme } = useContext(ThemeContext);  // Access the current theme context
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;  // Choose colors based on theme
+
   const router = useRouter();
   const [lastMessage, setLastMessage] = useState<DocumentData | null>(null);
   const maxLength = 25;
 
-  const ageColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : Colors.neutralDark;
-
+  const genderIconColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : Colors.neutralDark;
   useEffect(() => {
     const roomId = getRoomId(currenUser?.uid, item?.id);
     const docRef = doc(db, "rooms", roomId);
@@ -53,7 +54,7 @@ const ChatItem = ({ item, noBorder = false, currenUser }) => {
 
   return (
     <TouchableOpacity
-      style={[styles.container, !noBorder && { borderBottomColor: colors.border }]}
+      style={[styles.container, !noBorder && { borderBottomColor: currentThemeColors.border }]}
       onPress={() => {
         router.push({
           pathname: "/chat/[id]",
@@ -63,28 +64,28 @@ const ChatItem = ({ item, noBorder = false, currenUser }) => {
     >
       <View style={styles.avatarContainer}>
         <Avatar.Image size={50} source={{ uri: item.profileUrl }} style={styles.image} />
-        <View style={[styles.statusIndicator, item.isOnline ? styles.online : styles.offline]} />
+        <View style={[styles.statusIndicator, item.isOnline ? styles.online : styles.offline, { borderColor: currentThemeColors.background }]} />
       </View>
       <View style={styles.textContainer}>
         <View style={styles.header}>
           <View style={styles.userInfo}>
-            <Text style={[styles.name, { color: colors.text }]}>
+            <Text style={[styles.name, { color: currentThemeColors.text }]}>
               {renderUsername()}
             </Text>
             {item.gender === 'male' ? (
-              <MaterialCommunityIcons name="gender-male" size={15} color={Colors.primary} />
+              <MaterialCommunityIcons name="gender-male" size={15} color={genderIconColor} />
             ) : item.gender === 'female' ? (
-              <MaterialCommunityIcons name="gender-female" size={15} color={Colors.secondary} />
+              <MaterialCommunityIcons name="gender-female" size={15} color={genderIconColor} />
             ) : null}
-            <Text style={[styles.age, { color: ageColor }]}>
+            <Text style={[styles.age, { color: genderIconColor }]}>
               {calculateAge(item.age)}
             </Text>
           </View>
-          <Text style={[styles.time, { color: colors.subtleText }]}>
+          <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
             {renderTime()}
           </Text>
         </View>
-        <Text style={[styles.lastMessage, { color: colors.subtleText }]}>
+        <Text style={[styles.lastMessage, { color: currentThemeColors.subtleText }]}>
           {renderLastMessage()}
         </Text>
       </View>
@@ -97,7 +98,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 15,
     borderBottomWidth: 1,
-    borderColor: Colors.borderLine,
   },
   avatarContainer: {
     position: 'relative',
@@ -121,20 +121,16 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.light.text, 
   },
   age: {
     fontSize: 12,
     marginLeft: 5,
-    color: Colors.light.icon, 
   },
   time: {
     fontSize: 12,
-    color: Colors.light.icon, 
   },
   lastMessage: {
     fontSize: 14,
-    color: Colors.light.icon, 
   },
   statusIndicator: {
     width: 14,
@@ -144,13 +140,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 13,
     borderWidth: 2,
-    borderColor: Colors.light.background,
   },
   online: {
-    backgroundColor: Colors.success,
+    backgroundColor: '#4CAF50', // Green for online
   },
   offline: {
-    backgroundColor: Colors.warning,
+    backgroundColor: '#FFC107', // Yellow for offline
   },
 });
 

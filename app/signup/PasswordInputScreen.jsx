@@ -42,6 +42,7 @@ const PasswordInputScreen = () => {
   const handleSignUp = async () => {
     if (!name || !password || !email || !age || !gender) {
       Alert.alert('Sign Up', "Please fill all the fields");
+      console.log(111, name, password, email, age,gender)
       return;
     }
 

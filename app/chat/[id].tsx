@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useContext } from 'react'; 
 import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { TextInput, Appbar } from 'react-native-paper';
@@ -10,16 +10,19 @@ import { Colors } from '@/constants/Colors';
 import ChatRoomHeader from '@/components/chat/ChatRoomHeader';
 import { getRoomId } from '@/utils/common';
 import MessageList from '@/components/chat/MessageList';
+import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
 
 export default function ChatRoom() {
   const { id } = useLocalSearchParams();  
-  console.log(123, id)
   const router = useRouter();
   const { user } = useAuth();
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [userInfo, setUserInfo] = useState(null);
   const scrollViewRef = useRef(null);
+
+  const { theme } = useContext(ThemeContext); // Lấy theme từ context
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Apply theme colors dynamically
 
   const createRoomIfNotExists = async () => {
     let roomId = getRoomId(user?.uid, id);
@@ -79,7 +82,7 @@ export default function ChatRoom() {
       const messageRef = collection(docRef, "messages");
 
       if (newMessage) {
-        setNewMessage('');
+        setNewMessage(''); // Clear the input field after sending the message
       }
 
       await addDoc(messageRef, {
@@ -109,24 +112,26 @@ export default function ChatRoom() {
       style={{ flex: 1 }} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-    <Stack.Screen options={{ headerShown: false }} />
-    <View style={styles.container}>
-      <ChatRoomHeader router={router} user={userInfo}></ChatRoomHeader>
-      <View style={styles.messageListContainer}>
-        <MessageList scrollViewRef={scrollViewRef} messages={messages} currentUser={user} />
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        <ChatRoomHeader router={router} user={userInfo} />
+        <View style={styles.messageListContainer}>
+          <MessageList scrollViewRef={scrollViewRef} messages={messages} currentUser={user} />
+        </View>
+        <View style={styles.inputContainer}>
+          <TextInput
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type a message"
+            mode="outlined"
+            style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
+            theme={{ roundness: 50 }}
+            placeholderTextColor={currentThemeColors.placeholderText} // Set placeholder text color dynamically
+            textColor={currentThemeColors.text} // Set text color dynamically
+            right={<TextInput.Icon icon="send" onPress={handleSend} />}
+          />
+        </View>
       </View>
-      <View style={styles.inputContainer}>
-        <TextInput
-          value={newMessage}
-          onChangeText={setNewMessage}
-          placeholder="Type a message"
-          mode="outlined"
-          style={styles.input}
-          theme={{ roundness: 50 }}
-          right={<TextInput.Icon icon="send" onPress={handleSend} />}
-        />
-      </View>
-    </View>
     </KeyboardAvoidingView>
   );
 }

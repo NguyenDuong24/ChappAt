@@ -1,71 +1,77 @@
 import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { doc, collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import ChatItem from './ChatItem';
 import { getRoomId } from '@/utils/common';
 import { db } from '@/firebaseConfig';
+import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
+import { Colors } from '@/constants/Colors'; // Assuming you have a Colors file for theme management
 
 const ChatList = ({ users, currenUser, onRefresh }: any) => {
-  const [lastMessages, setLastMessages] = useState<{ [key: string]: any }>({});
-  const [sortedUsers, setSortedUsers] = useState(users);
+  const { theme } = useContext(ThemeContext); // Get the theme from ThemeContext
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Use theme-specific colors
+
+  const [sortedUsers, setSortedUsers] = useState<any[]>([]);
 
   useEffect(() => {
-    const unsubscribe = users.map((user) => {
-      const roomId = getRoomId(currenUser?.uid, user.uid);
-      const messagesRef = collection(doc(db, "rooms", roomId), "messages");
+    let usersLastMessage: any[] = [];
+    const unsubscribes = users.map((user) => {
+      const roomId = getRoomId(currenUser?.uid, user?.id);
+      const docRef = doc(db, 'rooms', roomId);
+      const messagesRef = collection(docRef, 'messages');
       const q = query(messagesRef, orderBy('createdAt', 'desc'));
 
-      return onSnapshot(q, (snapshot) => {
+      const unsubscribe = onSnapshot(q, (snapshot) => {
         const allMessages = snapshot.docs.map((doc) => doc.data());
-        const lastMessage = allMessages[0] || null; 
+        const lastMessage = allMessages[0] || null;
 
-        setLastMessages((prev) => ({
-          ...prev,
-          [user.uid]: lastMessage,
-        }));
+        const updatedUser = {
+          user,
+          lastMessage,
+        };
+
+        const userIndex = usersLastMessage.findIndex(u => u.user.id === user.id);
+
+        if (userIndex >= 0) {
+          usersLastMessage[userIndex] = updatedUser;
+        } else {
+          usersLastMessage.push(updatedUser);
+        }
+
+        usersLastMessage = [...usersLastMessage].sort((a, b) => {
+          const aTime = a.lastMessage?.createdAt?.seconds || 0;
+          const bTime = b.lastMessage?.createdAt?.seconds || 0;
+          return bTime - aTime;
+        });
+
+        setSortedUsers(usersLastMessage);
       });
+
+      return unsubscribe;
     });
 
     return () => {
-      unsubscribe.forEach((unsub) => unsub());
+      unsubscribes.forEach((unsub) => unsub());
     };
   }, [users, currenUser]);
 
-  useEffect(() => {
-    const sorted = [...users].sort((a, b) => {
-      const lastMessageA = lastMessages[a.uid];
-      const lastMessageB = lastMessages[b.uid];
-
-      if (lastMessageA && lastMessageB) {
-        return lastMessageB.createdAt - lastMessageA.createdAt; 
-      } else if (lastMessageA) {
-        return -1;
-      } else if (lastMessageB) {
-        return 1; 
-      }
-      return 0;
-    });
-
-    setSortedUsers(sorted);
-  }, [lastMessages, users]);
-
   const renderEmptyList = () => (
-    <View style={styles.emptyList}>
-      <Text style={styles.emptyText}>No users available</Text>
+    <View style={[styles.emptyList, { backgroundColor: currentThemeColors.background }]}>
+      <Text style={[styles.emptyText, { color: currentThemeColors.text }]}>No users available</Text>
     </View>
   );
 
   return (
-    <View>
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       <FlatList
-        data={sortedUsers} 
+        data={sortedUsers}
         contentContainerStyle={styles.listContainer}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) => (item.user?.id ? item.user.id.toString() : index.toString())}
         showsVerticalScrollIndicator={false}
         renderItem={({ item, index }) => (
           <ChatItem
-            item={item}
-            lastMessage={lastMessages[item.uid]} 
+            item={item.user}
+            lastMessage={item.lastMessage}
             noBorder={index + 1 === sortedUsers.length}
             currenUser={currenUser}
           />
@@ -73,8 +79,9 @@ const ChatList = ({ users, currenUser, onRefresh }: any) => {
         ListEmptyComponent={renderEmptyList}
         refreshControl={
           <RefreshControl
-            refreshing={false} 
+            refreshing={false}
             onRefresh={onRefresh}
+            tintColor={currentThemeColors.text} // Customize the refresh control color
           />
         }
       />
@@ -96,7 +103,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 18,
-    color: '#888',
+    color: '#888', 
   },
 });
 

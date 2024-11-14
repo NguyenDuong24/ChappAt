@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useContext } from 'react';
 import { StyleSheet, View, FlatList, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
@@ -9,6 +9,8 @@ import TopProfile from '@/components/profile/TopProfile';
 import PostCard from '@/components/profile/PostCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { convertTimestampToDate } from '@/utils/common';
+import { ThemeContext } from '@/context/ThemeContext';
+import { Colors } from '@/constants/Colors';
 
 const ProfileScreen = () => {
   const { user } = useAuth();
@@ -16,6 +18,10 @@ const ProfileScreen = () => {
   const [isScroll, setIsScroll] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+
+  console.log(1234567, user)
+  const { theme } = useContext(ThemeContext);
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const fetchPosts = useCallback(async () => {
     if (!user) return;
@@ -84,8 +90,8 @@ const ProfileScreen = () => {
   );
 
   return (
-    <View style={{ position: 'relative' }}>
-      <AddPostButton isScroll={isScroll} router={router} onRefresh={onRefresh}/>
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+      <AddPostButton isScroll={isScroll} router={router} onRefresh={onRefresh} />
       <FlatList
         data={posts}
         renderItem={renderPost}
@@ -93,7 +99,7 @@ const ProfileScreen = () => {
         ListHeaderComponent={
           <TopProfile user={user} onEditProfile={() => console.log('Edit Profile Pressed')} />
         }
-        contentContainerStyle={styles.container}
+        contentContainerStyle={styles.flatListContainer}
         onScroll={handleScroll}
         onMomentumScrollEnd={handleScrollEnd}
         refreshControl={
@@ -106,7 +112,10 @@ const ProfileScreen = () => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#f0f0f0',
+    flex: 1,
+  },
+  flatListContainer: {
+    paddingTop: 20,
   },
 });
 

@@ -1,19 +1,24 @@
 import { Tabs } from 'expo-router';
-import { Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet, View } from 'react-native';
 import { Colors } from '@/constants/Colors';
+import { useContext } from 'react';
+import { ThemeContext } from '@/context/ThemeContext';
 
 export default function ExploreLayout() {
+  const { theme } = useContext(ThemeContext);
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   return (
-    <Tabs
+    <View style={[styles.container]}>
+      <Tabs
       screenOptions={{
         tabBarStyle: {
           position: 'absolute',
           paddingBottom: 15,
           top: 50,
           elevation: 0,
-          backgroundColor: 'rgba(255, 255, 255, 0)',
+          backgroundColor: currentThemeColors.background,
           borderBottomWidth: 1,
-          borderBottomColor: Colors.borderLine,
+          borderBottomColor: 'white',
           borderTopWidth: 0,
           shadowColor: 'transparent',
         },
@@ -24,10 +29,10 @@ export default function ExploreLayout() {
         name="tab1"
         options={{
           tabBarLabel: ({ focused }) => (
-            <Text style={[styles.tabLabel, focused && styles.focusedTabLabel]}>
+            <Text style={[styles.tabLabel, focused && { color: currentThemeColors.text, fontSize: 18 }]}>
               Mới Nhất
             </Text>
-          ), 
+          ),
           tabBarIcon: () => null,
         }}
       />
@@ -35,25 +40,32 @@ export default function ExploreLayout() {
         name="tab2"
         options={{
           tabBarLabel: ({ focused }) => (
-            <Text style={[styles.tabLabel, focused && styles.focusedTabLabel]}>
+            <Text style={[styles.tabLabel, focused && { color: currentThemeColors.text, fontSize: 18 }]}>
               Phổ Biến
             </Text>
           ),
           tabBarIcon: () => null,
         }}
       />
+      <Tabs.Screen
+          name="explore/[id]"
+          options={{
+            headerShown: false,
+          }}
+        />
     </Tabs>
+    
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabLabel: {
-    fontWeight: 'bold', // In đậm văn bản
-    fontSize: 16, // Kích thước font chữ
-    color: 'lightgray', // Màu sắc văn bản khi không được chọn
+  container: {
+    flex: 1,
   },
-  focusedTabLabel: {
-    color: 'black', // Màu sắc văn bản khi được chọn
-    fontSize: 18, // Tăng kích thước font chữ khi được chọn
+  tabLabel: {
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: 'lightgray',
   },
 });

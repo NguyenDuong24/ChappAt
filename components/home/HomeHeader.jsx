@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import { Appbar, Drawer, Avatar, Button, IconButton, DrawerSection, DrawerItem } from 'react-native-paper';
+import { Appbar, Avatar, Button, Drawer, IconButton, useTheme } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
 import { FontAwesome } from 'react-native-vector-icons';
 
@@ -9,6 +9,8 @@ import { Colors } from '@/constants/Colors';
 const HomeHeader = () => {
   const { logout, user } = useAuth();
   const [drawerVisible, setDrawerVisible] = useState(false);
+
+  const { colors } = useTheme();
 
   const handleLogout = async () => {
     try {
@@ -24,27 +26,28 @@ const HomeHeader = () => {
 
   return (
     <View>
-      <Appbar.Header style={styles.header}>
+      <Appbar.Header style={[styles.header, { backgroundColor: colors.primary }]}>
         <Appbar.Action icon="filter" onPress={toggleDrawer} color="white" />
-        <Appbar.Content title="Dating App" titleStyle={styles.title} />
+        <Appbar.Content title="Dating App" titleStyle={[styles.title, { color: colors.text }]} />
         <View style={styles.rightContainer}>
-          <Text style={styles.greeting}>Hey there, {user ? user.displayName : 'Guest'}!</Text>
+          <Text style={[styles.greeting, { color: colors.text }]}>
+            Hey there, {user ? user.displayName : 'Guest'}!
+          </Text>
           {user && user.photoURL ? (
             <Avatar.Image size={40} source={{ uri: user.photoURL }} style={styles.avatar} />
           ) : (
-            <FontAwesome name="user-circle" size={40} color="white" style={styles.avatar} />
+            <FontAwesome name="user-circle" size={40} color={colors.text} style={styles.avatar} />
           )}
           <Appbar.Action icon="logout" onPress={handleLogout} color="white" />
         </View>
       </Appbar.Header>
-
       {drawerVisible && (
-        <Drawer.Section style={styles.drawerSection}>
+        <Drawer.Section style={[styles.drawerSection, { backgroundColor: colors.background }]}>
           <Drawer.Item label="Filter Option 1" />
           <Drawer.Item label="Filter Option 2" />
           <Drawer.Item label="Filter Option 3" />
           <View style={styles.buttonContainer}>
-            <Button mode="contained" onPress={toggleDrawer}>
+            <Button mode="contained" onPress={toggleDrawer} color={colors.accent}>
               Apply
             </Button>
           </View>
@@ -56,8 +59,8 @@ const HomeHeader = () => {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: Colors.light.backgroundHeader, 
     justifyContent: 'space-between',
+    paddingTop: 0,
   },
   title: {
     fontWeight: 'bold',
@@ -68,7 +71,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   greeting: {
-    color: 'white',
     marginRight: 10,
   },
   avatar: {
@@ -76,12 +78,12 @@ const styles = StyleSheet.create({
   },
   drawerSection: {
     position: 'absolute',
-    top: 56, 
+    top: 56,
     left: 0,
     right: 0,
-    backgroundColor: 'white',
     paddingTop: 20,
-    zIndex: 1, 
+    zIndex: 1,
+    elevation: 5,
   },
   buttonContainer: {
     padding: 20,

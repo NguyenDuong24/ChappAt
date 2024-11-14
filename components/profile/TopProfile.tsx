@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, Image, TextInput, TouchableOpacity } from 'react-native';
-import { Avatar, Title, Paragraph, Divider, IconButton, Menu, Provider } from 'react-native-paper';
+import React, { useState } from 'react';
+import { StyleSheet, View, Image, TextInput, TouchableOpacity } from 'react-native';
+import { Avatar, Title, Paragraph, Divider } from 'react-native-paper';
 import { AntDesign } from '@expo/vector-icons';
 import { db } from '@/firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Colors } from '@/constants/Colors';
+import Feather from '@expo/vector-icons/Feather';
+import { useRouter } from 'expo-router';
+import CustomImage from '../common/CustomImage'
 
 const TopProfile = ({ onEditProfile, user, handleLogout }) => {
-  const [menuVisible, setMenuVisible] = useState(false);
   const [isEditingBio, setIsEditingBio] = useState(false);
   const [bio, setBio] = useState(user?.bio || '');
-
-  const openMenu = () => setMenuVisible(true);
-  const closeMenu = () => setMenuVisible(false);
-
+  const router = useRouter();
   const handleSaveBio = async () => {
     try {
       if (user && user.uid) {
@@ -31,87 +30,58 @@ const TopProfile = ({ onEditProfile, user, handleLogout }) => {
   }
 
   return (
-    <Provider>
-      <View>
-        <View style={styles.coverPhotoContainer}>
-          <Image
-            source={{
-              uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRSOpH_l_mimlUGRouXcGnFY_-54ddnpsU7Zw&s',
-            }}
-            style={styles.coverPhoto}
-          />
-          <Menu
-            visible={menuVisible}
-            onDismiss={closeMenu}
-            anchor={
-              <IconButton
-                icon="dots-vertical"
-                size={30}
-                style={styles.settingsButton}
-                onPress={openMenu}
-              />
-            }
-          >
-            <Menu.Item
-              icon="logout"
-              onPress={() => {
-                closeMenu();
-                handleLogout();
-              }}
-              title="Log Out"
-              titleStyle={{ color: Colors.light.text }}
-            />
-          </Menu>
-        </View>
-
-        {/* Profile Picture and Info */}
-        <View style={styles.header}>
-          <View style={styles.avatarContainer}>
-            <Avatar.Image size={100} source={{ uri: user.profileUrl }} />
-          </View>
-          <Title style={styles.name}>{user.username}</Title>
-          
-          {/* Bio Section */}
-          <View style={styles.bioContainer}>
-            {isEditingBio ? (
-              <TextInput
-                style={styles.bioInput}
-                value={bio}
-                onChangeText={setBio}
-                autoFocus
-              />
-            ) : (
-              <Paragraph style={styles.bio}>{bio || 'No bio available'}</Paragraph>
-            )}
-            <TouchableOpacity
-              onPress={() => (isEditingBio ? handleSaveBio() : setIsEditingBio(true))}
-              style={styles.editIcon}
-            >
-              <AntDesign name={isEditingBio ? 'check' : 'edit'} size={13} color={Colors.light.icon} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <Divider style={styles.divider} />
-
-        {/* Stats Section */}
-        <View style={styles.statsContainer}>
-          <View style={styles.stat}>
-            <Title style={styles.statValue}>120</Title>
-            <Paragraph style={styles.statLabel}>Posts</Paragraph>
-          </View>
-          <View style={styles.stat}>
-            <Title style={styles.statValue}>350</Title>
-            <Paragraph style={styles.statLabel}>Followers</Paragraph>
-          </View>
-          <View style={styles.stat}>
-            <Title style={styles.statValue}>180</Title>
-            <Paragraph style={styles.statLabel}>Following</Paragraph>
-          </View>
-        </View>
-        <Divider style={styles.divider} />
+    <View>
+      <View style={styles.coverPhotoContainer}>
+        <CustomImage type={'cover'} source={user?.coverImage} style={styles.coverPhoto}></CustomImage>
+          <TouchableOpacity onPress={ ()=>{
+            router.push('/profile/settings')
+          }} style={styles.settingsButton}>
+            <Feather name="settings" size={24} color="white" />
+          </TouchableOpacity>
       </View>
-    </Provider>
+
+      <View style={styles.header}>
+        <Avatar.Image size={100} source={{ uri: user.profileUrl }} />
+        <Title style={styles.name}>{user.username}</Title>
+        
+        <View style={styles.bioContainer}>
+          {isEditingBio ? (
+            <TextInput
+              style={styles.bioInput}
+              value={bio}
+              onChangeText={setBio}
+              autoFocus
+            />
+          ) : (
+            <Paragraph style={styles.bio}>{bio || 'No bio available'}</Paragraph>
+          )}
+          <TouchableOpacity
+            onPress={() => (isEditingBio ? handleSaveBio() : setIsEditingBio(true))}
+            style={styles.editIcon}
+          >
+            <AntDesign name={isEditingBio ? 'check' : 'edit'} size={13} color={Colors.light.icon} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <Divider style={styles.divider} />
+
+      <View style={styles.statsContainer}>
+        <View style={styles.stat}>
+          <Title style={styles.statValue}>120</Title>
+          <Paragraph style={styles.statLabel}>Posts</Paragraph>
+        </View>
+        <View style={styles.stat}>
+          <Title style={styles.statValue}>350</Title>
+          <Paragraph style={styles.statLabel}>Followers</Paragraph>
+        </View>
+        <View style={styles.stat}>
+          <Title style={styles.statValue}>180</Title>
+          <Paragraph style={styles.statLabel}>Following</Paragraph>
+        </View>
+      </View>
+      <Divider style={styles.divider} />
+    </View>
   );
 };
 
@@ -119,8 +89,7 @@ const styles = StyleSheet.create({
   coverPhotoContainer: {
     height: 200,
     overflow: 'hidden',
-    justifyContent: 'flex-end',
-    alignItems: 'flex-end',
+    position: 'relative',  // Đặt relative để settings button có thể định vị tuyệt đối
   },
   coverPhoto: {
     width: '100%',
@@ -129,15 +98,17 @@ const styles = StyleSheet.create({
   },
   settingsButton: {
     position: 'absolute',
-    top: 20,
+    top: 25,
     right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',  // Làm nút trong suốt để dễ nhìn trên hình
+    padding: 8,
+    borderRadius: 50,
   },
   header: {
     padding: 16,
     alignItems: 'center',
     marginTop: -50,
   },
-  avatarContainer: {},
   bioContainer: {
     flexDirection: 'row',
     alignItems: 'center',

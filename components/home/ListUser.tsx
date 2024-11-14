@@ -1,20 +1,34 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useContext } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, Text, RefreshControl } from 'react-native';
 import { Avatar } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { calculateAge } from '@/utils/common';
 import { Colors } from '@/constants/Colors';
+import { calculateDistance } from '@/utils/calculateDistance';
+
+import { LocationContext } from '@/context/LocationContext';
+import { ThemeContext } from '@/context/ThemeContext';
+import { useAuth } from '@/context/authContext';
 
 export default function ListUser({ users, onRefresh, refreshing }: any) {
   const router = useRouter();
+  const { location } = React.useContext(LocationContext);
+  const { theme } = useContext(ThemeContext);
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const renderUserItem = ({ item }: any) => {
     const ageColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : Colors.neutralDark;
+    const genderIconColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : Colors.neutralDark;
+
+    let distance = 0;
+    if (location) {
+      distance = calculateDistance(location.coords, item?.location);
+    }
 
     return (
       <TouchableOpacity 
-        style={styles.userContainer} 
+        style={[styles.userContainer, { borderColor: currentThemeColors.border }]} 
         onPress={() => {
           router.push({
             pathname: "/chat/[id]",
@@ -31,17 +45,22 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
         </View>
         <View style={styles.userInfo}>
           <View style={styles.textContainer}>
-            <Text style={styles.userName}>{item.username}</Text>
-            <Text style={styles.bio}>{item.bio}</Text>
+            <Text style={[styles.userName, { color: currentThemeColors.text }]}>{item.username}</Text>
+            <Text style={[styles.bio, { color: currentThemeColors.subtleText }]}>{item.bio}</Text>
           </View>
-          {item.gender === 'male' ? (
-            <MaterialCommunityIcons name="gender-male" size={15} color={Colors.primary} />
-          ) : item.gender === 'female' ? (
-            <MaterialCommunityIcons name="gender-female" size={15} color={Colors.secondary} />
-          ) : null}
+          <MaterialCommunityIcons 
+            name={item.gender === 'male' ? "gender-male" : item.gender === 'female' ? "gender-female" : ""} 
+            size={15} 
+            color={genderIconColor} 
+          />
           <Text style={[styles.age, { color: ageColor }]}>
             {calculateAge(item.age)}
           </Text>
+          {distance !== null && !isNaN(distance) && (
+            <Text style={[styles.distance, { color: currentThemeColors.icon }]}>
+              {distance.toFixed(2)} km
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -52,7 +71,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
       data={users}
       renderItem={renderUserItem}
       keyExtractor={(item) => item.id || item.uid}
-      contentContainerStyle={styles.listContainer}
+      contentContainerStyle={[styles.listContainer, { backgroundColor: currentThemeColors.background }]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
@@ -66,7 +85,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 15,
     borderBottomWidth: 1,
-    borderColor: Colors.borderLine, 
   },
   userInfo: {
     display: 'flex',
@@ -81,11 +99,9 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.light.text, 
   },
   bio: {
     fontSize: 14,
-    color: Colors.light.icon, 
     marginTop: 2,
   },
   statusContainer: {
@@ -101,7 +117,6 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     marginRight: 5,
     borderWidth: 2,
-    borderColor: Colors.light.background,
   },
   online: {
     backgroundColor: Colors.success,
@@ -112,6 +127,12 @@ const styles = StyleSheet.create({
   age: {
     fontSize: 12,
     marginLeft: 5,
-    color: Colors.light.icon, 
+  },
+  distance: {
+    fontSize: 12,
+    marginLeft: 5,
+  },
+  listContainer: {
+    paddingTop: 10,
   },
 });

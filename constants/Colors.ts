@@ -1,49 +1,52 @@
-const tintColorLight = '#4B91F1'; // Soft blue for light theme
+const tintColorLight = '#3A8DFF'; // Sky blue for light theme
 const tintColorDark = '#BB86FC';  // Pastel purple for dark theme
 
 export const Colors = {
   light: {
-    text: '#1C1E21', // Main dark gray text
-    background: '#F8FAFC', // Light gray background
-    tint: '#4B91F1', // Light blue accent
-    icon: '#5E6A72', // Muted gray icons
-    tabIconDefault: '#687076', // Muted dark gray default icons
-    tabIconSelected: '#4B91F1', // Light blue selected icons
-    backgroundHeader: '#4B91F1', // Light blue header
-    border: '#E0E4E8', // Soft gray for borders
-    cardBackground: '#FFFFFF', // White for card backgrounds
-    subtleText: '#9299A1', // Subtle gray for secondary text
-    highlightText: '#007BFF', // Bright blue for emphasis
+    text: '#2C2F33', // Dark gray text for readability
+    background: '#F9F9F9', // Soft off-white background
+    tint: tintColorLight, // Sky blue accent
+    icon: '#A0A8B0', // Soft gray icons
+    tabIconDefault: '#9A9A9A', // Neutral gray for default tab icons
+    tabIconSelected: tintColorLight, // Sky blue for selected icons
+    backgroundHeader: tintColorLight, // Light blue header
+    border: '#E1E4E8', // Light gray border color
+    cardBackground: '#FFFFFF', // Clean white for card backgrounds
+    subtleText: '#8A8D93', // Muted gray for secondary text
+    highlightText: '#1E88E5', // Strong blue for highlighted text
+    placeholderText: '#B0B0B0', // Light gray for placeholder text
+    inputBackground: '#FFFFFF', // Light background for input fields (white)
   },
   dark: {
     text: '#ECEDEE', // Very light gray for main text
-    background: '#1C1E21', // Dark background for dark mode
-    tint: '#8A4FF2', // Lavender accents
-    icon: '#9BA1A6', // Light gray icons
-    tabIconDefault: '#9BA1A6', // Gray default icons
-    tabIconSelected: '#8A4FF2', // Lavender selected icons
-    backgroundHeader: '#BB86FC', // Pastel purple header
-    border: '#33363B', // Dark gray for borders
-    cardBackground: '#2C2F33', // Dark card backgrounds
-    subtleText: '#A0A3A7', // Light gray for secondary text
-    highlightText: '#9DA7FF', // Soft blue for emphasis
+    background: '#121212', // Dark background for dark mode
+    tint: tintColorDark, // Lavender accents
+    icon: '#9E9E9E', // Light gray icons
+    tabIconDefault: '#9E9E9E', // Muted gray default icons
+    tabIconSelected: tintColorDark, // Lavender for selected icons
+    backgroundHeader: '#BB86FC', // Soft purple header
+    border: '#33373D', // Dark gray for borders
+    cardBackground: '#2C2C2E', // Dark card backgrounds
+    subtleText: '#A0A0A0', // Light gray for secondary text
+    highlightText: '#9DA7FF', // Soft blue for highlighted text
+    placeholderText: '#616161', // Dark gray for placeholder text
+    inputBackground: '#333333', // Dark background for input fields (dark gray)
   },
-  primary: '#8A4FF2', // Lavender for primary elements
-  secondary: '#4B91F1', // Blue for secondary elements
-  tertiary: '#FDB813', // Warm yellow for tertiary accents
+  primary: '#5E5BFF', // Vibrant blue for primary elements
+  secondary: '#FF4081', // Soft pink for secondary elements
+  tertiary: '#FFB74D', // Warm orange for tertiary accents
   highlight: '#FFD700', // Gold for highlights or special emphasis
-  error: '#E57373', // Soft red for errors
-  success: '#81C784', // Green for success messages
-  warning: '#FFB74D', // Orange for warnings
+  error: '#E57373', // Soft red for error messages
+  success: '#66BB6A', // Fresh green for success messages
+  warning: '#FFB74D', // Warm yellow for warnings
   info: '#4FC3F7', // Light blue for informational messages
   neutralLight: '#F4F5F7', // Very light gray for backgrounds or dividers
-  neutralDark: '#7B7E83', // Dark gray for subtle elements or inactive states
+  neutralDark: '#616161', // Darker gray for subtle elements or inactive states
   backgroundLight: '#FAFAFB', // Very light background
   backgroundDark: '#2C2C2E', // Dark mode background
-  link: '#0066CC', // Blue for links
-  placeholderText: '#9E9E9E', // Gray for placeholder text
+  link: '#1E88E5', // Blue for links
   badgeRed: '#FF6347', // Red for badges or notifications
   badgeGreen: '#32CD32', // Green for badges or active indicators
   badgeBlue: '#4169E1', // Royal blue for badges or notifications
-  borderLine: '#ddd',
+  borderLine: '#DDDDDD', // Soft border line color
 };

@@ -23,7 +23,6 @@ export default function Chat() {
       const data = querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(docUser => docUser.id !== user?.uid);
-      console.log(123, data)
       setUsers(data);
     } catch (error) {
       console.error("Error fetching users: ", error);

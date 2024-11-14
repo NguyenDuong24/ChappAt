@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, FlatList, ActivityIndicator, Alert, Text, RefreshControl } from 'react-native';
 import useExplore from '../../explore/useExplore'; 
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
+import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
+import { Colors } from '@/constants/Colors'; // Import Colors
 
 const Tab1Screen = () => {
   const { posts, loading, error, deletePost, toggleLike, addComment, fetchPosts } = useExplore();
   const { user } = useAuth();
   const [updatedPosts, setUpdatedPosts] = useState(posts);
   const [refreshing, setRefreshing] = useState(false);
+
+  const { theme } = useContext(ThemeContext); // Lấy theme từ context
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Chọn màu theo theme
 
   useEffect(() => {
     setUpdatedPosts(posts);
@@ -48,15 +53,15 @@ const Tab1Screen = () => {
   };
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#0000ff" />;
+    return <ActivityIndicator size="large" color={currentThemeColors.primary} />;
   }
 
   if (error) {
-    return <Text>Error: {error}</Text>;
+    return <Text style={{ color: currentThemeColors.text }}>Error: {error}</Text>;
   }
 
   return (
-    <View style={{ flex: 1, paddingTop: 100 }}>
+    <View style={{ flex: 1, paddingTop: 100, backgroundColor: currentThemeColors.background }}>
       <FlatList
         data={updatedPosts}
         keyExtractor={(item) => item.id}
@@ -69,6 +74,7 @@ const Tab1Screen = () => {
             onShare={(id) => console.log(`Shared post ${id}`)} 
             onDeletePost={handleDeletePost} 
             addComment={addComment}
+            themeColors={currentThemeColors} // Chuyển theme colors vào PostCard
           />
         )}
         contentContainerStyle={{ paddingBottom: 100 }}

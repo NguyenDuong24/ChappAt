@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, StyleSheet, Image, TouchableOpacity, Text } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,6 +8,7 @@ import { db } from '@/firebaseConfig';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 import { useAuth } from '@/context/authContext';
+import { LocationContext } from '@/context/LocationContext';  // Import LocationContext
 
 const storage = getStorage();
 
@@ -17,6 +18,9 @@ export default function CreatePostScreen() {
   const [image, setImage] = useState(null);
   const router = useRouter();
   const { user } = useAuth();
+  
+  // Sử dụng LocationContext
+  const { location, errorMsg, loading, address } = useContext(LocationContext); 
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -44,10 +48,16 @@ export default function CreatePostScreen() {
 
         imageUrl = await getDownloadURL(storageRef);
       }
+
       const newPost = {
         tag,
         content,
         image: imageUrl,
+        location: location ? { // Lưu vị trí nếu có
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude
+        } : null,
+        address: address || null, // Lưu địa chỉ nếu có
         likes: [],
         comments: [],
         shares: 0,
@@ -78,6 +88,18 @@ export default function CreatePostScreen() {
         <Text style={styles.imagePickerText}>Pick an image</Text>
       </TouchableOpacity>
       {image && <Image source={{ uri: image }} style={styles.image} resizeMode="contain" />}
+      
+      {/* Hiển thị địa chỉ hoặc thông báo lỗi */}
+      {loading ? (
+        <Text>Fetching location...</Text>
+      ) : address ? (
+        <Text>Location: {address}</Text> // Hiển thị tên quận, thành phố
+      ) : errorMsg ? (
+        <Text>Error: {errorMsg}</Text>
+      ) : (
+        <Text>No location available</Text>
+      )}
+
       <Button mode="contained" onPress={handleSave} style={styles.button}>
         Save Post
       </Button>

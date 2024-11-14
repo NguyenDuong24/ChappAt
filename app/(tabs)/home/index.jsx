@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { View, StatusBar, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState, useContext } from 'react';
+import { View, StatusBar, ActivityIndicator, StyleSheet } from 'react-native';
 import ListUser from '@/components/home/ListUser';
 import { useAuth } from '@/context/authContext';
 import { useAppState } from '@/context/AppStateContext';
 import { getDocs } from 'firebase/firestore';
 import { userRef } from '@/firebaseConfig';
+import { ThemeContext } from '@/context/ThemeContext';
+import { Colors } from '@/constants/Colors';
 
 export default function Home() {
   const appState = useAppState();
@@ -12,6 +14,9 @@ export default function Home() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const { theme } = useContext(ThemeContext);
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; 
 
   useEffect(() => {
     if (user?.uid) {
@@ -37,11 +42,11 @@ export default function Home() {
   };
 
   return (
-    <View style={{ flex: 1 }}>
-      <StatusBar />
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+      <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={currentThemeColors.tint} />
         </View>
       ) : (
         <ListUser users={users} refreshing={refreshing} onRefresh={handleRefresh} />
@@ -49,3 +54,14 @@ export default function Home() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

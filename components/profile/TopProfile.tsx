@@ -41,7 +41,8 @@ const TopProfile = ({ onEditProfile, user, handleLogout }) => {
       </View>
 
       <View style={styles.header}>
-        <Avatar.Image size={100} source={{ uri: user.profileUrl }} />
+        <CustomImage source={user.profileUrl} style={styles.avatar}></CustomImage>
+        {/* <Avatar.Image size={100} source={{ uri: user.profileUrl }} /> */}
         <Title style={styles.name}>{user.username}</Title>
         
         <View style={styles.bioContainer}>
@@ -89,7 +90,13 @@ const styles = StyleSheet.create({
   coverPhotoContainer: {
     height: 200,
     overflow: 'hidden',
-    position: 'relative',  // Đặt relative để settings button có thể định vị tuyệt đối
+    position: 'relative',
+    marginTop: -20,
+  },
+  avatar: {
+    height: 100,
+    width: 100,
+    borderRadius: 50,
   },
   coverPhoto: {
     width: '100%',
@@ -107,7 +114,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 16,
     alignItems: 'center',
-    marginTop: -50,
+    marginTop: -65,
   },
   bioContainer: {
     flexDirection: 'row',

@@ -7,39 +7,15 @@ import { getDocs } from 'firebase/firestore';
 import { userRef } from '@/firebaseConfig';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
+import useHome from './useHome';
+
 
 export default function Home() {
   const appState = useAppState();
   const { user } = useAuth();
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
+  const { getUsers, users, loading, refreshing, handleRefresh } = useHome();
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; 
-
-  useEffect(() => {
-    if (user?.uid) {
-      getUsers();
-    }
-  }, [user]);
-
-  const getUsers = async () => {
-    setLoading(true);
-    const querySnapshot = await getDocs(userRef);
-    const data = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(docUser => docUser.id !== user?.uid);
-    const sortedUsers = data.sort((a, b) => (a.isOnline === b.isOnline ? 0 : a.isOnline ? -1 : 1));
-    setUsers(sortedUsers);
-    setLoading(false);
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await getUsers();
-    setRefreshing(false);
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>

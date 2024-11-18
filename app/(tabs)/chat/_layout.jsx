@@ -14,7 +14,7 @@ const StackLayout = () => {
       <Stack.Screen
         name="index"
         options={{
-          headerTitle: () => <ChatListHeader title="Trò chuyện" />,
+          header: () => <ChatListHeader title="Trò chuyện" />,
           headerStyle: {
             backgroundColor: currentThemeColors.background,
           },

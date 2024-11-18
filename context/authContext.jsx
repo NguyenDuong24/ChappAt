@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-
+import {convertToAge} from '../utils/common'
 export const AuthContext = createContext();
 
 export const AuthContextProvider = ({ children }) => {
@@ -15,7 +15,9 @@ export const AuthContextProvider = ({ children }) => {
     const [email, setEmail] = useState('');
     const [icon, setIcon] = useState('');
     const [password, setPassword] = useState(''); 
+    const [bio, setBio] = useState(''); 
 
+    console.log(123456, user?.profileUrl)
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, (user) => {
             if (user) {
@@ -30,6 +32,30 @@ export const AuthContextProvider = ({ children }) => {
         });
         return () => unsub();
     }, []);
+
+    const refreshUser = async () => {
+        const docRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setUser((prevUser) => ({
+                ...prevUser,
+                username: data.username,
+                profileUrl: data.profileUrl,
+                age: data.age,
+                gender: data.gender,
+                isOnline: data.isOnline,
+                bio: data.bio,
+            }));
+            setName(data.username);
+            setEmail(data.email);
+            setAge(data.age);
+            setGender(data.gender);
+            setIcon(data.profileUrl);
+            console.log('hihi', data.profileUrl)
+            setBio(data.bio);
+        }
+    };
 
     const updateUserData = async (uid) => {
         const docRef = doc(db, 'users', uid);
@@ -71,6 +97,7 @@ export const AuthContextProvider = ({ children }) => {
     };
 
     const logout = async () => {
+        
         try {
             if (user) {
                 await updateIsOnline(user.uid, false); 
@@ -89,12 +116,11 @@ export const AuthContextProvider = ({ children }) => {
 
             const response = await createUserWithEmailAndPassword(auth, email, password);
             const newUser = response.user;
-
             await setDoc(doc(db, "users", newUser.uid), {
                 username: name,
                 profileUrl: icon, 
                 isOnline: true,
-                age,
+                age: convertToAge(age),
                 gender,
             });
 
@@ -117,7 +143,9 @@ export const AuthContextProvider = ({ children }) => {
             age, setAge,
             email, setEmail,
             icon, setIcon,
-            password, setPassword 
+            password, setPassword ,
+            bio, setBio,
+            refreshUser
         }}>
             {children}
         </AuthContext.Provider>

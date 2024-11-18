@@ -23,6 +23,12 @@ const StackLayout = () => {
         <Stack.Screen name="PasswordInputScreen" options={{  
             headerShown: false
         }} />
+        <Stack.Screen name="AgeInputScreen" options={{  
+            headerShown: false
+        }} />
+        <Stack.Screen name="IconSelectionScreen" options={{  
+            headerShown: false
+        }} />
     </Stack>
   )
 }

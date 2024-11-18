@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ImageBackground } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
+import { Colors } from '@/constants/Colors';
 
 const EmailInputScreen = () => {
   const { setEmail } = useAuth();
@@ -28,50 +29,66 @@ const EmailInputScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {logoUrl ? (
-        <Image source={{ uri: logoUrl }} style={styles.logo} />
-      ) : (
-        <Text>Loading...</Text> 
-      )}
-      <Text style={styles.title}>Enter Your Email</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Your Email"
-        placeholderTextColor="#888"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={handleEmailChange}
-        autoCapitalize="none"
-      />
-      <TouchableOpacity
-        style={[styles.nextButton, !isButtonEnabled && styles.disabledButton]}
-        onPress={handleNext}
-        disabled={!isButtonEnabled}
-      >
-        <Text style={styles.nextButtonText}>Next</Text>
-      </TouchableOpacity>
-    </View>
+    <ImageBackground
+      source={require('../../assets/images/cover.png')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <View style={styles.container}>
+        {logoUrl ? (
+          <Image source={{ uri: logoUrl }} style={styles.logo} />
+        ) : (
+          <Text style={styles.loadingText}>Loading...</Text> 
+        )}
+        <Text style={styles.title}>Enter Your Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Your Email"
+          placeholderTextColor="#888"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={handleEmailChange}
+          autoCapitalize="none"
+        />
+        <TouchableOpacity
+          style={[styles.nextButton, !isButtonEnabled && styles.disabledButton]}
+          onPress={handleNext}
+          disabled={!isButtonEnabled}
+        >
+          <Text style={styles.nextButtonText}>Next</Text>
+        </TouchableOpacity>
+      </View>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#f8f9fd',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
+    marginBottom: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: '#fff',
     marginBottom: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#fff',
     marginBottom: 20,
   },
   input: {
@@ -85,7 +102,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   nextButton: {
-    backgroundColor: '#1e90ff',
+    backgroundColor: Colors.primary,
     paddingVertical: 15,
     paddingHorizontal: 30,
     borderRadius: 25,

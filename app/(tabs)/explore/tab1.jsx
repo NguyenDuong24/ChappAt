@@ -7,17 +7,17 @@ import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
 import { Colors } from '@/constants/Colors'; // Import Colors
 
 const Tab1Screen = () => {
-  const { posts, loading, error, deletePost, toggleLike, addComment, fetchPosts } = useExplore();
+  const { latestPosts, loading, error, deletePost, toggleLike, addComment, fetchPosts } = useExplore();
   const { user } = useAuth();
-  const [updatedPosts, setUpdatedPosts] = useState(posts);
+  const [updatedPosts, setUpdatedPosts] = useState(latestPosts);
   const [refreshing, setRefreshing] = useState(false);
 
   const { theme } = useContext(ThemeContext); // Lấy theme từ context
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Chọn màu theo theme
 
   useEffect(() => {
-    setUpdatedPosts(posts);
-  }, [posts]);
+    setUpdatedPosts(latestPosts);
+  }, [latestPosts]);
 
   const onRefresh = async () => {
     setRefreshing(true);

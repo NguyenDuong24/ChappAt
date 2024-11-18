@@ -19,7 +19,6 @@ const ProfileScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  console.log(1234567, user)
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 

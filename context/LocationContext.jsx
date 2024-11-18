@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect } from 'react';
 import * as Location from 'expo-location';
-import { db } from '../firebaseConfig'; // Import db từ firebaseConfig
-import { doc, setDoc, updateDoc } from 'firebase/firestore'; // Các phương thức Firestore cần thiết
+import { db } from '../firebaseConfig';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/authContext';
 
 export const LocationContext = createContext();
@@ -27,7 +27,6 @@ export const LocationProvider = ({ children }) => {
             setLocation(loc);
 
             if (loc.coords.latitude && loc.coords.longitude) {
-                // Geocoding: Lấy địa chỉ từ tọa độ
                 const geocode = await Location.reverseGeocodeAsync({
                     latitude: loc.coords.latitude,
                     longitude: loc.coords.longitude,
@@ -56,16 +55,15 @@ export const LocationProvider = ({ children }) => {
     };
 
     const saveLocationToFirebase = async (loc) => {
-        const userId = user?.uid; // Lấy ID người dùng từ AuthContext
+        const userId = user?.uid;
         if (!userId) {
             console.error("User ID is missing");
             return;
         }
 
-        const userLocationRef = doc(db, 'users', userId); // Lấy tham chiếu tới document của người dùng trong Firestore
+        const userLocationRef = doc(db, 'users', userId);
 
         try {
-            // Cập nhật hoặc thêm vị trí vào Firestore
             await updateDoc(userLocationRef, {
                 location: loc.coords,
                 lastUpdated: new Date(),
@@ -80,13 +78,12 @@ export const LocationProvider = ({ children }) => {
     useEffect(() => {
         getLocation();
 
-        // Set interval để cập nhật vị trí sau một thời gian
         const locationInterval = setInterval(() => {
             getLocation();
-        }, 60000); // Lấy lại vị trí mỗi 60 giây
+        }, 600000);
 
-        return () => clearInterval(locationInterval); // Dọn dẹp interval khi component unmount
-    }, [user]); // Đảm bảo cập nhật vị trí khi user thay đổi
+        return () => clearInterval(locationInterval);
+    }, [user]);
 
     return (
         <LocationContext.Provider value={{ location, errorMsg, loading, address }}>

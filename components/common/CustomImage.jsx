@@ -1,22 +1,50 @@
 import React, { useState } from 'react';
-import { View, Image, Modal, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Image, Modal, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
-const CustomImage = ({ source, style, type = 'nomal' }) => {
+const CustomImage = ({ source, style, type = 'normal' }) => {
   const [modalVisible, setModalVisible] = useState(false);
-    console.log(123456, source)
+
   const handleOpenModal = () => setModalVisible(true);
   const handleCloseModal = () => setModalVisible(false);
 
+  let imageSource;
+  console.log(1234, source)
+  if (type === 'cover') {
+    if (source)
+    {
+      imageSource = { uri: source };
+    }
+    else{
+      imageSource = require('../../assets/images/cover.png');
+    }
+  } else {
+    imageSource = { uri: source };
+  }
+
+
   return (
     <View>
+      <TouchableOpacity onPress={handleOpenModal}>
         <Image
-            source={
-            type === 'cover'
-                ? require(source)  // If it's a 'cover' type, use a local image
-                : { uri: source }  // Otherwise, use a URL
-            }
-            style={style} 
+          source={imageSource}
+          style={style}
         />
+      </TouchableOpacity>
+
+      <Modal visible={modalVisible} transparent={true} animationType="fade">
+        <View style={styles.modalBackground}>
+          <View style={styles.closeButtonContainer}>
+            <TouchableOpacity onPress={handleCloseModal}>
+              <MaterialIcons name="close" size={30} color="white" />
+            </TouchableOpacity>
+          </View>
+          <Image
+            source={imageSource}
+            style={styles.fullImage}
+          />
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -28,15 +56,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  closeButtonContainer: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 1,
+  },
   fullImage: {
     width: '90%',
     height: '90%',
     resizeMode: 'contain',
-  },
-  closeButton: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
 

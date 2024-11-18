@@ -1,54 +1,91 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
-import { Appbar, Avatar, Button, Drawer, IconButton, useTheme } from 'react-native-paper';
+import { Appbar, Avatar, Button, Drawer, RadioButton, TextInput } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
 import { FontAwesome } from 'react-native-vector-icons';
-
-import { Colors } from '@/constants/Colors';
+import { ThemeContext } from '@/context/ThemeContext'; 
+import { Colors } from '@/constants/Colors'; 
+import useHome from '../../app/(tabs)/home/useHome';
+import { useStateCommon } from '../../context/stateCommon.jsx';
 
 const HomeHeader = () => {
-  const { logout, user } = useAuth();
+  const { stateCommon, setStateCommon } = useStateCommon()
+  const { user } = useAuth();
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [selectedGender, setSelectedGender] = useState('');
+  const [minAge, setMinAge] = useState('');
+  const [maxAge, setMaxAge] = useState('');
 
-  const { colors } = useTheme();
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Error logging out:', error);
-    }
-  };
+  const { theme } = useContext(ThemeContext); 
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; 
 
   const toggleDrawer = () => {
     setDrawerVisible(!drawerVisible);
   };
 
+
+  const applyFilters = () => {
+     setStateCommon((prev) => ({
+            ...prev,
+            filter: {
+              gender: selectedGender,
+              minAge: minAge,
+              maxAge: maxAge,
+            },
+        }));
+    console.log(`Lọc theo: Giới tính = ${selectedGender}, Tuổi = ${minAge}-${maxAge}`);
+    toggleDrawer();
+  };
+
   return (
     <View>
-      <Appbar.Header style={[styles.header, { backgroundColor: colors.primary }]}>
-        <Appbar.Action icon="filter" onPress={toggleDrawer} color="white" />
-        <Appbar.Content title="Dating App" titleStyle={[styles.title, { color: colors.text }]} />
+      <Appbar.Header style={[styles.header, { backgroundColor: currentThemeColors.backgroundHeader }]}>
+        <Appbar.Action icon="filter" onPress={toggleDrawer} color={currentThemeColors.text} />
+        <Appbar.Content title="Ứng dụng hẹn hò" titleStyle={[styles.title, { color: currentThemeColors.text }]} />
         <View style={styles.rightContainer}>
-          <Text style={[styles.greeting, { color: colors.text }]}>
-            Hey there, {user ? user.displayName : 'Guest'}!
+          <Text style={[styles.greeting, { color: currentThemeColors.text }]}>
+            Chào, {user ? user.displayName : 'Khách'}!
           </Text>
           {user && user.photoURL ? (
             <Avatar.Image size={40} source={{ uri: user.photoURL }} style={styles.avatar} />
           ) : (
-            <FontAwesome name="user-circle" size={40} color={colors.text} style={styles.avatar} />
+            <FontAwesome name="user-circle" size={40} color={currentThemeColors.text} style={styles.avatar} />
           )}
-          <Appbar.Action icon="logout" onPress={handleLogout} color="white" />
         </View>
       </Appbar.Header>
       {drawerVisible && (
-        <Drawer.Section style={[styles.drawerSection, { backgroundColor: colors.background }]}>
-          <Drawer.Item label="Filter Option 1" />
-          <Drawer.Item label="Filter Option 2" />
-          <Drawer.Item label="Filter Option 3" />
+        <Drawer.Section style={[styles.drawerSection, { backgroundColor: currentThemeColors.background }]}>
+          <Drawer.Item label="Lọc theo giới tính" />
+          <RadioButton.Group onValueChange={(value) => setSelectedGender(value)} value={selectedGender}>
+            <RadioButton.Item label="Nam" value="male" />
+            <RadioButton.Item label="Nữ" value="female" />
+            <RadioButton.Item label="Cả 2" value="all" />
+          </RadioButton.Group>
+
+          <Drawer.Item label="Lọc theo tuổi" />
+          <View style={styles.ageInputs}>
+            <TextInput
+              value={minAge}
+              placeholder="Tuổi tối thiểu"
+              onChangeText={setMinAge}
+              keyboardType="numeric"
+              style={styles.ageInput}
+              mode="outlined"
+            />
+            <TextInput
+              value={maxAge}
+              placeholder="Tuổi tối đa"
+              onChangeText={setMaxAge}
+              keyboardType="numeric"
+              style={styles.ageInput}
+              mode="outlined"
+            />
+          </View>
+
           <View style={styles.buttonContainer}>
-            <Button mode="contained" onPress={toggleDrawer} color={colors.accent}>
-              Apply
+            <Button mode="contained" onPress={applyFilters} color={currentThemeColors.accent}>
+              Áp dụng bộ lọc
             </Button>
           </View>
         </Drawer.Section>
@@ -61,6 +98,7 @@ const styles = StyleSheet.create({
   header: {
     justifyContent: 'space-between',
     paddingTop: 0,
+    height: 50,
   },
   title: {
     fontWeight: 'bold',
@@ -84,6 +122,16 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     zIndex: 1,
     elevation: 5,
+  },
+  ageInputs: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginVertical: 10,
+  },
+  ageInput: {
+    flex: 1,
+    marginHorizontal: 5,
   },
   buttonContainer: {
     padding: 20,

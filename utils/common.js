@@ -42,6 +42,25 @@ export const calculateAge = (timestamp: { seconds: number; nanoseconds: number }
   return age;
 };
 
+export function convertToAge(isoDate) {
+  const birthDate = new Date(isoDate);
+  const today = new Date();
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+
+  // Kiểm tra xem đã qua ngày sinh nhật năm nay chưa
+  const hasBirthdayPassed =
+      today.getMonth() > birthDate.getMonth() ||
+      (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+
+  if (!hasBirthdayPassed) {
+      age -= 1; // Nếu chưa qua sinh nhật, trừ 1 tuổi
+  }
+
+  return age;
+}
+
+
 export const convertTimestampToDate = (timestamp) => {
   if (!timestamp || !timestamp.seconds) {
       return null;

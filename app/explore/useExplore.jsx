@@ -9,6 +9,7 @@ const useExplore = () => {
   const [sortedPostsByLike, setSortedPostsByLike] = useState([]);
   const [latestPosts, setLatestPosts] = useState([]);
 
+  // Sorting posts by the number of likes
   const sortPostsByLikes = (posts) => {
     return [...posts].sort((a, b) => {
       const likesA = a.likes ? a.likes.length : 0;
@@ -17,15 +18,19 @@ const useExplore = () => {
     });
   };
 
+  // Sorting posts by timestamp (newest first)
   const sortPostsByTimestamp = (posts) => {
     return [...posts].sort((a, b) => {
-      console.log(123, a, b)
-      const timestampA = (a.timestamp?.seconds || 0) * 1000 + (a.timestamp?.nanoseconds || 0) / 1000000;
-      const timestampB = (b.timestamp?.seconds || 0) * 1000 + (b.timestamp?.nanoseconds || 0) / 1000000;
+      // Convert Firestore timestamp (seconds and nanoseconds) to milliseconds for comparison
+      const timestampA = a.timestamp?.seconds * 1000 + a.timestamp?.nanoseconds / 1000000;
+      const timestampB = b.timestamp?.seconds * 1000 + b.timestamp?.nanoseconds / 1000000;
+
+      // Compare timestamps in descending order (most recent first)
       return timestampB - timestampA;
     });
   };
 
+  // Fetch posts from Firestore
   const fetchPosts = async () => {
     setLoading(true);
     try {
@@ -34,13 +39,13 @@ const useExplore = () => {
       const fetchedPosts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setPosts(fetchedPosts);
 
+      // Sort by likes
       const sortedByLikes = sortPostsByLikes(fetchedPosts);
-      console.log(321, sortedByLikes);
       setSortedPostsByLike(sortedByLikes);
 
+      // Sort by timestamp (latest first)
       const sortedByDate = sortPostsByTimestamp(fetchedPosts);
       setLatestPosts(sortedByDate);
-
     } catch (err) {
       setError(err.message);
     } finally {
@@ -48,6 +53,7 @@ const useExplore = () => {
     }
   };
 
+  // Like and unlike a post
   const toggleLike = async (postId, userId, isLiked) => {
     const postRef = doc(db, 'posts', postId);
     try {
@@ -66,6 +72,7 @@ const useExplore = () => {
     }
   };
 
+  // Add a comment to a post
   const addComment = async (postId, newComment) => {
     const postRef = doc(db, 'posts', postId);
     await updateDoc(postRef, {
@@ -73,6 +80,7 @@ const useExplore = () => {
     });
   };
 
+  // Delete a post
   const deletePost = async (id) => {
     try {
       const postRef = doc(db, 'posts', id);
@@ -83,6 +91,7 @@ const useExplore = () => {
     }
   };
 
+  // Fetch posts on component mount
   useEffect(() => {
     fetchPosts();
   }, []);

@@ -3,7 +3,6 @@ import React, { useContext } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, Text, RefreshControl } from 'react-native';
 import { Avatar } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { calculateAge } from '@/utils/common';
 import { Colors } from '@/constants/Colors';
 import { calculateDistance } from '@/utils/calculateDistance';
 
@@ -18,8 +17,8 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const renderUserItem = ({ item }: any) => {
-    const ageColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : Colors.neutralDark;
-    const genderIconColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : Colors.neutralDark;
+    const ageColor = item.gender === 'male' ? Colors.secondary : item.gender === 'female' ? Colors.primary : Colors.neutralDark;
+    const genderIconColor = item.gender === 'male' ? Colors.secondary : item.gender === 'female' ? Colors.primary : Colors.neutralDark;
 
     let distance = 0;
     if (location) {
@@ -31,8 +30,8 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
         style={[styles.userContainer, { borderColor: currentThemeColors.border }]} 
         onPress={() => {
           router.push({
-            pathname: "/chat/[id]",
-            params: { id: item.id }
+            pathname: "/UserProfileScreen",
+            params: { userId: item.id }
           });
         }}
       >
@@ -54,7 +53,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
             color={genderIconColor} 
           />
           <Text style={[styles.age, { color: ageColor }]}>
-            {calculateAge(item.age)}
+          {typeof item.age === 'number' && item.age}
           </Text>
           {distance !== null && !isNaN(distance) && (
             <Text style={[styles.distance, { color: currentThemeColors.icon }]}>
@@ -84,7 +83,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    borderBottomWidth: 1,
   },
   userInfo: {
     display: 'flex',

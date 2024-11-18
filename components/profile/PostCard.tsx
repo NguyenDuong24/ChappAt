@@ -2,25 +2,29 @@ import React, { useState, useEffect, useContext } from 'react';
 import { StyleSheet, View, Text, Image, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { IconButton, Menu, Provider } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/firebaseConfig';
 import { formatTime } from '@/utils/common';
 import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
 import { Colors } from '@/constants/Colors'; // Import Colors
 import { useRouter } from 'expo-router';
-import CustomImage from '../common/CustomImage'
+import CustomImage from '../common/CustomImage';
+import EvilIcons from '@expo/vector-icons/EvilIcons';
 
 const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }) => {
-  const { theme } = useContext(ThemeContext); // Lấy theme từ context
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Chọn màu theo theme
+  const { theme } = useContext(ThemeContext);
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
   const currentUserId = user?.uid;
   const [imageHeight, setImageHeight] = useState(250);
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
+  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false); // State for comments expand/collapse
   const isLiked = post.likes && post.likes.includes(currentUserId);
-  console.log(321, post.image)
+  const [userInfo, setUserInfo] = useState();
+
+
   useEffect(() => {
     if (post.image) {
       Image.getSize(post.image, (width, height) => {
@@ -31,7 +35,24 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
         setImageHeight(Math.min(calculatedHeight, 400));
       });
     }
-  }, [post.image]);
+    fetchUserInfo();
+  }, [post]);
+
+  const fetchUserInfo = async () => {
+    if (!post.userID) return;
+    try {
+      const userRef = doc(db, 'users', post.userID);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        setUserInfo(userSnap.data());
+      } else {
+        console.log('No such user!');
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+    }
+  };
+  
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
@@ -70,7 +91,7 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
         username: user.username || 'Unknown User',
         avatar: user.profileUrl || 'default_avatar_url_here',
       };
-      
+
       await addComment(post.id, newComment);
       post.comments = [...post.comments, newComment];
       setCommentText('');
@@ -78,12 +99,13 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
     }
   };
 
+  const toggleComments = () => setIsCommentsExpanded(!isCommentsExpanded);
   return (
     <Provider>
       <View style={[styles.container, { backgroundColor: currentThemeColors.background, borderBottomColor: currentThemeColors.border }]}>
         <View style={styles.header}>
-          <Image source={{ uri: user.profileUrl || 'default_avatar_url_here' }} style={styles.avatar} />
-          <Text style={[styles.username, { color: currentThemeColors.text }]}>{user.username || 'Unknown User'}</Text>
+          <Image source={{ uri: userInfo?.profileUrl  || 'default_avatar_url_here' }} style={styles.avatar} />
+          <Text style={[styles.username, { color: currentThemeColors.text }]}>{userInfo?.username || 'Unknown User'}</Text>
           <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>{formatTime(post.timestamp)}</Text>
           {post.ownerId === currentUserId && (
             <Menu
@@ -96,7 +118,7 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
                 </TouchableOpacity>
               }
             >
-              <Menu.Item onPress={handleDeletePost} title="Delete Post" />
+              <Menu.Item style={{}} onPress={handleDeletePost} title="Xóa bài viết" />
             </Menu>
           )}
         </View>
@@ -106,6 +128,14 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
           <CustomImage source={post.image} style={[styles.imageContainer, { height: imageHeight }]}></CustomImage>
         )}
 
+        {post.address && (
+          <View style={{
+            justifyContent: 'center', alignItems: 'center', display: 'flex', flexDirection: 'row'
+          }}>
+            <EvilIcons name="location" size={24} color={currentThemeColors.icon} />
+            <Text style={[styles.addressText, {color: currentThemeColors.addressText}]}>{post.address}</Text>
+          </View>
+        )}
         <View style={styles.content}>
           <View style={styles.actions}>
             <TouchableOpacity onPress={() => onLike(post.id, currentUserId, isLiked)} style={styles.actionButton}>
@@ -139,7 +169,20 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment }
           </View>
         )}
 
-        {post.comments && post.comments.map((comment, index) => (
+        {post.comments && post.comments.length > 0 && (
+          <TouchableOpacity onPress={toggleComments} style={styles.expandButton}>
+            <MaterialIcons
+              name={isCommentsExpanded ? 'expand-less' : 'expand-more'}
+              size={24}
+              color={currentThemeColors.icon}
+            />
+            <Text style={[styles.expandText, { color: currentThemeColors.text }]}>
+              {isCommentsExpanded ? 'Hide Comments' : 'Show Comments'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {isCommentsExpanded && post.comments && post.comments.map((comment, index) => (
           <View key={index} style={[styles.commentContainer, { backgroundColor: currentThemeColors.background }]}>
             <Image source={{ uri: comment.avatar || 'default_avatar_url_here' }} style={styles.avatar} />
             <View style={styles.commentContent}>
@@ -260,6 +303,20 @@ const styles = StyleSheet.create({
   },
   commentButton: {
     fontWeight: 'bold',
+  },
+  expandButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  expandText: {
+    fontSize: 16,
+    marginLeft: 4,
+  },
+  addressText: {
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'right'
   },
 });
 

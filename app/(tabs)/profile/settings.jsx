@@ -1,35 +1,65 @@
 import React, { useState, useContext } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Alert } from 'react-native';
 import { List, Divider, Switch, Title, Button } from 'react-native-paper';
-import { ThemeContext } from '../../../context/ThemeContext'; // Đảm bảo đường dẫn chính xác
-import { AuthContext } from '../../../context/authContext'; // Context cho auth
-import { Colors } from '@/constants/Colors'; // Sử dụng các màu từ dự án của bạn
+import { ThemeContext } from '../../../context/ThemeContext';
+import { useAuth } from '../../../context/authContext';
+import { Colors } from '@/constants/Colors';
+import { useNavigation } from '@react-navigation/native';
 
-// Màn hình Settings
 const SettingsScreen = () => {
-  const { theme, toggleTheme } = useContext(ThemeContext); // Lấy theme và toggle từ ThemeContext
-  const { logout } = useContext(AuthContext); // Lấy logout từ AuthContext
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const [isNotificationsEnabled, setNotificationsEnabled] = useState(false);
-
+  const { logout } = useAuth();
   const toggleNotifications = () => setNotificationsEnabled(!isNotificationsEnabled);
 
-  // Đặt màu sắc và nền tùy theo theme hiện tại
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const navigation = useNavigation();
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Xác nhận đăng xuất',
+      'Bạn có chắc muốn đăng xuất không?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'OK',
+          onPress: async () => {
+            try {
+              await logout();
+              console.log('Người dùng đã đăng xuất thành công');
+            } catch (error) {
+              console.error('Lỗi khi đăng xuất: ', error);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const navigateToProfileEdit = () => {
+    navigation.navigate('EditProfile');
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      <Title style={[styles.title, { color: currentThemeColors.text }]}>Settings</Title>
+
+      <List.Item
+        title="Chỉnh sửa Hồ sơ"
+        description="Cập nhật thông tin hồ sơ của bạn"
+        left={props => <List.Icon {...props} icon="account-edit" />}
+        onPress={navigateToProfileEdit}
+      />
       
       <Divider style={[styles.divider, { backgroundColor: currentThemeColors.divider }]} />
-      
-      {/* Theme Switch */}
+
       <List.Item
-        title="Dark Theme"
-        description="Enable dark theme for the app"
+        title="Chế độ Dark"
+        description="Kích hoạt chế độ tối cho ứng dụng"
         left={props => <List.Icon {...props} icon="theme-light-dark" />}
         right={() => (
           <Switch
-            value={theme === 'dark'} // Đảm bảo giá trị chính xác
+            value={theme === 'dark'} 
             onValueChange={toggleTheme}
           />
         )}
@@ -37,10 +67,9 @@ const SettingsScreen = () => {
       
       <Divider style={[styles.divider, { backgroundColor: currentThemeColors.divider }]} />
       
-      {/* Notifications Switch */}
       <List.Item
-        title="Notifications"
-        description="Enable or disable notifications"
+        title="Thông báo"
+        description="Kích hoạt hoặc tắt thông báo"
         left={props => <List.Icon {...props} icon="bell" />}
         right={() => (
           <Switch
@@ -52,15 +81,14 @@ const SettingsScreen = () => {
       
       <Divider style={[styles.divider, { backgroundColor: currentThemeColors.divider }]} />
       
-      {/* Đăng xuất */}
       <View style={styles.logoutContainer}>
         <Button
           mode="contained"
-          onPress={logout}
-          style={[styles.logoutButton, { backgroundColor: currentThemeColors.primary }]}
+          onPress={handleLogout}
+          style={[styles.logoutButton, { backgroundColor: Colors.primary }]}
           labelStyle={{ color: currentThemeColors.text }}
         >
-          Log Out
+          Đăng xuất
         </Button>
       </View>
     </View>

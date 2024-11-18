@@ -1,5 +1,5 @@
 import { db } from '@/firebaseConfig';
-import { calculateAge, formatTime, getRoomId } from '@/utils/common';
+import { formatTime, getRoomId } from '@/utils/common';
 import { useRouter } from 'expo-router';
 import { collection, doc, DocumentData, onSnapshot, orderBy, query } from 'firebase/firestore';
 import React, { useEffect, useState, useContext } from 'react';
@@ -17,7 +17,7 @@ const ChatItem = ({ item, noBorder = false, currenUser }) => {
   const [lastMessage, setLastMessage] = useState<DocumentData | null>(null);
   const maxLength = 25;
 
-  const genderIconColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : Colors.neutralDark;
+  const genderIconColor = item.gender === 'male' ? Colors.secondary : item.gender === 'female' ? Colors.primary : Colors.neutralDark;
   useEffect(() => {
     const roomId = getRoomId(currenUser?.uid, item?.id);
     const docRef = doc(db, "rooms", roomId);
@@ -78,7 +78,7 @@ const ChatItem = ({ item, noBorder = false, currenUser }) => {
               <MaterialCommunityIcons name="gender-female" size={15} color={genderIconColor} />
             ) : null}
             <Text style={[styles.age, { color: genderIconColor }]}>
-              {calculateAge(item.age)}
+              {typeof item.age === 'number' && item.age}
             </Text>
           </View>
           <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
@@ -97,7 +97,6 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     padding: 15,
-    borderBottomWidth: 1,
   },
   avatarContainer: {
     position: 'relative',

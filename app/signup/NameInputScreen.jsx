@@ -1,14 +1,16 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ImageBackground } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext'; 
-import { useLogoState } from '@/context/LogoStateContext'; 
+import { useLogoState } from '@/context/LogoStateContext';
+import { Colors } from '@/constants/Colors';
 
 const NameInputScreen = () => {
   const { setName } = useAuth(); 
   const [name, setLocalName] = React.useState('');
   const router = useRouter();
-  const logoUrl = useLogoState(); 
+  const logoUrl = useLogoState();
+  const currentThemeColors = Colors.dark;
 
   const handleNext = () => {
     if (name) { 
@@ -18,49 +20,66 @@ const NameInputScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      {logoUrl ? (
-        <Image source={{ uri: logoUrl }} style={styles.logo} /> 
-      ) : (
-        <Text>Loading...</Text>
-      )}
-      <Text style={styles.title}>Enter Your Name</Text>
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setLocalName}
-        placeholder="Your Name"
-        placeholderTextColor="#888"
-      />
-      <TouchableOpacity 
-        style={[styles.nextButton, !name && styles.disabledButton]} 
-        onPress={handleNext} 
-        disabled={!name} 
-      >
-        <Text style={styles.nextButtonText}>Next</Text>
-      </TouchableOpacity>
-    </View>
+    <ImageBackground 
+      source={require('../../assets/images/cover.png')} // Ensure the path is correct
+      style={styles.backgroundImage}
+    >
+      <View style={styles.overlay}>
+        {logoUrl ? (
+          <Image source={{ uri: logoUrl }} style={styles.logo} />
+        ) : (
+          <Text style={{ color: currentThemeColors.text }}>Loading...</Text>
+        )}
+        
+        <Text style={[styles.title, { color: currentThemeColors.text }]}>Enter Your Name</Text>
+
+        <TextInput
+          style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
+          value={name}
+          onChangeText={setLocalName}
+          placeholder="Your Name"
+          placeholderTextColor="#888"
+        />
+
+        <TouchableOpacity 
+          style={[styles.nextButton, !name && styles.disabledButton, { backgroundColor: currentThemeColors.tint }]} 
+          onPress={handleNext} 
+          disabled={!name} 
+        >
+          <Text style={styles.nextButtonText}>Next</Text>
+        </TouchableOpacity>
+      </View>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  backgroundImage: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#f8f9fd',
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    backgroundColor: 'rgba(148, 156, 66, 0.2)',
+    width: '100%',
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
     marginBottom: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
+    fontSize: 30,
+    fontWeight: '800',
+    marginBottom: 15,
+    textAlign: 'center',
+    textShadowColor: '#000',
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 10,
   },
   input: {
     width: '100%',
@@ -70,12 +89,11 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     marginBottom: 20,
     fontSize: 18,
-    backgroundColor: '#fff',
+    fontWeight: '500',
+    color: Colors.dark.text,
   },
   nextButton: {
-    backgroundColor: '#1e90ff',
     paddingVertical: 15,
-    paddingHorizontal: 30,
     borderRadius: 25,
     alignItems: 'center',
     width: '100%',

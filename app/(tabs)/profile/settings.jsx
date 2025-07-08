@@ -5,6 +5,7 @@ import { ThemeContext } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/authContext';
 import { Colors } from '@/constants/Colors';
 import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 
 const SettingsScreen = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
@@ -14,7 +15,7 @@ const SettingsScreen = () => {
 
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const navigation = useNavigation();
-
+  const router = useRouter();
   const handleLogout = () => {
     Alert.alert(
       'Xác nhận đăng xuất',
@@ -38,7 +39,7 @@ const SettingsScreen = () => {
   };
 
   const navigateToProfileEdit = () => {
-    navigation.navigate('EditProfile');
+   router.push('/(tabs)/profile/EditProfile');
   };
 
   return (

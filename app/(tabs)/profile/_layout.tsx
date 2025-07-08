@@ -41,6 +41,7 @@ const StackLayout = () => {
       <Stack.Screen
         name="create"
         options={{
+          headerShown: false,
           headerStyle: {
             backgroundColor: currentThemeColors.backgroundHeader,
           },

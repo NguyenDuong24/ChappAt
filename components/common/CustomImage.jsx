@@ -10,38 +10,32 @@ const CustomImage = ({ source, style, type = 'normal' }) => {
 
   let imageSource;
   if (type === 'cover') {
-    if (source)
-    {
-      imageSource = { uri: source };
-    }
-    else{
-      imageSource = require('../../assets/images/cover.png');
-    }
+    imageSource = source
+      ? { uri: source }
+      : require('../../assets/images/cover.png');
   } else {
     imageSource = { uri: source };
   }
 
-
   return (
     <View>
       <TouchableOpacity onPress={handleOpenModal}>
-        <Image
-          source={imageSource}
-          style={style}
-        />
+        <Image source={imageSource} style={style} />
       </TouchableOpacity>
 
-      <Modal visible={modalVisible} transparent={true} animationType="fade">
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseModal} // Đóng modal khi nhấn nút back
+      >
         <View style={styles.modalBackground}>
           <View style={styles.closeButtonContainer}>
             <TouchableOpacity onPress={handleCloseModal}>
               <MaterialIcons name="close" size={30} color="white" />
             </TouchableOpacity>
           </View>
-          <Image
-            source={imageSource}
-            style={styles.fullImage}
-          />
+          <Image source={imageSource} style={styles.fullImage} />
         </View>
       </Modal>
     </View>

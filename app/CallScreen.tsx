@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   SafeAreaView,
   TouchableOpacity,
@@ -15,7 +15,7 @@ import {
   RTCView,
 } from "@videosdk.live/react-native-sdk";
 import { createMeeting, token } from "../api";
-import { router, useLocalSearchParams } from "expo-router";
+
 function JoinScreen(props) {
   const [meetingVal, setMeetingVal] = useState("");
   return (
@@ -78,6 +78,7 @@ function JoinScreen(props) {
     </SafeAreaView>
   );
 }
+
 const Button = ({ onPress, buttonText, backgroundColor }) => {
   return (
     <TouchableOpacity
@@ -95,7 +96,7 @@ const Button = ({ onPress, buttonText, backgroundColor }) => {
   );
 };
 
-function ControlsContainer({ leave, toggleWebcam, toggleMic }) {
+function ControlsContainer({ join, leave, toggleWebcam, toggleMic }) {
   return (
     <View
       style={{
@@ -104,6 +105,13 @@ function ControlsContainer({ leave, toggleWebcam, toggleMic }) {
         justifyContent: "space-between",
       }}
     >
+      <Button
+        onPress={() => {
+          join();
+        }}
+        buttonText={"Join"}
+        backgroundColor={"#1178F8"}
+      />
       <Button
         onPress={() => {
           toggleWebcam();
@@ -121,8 +129,6 @@ function ControlsContainer({ leave, toggleWebcam, toggleMic }) {
       <Button
         onPress={() => {
           leave();
-          router.back();
-          router.back();
         }}
         buttonText={"Leave"}
         backgroundColor={"#FF0000"}
@@ -131,13 +137,13 @@ function ControlsContainer({ leave, toggleWebcam, toggleMic }) {
   );
 }
 
-const ParticipantView = ({ participantId }) => {
+function ParticipantView({ participantId }) {
   const { webcamStream, webcamOn } = useParticipant(participantId);
 
   return webcamOn && webcamStream ? (
     <RTCView
       streamURL={new MediaStream([webcamStream.track]).toURL()}
-      objectFit="cover"
+      objectFit={"cover"}
       style={{
         height: 300,
         marginVertical: 8,
@@ -156,7 +162,7 @@ const ParticipantView = ({ participantId }) => {
       <Text style={{ fontSize: 16 }}>NO MEDIA</Text>
     </View>
   );
-};
+}
 
 function ParticipantList({ participants }) {
   return participants.length > 0 ? (
@@ -181,20 +187,16 @@ function ParticipantList({ participants }) {
 }
 
 
-
 function MeetingView() {
   // Get `participants` from useMeeting Hook
   const { join, leave, toggleWebcam, toggleMic, participants } = useMeeting({});
   const participantsArrId = [...participants.keys()];
 
-  useEffect(()=>{
-    join()
-  }, [])
-
   return (
     <View style={{ flex: 1 }}>
       <ParticipantList participants={participantsArrId} />
       <ControlsContainer
+        join={join}
         leave={leave}
         toggleWebcam={toggleWebcam}
         toggleMic={toggleMic}
@@ -203,17 +205,13 @@ function MeetingView() {
   );
 }
 
-
 export default function CallScreen() {
+  const [meetingId, setMeetingId] = useState(null);
 
-  const { meetingId } = useLocalSearchParams();
   const getMeetingId = async (id) => {
     const meetingId = id == null ? await createMeeting({ token }) : id;
+    setMeetingId(meetingId);
   };
-
-  useEffect(()=>{
-    getMeetingId(meetingId);
-  },[])
 
   return meetingId ? (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F6F6FF" }}>
@@ -229,7 +227,7 @@ export default function CallScreen() {
         <MeetingView />
       </MeetingProvider>
     </SafeAreaView>
-  )  : (
+  ) : (
     <JoinScreen getMeetingId={getMeetingId} />
   );
 }

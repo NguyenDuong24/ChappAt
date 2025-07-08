@@ -94,7 +94,7 @@ const EditProfile = () => {
                           source={{ uri: user.profileUrl || profile.icon || 'https://example.com/default-icon.png' }}
                       />
                       <TouchableOpacity
-                          onPress={() => router.push('signup/IconSelectionScreen?redirectTo=EditProfile')}
+                          onPress={() => router.push('/signup/IconSelectionScreen?redirectTo=EditProfile')}
                           style={[styles.changeIconButton]}
                       >
                           <Text style={[styles.changeIconText, { color: currentThemeColors.addressText }]}>Chọn Avatar</Text>

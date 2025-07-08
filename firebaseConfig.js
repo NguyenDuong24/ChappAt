@@ -3,6 +3,7 @@ import { initializeAuth } from 'firebase/auth';
 import { getReactNativePersistence } from '@firebase/auth/dist/rn/index.js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, collection } from 'firebase/firestore';
+import * as Notifications from 'expo-notifications';
 
 const firebaseConfig = {
   apiKey: "AIzaSyB6_mW_v1F-KD8CpNOVgb03RIxxxmFsgJM",
@@ -19,6 +20,14 @@ const app = initializeApp(firebaseConfig);
 // Initialize Auth with persistence
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(AsyncStorage)
+});
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
 });
 
 // Initialize Firestore

@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "256923005911",
+    "project_id": "dating-app-1bb49",
+    "storage_bucket": "dating-app-1bb49.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256923005911:android:fc7380fdacc24491315192",
+        "android_client_info": {
+          "package_name": "com.duongnguyen1263.Chat"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "256923005911-uhlclcmverdi844rakefa69n4ac8e2hu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.duongnguyen1263.Chat",
+            "certificate_hash": "0f3d58ed81e88b195436c79ea6ad29a9b54c993b"
+          }
+        },
+        {
+          "client_id": "256923005911-70tma6mbfguvjmpota9ia5adm457dinf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcbBS6rSCTkQcsdF7vdSW86U6tIgqmcTk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "256923005911-70tma6mbfguvjmpota9ia5adm457dinf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "256923005911-jdn97e9kao1fhffb9029qre69l0oae63.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.saigondating.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256923005911:android:9c39efaa162280f4315192",
+        "android_client_info": {
+          "package_name": "com.saigondating.firebasesignin"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "256923005911-70tma6mbfguvjmpota9ia5adm457dinf.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcbBS6rSCTkQcsdF7vdSW86U6tIgqmcTk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "256923005911-70tma6mbfguvjmpota9ia5adm457dinf.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "256923005911-jdn97e9kao1fhffb9029qre69l0oae63.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.saigondating.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

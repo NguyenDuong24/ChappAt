@@ -1,42 +1,117 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { StyleSheet, View, Text, Image, TouchableOpacity, Alert, TextInput } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  Image,
+  Dimensions
+} from 'react-native';
 import { IconButton, Menu, Provider } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import EvilIcons from '@expo/vector-icons/EvilIcons';
 import { deleteDoc, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/firebaseConfig';
 import { formatTime } from '@/utils/common';
-import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
-import { Colors } from '@/constants/Colors'; // Import Colors
+import { ThemeContext } from '@/context/ThemeContext';
+import { Colors } from '@/constants/Colors';
 import { useRouter } from 'expo-router';
 import CustomImage from '../common/CustomImage';
-import EvilIcons from '@expo/vector-icons/EvilIcons';
+import HashtagText from '../common/HashtagText';
+
+const { width: screenWidth } = Dimensions.get('window');
+
+const screenWidth1 = (screenWidth/2) - ((screenWidth * 10) / 100) 
+
+const PostImages = ({ images }) => {
+  if (!images || images.length === 0) return null;
+  const [singleImageHeight, setSingleImageHeight] = useState(280);
+
+  useEffect(() => {
+    if (images.length === 1) {
+      // Lấy kích thước gốc của ảnh
+      Image.getSize(
+        images[0],
+        (width, height) => {
+          const aspectRatio = height / width;
+          // 280 là chiều rộng container mong muốn (bạn có thể thay đổi theo thiết kế của mình)
+          const containerWidth = 280;
+          const calculatedHeight = containerWidth * aspectRatio;
+          // Giới hạn chiều cao tối đa là 360
+          setSingleImageHeight(Math.min(calculatedHeight, 360));
+        },
+        (error) => {
+          console.error('Failed to get image size', error);
+        }
+      );
+    }
+  }, [images]);
+
+  if (images.length === 1) {
+    return (
+      <CustomImage
+        source={images[0]}
+        style={[styles.singleImage, { height: singleImageHeight }]}
+      />
+    );
+  }
+
+  if (images.length === 2) {
+    return (
+      <View style={styles.twoImagesContainer}>
+        {images.map((img, idx) => (
+          <CustomImage key={idx} source={img} style={styles.twoImage} />
+        ))}
+      </View>
+    );
+  }
+
+  if (images.length === 3) {
+    return (
+      <View style={styles.threeImagesContainer}>
+        <View style={styles.threeImagesTop}>
+          <CustomImage source={images[0]} style={styles.threeImageLarge} />
+        </View>
+        <View style={styles.threeImagesBottom}>
+          {images.slice(1).map((img, idx) => (
+            <CustomImage key={idx} source={img} style={styles.threeImageSmall} />
+          ))}
+        </View>
+      </View>
+    );
+  }
+
+  // Hiển thị 4 hoặc nhiều ảnh: lưới 2 cột. Nếu nhiều hơn 4 ảnh thì overlay số ảnh còn lại
+  const displayImages = images.slice(0, 4);
+  return (
+    <View style={styles.fourImagesContainer}>
+      {displayImages.map((img, idx) => (
+        <View key={idx} style={styles.fourImageWrapper}>
+          <CustomImage source={img} style={styles.fourImage} />
+          {idx === 3 && images.length > 4 && (
+            <View style={styles.overlay}>
+              <Text style={styles.overlayText}>+{images.length - 4}</Text>
+            </View>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+};
 
 const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, owner }) => {
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
   const currentUserId = user?.uid;
-  const [imageHeight, setImageHeight] = useState(250);
   const [menuVisible, setMenuVisible] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false); // State for comments expand/collapse
+  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
   const isLiked = post.likes && post.likes.includes(currentUserId);
   const [userInfo, setUserInfo] = useState();
-
-
-  useEffect(() => {
-    if (post.image) {
-      Image.getSize(post.image, (width, height) => {
-        const aspectRatio = height / width;
-        const containerWidth = 350;
-        const calculatedHeight = containerWidth * aspectRatio;
-
-        setImageHeight(Math.min(calculatedHeight, 400));
-      });
-    }
-    fetchUserInfo();
-  }, [post]);
 
   const fetchUserInfo = async () => {
     if (!post.userID) return;
@@ -52,7 +127,10 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
       console.error('Error fetching user info:', error);
     }
   };
-  
+
+  useEffect(() => {
+    fetchUserInfo();
+  }, [post]);
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
@@ -99,30 +177,37 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
     }
   };
 
+  const handleHashtagPress = (hashtag) => {
+    console.log('Hashtag được nhấn:', hashtag);
+    // Ví dụ: chuyển hướng đến trang hiển thị bài viết theo hashtag
+    // router.push(`/hashtag/${hashtag.substring(1)}`); // loại bỏ dấu #
+  };
   const toggleComments = () => setIsCommentsExpanded(!isCommentsExpanded);
+
   return (
     <Provider>
       <View style={[styles.container, { backgroundColor: currentThemeColors.background, borderBottomColor: currentThemeColors.border }]}>
         <View style={styles.header}>
           <TouchableOpacity 
-          onPress={()=>{
+            onPress={() => {
               router.push({
                 pathname: "/UserProfileScreen",
                 params: { userId: post.userID }
-              })
-            }
-          } 
-          style={{
-            alignItems: 'center',
-            flexDirection: 'row',
-            width: '90%'
-          }}
-          
+              });
+            }}
+            style={styles.headerUserContainer}
           >
-            <Image source={{ uri: userInfo?.profileUrl  || 'default_avatar_url_here' }} style={styles.avatar} />
-            <Text style={[styles.username, { color: currentThemeColors.text }]}>{userInfo?.username || 'Unknown User'}</Text>
+            <CustomImage
+              source={userInfo?.profileUrl || 'default_avatar_url_here'}
+              style={styles.avatar}
+            />
+            <Text style={[styles.username, { color: currentThemeColors.text }]}>
+              {userInfo?.username || 'Unknown User'}
+            </Text>
           </TouchableOpacity>
-          <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>{formatTime(post.timestamp)}</Text>
+          <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
+            {formatTime(post.timestamp)}
+          </Text>
           {owner && (
             <Menu
               style={{ position: 'absolute', top: 35, width: 'auto' }}
@@ -134,37 +219,53 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
                 </TouchableOpacity>
               }
             >
-              <Menu.Item style={{}} onPress={handleDeletePost} title="Xóa bài viết" />
+              <Menu.Item onPress={handleDeletePost} title="Xóa bài viết" />
             </Menu>
           )}
         </View>
-        <Text style={[styles.paragraph, { color: currentThemeColors.text }]}>{post.content}</Text>
+        <HashtagText
+              text={post.content}
+              onHashtagPress={handleHashtagPress}
+              textStyle={[styles.paragraph, { color: currentThemeColors.text }]}
+              hashtagStyle={{
+                color : Colors.info,
+                fontSize : 16,
+                marginTop: 5
+              }}
+        />
 
-        {post.image && (
-          <CustomImage source={post.image} style={[styles.imageContainer, { height: imageHeight }]}></CustomImage>
+        {Array.isArray(post.images) && post.images.length > 0 && (
+          <PostImages images={post.images} />
         )}
 
         {post.address && (
-          <View style={{
-            justifyContent: 'center', alignItems: 'center', display: 'flex', flexDirection: 'row'
-          }}>
+          <View style={styles.addressContainer}>
             <EvilIcons name="location" size={24} color={currentThemeColors.icon} />
-            <Text style={[styles.addressText, {color: currentThemeColors.addressText}]}>{post.address}</Text>
+            <Text style={[styles.addressText, { color: currentThemeColors.addressText }]}>
+              {post.address}
+            </Text>
           </View>
         )}
+
         <View style={styles.content}>
           <View style={styles.actions}>
             <TouchableOpacity onPress={() => onLike(post.id, currentUserId, isLiked)} style={styles.actionButton}>
               <IconButton icon="heart" size={20} iconColor={isLiked ? currentThemeColors.tint : currentThemeColors.icon} />
-              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>{post.likes.length}</Text>
+              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
+                {post.likes.length}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowCommentInput(!showCommentInput)} style={styles.actionButton}>
               <IconButton icon="comment" size={20} iconColor={currentThemeColors.icon} />
-              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>{post.comments ? post.comments.length : 0}</Text>
+              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
+                {post.comments ? post.comments.length : 0}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onShare(post.id)} style={styles.actionButton}>
               <IconButton icon="share" size={20} iconColor={currentThemeColors.icon} />
-              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>{post.shares}</Text>
+              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
+                {post.shares}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -172,7 +273,7 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
         {showCommentInput && (
           <View style={styles.commentInputContainer}>
             <TextInput
-              style={[styles.commentInput, { borderColor: currentThemeColors.border }]}
+              style={[styles.commentInput, { borderColor: currentThemeColors.border, color: currentThemeColors.text }]}
               placeholder="Add a comment..."
               value={commentText}
               onChangeText={setCommentText}
@@ -180,7 +281,9 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
               placeholderTextColor={currentThemeColors.placeholderText}
             />
             <TouchableOpacity onPress={handleAddComment}>
-              <Text style={[styles.commentButton, { color: currentThemeColors.tint }]}>Send</Text>
+              <Text style={[styles.commentButton, { color: currentThemeColors.tint }]}>
+                Send
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -200,11 +303,20 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
 
         {isCommentsExpanded && post.comments && post.comments.map((comment, index) => (
           <View key={index} style={[styles.commentContainer, { backgroundColor: currentThemeColors.background }]}>
-            <Image source={{ uri: comment.avatar || 'default_avatar_url_here' }} style={styles.avatar} />
+            <CustomImage
+              source={comment.avatar || 'default_avatar_url_here'}
+              style={styles.avatar}
+            />
             <View style={styles.commentContent}>
-              <Text style={[styles.commentUser, { color: currentThemeColors.text }]}>{comment.username || 'Unknown User'}</Text>
-              <Text style={[styles.commentText, { color: currentThemeColors.text }]}>{comment.text}</Text>
-              <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>{formatTime(comment.timestamp)}</Text>
+              <Text style={[styles.commentUser, { color: currentThemeColors.text }]}>
+                {comment.username || 'Unknown User'}
+              </Text>
+              <Text style={[styles.commentText, { color: currentThemeColors.text }]}>
+                {comment.text}
+              </Text>
+              <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>
+                {formatTime(comment.timestamp)}
+              </Text>
             </View>
           </View>
         ))}
@@ -221,10 +333,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderRadius: 8,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
     elevation: 2,
@@ -235,6 +344,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  headerUserContainer: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    width: '90%',
+  },
   avatar: {
     width: 40,
     height: 40,
@@ -243,38 +357,27 @@ const styles = StyleSheet.create({
   },
   username: {
     fontWeight: 'bold',
-    fontSize: 20,
+    fontSize: 18,
     flex: 1,
   },
-  imageContainer: {
-    width: '100%',
-    overflow: 'hidden',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
+  paragraph: {
+    marginTop: 10,
+    fontSize: 16,
+    lineHeight: 26,
+    marginBottom: 12,
   },
-  image: {
-    width: '100%',
-    height: '100%',
+  time: {
+    fontSize: 12,
   },
   content: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     alignItems: 'flex-end',
   },
-  paragraph: {
-    fontSize: 20,
-    lineHeight: 26,
-    marginBottom: 12,
-  },
-  time: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
   actions: {
     width: '50%',
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 16,
   },
   actionButton: {
     flexDirection: 'row',
@@ -282,7 +385,7 @@ const styles = StyleSheet.create({
   },
   actionText: {
     marginLeft: 4,
-    fontSize: 16,
+    fontSize: 14,
   },
   commentContainer: {
     flexDirection: 'row',
@@ -323,16 +426,80 @@ const styles = StyleSheet.create({
   expandButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
   },
   expandText: {
-    fontSize: 16,
+    fontSize: 12,
     marginLeft: 4,
+  },
+  addressContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end'
   },
   addressText: {
     fontSize: 12,
-    marginTop: 4,
-    textAlign: 'right'
+  },
+  singleImage: {
+    width: '100%',
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  twoImagesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  twoImage: {
+    width: screenWidth1,
+    height: 200,
+    borderRadius: 8,
+  },
+  threeImagesContainer: {
+    marginBottom: 12,
+  },
+  threeImagesTop: {
+    marginBottom: 4,
+  },
+  threeImageLarge: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+  },
+  threeImagesBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  threeImageSmall: {
+    width: screenWidth1,
+    height: 100,
+    borderRadius: 8,
+  },
+  fourImagesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  fourImageWrapper: {
+    position: 'relative',
+    width: '48%',
+    height: 150,
+    marginBottom: 4,
+  },
+  fourImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 8,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  overlayText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
 

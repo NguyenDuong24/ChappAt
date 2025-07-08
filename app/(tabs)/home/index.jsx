@@ -1,8 +1,8 @@
+import { useAppState } from '@/context/AppStateContext';
 import React, { useEffect, useState, useContext } from 'react';
 import { View, StatusBar, ActivityIndicator, StyleSheet } from 'react-native';
 import ListUser from '@/components/home/ListUser';
 import { useAuth } from '@/context/authContext';
-import { useAppState } from '@/context/AppStateContext';
 import { getDocs } from 'firebase/firestore';
 import { userRef } from '@/firebaseConfig';
 import { ThemeContext } from '@/context/ThemeContext';

@@ -16,36 +16,15 @@ export const AuthContextProvider = ({ children }) => {
     const [password, setPassword] = useState(''); 
     const [bio, setBio] = useState(''); 
     const [loading, setLoading] = useState(true);
-    useEffect(() => {
-        const unsub = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setIsAuthenticated(true);
-                console.log(12345, user)
-                setUser(user);
-                updateUserData(user.uid);
-                updateIsOnline(user.uid, true); 
-            } else {
-                setIsAuthenticated(false);
-                setUser(null);
-            }
-            setLoading(false);
-        });
-        return () => unsub();
-    }, []);
-
     const refreshUser = async () => {
         const docRef = doc(db, 'users', user.uid);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
+            console.log("321")
             const data = docSnap.data();
             setUser((prevUser) => ({
                 ...prevUser,
-                username: data.username,
-                profileUrl: data.profileUrl,
-                age: data.age,
-                gender: data.gender,
-                isOnline: data.isOnline,
-                bio: data.bio,
+                data
             }));
             setName(data.username);
             setEmail(data.email);
@@ -56,22 +35,32 @@ export const AuthContextProvider = ({ children }) => {
         }
     };
 
+    useEffect(() => {
+        const unsub = onAuthStateChanged(auth, async (userFB) => {
+            if (userFB) {
+                setUser(userFB);
+                await updateIsOnline(userFB.uid, true);
+                await updateUserData(userFB.uid);
+                setIsAuthenticated(true);
+            } else {
+                setUser(null);
+                setIsAuthenticated(false);
+            }
+            setLoading(false);
+        });
+        return () => unsub();
+    }, []);
+
     const updateUserData = async (uid) => {
-        console.log(`Fetching user data for UID: ${uid}`);
         try {
             const docRef = doc(db, 'users', uid);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                console.log(1234567899, data)
-                await setUser((prevUser) => ({
+                console.log("first", uid, data)
+                setUser((prevUser) => ({
                     ...prevUser,
-                    username: data.username,
-                    profileUrl: data.profileUrl,
-                    age: data.age,
-                    gender: data.gender,
-                    isOnline: data.isOnline,
-                    bio: data.bio,
+                    ...data,
                 }));
             } else {
                 console.warn(`No document found for UID: ${uid}`);
@@ -80,6 +69,8 @@ export const AuthContextProvider = ({ children }) => {
             console.error('Error fetching user data:', error);
         }
     };
+        
+    
     
     const updateIsOnline = async (uid, status) => {
         const docRef = doc(db, 'users', uid);
@@ -97,6 +88,7 @@ export const AuthContextProvider = ({ children }) => {
             const loggedInUser = response.user;
 
             await updateIsOnline(loggedInUser.uid, true);
+            await updateUserData(loggedInUser.uid); 
 
             return { success: true };
         } catch (error) {

@@ -76,7 +76,7 @@ export const LocationProvider = ({ children }) => {
 
         const locationInterval = setInterval(() => {
             getLocation();
-        }, 600000);
+        }, 6000000);
 
         return () => clearInterval(locationInterval);
     }, [user]);

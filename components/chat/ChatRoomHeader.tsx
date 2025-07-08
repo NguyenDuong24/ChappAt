@@ -13,15 +13,8 @@ export default function ChatRoomHeader({ user, router, userId }: any) {
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const { user: userCurrent } = useAuth();
-  const handleAudioCall = () => {
-    router.push({ pathname: '/CallScreen', params: { userId, callType: 'audio' } });
-  };
 
-  const handleVideoCall = () => {
-    router.push({ pathname: '/CallScreen', params: { userId: userId, callType: 'video' } });
-  };
-
-  const initiateCall = async (callerId, receiverId) => {
+  const initiateCall = async (callerId, receiverId, type) => {
     
     try {
       const meetingId = await createMeeting({ token });
@@ -29,6 +22,7 @@ export default function ChatRoomHeader({ user, router, userId }: any) {
         callerId,
         receiverId,
         status: 'ringing',
+        type,
         meetingId,
         timestamp: new Date().toISOString(),
       });
@@ -43,13 +37,15 @@ export default function ChatRoomHeader({ user, router, userId }: any) {
       <Appbar.Content title={user?.username} titleStyle={{ color: currentThemeColors.text }} />
       <Appbar.Action
         icon="phone"
-        onPress={handleAudioCall}
+        onPress={async ()=>{
+          await initiateCall(userCurrent?.uid, userId, "phone");
+        }}
         color={currentThemeColors.text}
       />
       <Appbar.Action
         icon="video"
         onPress={async ()=>{
-          await initiateCall(userCurrent?.uid, userId);
+          await initiateCall(userCurrent?.uid, userId, "video");
         }}
         color={currentThemeColors.text}
       />

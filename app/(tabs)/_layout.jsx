@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { Entypo, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
 import { ThemeContext } from '../../context/ThemeContext'; // Đảm bảo đường dẫn chính xác
 import { Colors } from '../../constants/Colors'; // Đảm bảo đã khai báo màu sắc cho theme
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, StatusBar } from 'react-native';
 
 
 export default function TabsLayout() {
@@ -13,7 +13,20 @@ export default function TabsLayout() {
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   return (
+    <>
+      <StatusBar
+    barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
+    backgroundColor={currentThemeColors.background}
+  />
     <Tabs
+      listeners={{
+          tabPress: (e) => {
+            // Nếu đang ở tab profile, reset về màn hình gốc
+            if (e.target?.includes('profile')) {
+              router.replace('/(tabs)/profile');
+            }
+          },
+        }}
       screenOptions={{
         tabBarShowLabel: false, // Loại bỏ văn bản dưới biểu tượng
         tabBarStyle: {
@@ -28,7 +41,7 @@ export default function TabsLayout() {
             <View style={styles.iconContainer}>
               <Ionicons
                 name="home"
-                size={focused ? 30 : 24}
+                size={focused ? 22 : 20}
                 color={focused ? Colors.primary : currentThemeColors.text}
               />
               {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
@@ -45,7 +58,7 @@ export default function TabsLayout() {
             <View style={styles.iconContainer}>
               <Feather
                 name="globe"
-                size={focused ? 30 : 24}
+                size={focused ? 22 : 20}
                 color={focused ? Colors.primary : currentThemeColors.text}
               />
                {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
@@ -61,7 +74,7 @@ export default function TabsLayout() {
             <View style={styles.iconContainer}>
               <Entypo
                 name="chat"
-                size={focused ? 30 : 24}
+                size={focused ? 22 : 20}
                 color={focused ? Colors.primary : currentThemeColors.text}
               />
                {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
@@ -77,7 +90,7 @@ export default function TabsLayout() {
             <View style={styles.iconContainer}>
               <FontAwesome
                 name="user-circle-o"
-                size={focused ? 30 : 24}
+                size={focused ? 22 : 20}
                 color={focused ? Colors.primary : currentThemeColors.text}
               />
                {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
@@ -86,6 +99,7 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </>
   );
 }
 

@@ -1,37 +1,56 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  ActivityIndicator,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  Easing,
-} from 'react-native';
-import { collection, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Image } from 'react-native';
+import { getDoc, doc, query, collection, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const ListenCallAcceptedScreen = () => {
-  const { meetingId, receiverId } = useLocalSearchParams(); // Thông tin từ route params
-  const [callStatus, setCallStatus] = useState('ringing'); // Trạng thái cuộc gọi
+  const { meetingId, receiverId } = useLocalSearchParams();
+  const [callStatus, setCallStatus] = useState('ringing');
+  const [receiverInfo, setReceiverInfo] = useState(null);
   const router = useRouter();
-  const rotation = new Animated.Value(0);
+  const pulse = new Animated.Value(1);
 
   useEffect(() => {
-    const startRotation = () => {
-      Animated.loop(
-        Animated.timing(rotation, {
-          toValue: 1,
-          duration: 2000,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ).start();
+    const fetchReceiverData = async () => {
+      if (!receiverId) return;
+
+      try {
+        const userDoc = await getDoc(doc(db, 'users', receiverId));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setReceiverInfo(userData);
+          console.log('Receiver Data:', userData);
+        } else {
+          console.log('No such user!');
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
     };
-    startRotation();
-  }, [rotation]);
+
+    fetchReceiverData();
+
+    // Hiệu ứng nhấp nháy
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.2,
+          duration: 1000,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [receiverId]);
 
   const cancelCall = async () => {
     try {
@@ -40,9 +59,7 @@ const ListenCallAcceptedScreen = () => {
       if (!querySnapshot.empty) {
         querySnapshot.forEach(async (docSnapshot) => {
           const callDocRef = doc(db, 'calls', docSnapshot.id);
-          await updateDoc(callDocRef, {
-            status: 'cancel',
-          });
+          await updateDoc(callDocRef, { status: 'cancel' });
           router.back();
         });
       }
@@ -51,30 +68,32 @@ const ListenCallAcceptedScreen = () => {
     }
   };
 
-  const rotationInterpolate = rotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Calling {receiverId}...</Text>
-      <Animated.View
-        style={[
-          styles.iconContainer,
-          { transform: [{ rotate: rotationInterpolate }] },
-        ]}
-      >
-        <Ionicons name="call" size={50} color="#FFF" />
-      </Animated.View>
-      <Text style={styles.statusText}>
-        Current Status: <Text style={styles.status}>{callStatus}</Text>
-      </Text>
-      <TouchableOpacity style={styles.cancelButton} onPress={cancelCall}>
-        <Ionicons name="close-circle" size={20} color="#FFF" />
-        <Text style={styles.cancelText}> Cancel Call</Text>
-      </TouchableOpacity>
-    </View>
+    <LinearGradient colors={['#6A11CB', '#2575FC']} style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerText}>Calling...</Text>
+      </View>
+
+      <View style={styles.content}>
+        {receiverInfo && (
+          <Animated.View style={[styles.profileContainer, { transform: [{ scale: pulse }] }]}>
+            <Image source={{ uri: receiverInfo.profileUrl }} style={styles.profileImage} />
+            <Text style={styles.receiverName}>{receiverInfo.username}</Text>
+          </Animated.View>
+        )}
+
+        <Text style={styles.statusText}>
+          Status: <Text style={styles.status}>{callStatus}</Text>
+        </Text>
+      </View>
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.cancelButton} onPress={cancelCall}>
+          <Ionicons name="close-circle" size={32} color="#FFF" />
+          <Text style={styles.cancelText}>End Call</Text>
+        </TouchableOpacity>
+      </View>
+    </LinearGradient>
   );
 };
 
@@ -83,48 +102,76 @@ export default ListenCallAcceptedScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#6200EA', // Changed to solid background color
-    padding: 20,
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
-  title: {
+  header: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  headerText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  content: {
+    alignItems: 'center',
+  },
+  profileContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  profileImage: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    marginBottom: 15,
+    borderWidth: 3,
+    borderColor: '#FFF',
+  },
+  receiverName: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#FFF',
-    marginBottom: 20,
-    textAlign: 'center',
+    marginBottom: 5,
   },
-  iconContainer: {
-    marginVertical: 30,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  receiverBio: {
+    fontSize: 16,
+    color: '#FFF',
+    opacity: 0.8,
   },
   statusText: {
     fontSize: 18,
     color: '#FFF',
-    marginBottom: 40,
+    marginTop: 20,
   },
   status: {
     fontWeight: 'bold',
-    color: '#FFC107',
+    color: '#FFD700',
+  },
+  footer: {
+    width: '100%',
+    alignItems: 'center',
   },
   cancelButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D32F2F',
+    backgroundColor: '#FF3B30',
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 30,
     borderRadius: 30,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
   },
   cancelText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginLeft: 8,
+    marginLeft: 10,
   },
 });

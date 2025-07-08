@@ -95,11 +95,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   bio: {
-    fontSize: 14,
+    fontSize: 12,
     marginTop: 2,
   },
   statusContainer: {

@@ -1,6 +1,9 @@
 {
   "expo": {
-    "platforms": ["android", "ios"],
+    "platforms": [
+      "android",
+      "ios"
+    ],
     "name": "Chat",
     "slug": "Chat",
     "version": "1.0.0",
@@ -10,17 +13,38 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSBluetoothPeripheralUsageDescription": "We need Bluetooth to detect nearby users.",
+        "NSLocationWhenInUseUsageDescription": "We need location access to find nearby users."
+      },
+      "bitcode": false,
+      "bundleIdentifier": "com.duongnguyen1263.Chat"
     },
     "android": {
       "permissions": [
-        "WAKE_LOCK"
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.duongnguyen1263.Chat"
+      "package": "com.duongnguyen1263.Chat",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -49,6 +73,15 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "517519e7-47e5-475f-b0a6-d22cbebbcf68"
+      }
+    },
+    "owner": "duongnguyen1263"
   }
 }

@@ -1,58 +1,73 @@
 import React, { useState, useContext } from 'react';
-import { Appbar, Menu, Text } from 'react-native-paper';
+import { Appbar, Drawer } from 'react-native-paper';
 import { View, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-
+import { useNavigation } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 const ChatListHeader = () => {
-  const [menuVisible, setMenuVisible] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-
-  const openMenu = () => setMenuVisible(true);
-  const closeMenu = () => setMenuVisible(false);
+  const navigation = useNavigation();
+  const router = useRouter();
+  const toggleDrawer = () => setDrawerVisible(!drawerVisible);
 
   return (
-    <Appbar.Header style={[styles.appbar, { backgroundColor: currentThemeColors.backgroundHeader }]}>
-      <Appbar.Action
-        icon={() => <MaterialCommunityIcons name="headset" size={24} color={currentThemeColors.text} />}
-        onPress={() => {}}
-      />
-      <Appbar.Content 
-        title="Trò chuyện" 
-        titleStyle={{ color: currentThemeColors.text, fontSize: 20, fontWeight: 'bold' }} 
-      />
-      <Appbar.Action 
-        icon={() => <MaterialIcons name="more-vert" size={24} color={currentThemeColors.text} />} 
-        onPress={openMenu} 
-      />
+    <View>
+      {/* Appbar Header */}
+      <Appbar.Header style={[styles.appbar, { backgroundColor: currentThemeColors.backgroundHeader }]}>
+        {/* Nút hỗ trợ */}
+        <Appbar.Action
+          icon={() => (
+            <MaterialCommunityIcons name="headset" size={24} color={currentThemeColors.text} />
+          )}
+          onPress={() => console.log('Hỗ trợ được nhấn')}
+        />
 
-      <Menu
-        visible={menuVisible}
-        onDismiss={closeMenu}
-        anchor={<View />}
-      >
-        <Menu.Item
-          onPress={() => { closeMenu(); }}
-          title={
-            <View style={styles.menuItem}>
-              <Ionicons name="person-add" size={24} color={currentThemeColors.text} />
-              <Text style={[styles.menuText, { color: currentThemeColors.text }]}>Thêm bạn</Text>
-            </View>
-          }
+        {/* Tiêu đề */}
+        <Appbar.Content
+          title="Trò chuyện"
+          titleStyle={{ color: currentThemeColors.text, fontSize: 20, fontWeight: 'bold' }}
         />
-        <Menu.Item
-          onPress={() => { closeMenu(); }}
-          title={
-            <View style={styles.menuItem}>
-              <MaterialIcons name="find-in-page" size={24} color={currentThemeColors.text} />
-              <Text style={[styles.menuText, { color: currentThemeColors.text }]}>Tìm chat</Text>
-            </View>
-          }
+
+        {/* Nút menu */}
+        <Appbar.Action
+          icon={() => (
+            <MaterialIcons name="more-vert" size={24} color={currentThemeColors.text} />
+          )}
+          onPress={toggleDrawer}
         />
-      </Menu>
-    </Appbar.Header>
+      </Appbar.Header>
+
+      {/* Drawer Section */}
+      {drawerVisible && (
+        <Drawer.Section style={[styles.drawer, { backgroundColor: currentThemeColors.backgroundHeader }]}>
+          {/* Mục "Thêm bạn" */}
+          <Drawer.Item
+            icon={() => <Ionicons name="person-add" size={24} color={currentThemeColors.text} />}
+            label="Thêm bạn"
+            labelStyle={{ color: currentThemeColors.text }}
+            onPress={() => {
+              router.push('/AddFriend');
+          }
+        }
+          />
+
+          {/* Mục "Tìm chat" */}
+          <Drawer.Item
+            icon={() => <MaterialIcons name="find-in-page" size={24} color={currentThemeColors.text} />}
+            label="Tìm kiếm tin nhắn"
+            labelStyle={{ color: currentThemeColors.text }}
+            onPress={() => {
+              setDrawerVisible(false);
+              navigation.navigate('SearchChatScreen'); // Chuyển đến màn hình Tìm kiếm tin nhắn
+            }}
+          />
+        </Drawer.Section>
+      )}
+    </View>
   );
 };
 
@@ -62,19 +77,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    height: 50,
-    paddingVertical: 8,
+    height: 56, // Chiều cao tiêu chuẩn cho thanh Appbar
+    elevation: 0, // Loại bỏ đổ bóng
   },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingVertical: 10,
-  },
-  menuText: {
-    fontSize: 16,
-    marginLeft: 10,
-    fontWeight: '500',
+  drawer: {
+    position: 'absolute',
+    top: 60, // Hiển thị ngay dưới Appbar
+    right: 10,
+    borderRadius: 8,
+    elevation: 4, // Hiệu ứng đổ bóng
+    width: 200, // Định rõ kích thước menu
   },
 });
 

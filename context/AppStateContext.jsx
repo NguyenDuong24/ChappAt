@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AppState as RNAppState } from 'react-native';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/context/authContext';

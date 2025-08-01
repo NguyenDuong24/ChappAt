@@ -4,6 +4,8 @@ import {
   View,
   TextInput,
   TouchableOpacity,
+  Alert,
+  Clipboard,
 } from 'react-native';
 import { Title, Paragraph, Divider, Text } from 'react-native-paper';
 import { AntDesign } from '@expo/vector-icons';
@@ -27,15 +29,20 @@ import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 
-const extractHashtags = (text) => {
+const extractHashtags = (text: string) => {
   const regex = /#[a-zA-Z0-9_]+/g;
   return text.match(regex) || [];
 };
 
-const TopProfile = ({ onEditProfile, handleLogout }) => {
+interface TopProfileProps {
+  onEditProfile?: () => void;
+  handleLogout?: () => void;
+}
+
+const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   const [isEditingBio, setIsEditingBio] = useState(false);
   const { user } = useAuth();
-  const [bio, setBio] = useState(user?.bio || '');
+  const [bio, setBio] = useState('');
   const router = useRouter();
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -43,6 +50,13 @@ const TopProfile = ({ onEditProfile, handleLogout }) => {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
+
+  // Update bio when user changes
+  useEffect(() => {
+    if (user?.bio) {
+      setBio(user.bio);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user || !user.uid) return;
@@ -91,7 +105,9 @@ const TopProfile = ({ onEditProfile, handleLogout }) => {
     }
   };
 
-  const updateBioHashtags = async (newBio) => {
+  const updateBioHashtags = async (newBio: string) => {
+    if (!user?.uid) return; // Add safety check
+    
     const hashtags = extractHashtags(newBio);
     for (const tagItem of hashtags) {
       const tagDocRef = doc(collection(db, 'hashtags'), tagItem);
@@ -110,12 +126,40 @@ const TopProfile = ({ onEditProfile, handleLogout }) => {
     }
   };
 
-  const handleHashtagPress = (hashtag) => {
+  const handleHashtagPress = (hashtag: string) => {
     console.log('Hashtag được nhấn:', hashtag);
   };
 
+  const handleCopyUID = async () => {
+    if (__DEV__) {
+      console.log('User UID:', user?.uid); // Debug log
+    }
+    if (user?.uid) {
+      try {
+        Clipboard.setString(user.uid);
+        Alert.alert('Đã sao chép', 'UID đã được sao chép vào clipboard', [
+          { text: 'OK', style: 'default' }
+        ]);
+      } catch (error) {
+        console.error('Error copying UID:', error);
+        Alert.alert('Lỗi', 'Không thể sao chép UID');
+      }
+    } else {
+      Alert.alert('Lỗi', 'Không tìm thấy UID');
+    }
+  };
+
   if (!user) {
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={{ fontSize: 16, color: '#666' }}>Loading user profile...</Text>
+      </View>
+    );
+  }
+
+  // Debug log only in development
+  if (__DEV__) {
+    console.log('Rendering TopProfile with user:', user.uid);
   }
 
   return (
@@ -142,7 +186,7 @@ const TopProfile = ({ onEditProfile, handleLogout }) => {
 
       <View style={styles.header}>
         <View style={[styles.avatarWrapper, { borderColor: currentThemeColors.text }]}>
-          <CustomImage source={user.profileUrl} style={styles.avatar} />
+          <CustomImage source={user?.profileUrl} style={styles.avatar} />
           <View style={styles.statsContainer}>
             <View style={styles.stat}>
               <Title style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
@@ -173,8 +217,26 @@ const TopProfile = ({ onEditProfile, handleLogout }) => {
           </View>
         </View>
         <Title style={[styles.name, { color: currentThemeColors.text }]}>
-          {user.username}
+          {user?.username || 'Unknown User'}
         </Title>
+        
+        {/* UID Display with Copy Button */}
+        <View style={[styles.uidContainer]}>
+          <Text style={[styles.uidLabel, { color: currentThemeColors.subtleText }]}>
+            UID: 
+          </Text>
+          <Text style={[styles.uidText, { color: currentThemeColors.text }]} numberOfLines={1} selectable={true}>
+            {user?.uid || 'No UID'}
+          </Text>
+          <TouchableOpacity
+            onPress={handleCopyUID}
+            style={[styles.copyButton]}
+            activeOpacity={0.7}
+          >
+            <Feather name="copy" size={14} color={currentThemeColors.icon} />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.bioContainer}>
           {isEditingBio ? (
             <TextInput
@@ -193,7 +255,7 @@ const TopProfile = ({ onEditProfile, handleLogout }) => {
             />
           ) : (
             <Text style={[styles.bio, { color: currentThemeColors.text }]}>
-              {bio}
+              {bio || 'No bio available'}
             </Text>
           )}
           <TouchableOpacity
@@ -250,6 +312,26 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
+  uidContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  uidLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  uidText: {
+    fontSize: 10,
+    fontFamily: 'monospace',
+    flex: 1,
+  },
+  copyButton: {
+    padding: 2,
+    marginLeft: 2,
+  },
   bioContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -289,6 +371,11 @@ const styles = StyleSheet.create({
   divider: {
     marginVertical: 16,
     height: 1,
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

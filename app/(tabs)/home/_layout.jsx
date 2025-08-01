@@ -9,10 +9,9 @@ const StackLayout = () => {
         <Stack.Screen
          name="index"
          options={{
-            tabBarLabel: () => null,
-            header : ()=> <HomeHeader/>,
-            headerTitle: "Home Page",
-            
+            headerShown: true,
+            header: () => <HomeHeader/>,
+            headerTitle: "",
          }}
         />
     </Stack>

@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Slot, Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -10,220 +10,110 @@ import { AppState } from 'react-native';
 import { AppStateProvider } from '../context/AppStateContext';
 import { LogoStateProvider } from '../context/LogoStateContext';
 import { LocationProvider } from '../context/LocationContext';
-import { ThemeProvider } from '../context/ThemeContext';
+import { ThemeProvider, ThemeContext } from '../context/ThemeContext';
 import { StateCommonProvider } from '../context/stateCommon';
 import { NotificationProvider } from '../context/NotificationContext';
-import { ThemeContext } from '@/context/ThemeContext';
+import { UserProvider } from '../context/UserContext'; // Import UserProvider
+import { AudioProvider } from '../context/AudioContext'; // Import AudioProvider
 import { Colors } from '@/constants/Colors';
 import { register } from "@videosdk.live/react-native-sdk";
-import { onSnapshot, query, collection, collectionGroup, where } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
-import * as Notifications from 'expo-notifications';
-import * as TaskManager from "expo-task-manager";
 
-// Video SDK register (nếu cần)
-register();
+// Import refactored hooks and services
+import { 
+  useCallAcceptedListener, 
+  useCallRequestListener, 
+  useCallCanceledListener, 
+  useIncomingCallListener 
+} from '../hooks/useCallListeners';
+import { useNotificationHandlers, setupNotificationHandler } from '../hooks/useNotificationHandlers';
+import { useCallNavigation } from '../hooks/useCallNavigation';
+import { useAuthRouting } from '../hooks/useAuthRouting';
+import { useSound } from '../hooks/useSound'; // Import useSound hook
+import { initializeBackgroundServices } from '../services/backgroundService';
+import { ROUTES, CALL_STATUS, SCREEN_NAMES } from '../constants/Navigation';
 
-// Thiết lập Notification handler (chỉ hiển thị thông báo, không phát âm thanh hay badge)
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
-
-const BACKGROUND_NOTIFICATION_TASK = "BACKGROUND-NOTIFICATION-TASK";
-
-TaskManager.defineTask(
-  BACKGROUND_NOTIFICATION_TASK,
-  ({ data, error, executionInfo }) => {
-    console.log("✅ Received a notification in the background!", {
-      data,
-      error,
-      executionInfo,
-    });
-    // Do something with the notification data
-  }
-);
-
-Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+// Initialize services
+register(); // Video SDK register
+setupNotificationHandler(); // Setup notification handler
+initializeBackgroundServices(); // Initialize background services
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
-const listenCallAccepted = (callerId, onCaller) => {
-  const callsQuery = query(
-    collection(db, 'calls'),
-    where('callerId', '==', callerId),
-    where('status', '==', 'accepted')
-  );
-  const unsubscribe = onSnapshot(callsQuery, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        onCaller(change.doc.data());
-      }
-    });
-  });
-  return unsubscribe;
-};
-
-const listenRequestCall = (callerId, onCaller) => {
-  const callsQuery = query(
-    collection(db, 'calls'),
-    where('callerId', '==', callerId),
-    where('status', '==', 'ringing')
-  );
-  const unsubscribe = onSnapshot(callsQuery, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        onCaller(change.doc.data());
-      }
-    });
-  });
-  return unsubscribe;
-};
-
-const listencCallerCancelCall = (receiverId, onCaller) => {
-  const callsQuery = query(
-    collection(db, 'calls'),
-    where('receiverId', '==', receiverId),
-    where('status', '==', 'cancel')
-  );
-  const unsubscribe = onSnapshot(callsQuery, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        onCaller(change.doc.data());
-      }
-    });
-  });
-  return unsubscribe;
-};
-
-const listenForIncomingCalls = (userId, onCallReceived) => {
-  const callsQuery = query(
-    collection(db, 'calls'),
-    where('receiverId', '==', userId),
-    where('status', '==', 'ringing')
-  );
-  const unsubscribe = onSnapshot(callsQuery, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        onCallReceived(change.doc.data());
-      }
-    });
-  });
-  return unsubscribe;
-};
 
 const MainLayout = () => {
   const { isAuthenticated, user } = useAuth();
-  const segments = useSegments();
-  const router = useRouter();
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [incomingCall, setIncomingCall] = useState(null);
-  const currentScreen = segments[segments.length - 1];
 
-  useEffect(() => {
+  // Add sound hooks
+  const { 
+    playIncomingCallSound, 
+    playCallAcceptedSound, 
+    playCallEndSound,
+    stopCallSounds 
+  } = useSound();
 
-    // Lắng nghe thông báo khi nhận (foreground)
-    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Received notification:', notification);
-    });
-    // Lắng nghe khi người dùng nhấn vào thông báo
-    const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      const screen = response?.notification?.request?.content?.data?.screen;
-      if (screen) {
-        router.push(screen);
+  // Use refactored hooks
+  const { 
+    navigateToIncomingCall, 
+    navigateToCallScreen, 
+    navigateToListenCallAccepted, 
+    handleCallCanceled: navigateBackOnCancel,
+    currentScreen 
+  } = useCallNavigation();
+  
+  // Setup notification handlers
+  useNotificationHandlers();
+  
+  // Handle authentication routing
+  useAuthRouting(isAuthenticated);
+
+  // Call event handlers
+  const handleIncomingCall = (callData) => {
+    if (callData?.status === CALL_STATUS.RINGING) {
+      setIncomingCall(callData);
+      playIncomingCallSound(); // Play incoming call sound
+      navigateToIncomingCall(callData);
+    }
+  };
+
+  const handleCallAccepted = (callData) => {
+    if (callData?.status === CALL_STATUS.ACCEPTED) {
+      setIncomingCall(callData);
+      stopCallSounds(); // Stop ring sounds
+      playCallAcceptedSound(); // Play accepted sound
+      navigateToCallScreen(callData);
+    }
+  };
+
+  const handleCallRequest = (callData) => {
+    if (callData?.status === CALL_STATUS.RINGING) {
+      setIncomingCall(callData);
+      navigateToListenCallAccepted(callData);
+    }
+  };
+
+  const handleCallCanceled = (callData) => {
+    if (callData?.status === CALL_STATUS.CANCELLED) {
+      setIncomingCall(callData);
+      stopCallSounds(); // Stop all call sounds
+      playCallEndSound(); // Play call end sound
+      if (
+        currentScreen === SCREEN_NAMES.INCOMING_CALL_SCREEN ||
+        currentScreen === SCREEN_NAMES.CALL_SCREEN
+      ) {
+        navigateBackOnCancel();
       }
-    });
-
-    return () => {
-      notificationListener.remove();
-      responseListener.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated && user?.uid) {
-      const userId = user.uid;
-
-      // Lắng nghe cuộc gọi đến
-      const unsubscribeCall = listenForIncomingCalls(userId, (callData) => {
-        if (callData?.status === 'ringing') {
-          setIncomingCall(callData);
-          router.push({
-            pathname: '/IncomingCallScreen',
-            params: {
-              meetingId: callData.meetingId,
-              callerId: callData.callerId,
-              receiverId: callData.receiverId,
-              status: callData.status,
-              type: callData.type,
-            },
-          });
-        }
-      });
-      const unsubscribeAccepted = listenCallAccepted(userId, (callData) => {
-        if (callData?.status === 'accepted') {
-          setIncomingCall(callData);
-          router.push({
-            pathname: '/CallScreen',
-            params: {
-              meetingId: callData.meetingId,
-              callerId: callData.callerId,
-              receiverId: callData.receiverId,
-              status: callData.status,
-              type: callData.type,
-            },
-          });
-        }
-      });
-      const unsubscribeRequest = listenRequestCall(userId, (callData) => {
-        if (callData?.status === 'ringing') {
-          setIncomingCall(callData);
-          router.push({
-            pathname: '/ListenCallAcceptedScreen',
-            params: {
-              meetingId: callData.meetingId,
-              callerId: callData.callerId,
-              receiverId: callData.receiverId,
-              status: callData.status,
-              type: callData.type,
-            },
-          });
-        }
-      });
-      const unsubscribeCancel = listencCallerCancelCall(userId, (callData) => {
-        if (callData?.status === 'cancel') {
-          setIncomingCall(callData);
-          if (
-            currentScreen === 'IncomingCallScreen' ||
-            currentScreen === 'CallScreen'
-          ) {
-            router.back();
-          }
-        }
-      });
-
-      return () => {
-        unsubscribeCall();
-        unsubscribeAccepted();
-        unsubscribeRequest();
-        unsubscribeCancel();
-      };
     }
-  }, [isAuthenticated, user]);
+  };
 
-  useEffect(() => {
-    if (typeof isAuthenticated === 'undefined') return;
-    const inApp = segments[0] === '(app)';
-    if (isAuthenticated && !inApp) {
-      router.replace('/home');
-    } else if (isAuthenticated === false) {
-      router.replace('signin');
-    }
-  }, [isAuthenticated]);
+  // Setup call listeners
+  const userId = user?.uid;
+  useIncomingCallListener(userId, handleIncomingCall);
+  useCallAcceptedListener(userId, handleCallAccepted);
+  useCallRequestListener(userId, handleCallRequest);
+  useCallCanceledListener(userId, handleCallCanceled);
 
   return (
     <Stack>
@@ -244,22 +134,11 @@ const MainLayout = () => {
       <Stack.Screen name="CallScreen" options={{ headerShown: false }} />
       <Stack.Screen name="ListenCallAcceptedScreen" options={{ headerShown: false }} />
       <Stack.Screen name="AddFriend" options={{ headerShown: false }} />
-      <Stack.Screen name="ChatScreen" options={{ headerShown: false }} />
     </Stack>
   );
 };
 
 export default function RootLayout() {
-  const [appState, setAppState] = useState(AppState.currentState);
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", nextAppState => {
-      setAppState(nextAppState);
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
   return (
     <NotificationProvider>
       <AuthContextProvider>
@@ -269,9 +148,11 @@ export default function RootLayout() {
               <LogoStateProvider>
                 <LocationProvider>
                   <PaperProvider>
-                    <NavigationContainer>
-                      <MainLayout />
-                    </NavigationContainer>
+                    <AudioProvider> {/* Add AudioProvider */}
+                      <UserProvider> {/* Wrap with UserProvider */}
+                        <MainLayout />
+                      </UserProvider>
+                    </AudioProvider>
                   </PaperProvider>
                 </LocationProvider>
               </LogoStateProvider>

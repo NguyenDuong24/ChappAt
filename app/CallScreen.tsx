@@ -34,7 +34,7 @@ function JoinScreen(props) {
         style={{ backgroundColor: "#1178F8", padding: 12, borderRadius: 6 }}
       >
         <Text style={{ color: "white", alignSelf: "center", fontSize: 18 }}>
-          Create Meeting
+   Meetingreeting
         </Text>
       </TouchableOpacity>
 

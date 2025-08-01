@@ -9,6 +9,7 @@ import TopProfile from '@/components/profile/TopProfile';
 import PostCard from '@/components/profile/PostCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { convertTimestampToDate } from '@/utils/common';
+import { PrivacyLevel } from '@/utils/postPrivacyUtils';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 
@@ -77,20 +78,28 @@ const ProfileScreen = () => {
     setIsScroll(false);
   };
 
-  const renderPost = ({ item }) => (
+  const handlePrivacyChange = (postId: string, newPrivacy: PrivacyLevel) => {
+    console.log('Privacy changed for post:', postId, 'to:', newPrivacy);
+    // Refresh posts để cập nhật UI
+    fetchPosts();
+  };
+
+  const renderPost = ({ item }: { item: any }) => (
     <PostCard
       owner={true}
       post={item}
-      onLike={handleLike}
-      onComment={handleComment}
-      onShare={handleShare}
+      user={user}
+      onLike={() => {}}
+      onShare={() => {}}
       onDeletePost={fetchPosts}
+      onPrivacyChange={handlePrivacyChange}
+      addComment={() => {}}
     />
   );
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      <AddPostButton isScroll={isScroll} router={router} onRefresh={onRefresh} />
+      <AddPostButton isScroll={isScroll} />
       <FlatList
         data={posts}
         renderItem={renderPost}

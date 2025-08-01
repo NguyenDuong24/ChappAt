@@ -1,92 +1,181 @@
 import React, { useState, useContext } from 'react';
-import { Appbar, Drawer } from 'react-native-paper';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+
 const ChatListHeader = () => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const navigation = useNavigation();
   const router = useRouter();
+  
   const toggleDrawer = () => setDrawerVisible(!drawerVisible);
 
   return (
-    <View>
-      {/* Appbar Header */}
-      <Appbar.Header style={[styles.appbar, { backgroundColor: currentThemeColors.backgroundHeader }]}>
-        {/* Nút hỗ trợ */}
-        <Appbar.Action
-          icon={() => (
-            <MaterialCommunityIcons name="headset" size={24} color={currentThemeColors.text} />
-          )}
-          onPress={() => console.log('Hỗ trợ được nhấn')}
-        />
+    <View style={styles.container}>
+      {/* Modern Header */}
+      <View style={styles.header}>
+        {/* Left section */}
+        <View style={styles.leftSection}>
+          <View style={styles.iconContainer}>
+            <MaterialCommunityIcons name="chat" size={28} color="white" />
+          </View>
+          <View style={styles.titleSection}>
+            <Text style={styles.title}>Trò chuyện</Text>
+            <Text style={styles.subtitle}>✨ Kết nối với bạn bè</Text>
+          </View>
+        </View>
 
-        {/* Tiêu đề */}
-        <Appbar.Content
-          title="Trò chuyện"
-          titleStyle={{ color: currentThemeColors.text, fontSize: 20, fontWeight: 'bold' }}
-        />
+        {/* Right section */}
+        <View style={styles.rightSection}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => router.push('/AddFriend')}
+          >
+            <Ionicons name="person-add" size={22} color="white" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={toggleDrawer}
+          >
+            <MaterialIcons name="more-vert" size={22} color="white" />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-        {/* Nút menu */}
-        <Appbar.Action
-          icon={() => (
-            <MaterialIcons name="more-vert" size={24} color={currentThemeColors.text} />
-          )}
-          onPress={toggleDrawer}
-        />
-      </Appbar.Header>
-
-      {/* Drawer Section */}
+      {/* Modern Dropdown Menu */}
       {drawerVisible && (
-        <Drawer.Section style={[styles.drawer, { backgroundColor: currentThemeColors.backgroundHeader }]}>
-          {/* Mục "Thêm bạn" */}
-          <Drawer.Item
-            icon={() => <Ionicons name="person-add" size={24} color={currentThemeColors.text} />}
-            label="Thêm bạn"
-            labelStyle={{ color: currentThemeColors.text }}
-            onPress={() => {
-              router.push('/AddFriend');
-          }
-        }
-          />
-
-          {/* Mục "Tìm chat" */}
-          <Drawer.Item
-            icon={() => <MaterialIcons name="find-in-page" size={24} color={currentThemeColors.text} />}
-            label="Tìm kiếm tin nhắn"
-            labelStyle={{ color: currentThemeColors.text }}
+        <View style={styles.dropdown}>
+          <TouchableOpacity 
+            style={styles.dropdownItem}
             onPress={() => {
               setDrawerVisible(false);
-              navigation.navigate('SearchChatScreen'); // Chuyển đến màn hình Tìm kiếm tin nhắn
+              router.push('/AddFriend');
             }}
-          />
-        </Drawer.Section>
+          >
+            <View style={styles.dropdownIconContainer}>
+              <Ionicons name="person-add" size={20} color="#667eea" />
+            </View>
+            <Text style={styles.dropdownText}>Thêm bạn</Text>
+          </TouchableOpacity>
+
+          <View style={styles.dropdownDivider} />
+
+          <TouchableOpacity 
+            style={styles.dropdownItem}
+            onPress={() => {
+              setDrawerVisible(false);
+              // Handle search navigation
+            }}
+          >
+            <View style={styles.dropdownIconContainer}>
+              <MaterialIcons name="search" size={20} color="#667eea" />
+            </View>
+            <Text style={styles.dropdownText}>Tìm kiếm tin nhắn</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  appbar: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    height: 56, // Chiều cao tiêu chuẩn cho thanh Appbar
-    elevation: 0, // Loại bỏ đổ bóng
+  container: {
+    position: 'relative',
   },
-  drawer: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    height: 80,
+  },
+  leftSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  titleSection: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  dropdown: {
     position: 'absolute',
-    top: 60, // Hiển thị ngay dưới Appbar
-    right: 10,
-    borderRadius: 8,
-    elevation: 4, // Hiệu ứng đổ bóng
-    width: 200, // Định rõ kích thước menu
+    top: 85,
+    right: 20,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    minWidth: 200,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    paddingVertical: 8,
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dropdownIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f0f4ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  dropdownText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    flex: 1,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
+    marginVertical: 4,
+    marginHorizontal: 16,
   },
 });
 

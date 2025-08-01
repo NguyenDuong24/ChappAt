@@ -26,6 +26,36 @@ export function formatTime(timestamp) {
       return `${day}/${month}`;
     }
   }
+
+export function formatDetailedTime(timestamp) {
+    if (!timestamp || !timestamp.seconds) {
+      return '';
+    }
+  
+    const messageDate = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+    const currentDate = new Date();
+    
+    const timeDiff = currentDate.getTime() - messageDate.getTime();
+    const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+    
+    const hours = messageDate.getHours().toString().padStart(2, '0');
+    const minutes = messageDate.getMinutes().toString().padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+    
+    if (daysDiff === 0) {
+      return `Hôm nay ${timeStr}`;
+    } else if (daysDiff === 1) {
+      return `Hôm qua ${timeStr}`;
+    } else if (daysDiff < 7) {
+      const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+      return `${days[messageDate.getDay()]} ${timeStr}`;
+    } else {
+      const day = messageDate.getDate().toString().padStart(2, '0');
+      const month = (messageDate.getMonth() + 1).toString().padStart(2, '0');
+      const year = messageDate.getFullYear();
+      return `${day}/${month}/${year} ${timeStr}`;
+    }
+  }
 export const calculateAge = (timestamp: { seconds: number; nanoseconds: number }) => {
   if (!timestamp || !timestamp.seconds) {
     return null; 

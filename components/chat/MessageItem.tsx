@@ -1,16 +1,42 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import { Avatar } from 'react-native-paper';
-import { formatTime } from '@/utils/common';
+import { formatTime, formatDetailedTime } from '@/utils/common';
 import { Image } from 'react-native';
 import CustomImage from '../common/CustomImage';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { ThemeContext } from '@/context/ThemeContext';
+import { Colors } from '@/constants/Colors';
 
 export default function MessageItem({ message, currentUser }: any) {
   const isCurrentUser = message?.uid === currentUser?.uid;
-  const [showTime, setShowTime] = useState(false); 
+  const [showTime, setShowTime] = useState(false);
+  const { theme } = useContext(ThemeContext);
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const handlePress = () => {
     setShowTime(prev => !prev); 
+  };
+
+  const getStatusIcon = () => {
+    if (!isCurrentUser) return null;
+    
+    switch (message?.status) {
+      case 'sent':
+        return <MaterialIcons name="done" size={14} color="#999" />;
+      case 'delivered':
+        return <MaterialIcons name="done-all" size={14} color="#999" />;
+      case 'read':
+        return <MaterialIcons name="done-all" size={14} color="#4CAF50" />;
+      default:
+        return <MaterialIcons name="schedule" size={14} color="#999" />;
+    }
+  };
+
+  const formatMessageTime = () => {
+    if (!message?.createdAt) return '';
+    const time = formatTime(message.createdAt);
+    return time;
   };
 
   return (
@@ -30,15 +56,35 @@ export default function MessageItem({ message, currentUser }: any) {
           ]}
         >
           {message?.imageUrl ? (
-            <CustomImage source={ message.imageUrl} style={[styles.image, { height: 150, width: 200}]}></CustomImage>
+            <CustomImage source={message.imageUrl} style={[styles.image, { height: 150, width: 200}]} />
           ) : (
-            <Text style={styles.messageText}>{message?.text}</Text>
+            <Text style={[styles.messageText, { color: isCurrentUser ? '#000' : currentThemeColors.text }]}>
+              {message?.text}
+            </Text>
           )}
+          
+          {/* Time and status row */}
+          <View style={styles.timeStatusContainer}>
+            <Text style={[styles.timeText, { color: isCurrentUser ? '#666' : '#999' }]}>
+              {formatMessageTime()}
+            </Text>
+            {getStatusIcon()}
+          </View>
         </View>
+        
         {showTime && (
-          <Text style={styles.timeText}>
-            {formatTime(message?.createdAt)} {}
-          </Text>
+          <View style={styles.detailedTimeContainer}>
+            <Text style={[styles.detailedTimeText, { color: currentThemeColors.subtleText }]}>
+              {message?.createdAt && formatDetailedTime(message.createdAt)}
+            </Text>
+            {isCurrentUser && message?.status && (
+              <Text style={[styles.statusText, { color: currentThemeColors.subtleText }]}>
+                {message.status === 'sent' && 'Đã gửi'}
+                {message.status === 'delivered' && 'Đã nhận'}
+                {message.status === 'read' && 'Đã xem'}
+              </Text>
+            )}
+          </View>
         )}
       </View>
       {isCurrentUser && (
@@ -76,7 +122,8 @@ const styles = StyleSheet.create({
   messageBubble: {
     padding: 10,
     borderRadius: 15,
-    position: 'relative', 
+    position: 'relative',
+    minWidth: 80,
   },
   currentUserBubble: {
     backgroundColor: '#DCF8C6',
@@ -86,11 +133,29 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
+    marginBottom: 4,
+  },
+  timeStatusContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 2,
   },
   timeText: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 0,
-    textAlign: 'right',
+    fontSize: 10,
+    marginRight: 4,
+  },
+  detailedTimeContainer: {
+    marginTop: 4,
+    alignItems: 'flex-end',
+  },
+  detailedTimeText: {
+    fontSize: 11,
+    fontStyle: 'italic',
+  },
+  statusText: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
 });

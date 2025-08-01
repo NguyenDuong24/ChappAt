@@ -5,27 +5,86 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  TextInput,
   Image,
   Dimensions
 } from 'react-native';
-import { IconButton, Menu, Provider } from 'react-native-paper';
+import { Menu, Provider, Button } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import EvilIcons from '@expo/vector-icons/EvilIcons';
-import { deleteDoc, doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/firebaseConfig';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
 import { formatTime } from '@/utils/common';
 import { ThemeContext } from '@/context/ThemeContext';
+import { useUserContext } from '@/context/UserContext';
 import { Colors } from '@/constants/Colors';
 import { useRouter } from 'expo-router';
 import CustomImage from '../common/CustomImage';
 import HashtagText from '../common/HashtagText';
+import HashtagDisplay from '../common/HashtagDisplay';
+import PrivacySelector from '../common/PrivacySelector';
+import { CommentSection } from '../common/CommentSection';
+import PostActions from '../common/PostActions';
+import PostHeader from '../common/PostHeader';
+import { removeHashtagStats } from '@/utils/hashtagUtils';
+import { updatePostPrivacy, PrivacyLevel } from '@/utils/postPrivacyUtils';
+
+interface PostImagesProps {
+  images: string[];
+}
+
+interface Comment {
+  id?: string;
+  text: string;
+  username: string;
+  avatar?: string;
+  timestamp: any;
+  likes?: string[];
+  replies?: any[];
+  userId: string;
+}
+
+interface Post {
+  id: string;
+  content: string;
+  hashtags?: string[]; // Thêm field hashtags
+  images?: string[];
+  address?: string;
+  likes: string[];
+  comments?: Comment[];
+  shares: number;
+  timestamp: any;
+  userID: string;
+  privacy?: 'public' | 'friends' | 'private'; // Thêm privacy setting
+}
+
+interface User {
+  uid: string;
+  username?: string;
+  profileUrl?: string;
+}
+
+interface UserInfo {
+  username: string;
+  profileUrl?: string;
+}
+
+interface PostCardProps {
+  post: Post;
+  user: User;
+  onLike: (postId: string, userId: string, isLiked: boolean) => void;
+  onShare: (postId: string) => void;
+  onDeletePost: () => void;
+  onPrivacyChange?: (postId: string, newPrivacy: PrivacyLevel) => void; // Thêm callback
+  addComment: (postId: string, comment: Comment) => void;
+  owner: boolean;
+  postUserInfo?: UserInfo; // Add preloaded user info
+}
 
 const { width: screenWidth } = Dimensions.get('window');
 
 const screenWidth1 = (screenWidth/2) - ((screenWidth * 10) / 100) 
 
-const PostImages = ({ images }) => {
+const PostImages: React.FC<PostImagesProps> = ({ images }) => {
   if (!images || images.length === 0) return null;
   const [singleImageHeight, setSingleImageHeight] = useState(280);
 
@@ -61,7 +120,7 @@ const PostImages = ({ images }) => {
   if (images.length === 2) {
     return (
       <View style={styles.twoImagesContainer}>
-        {images.map((img, idx) => (
+        {images.map((img: string, idx: number) => (
           <CustomImage key={idx} source={img} style={styles.twoImage} />
         ))}
       </View>
@@ -75,7 +134,7 @@ const PostImages = ({ images }) => {
           <CustomImage source={images[0]} style={styles.threeImageLarge} />
         </View>
         <View style={styles.threeImagesBottom}>
-          {images.slice(1).map((img, idx) => (
+          {images.slice(1).map((img: string, idx: number) => (
             <CustomImage key={idx} source={img} style={styles.threeImageSmall} />
           ))}
         </View>
@@ -87,7 +146,7 @@ const PostImages = ({ images }) => {
   const displayImages = images.slice(0, 4);
   return (
     <View style={styles.fourImagesContainer}>
-      {displayImages.map((img, idx) => (
+      {displayImages.map((img: string, idx: number) => (
         <View key={idx} style={styles.fourImageWrapper}>
           <CustomImage source={img} style={styles.fourImage} />
           {idx === 3 && images.length > 4 && (
@@ -101,42 +160,46 @@ const PostImages = ({ images }) => {
   );
 };
 
-const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, owner }) => {
+const PostCard: React.FC<PostCardProps> = ({ 
+  post, 
+  user, 
+  onLike, 
+  onShare, 
+  onDeletePost, 
+  onPrivacyChange, 
+  addComment, 
+  owner, 
+  postUserInfo 
+}) => {
   const { theme } = useContext(ThemeContext);
+  const { getUserInfo } = useUserContext();
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
   const currentUserId = user?.uid;
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [commentText, setCommentText] = useState('');
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [isCommentsExpanded, setIsCommentsExpanded] = useState(false);
-  const isLiked = post.likes && post.likes.includes(currentUserId);
-  const [userInfo, setUserInfo] = useState();
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(postUserInfo || null);
+  const [showPrivacySelector, setShowPrivacySelector] = useState(false);
 
   const fetchUserInfo = async () => {
-    if (!post.userID) return;
+    // Only fetch if not provided via props
+    if (!post.userID || postUserInfo) return;
     try {
-      const userRef = doc(db, 'users', post.userID);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        setUserInfo(userSnap.data());
-      } else {
-        console.log('No such user!');
-      }
+      const userData = await getUserInfo(post.userID);
+      setUserInfo(userData);
     } catch (error) {
       console.error('Error fetching user info:', error);
     }
   };
 
   useEffect(() => {
-    fetchUserInfo();
-  }, [post]);
-
-  const openMenu = () => setMenuVisible(true);
-  const closeMenu = () => setMenuVisible(false);
+    if (postUserInfo) {
+      setUserInfo(postUserInfo);
+    } else {
+      fetchUserInfo();
+    }
+  }, [post.userID, postUserInfo]);
 
   const handleDeletePost = async () => {
-    closeMenu();
     Alert.alert(
       'Confirm Delete',
       'Are you sure you want to delete this post?',
@@ -160,79 +223,127 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
     );
   };
 
-  const handleAddComment = async () => {
-    if (commentText.trim()) {
-      const newComment = {
-        userId: currentUserId,
-        text: commentText,
-        timestamp: new Date(),
-        username: user.username || 'Unknown User',
-        avatar: user.profileUrl || 'default_avatar_url_here',
-      };
+  const handleAddComment = async (commentText: string) => {
+    const newComment: Comment = {
+      userId: currentUserId || '',
+      text: commentText,
+      timestamp: new Date(),
+      username: user.username || 'Unknown User',
+      avatar: user.profileUrl || 'default_avatar_url_here',
+    };
 
-      await addComment(post.id, newComment);
+    await addComment(post.id, newComment);
+    if (post.comments) {
       post.comments = [...post.comments, newComment];
-      setCommentText('');
-      setShowCommentInput(false);
     }
   };
 
-  const handleHashtagPress = (hashtag) => {
-    console.log('Hashtag được nhấn:', hashtag);
-    // Ví dụ: chuyển hướng đến trang hiển thị bài viết theo hashtag
-    // router.push(`/hashtag/${hashtag.substring(1)}`); // loại bỏ dấu #
+  const handleLikeComment = (commentId: string) => {
+    // Implement like comment logic
+    console.log('Like comment:', commentId);
   };
-  const toggleComments = () => setIsCommentsExpanded(!isCommentsExpanded);
+
+  const handleReplyComment = (commentId: string, replyText: string) => {
+    // Implement reply comment logic
+    console.log('Reply to comment:', commentId, replyText);
+  };
+
+  const handleHashtagPress = (hashtag: string) => {
+    console.log('🔍 DEBUG: Hashtag clicked:', hashtag);
+    const cleanHashtag = hashtag.replace('#', '');
+    console.log('🔍 DEBUG: Clean hashtag:', cleanHashtag);
+    
+    // Navigate to HashtagScreen
+    console.log('🔍 DEBUG: Navigating to HashtagScreen...');
+    router.push(`/(tabs)/explore/HashtagScreen?hashtag=${cleanHashtag}`);
+  };
+
+  const handlePrivacyChange = async (newPrivacy: PrivacyLevel) => {
+    try {
+      const success = await updatePostPrivacy(post.id, newPrivacy);
+      if (success) {
+        // Cập nhật local state
+        post.privacy = newPrivacy;
+        
+        // Gọi callback để cập nhật parent component
+        onPrivacyChange?.(post.id, newPrivacy);
+        
+        Alert.alert(
+          'Thành công',
+          'Đã cập nhật quyền riêng tư của bài viết',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Lỗi',
+          'Không thể cập nhật quyền riêng tư. Vui lòng thử lại.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating privacy:', error);
+      Alert.alert(
+        'Lỗi',
+        'Có lỗi xảy ra. Vui lòng thử lại.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
 
   return (
     <Provider>
       <View style={[styles.container, { backgroundColor: currentThemeColors.background, borderBottomColor: currentThemeColors.border }]}>
-        <View style={styles.header}>
-          <TouchableOpacity 
-            onPress={() => {
-              router.push({
-                pathname: "/UserProfileScreen",
-                params: { userId: post.userID }
-              });
-            }}
-            style={styles.headerUserContainer}
-          >
-            <CustomImage
-              source={userInfo?.profileUrl || 'default_avatar_url_here'}
-              style={styles.avatar}
-            />
-            <Text style={[styles.username, { color: currentThemeColors.text }]}>
-              {userInfo?.username || 'Unknown User'}
-            </Text>
-          </TouchableOpacity>
-          <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
-            {formatTime(post.timestamp)}
-          </Text>
-          {owner && (
-            <Menu
-              style={{ position: 'absolute', top: 35, width: 'auto' }}
-              visible={menuVisible}
-              onDismiss={closeMenu}
-              anchor={
-                <TouchableOpacity onPress={openMenu}>
-                  <MaterialIcons name="more-vert" size={24} color={currentThemeColors.icon} />
-                </TouchableOpacity>
-              }
-            >
-              <Menu.Item onPress={handleDeletePost} title="Xóa bài viết" />
-            </Menu>
-          )}
-        </View>
-        <HashtagText
-              text={post.content}
-              onHashtagPress={handleHashtagPress}
-              textStyle={[styles.paragraph, { color: currentThemeColors.text }]}
-              hashtagStyle={{
-                color : Colors.info,
-                fontSize : 16,
-                marginTop: 5
-              }}
+        {/* New Post Header Component */}
+        <PostHeader
+          userInfo={userInfo}
+          timestamp={post.timestamp}
+          userId={post.userID}
+          isOwner={owner}
+          postPrivacy={post.privacy || 'public'}
+          onUserPress={() => {
+            router.push({
+              pathname: "/UserProfileScreen",
+              params: { userId: post.userID }
+            });
+          }}
+          onDeletePost={handleDeletePost}
+          onPrivacyChange={() => setShowPrivacySelector(true)}
         />
+        
+        <HashtagText
+          text={post.content}
+          onHashtagPress={handleHashtagPress}
+          textStyle={[styles.paragraph, { color: currentThemeColors.text }]}
+          hashtagStyle={{
+            color: Colors.info,
+            fontSize: 16,
+            marginTop: 5
+          }}
+        />
+
+        {/* Display hashtags if available */}
+        {post.hashtags && post.hashtags.length > 0 && (
+          <View style={styles.hashtagsContainer}>
+            <HashtagDisplay
+              hashtags={post.hashtags}
+              maxDisplay={6}
+              size="medium"
+              onHashtagPress={handleHashtagPress}
+            />
+          </View>
+        )}
+
+        {/* DEBUG: Test navigation button */}
+        <Button
+          mode="outlined"
+          onPress={() => {
+            console.log('🔍 DEBUG: Test button clicked');
+            router.push('/(tabs)/explore/HashtagScreen?hashtag=test');
+          }}
+          style={{ margin: 8 }}
+        >
+          🔍 TEST HASHTAG NAVIGATION
+        </Button>
 
         {Array.isArray(post.images) && post.images.length > 0 && (
           <PostImages images={post.images} />
@@ -247,79 +358,34 @@ const PostCard = ({ post, user = {}, onLike, onShare, onDeletePost, addComment, 
           </View>
         )}
 
-        <View style={styles.content}>
-          <View style={styles.actions}>
-            <TouchableOpacity onPress={() => onLike(post.id, currentUserId, isLiked)} style={styles.actionButton}>
-              <IconButton icon="heart" size={20} iconColor={isLiked ? currentThemeColors.tint : currentThemeColors.icon} />
-              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
-                {post.likes.length}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowCommentInput(!showCommentInput)} style={styles.actionButton}>
-              <IconButton icon="comment" size={20} iconColor={currentThemeColors.icon} />
-              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
-                {post.comments ? post.comments.length : 0}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => onShare(post.id)} style={styles.actionButton}>
-              <IconButton icon="share" size={20} iconColor={currentThemeColors.icon} />
-              <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
-                {post.shares}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* New Post Actions Component */}
+        <PostActions
+          post={post}
+          currentUserId={currentUserId || ''}
+          onLike={onLike}
+          onComment={() => setShowCommentInput(!showCommentInput)}
+          onShare={onShare}
+        />
 
+        {/* New Comment Section Component */}
         {showCommentInput && (
-          <View style={styles.commentInputContainer}>
-            <TextInput
-              style={[styles.commentInput, { borderColor: currentThemeColors.border, color: currentThemeColors.text }]}
-              placeholder="Add a comment..."
-              value={commentText}
-              onChangeText={setCommentText}
-              onSubmitEditing={handleAddComment}
-              placeholderTextColor={currentThemeColors.placeholderText}
-            />
-            <TouchableOpacity onPress={handleAddComment}>
-              <Text style={[styles.commentButton, { color: currentThemeColors.tint }]}>
-                Send
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <CommentSection
+            comments={post.comments || []}
+            onAddComment={handleAddComment}
+            onLikeComment={handleLikeComment}
+            onReplyComment={handleReplyComment}
+            currentUserId={currentUserId || ''}
+            currentUserAvatar={user.profileUrl}
+          />
         )}
 
-        {post.comments && post.comments.length > 0 && (
-          <TouchableOpacity onPress={toggleComments} style={styles.expandButton}>
-            <MaterialIcons
-              name={isCommentsExpanded ? 'expand-less' : 'expand-more'}
-              size={24}
-              color={currentThemeColors.icon}
-            />
-            <Text style={[styles.expandText, { color: currentThemeColors.text }]}>
-              {isCommentsExpanded ? 'Hide Comments' : 'Show Comments'}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {isCommentsExpanded && post.comments && post.comments.map((comment, index) => (
-          <View key={index} style={[styles.commentContainer, { backgroundColor: currentThemeColors.background }]}>
-            <CustomImage
-              source={comment.avatar || 'default_avatar_url_here'}
-              style={styles.avatar}
-            />
-            <View style={styles.commentContent}>
-              <Text style={[styles.commentUser, { color: currentThemeColors.text }]}>
-                {comment.username || 'Unknown User'}
-              </Text>
-              <Text style={[styles.commentText, { color: currentThemeColors.text }]}>
-                {comment.text}
-              </Text>
-              <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>
-                {formatTime(comment.timestamp)}
-              </Text>
-            </View>
-          </View>
-        ))}
+        {/* Privacy Selector Modal */}
+        <PrivacySelector
+          visible={showPrivacySelector}
+          currentPrivacy={post.privacy || 'public'}
+          onClose={() => setShowPrivacySelector(false)}
+          onSelect={handlePrivacyChange}
+        />
       </View>
     </Provider>
   );
@@ -329,128 +395,55 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
-    padding: 15,
-  },
-  header: {
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerUserContainer: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    width: '90%',
-  },
-  avatar: {
-    width: 40,
-    height: 40,
+    paddingBottom: 20,
     borderRadius: 20,
-    marginRight: 8,
-  },
-  username: {
-    fontWeight: 'bold',
-    fontSize: 18,
-    flex: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+    padding: 20,
+    backgroundColor: 'white',
+    overflow: 'hidden',
   },
   paragraph: {
-    marginTop: 10,
+    marginTop: 12,
     fontSize: 16,
-    lineHeight: 26,
+    lineHeight: 24,
+    marginBottom: 16,
+    color: '#333',
+    fontWeight: '400',
+  },
+  hashtagsContainer: {
     marginBottom: 12,
-  },
-  time: {
-    fontSize: 12,
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    alignItems: 'flex-end',
-  },
-  actions: {
-    width: '50%',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionText: {
-    marginLeft: 4,
-    fontSize: 14,
-  },
-  commentContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  commentContent: {
-    justifyContent: 'center',
-    flex: 1,
-    paddingVertical: 4,
-  },
-  commentUser: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  commentText: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  commentTime: {
-    fontSize: 12,
-  },
-  commentInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  commentInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 5,
-    padding: 8,
-    marginRight: 8,
-  },
-  commentButton: {
-    fontWeight: 'bold',
-  },
-  expandButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  expandText: {
-    fontSize: 12,
-    marginLeft: 4,
+    marginTop: -8,
   },
   addressContainer: {
     flexDirection: 'row',
-    justifyContent: 'flex-end'
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 12,
   },
   addressText: {
     fontSize: 12,
+    marginLeft: 4,
   },
+  // Image styles
   singleImage: {
     width: '100%',
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
   },
   twoImagesContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 12,
   },
   twoImage: {
     width: screenWidth1,
     height: 200,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   threeImagesContainer: {
     marginBottom: 12,
@@ -461,7 +454,7 @@ const styles = StyleSheet.create({
   threeImageLarge: {
     width: '100%',
     height: 200,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   threeImagesBottom: {
     flexDirection: 'row',
@@ -470,7 +463,7 @@ const styles = StyleSheet.create({
   threeImageSmall: {
     width: screenWidth1,
     height: 100,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   fourImagesContainer: {
     flexDirection: 'row',
@@ -487,19 +480,19 @@ const styles = StyleSheet.create({
   fourImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
+    borderRadius: 12,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 12,
   },
   overlayText: {
     color: 'white',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

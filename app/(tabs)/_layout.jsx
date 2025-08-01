@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Entypo, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
 import { ThemeContext } from '../../context/ThemeContext'; // Đảm bảo đường dẫn chính xác
 import { Colors } from '../../constants/Colors'; // Đảm bảo đã khai báo màu sắc cho theme
@@ -8,6 +8,7 @@ import { View, StyleSheet, StatusBar } from 'react-native';
 
 export default function TabsLayout() {
   const { theme } = useContext(ThemeContext); // Lấy theme từ ThemeContext
+  const router = useRouter(); // Add router hook
 
   // Chọn màu sắc cho tab bar icons và nền dựa trên theme
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;

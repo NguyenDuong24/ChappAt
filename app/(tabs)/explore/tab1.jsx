@@ -3,20 +3,41 @@ import { View, FlatList, ActivityIndicator, Alert, Text, RefreshControl } from '
 import useExplore from '../../explore/useExplore'; 
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
-import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
-import { Colors } from '@/constants/Colors'; // Import Colors
+import { ThemeContext } from '@/context/ThemeContext';
+import { Colors } from '@/constants/Colors';
 
 const Tab1Screen = () => {
-  const { latestPosts, loading, error, deletePost, toggleLike, addComment, fetchPosts } = useExplore();
+  // Safe hook usage with error boundary
+  let hookData;
+  try {
+    hookData = useExplore();
+  } catch (error) {
+    console.error('Error in useExplore hook:', error);
+    hookData = {
+      latestPosts: [],
+      loading: false,
+      error: 'Failed to load posts',
+      deletePost: () => {},
+      toggleLike: () => {},
+      addComment: () => {},
+      fetchPosts: () => Promise.resolve()
+    };
+  }
+
+  const { latestPosts, loading, error, deletePost, toggleLike, addComment, fetchPosts } = hookData;
   const { user } = useAuth();
-  const [updatedPosts, setUpdatedPosts] = useState(latestPosts);
+  const [updatedPosts, setUpdatedPosts] = useState(latestPosts || []);
   const [refreshing, setRefreshing] = useState(false);
 
-  const { theme } = useContext(ThemeContext); // Lấy theme từ context
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Chọn màu theo theme
+  // Safe context usage with fallback
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   useEffect(() => {
-    setUpdatedPosts(latestPosts);
+    if (latestPosts && Array.isArray(latestPosts)) {
+      setUpdatedPosts(latestPosts);
+    }
   }, [latestPosts]);
 
   const onRefresh = async () => {
@@ -61,7 +82,7 @@ const Tab1Screen = () => {
   }
 
   return (
-    <View style={{ flex: 1, paddingTop: 100, backgroundColor: currentThemeColors.background }}>
+    <View style={{ flex: 1, paddingTop: 20, backgroundColor: currentThemeColors.background }}>
       <FlatList
         data={updatedPosts}
         keyExtractor={(item) => item.id}

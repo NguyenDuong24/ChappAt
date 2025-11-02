@@ -11,12 +11,26 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { LocationContext } from '@/context/LocationContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { useAuth } from '@/context/authContext';
+import VibeAvatar from '@/components/vibe/VibeAvatar';
 
 export default function ListUser({ users, onRefresh, refreshing }: any) {
   const router = useRouter();
   const { location } = React.useContext(LocationContext);
-  const { theme } = useContext(ThemeContext);
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const { user: viewer } = useAuth();
+  const viewerShowOnline = viewer?.showOnlineStatus !== false;
+
+  // Per-item scale refs stored in a map (avoid hooks inside renderItem)
+  const scaleMapRef = React.useRef<Record<string, Animated.Value>>({});
+  const getScaleForKey = (key: string) => {
+    const map = scaleMapRef.current;
+    if (!map[key]) {
+      map[key] = new Animated.Value(1);
+    }
+    return map[key];
+  };
 
   const renderUserItem = ({ item, index }: any) => {
     const ageColor = item.gender === 'male' ? Colors.secondary : item.gender === 'female' ? Colors.primary : currentThemeColors.subtleText;
@@ -32,6 +46,20 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
       distance = calculateDistance(location.coords, item?.location);
     }
 
+    // Prepare current vibe (if available on user item)
+    const currentVibe = item?.currentVibe?.vibe ? item.currentVibe : null;
+    const vibe = currentVibe?.vibe;
+
+    // Subtle press animation per-item without hooks in renderItem
+    const key = String(item?.id || item?.uid || index);
+    const scale = getScaleForKey(key);
+    const handlePressIn = () => {
+      Animated.spring(scale, { toValue: 0.98, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+    };
+    const handlePressOut = () => {
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+    };
+
     return (
       <Card style={[styles.userCard, { backgroundColor: currentThemeColors.surface || currentThemeColors.background }]}>
         <TouchableOpacity 
@@ -42,99 +70,142 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
               params: { userId: item.id }
             });
           }}
-          activeOpacity={0.7}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          activeOpacity={0.85}
         >
-          {/* Card Gradient Border */}
-          <LinearGradient
-            colors={gradientColors}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientBorder}
-          >
-            <View style={[styles.cardContent, { backgroundColor: currentThemeColors.surface || currentThemeColors.background }]}>
-              {/* Avatar Section */}
-              <View style={styles.avatarSection}>
-                <View style={styles.avatarContainer}>
-                  <Avatar.Image
-                    source={{ uri: item.profileUrl }}
-                    size={60}
-                    style={styles.avatar}
-                  />
-                  {/* Online Status Indicator */}
-                  <View style={[
-                    styles.statusIndicator, 
-                    item.isOnline ? styles.online : styles.offline
-                  ]}>
-                    <View style={[styles.statusDot, item.isOnline ? styles.onlineDot : styles.offlineDot]} />
-                  </View>
-                </View>
-              </View>
-
-              {/* User Info Section */}
-              <View style={styles.userInfo}>
-                <View style={styles.textContainer}>
-                  <View style={styles.nameRow}>
-                    <Text style={[styles.userName, { color: currentThemeColors.text }]} numberOfLines={1}>
-                      {item.username}
-                    </Text>
-                    <MaterialCommunityIcons 
-                      name={item.gender === 'male' ? "gender-male" : item.gender === 'female' ? "gender-female" : "account"} 
-                      size={16} 
-                      color={genderIconColor} 
-                    />
-                  </View>
-                  
-                  <Text style={[styles.bio, { color: currentThemeColors.subtleText }]} numberOfLines={2}>
-                    {item.bio || "Chưa có thông tin giới thiệu"}
-                  </Text>
-                  
-                  {/* Tags Section */}
-                  <View style={styles.tagsContainer}>
-                    <Chip 
-                      compact 
-                      style={[styles.ageChip, { backgroundColor: ageColor + '15' }]}
-                      textStyle={[styles.chipText, { color: ageColor }]}
-                      icon="calendar"
-                    >
-                      {typeof item.age === 'number' ? `${item.age} tuổi` : 'N/A'}
-                    </Chip>
-                    
-                    {distance !== null && !isNaN(distance) && (
-                      <Chip 
-                        compact 
-                        style={[styles.distanceChip, { backgroundColor: currentThemeColors.tint + '15' }]}
-                        textStyle={[styles.chipText, { color: currentThemeColors.tint }]}
-                        icon="map-marker"
-                      >
-                        {distance.toFixed(1)} km
-                      </Chip>
+          <Animated.View style={{ transform: [{ scale }] }}>
+            {/* Card Gradient Border */}
+            <LinearGradient
+              colors={gradientColors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.gradientBorder}
+            >
+              <View style={[styles.cardContent, { backgroundColor: currentThemeColors.surface || currentThemeColors.background }]}>
+                {/* Avatar Section */}
+                <View style={styles.avatarSection}>
+                  <View style={styles.avatarContainer}>
+                    <View style={[styles.avatarBorder, { borderColor: vibe ? vibe.color : 'white' }]}> 
+                      <VibeAvatar
+                        avatarUrl={item.profileUrl}
+                        size={60}
+                        currentVibe={item.currentVibe || null}
+                        showAddButton={false}
+                        storyUser={{ id: item.id, username: item.username, profileUrl: item.profileUrl }}
+                      />
+                    </View>
+                    {/* Online Status Indicator */}
+                    {viewerShowOnline && (
+                      <View style={[
+                        styles.statusIndicator, 
+                        item.isOnline ? styles.online : styles.offline
+                      ]}>
+                        <View style={[styles.statusDot, item.isOnline ? styles.onlineDot : styles.offlineDot]} />
+                      </View>
+                    )}
+                    {/* Vibe emoji badge on avatar */}
+                    {vibe && (
+                      <View style={[styles.vibeEmojiBadge, { backgroundColor: vibe.color }]}> 
+                        <Text style={styles.vibeEmojiBadgeText}>{vibe.emoji}</Text>
+                      </View>
                     )}
                   </View>
                 </View>
-                
-                {/* Action Button */}
-                <TouchableOpacity 
-                  style={styles.actionButton}
-                  onPress={() => {
-                    // Navigate to chat or other action
-                    router.push({
-                      pathname: "/chat/[id]",
-                      params: { id: item.id }
-                    });
-                  }}
-                >
-                  <LinearGradient
-                    colors={gradientColors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.actionGradient}
+
+                {/* User Info Section */}
+                <View style={styles.userInfo}>
+                  <View style={styles.textContainer}>
+                    {/* Header row: name only */}
+                    <View style={styles.headerRow}>
+                      <View style={styles.nameRowLeft}>
+                        <Text style={[styles.userName, { color: currentThemeColors.text }]} numberOfLines={1}>
+                          {item.username}
+                        </Text>
+                        <MaterialCommunityIcons 
+                          name={item.gender === 'male' ? "gender-male" : item.gender === 'female' ? "gender-female" : "account"} 
+                          size={16} 
+                          color={genderIconColor} 
+                        />
+                      </View>
+                    </View>
+
+                    
+                    {/* Bio */}
+                    <Text style={[styles.bio, { color: currentThemeColors.subtleText }]} numberOfLines={2}>
+                      {item.bio || "Chưa có thông tin giới thiệu"}
+                    </Text>
+
+                    
+                    {/* Vibe row (if user has a current vibe) */}
+                    {vibe && (
+                      <View style={styles.vibeRow}>
+                        <LinearGradient
+                          colors={[vibe.color + 'CC', vibe.color + '99']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.vibePill}
+                        >
+                          <Text style={styles.vibePillEmoji}>{vibe.emoji}</Text>
+                          <Text style={styles.vibePillText} numberOfLines={1}>{vibe.name}</Text>
+                        </LinearGradient>
+                        {currentVibe?.customMessage ? (
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.vibeMessage, { color: currentThemeColors.subtleText }]}
+                          >
+                            {`"${currentVibe.customMessage}"`}
+                          </Text>
+                        ) : null}
+                      </View>
+                    )}
+                    
+                    {/* Tags Section (age and distance) */}
+                    <View style={styles.tagsContainer}>
+                      <Chip 
+                        compact 
+                        style={[styles.ageChip, { backgroundColor: ageColor + '15' }]}
+                        textStyle={[styles.chipText, { color: ageColor }]}
+                        icon="calendar"
+                      >
+                        {typeof item.age === 'number' ? `${item.age} tuổi` : 'N/A'}
+                      </Chip>
+                      {distance !== null && !isNaN(distance) && (
+                        <Chip 
+                          compact 
+                          style={[styles.distanceChipSmall, { backgroundColor: currentThemeColors.tint + '15' }]}
+                          textStyle={[styles.chipText, { color: currentThemeColors.tint }]}
+                          icon="map-marker"
+                        >
+                          {distance.toFixed(1)} km
+                        </Chip>
+                      )}
+                    </View>
+                  </View>
+                  
+                  {/* Action Button */}
+                  <TouchableOpacity 
+                    style={styles.actionButton}
+                    onPress={() => {
+                      router.push({
+                        pathname: "/chat/[id]",
+                        params: { id: item.id }
+                      });
+                    }}
                   >
-                    <MaterialIcons name="chat" size={20} color="white" />
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={gradientColors}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.actionGradient}
+                    >
+                      <MaterialIcons name="chat" size={20} color="white" />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          </LinearGradient>
+            </LinearGradient>
+          </Animated.View>
         </TouchableOpacity>
       </Card>
     );
@@ -145,10 +216,17 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
       data={users}
       renderItem={renderUserItem}
       keyExtractor={(item) => item.id || item.uid}
-      contentContainerStyle={[styles.listContainer, { backgroundColor: currentThemeColors.background }]}
+      contentContainerStyle={[
+        styles.listContainer, 
+        { backgroundColor: currentThemeColors.background, flexGrow: 1 }
+      ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
+      showsVerticalScrollIndicator={false}
+      initialNumToRender={8}
+      windowSize={10}
+      removeClippedSubviews
     />
   );
 }
@@ -158,14 +236,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
     borderRadius: 16,
-    elevation: 4,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    overflow: 'visible',
   },
   userContainer: {
     borderRadius: 16,
@@ -178,18 +254,31 @@ const styles = StyleSheet.create({
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 14,
+    paddingBottom: 12, // giảm từ 16 xuống 12 để tiết kiệm không gian dọc
     borderRadius: 14,
   },
   avatarSection: {
-    position: 'relative',
+    width: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarContainer: {
     position: 'relative',
   },
-  avatar: {
+  avatarBorder: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     borderWidth: 3,
-    borderColor: 'white',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  avatar: {
+    backgroundColor: 'transparent',
+    borderRadius: 30,
   },
   statusIndicator: {
     position: 'absolute',
@@ -208,63 +297,82 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  onlineDot: {
-    backgroundColor: Colors.success,
+  onlineDot: { backgroundColor: Colors.success },
+  offlineDot: { backgroundColor: Colors.warning },
+  online: { backgroundColor: Colors.success },
+  offline: { backgroundColor: Colors.warning },
+  vibeEmojiBadge: {
+    position: 'absolute',
+    top: -6,
+    left: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
   },
-  offlineDot: {
-    backgroundColor: Colors.warning,
-  },
-  online: {
-    backgroundColor: Colors.success,
-  },
-  offline: {
-    backgroundColor: Colors.warning,
-  },
+  vibeEmojiBadgeText: { fontSize: 12 },
   userInfo: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
-  textContainer: {
-    flex: 1,
-  },
-  nameRow: {
+  textContainer: { flex: 1 },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    justifyContent: 'flex-start', // thay đổi từ space-between thành flex-start
+    marginBottom: 2, // giảm từ 4 xuống 2 vì chỉ có tên
+  },
+  nameRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
   },
   userName: {
     fontSize: 18,
     fontWeight: 'bold',
-    flex: 1,
     marginRight: 8,
+    maxWidth: '95%', // tăng từ 85% lên 95% vì distance đã xuống dưới
   },
-  bio: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  tagsContainer: {
+  vibeRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4, // giảm từ 6 xuống 4
   },
+  vibePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    minHeight: 24,
+  },
+  vibePillEmoji: { fontSize: 14, marginRight: 6, color: 'white' },
+  vibePillText: { fontSize: 12, fontWeight: '700', color: 'white', maxWidth: 120 },
+  vibeMessage: { fontSize: 12, fontStyle: 'italic', flexShrink: 1 },
+  bio: { fontSize: 14, marginBottom: 6, lineHeight: 20 },
+  tagsContainer: { flexDirection: 'row', flexWrap: 'wrap' },
   ageChip: {
-    height: 28,
-    borderRadius: 14,
+    // remove fixed height to prevent clipping
+    borderRadius: 20,
+    marginRight: 6,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
   },
-  distanceChip: {
-    height: 28,
-    borderRadius: 14,
+  distanceChipSmall: {
+    // remove fixed height to prevent clipping
+    borderRadius: 20,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
   },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  actionButton: {
-    marginLeft: 12,
-  },
+  chipText: { fontSize: 12, fontWeight: '500' },
+  actionButton: { marginLeft: 12 },
   actionGradient: {
     width: 44,
     height: 44,
@@ -272,8 +380,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listContainer: {
-    paddingTop: 8,
-    paddingBottom: 100,
-  },
+  listContainer: { paddingTop: 8, paddingBottom: 16 },
 });

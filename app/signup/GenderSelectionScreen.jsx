@@ -1,13 +1,14 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ImageBackground, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext'; 
 import { useLogoState } from '@/context/LogoStateContext';
 import { Colors } from '@/constants/Colors';
 import { ThemeContext } from '@/context/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const GenderSelectionScreen = () => {
-  const { setGender } = useAuth(); 
+  const { setGender, cancelRegistration } = useAuth(); 
   const router = useRouter();
   const logoUrl = useLogoState();
   const [selectedGender, setSelectedGender] = useState(null);
@@ -20,6 +21,17 @@ const GenderSelectionScreen = () => {
     setGender(gender);
   };
 
+  const handleCancel = () => {
+    Alert.alert(
+      'Huỷ đăng ký?',
+      'Bạn có chắc muốn huỷ đăng ký và xoá tài khoản tạm thời (nếu có)?',
+      [
+        { text: 'Không', style: 'cancel' },
+        { text: 'Huỷ & Xoá', style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) {} } },
+      ]
+    );
+  };
+
   const isNextButtonDisabled = !selectedGender;
 
   return (
@@ -28,6 +40,12 @@ const GenderSelectionScreen = () => {
       style={styles.background}
       resizeMode="cover"
     >
+      {/* Dark scrim to guarantee text contrast on any image */}
+      <LinearGradient
+        colors={[ 'rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)' ]}
+        style={styles.backdrop}
+      />
+
       <View style={styles.container}>
         {logoUrl ? (
           <Image source={{ uri: logoUrl }} style={styles.logo} />
@@ -42,6 +60,7 @@ const GenderSelectionScreen = () => {
               selectedGender === 'male' ? { backgroundColor: currentThemeColors.tint } : { backgroundColor: currentThemeColors.inputBackground },
             ]}
             onPress={() => handleSelectGender('male')}
+            activeOpacity={0.85}
           >
             <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>Nam</Text>
           </TouchableOpacity>
@@ -51,6 +70,7 @@ const GenderSelectionScreen = () => {
               selectedGender === 'female' ? { backgroundColor: currentThemeColors.tint } : { backgroundColor: currentThemeColors.inputBackground },
             ]}
             onPress={() => handleSelectGender('female')}
+            activeOpacity={0.85}
           >
             <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>Nữ</Text>
           </TouchableOpacity>
@@ -62,8 +82,13 @@ const GenderSelectionScreen = () => {
           ]}
           onPress={() => !isNextButtonDisabled && router.push('/signup/NameInputScreen')}
           disabled={isNextButtonDisabled}
+          activeOpacity={0.85}
         >
           <Text style={[styles.nextButtonText, { color: currentThemeColors.text }]}>Tiếp theo</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
+          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>Huỷ đăng ký</Text>
         </TouchableOpacity>
       </View>
     </ImageBackground>
@@ -75,14 +100,16 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: 'rgba(148, 156, 66, 0.0)',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
-    backgroundColor: 'rgba(148, 156, 66, 0.0)',
+    backgroundColor: 'transparent',
     width: '100%',
   },
   logo: {
@@ -108,8 +135,8 @@ const styles = StyleSheet.create({
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
   },
   buttonText: {
     fontSize: 20,
@@ -120,13 +147,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     borderRadius: 25,
     marginTop: 20,
+    alignItems: 'center',
   },
   nextButtonText: {
     fontSize: 20,
     fontWeight: 'bold',
   },
   disabledButton: {
-    backgroundColor: '#cccccc',
+    backgroundColor: Colors.gray600,
   },
 });
 

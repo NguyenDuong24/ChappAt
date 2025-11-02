@@ -50,9 +50,24 @@ export const Colors = {
     commentBackground: '#F1F5F9', // Slate-100 - Comment bubbles
     codeBackground: '#F8FAFC', // Slate-50 - Code blocks
     
+    // HotSpots Theme Colors
+    hotSpotsBackground: '#FFFFFF', // White background for light mode
+    hotSpotsSurface: '#F8FAFC', // Slate-50 - Card surfaces
+    hotSpotsSurfaceLight: '#F1F5F9', // Slate-100 - Lighter surfaces
+    hotSpotsPrimary: '#FF6B35', // Orange primary for HotSpots
+    hotSpotsSecondary: '#F7931E', // Orange secondary
+    hotSpotsAccent: '#FFD23F', // Yellow accent
+    hotSpotsText: '#0F172A', // Dark text for light mode
+    hotSpotsTextSecondary: 'rgba(15, 23, 42, 0.8)', // Secondary text
+    hotSpotsTextTertiary: 'rgba(15, 23, 42, 0.6)', // Tertiary text
+    
     // Gradients
     gradientBackground: ['#6366F1', '#8B5CF6'], // Indigo to Purple
     gradientCard: ['#FFFFFF', '#F8FAFC'], // White to Slate-50
+    gradientHotSpotsPrimary: ['#FF6B35', '#F7931E'], // HotSpots primary gradient
+    gradientHotSpotsSecondary: ['#F7931E', '#FFD23F'], // HotSpots secondary gradient
+    gradientHotSpotsCard: ['rgba(255,107,53,0.1)', 'rgba(247,147,30,0.05)'], // HotSpots card gradient
+    gradientHotSpotsOverlay: ['rgba(255,255,255,0)', 'rgba(241,245,249,0.5)', 'rgba(241,245,249,0.9)'], // Light overlay
   },
   
   dark: {
@@ -101,9 +116,24 @@ export const Colors = {
     commentBackground: '#334155', // Slate-700 - Dark comment bubbles
     codeBackground: '#1E293B', // Slate-800 - Dark code blocks
     
+    // HotSpots Theme Colors (Dark Mode)
+    hotSpotsBackground: '#0A0E1A', // Dark background for HotSpots
+    hotSpotsSurface: '#1A1F2E', // Dark surface
+    hotSpotsSurfaceLight: '#252B3D', // Lighter dark surface
+    hotSpotsPrimary: '#FF6B35', // Keep same orange primary
+    hotSpotsSecondary: '#F7931E', // Keep same orange secondary
+    hotSpotsAccent: '#FFD23F', // Keep same yellow accent
+    hotSpotsText: '#FFFFFF', // White text for dark mode
+    hotSpotsTextSecondary: 'rgba(255, 255, 255, 0.8)', // Secondary text
+    hotSpotsTextTertiary: 'rgba(255, 255, 255, 0.6)', // Tertiary text
+    
     // Gradients
     gradientBackground: ['#312E81', '#1E293B'], // Indigo-800 to Slate-800
     gradientCard: ['#1E293B', '#334155'], // Slate-800 to Slate-700
+    gradientHotSpotsPrimary: ['#FF6B35', '#F7931E'], // Same HotSpots primary gradient
+    gradientHotSpotsSecondary: ['#F7931E', '#FFD23F'], // Same HotSpots secondary gradient
+    gradientHotSpotsCard: ['rgba(255,107,53,0.1)', 'rgba(247,147,30,0.05)'], // Same HotSpots card gradient
+    gradientHotSpotsOverlay: ['rgba(10,14,26,0)', 'rgba(26,31,46,0.5)', 'rgba(26,31,46,0.9)'], // Dark overlay
   },
   
   // === SEMANTIC COLORS === //
@@ -237,3 +267,6 @@ export const Colors = {
     },
   },
 };
+
+// Global primary color for components
+export const PRIMARY_COLOR = modernPrimary;

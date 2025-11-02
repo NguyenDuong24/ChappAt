@@ -4,13 +4,13 @@ import Constants from "expo-constants";
 import { Platform } from "react-native";
 
 export async function registerForPushNotificationsAsync() {
-  console.log(123123)
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FF231F7C",
+      sound: "join", // Use the filename without extension from app.json plugin assets
     });
   }
 
@@ -23,9 +23,7 @@ export async function registerForPushNotificationsAsync() {
       finalStatus = status;
     }
     if (finalStatus !== "granted") {
-      throw new Error(
-        "Permission not granted to get push token for push notification!"
-      );
+      throw new Error("Permission not granted to get push token for push notification!");
     }
     const projectId =
     Constants?.expoConfig?.extra?.eas?.projectId ??
@@ -36,12 +34,8 @@ export async function registerForPushNotificationsAsync() {
     }
     try {
       const pushTokenString = (
-        await Notifications.getExpoPushTokenAsync({
-          projectId,
-        })
+        await Notifications.getExpoPushTokenAsync({ projectId })
       ).data;
-      console.log("first1234567")
-      console.log('kkk',pushTokenString);
       return pushTokenString;
     } catch (e: unknown) {
       throw new Error(`${e}`);

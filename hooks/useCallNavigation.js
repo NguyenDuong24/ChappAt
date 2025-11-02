@@ -10,17 +10,43 @@ export const useCallNavigation = () => {
   const currentScreen = segments[segments.length - 1];
 
   /**
-   * Navigate đến màn hình cuộc gọi đến
+   * Navigate đến màn hình ListenCallScreen (người nhận call)
    */
-  const navigateToIncomingCall = useCallback((callData) => {
+  const navigateToListenCallScreen = useCallback((callData) => {
+    console.log('🚀 Navigating to ListenCallScreen:', callData);
     router.push({
-      pathname: '/IncomingCallScreen',
+      pathname: '/ListenCallAcceptedScreen',
       params: {
+        callId: callData.id,
         meetingId: callData.meetingId,
         callerId: callData.callerId,
         receiverId: callData.receiverId,
+        callType: callData.type,
+        status: callData.status
+      }
+    });
+  }, [router]);
+
+  /**
+   * Navigate đến màn hình IncomingCallScreen (người gọi chờ)
+   */
+  const navigateToIncomingCallScreen = useCallback((callData) => {
+    console.log('🚀 Navigating to IncomingCallScreen:', callData);
+    router.push({
+      pathname: '/IncomingCallScreen',
+      params: {
+        callId: callData.id,
+        meetingId: callData.meetingId,
+        callerId: callData.callerId,
+        receiverId: callData.receiverId,
+        callType: callData.type,
+        status: callData.status
+      }
+    });
+  }, [router]);
+        receiverId: callData.receiverId,
         status: callData.status,
-        type: callData.type,
+        callType: callData.type,
       },
     });
   }, [router]);
@@ -36,7 +62,7 @@ export const useCallNavigation = () => {
         callerId: callData.callerId,
         receiverId: callData.receiverId,
         status: callData.status,
-        type: callData.type,
+        callType: callData.type,
       },
     });
   }, [router]);

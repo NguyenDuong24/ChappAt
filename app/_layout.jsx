@@ -1,9 +1,11 @@
+import '../polyfills';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Slot, Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthContextProvider, useAuth } from '../context/authContext';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { AppState } from 'react-native';
@@ -12,30 +14,23 @@ import { LogoStateProvider } from '../context/LogoStateContext';
 import { LocationProvider } from '../context/LocationContext';
 import { ThemeProvider, ThemeContext } from '../context/ThemeContext';
 import { StateCommonProvider } from '../context/stateCommon';
-import { NotificationProvider } from '../context/NotificationContext';
-import { UserProvider } from '../context/UserContext'; // Import UserProvider
-import { AudioProvider } from '../context/AudioContext'; // Import AudioProvider
-import { Colors } from '@/constants/Colors';
-import { register } from "@videosdk.live/react-native-sdk";
+import { NotificationProvider } from '../services/core';
+import { UserProvider } from '../context/UserContext';
+import { AudioProvider } from '../context/AudioContext';
+import contentModerationService from '@/services/contentModerationService';
+import Constants from 'expo-constants';
+import { VideoCallProvider } from '../context/VideoCallContext';
+import { Colors } from '../constants/Colors';
+import { register, VideoSDKProvider } from "@videosdk.live/react-native-sdk";
 
-// Import refactored hooks and services
-import { 
-  useCallAcceptedListener, 
-  useCallRequestListener, 
-  useCallCanceledListener, 
-  useIncomingCallListener 
-} from '../hooks/useCallListeners';
-import { useNotificationHandlers, setupNotificationHandler } from '../hooks/useNotificationHandlers';
-import { useCallNavigation } from '../hooks/useCallNavigation';
+// Import Firebase call services
+import { useFirebaseCallListener } from '../hooks/useFirebaseCallListener';
+import { useCallNavigation } from '../hooks/useNewCallNavigation';
 import { useAuthRouting } from '../hooks/useAuthRouting';
-import { useSound } from '../hooks/useSound'; // Import useSound hook
-import { initializeBackgroundServices } from '../services/backgroundService';
-import { ROUTES, CALL_STATUS, SCREEN_NAMES } from '../constants/Navigation';
+import { CALL_STATUS } from '../services/firebaseCallService';
 
-// Initialize services
-register(); // Video SDK register
-setupNotificationHandler(); // Setup notification handler
-initializeBackgroundServices(); // Initialize background services
+// VideoSDK token - trong production, store trong environment variables
+const VIDEOSDK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlrZXkiOiI5OWY1MWM0YS1mNWVjLTRkMzUtOTZjYy0zZWE1NDNmNWNiMGYiLCJwZXJtaXNzaW9ucyI6WyJhbGxvd19qb2luIl0sImlhdCI6MTczNDQ5MjA2NCwiZXhwIjoxODUwNDA0MDY0fQ.1b9RFFR2c5KWV5DFJ2XH1K6CwRTBBuNPBcWqKnGhSag";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -44,82 +39,144 @@ const MainLayout = () => {
   const { isAuthenticated, user } = useAuth();
   const { theme } = useContext(ThemeContext);
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const [incomingCall, setIncomingCall] = useState(null);
-
-  // Add sound hooks
-  const { 
-    playIncomingCallSound, 
-    playCallAcceptedSound, 
-    playCallEndSound,
-    stopCallSounds 
-  } = useSound();
-
-  // Use refactored hooks
-  const { 
-    navigateToIncomingCall, 
-    navigateToCallScreen, 
-    navigateToListenCallAccepted, 
-    handleCallCanceled: navigateBackOnCancel,
-    currentScreen 
-  } = useCallNavigation();
   
-  // Setup notification handlers
-  useNotificationHandlers();
-  
-  // Handle authentication routing
-  useAuthRouting(isAuthenticated);
+  // Add font loading state
+  const [fontsLoaded] = useFonts({
+    // Add any custom fonts here if needed
+  });
 
-  // Call event handlers
-  const handleIncomingCall = (callData) => {
-    if (callData?.status === CALL_STATUS.RINGING) {
-      setIncomingCall(callData);
-      playIncomingCallSound(); // Play incoming call sound
-      navigateToIncomingCall(callData);
-    }
-  };
-
-  const handleCallAccepted = (callData) => {
-    if (callData?.status === CALL_STATUS.ACCEPTED) {
-      setIncomingCall(callData);
-      stopCallSounds(); // Stop ring sounds
-      playCallAcceptedSound(); // Play accepted sound
-      navigateToCallScreen(callData);
-    }
-  };
-
-  const handleCallRequest = (callData) => {
-    if (callData?.status === CALL_STATUS.RINGING) {
-      setIncomingCall(callData);
-      navigateToListenCallAccepted(callData);
-    }
-  };
-
-  const handleCallCanceled = (callData) => {
-    if (callData?.status === CALL_STATUS.CANCELLED) {
-      setIncomingCall(callData);
-      stopCallSounds(); // Stop all call sounds
-      playCallEndSound(); // Play call end sound
-      if (
-        currentScreen === SCREEN_NAMES.INCOMING_CALL_SCREEN ||
-        currentScreen === SCREEN_NAMES.CALL_SCREEN
-      ) {
-        navigateBackOnCancel();
+  // Handle splash screen hiding
+  useEffect(() => {
+    const hideSplashScreen = async () => {
+      if (fontsLoaded) {
+        try {
+          await SplashScreen.hideAsync();
+        } catch (error) {
+          console.warn('SplashScreen hide error:', error);
+        }
       }
-    }
-  };
+    };
 
-  // Setup call listeners
-  const userId = user?.uid;
-  useIncomingCallListener(userId, handleIncomingCall);
-  useCallAcceptedListener(userId, handleCallAccepted);
-  useCallRequestListener(userId, handleCallRequest);
-  useCallCanceledListener(userId, handleCallCanceled);
+    hideSplashScreen();
+  }, [fontsLoaded]);
+
+  // Don't render anything until fonts are loaded
+  if (!fontsLoaded) {
+    return null;
+  }
+  
+  // Call navigation hooks
+  const { 
+    navigateToListenCallScreen,
+    navigateToIncomingCallScreen,
+    navigateToCallScreen,
+    navigateBack,
+    currentScreen
+  } = useCallNavigation();
+
+  // Xác định user role dựa trên callerId và receiverId
+  const getUserRole = useCallback((callData) => {
+    if (!user?.uid || !callData) return null;
+    
+    if (callData.callerId === user.uid) {
+      return 'caller'; // Tôi là người GỌI
+    } else if (callData.receiverId === user.uid) {
+      return 'receiver'; // Tôi là người NHẬN
+    }
+    
+    return null;
+  }, [user?.uid]);
+
+  // Handle incoming call và call status changes
+  const handleCallUpdate = useCallback((callData) => {
+    if (!callData || !user?.uid) {
+      return;
+    }
+
+    const userRole = getUserRole(callData);
+
+    // Xử lý theo role và status
+    if (userRole === 'receiver') {
+      // TÔI LÀ NGƯỜI NHẬN CUỘC GỌI
+      switch (callData.status) {
+        case CALL_STATUS.RINGING:
+          // Có cuộc gọi đến → hiển thị IncomingCallScreen để accept/decline
+          navigateToIncomingCallScreen(callData);
+          break;
+          
+        case CALL_STATUS.ACCEPTED:
+          // Tôi đã accept call → vào CallScreen
+          navigateToCallScreen(callData);
+          break;
+          
+        case CALL_STATUS.DECLINED:
+        case CALL_STATUS.CANCELLED:
+        case CALL_STATUS.ENDED:
+          // Call kết thúc → navigate back
+          navigateBack();
+          break;
+      }
+    } else if (userRole === 'caller') {
+      // TÔI LÀ NGƯỜI GỌI
+      switch (callData.status) {
+        case CALL_STATUS.RINGING:
+          // Tôi đã gọi và đang chờ → hiển thị ListenCallAcceptedScreen
+          navigateToListenCallScreen(callData);
+          break;
+          
+        case CALL_STATUS.ACCEPTED:
+          // Người kia accept → cả 2 vào CallScreen
+          navigateToCallScreen(callData);
+          break;
+          
+        case CALL_STATUS.DECLINED:
+        case CALL_STATUS.CANCELLED:
+        case CALL_STATUS.ENDED:
+          // Call bị từ chối hoặc kết thúc → navigate back
+          navigateBack();
+          break;
+      }
+    } else {
+    }
+  }, [getUserRole, navigateToIncomingCallScreen, navigateToListenCallScreen, navigateToCallScreen, navigateBack, user?.uid]);
+
+  // Setup Firebase call listener với unified handler
+  useFirebaseCallListener(handleCallUpdate, handleCallUpdate);
+
+  // Handle authentication routing with call screen protection
+  useAuthRouting(isAuthenticated);
 
   return (
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="TestScreen" options={{ headerShown: false }} />
       <Stack.Screen name="signin" options={{ headerShown: false }} />
       <Stack.Screen name="signup" options={{ headerShown: false }} />
+      <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="groups/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="explore/[id]" options={{ headerShown: false }} />
+      <Stack.Screen name="ButtonToChat" options={{ headerShown: false }} />
+      <Stack.Screen name="IncomingCallScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="ListenCallAcceptedScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="CallScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="NavigationTestScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="NotificationsScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="NotificationDebugScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="QuickNotificationTest" options={{ headerShown: false }} />
+      <Stack.Screen name="TokenTestScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="NotificationNavigationTest" options={{ headerShown: false }} />
+      <Stack.Screen name="UserDebugScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="HotSpotsScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="HashtagScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="AdminHashtagScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="HashtagPostsScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="DeviceScan" options={{ headerShown: false }} />
+      <Stack.Screen name="AddFriend" options={{ headerShown: false }} />
+      <Stack.Screen name="GroupManagementScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="SearchMessageScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="PostDetailScreen" options={{ }} />
+      <Stack.Screen name="HotSpotDetailScreen" options={{ headerShown: false }} />
+      <Stack.Screen name="HotSpotChatScreen" options={{ headerShown: false }} />
       <Stack.Screen
         name="UserProfileScreen"
         options={{
@@ -130,36 +187,51 @@ const MainLayout = () => {
           title: 'Hồ Sơ',
         }}
       />
-      <Stack.Screen name="IncomingCallScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="CallScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="ListenCallAcceptedScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="AddFriend" options={{ headerShown: false }} />
     </Stack>
   );
 };
 
 export default function RootLayout() {
+  // Initialize VideoSDK
+  const initVideoSDK = () => {
+    try {
+      register();
+    } catch (error) {
+      console.error('❌ VideoSDK registration failed:', error);
+    }
+  };
+
+  // Call initVideoSDK on component mount
+  React.useEffect(() => {
+    initVideoSDK();
+  }, []);
+
   return (
-    <NotificationProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
       <AuthContextProvider>
-        <StateCommonProvider>
-          <ThemeProvider>
-            <AppStateProvider>
-              <LogoStateProvider>
-                <LocationProvider>
-                  <PaperProvider>
-                    <AudioProvider> {/* Add AudioProvider */}
-                      <UserProvider> {/* Wrap with UserProvider */}
-                        <MainLayout />
-                      </UserProvider>
-                    </AudioProvider>
-                  </PaperProvider>
-                </LocationProvider>
-              </LogoStateProvider>
-            </AppStateProvider>
-          </ThemeProvider>
-        </StateCommonProvider>
+        <NotificationProvider>
+          <StateCommonProvider>
+            <ThemeProvider>
+              <AppStateProvider>
+                <LogoStateProvider>
+                  <LocationProvider>
+                    <PaperProvider>
+                      <AudioProvider>
+                        <VideoCallProvider>
+                          <UserProvider>
+                            <MainLayout />
+                          </UserProvider>
+                        </VideoCallProvider>
+                      </AudioProvider>
+                    </PaperProvider>
+                  </LocationProvider>
+                </LogoStateProvider>
+              </AppStateProvider>
+            </ThemeProvider>
+          </StateCommonProvider>
+        </NotificationProvider>
       </AuthContextProvider>
-    </NotificationProvider>
+    </GestureHandlerRootView>
   );
 }

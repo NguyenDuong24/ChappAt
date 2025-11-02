@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import { UserVibe } from '@/types/vibe';
 
 interface UserInfo {
   uid: string;
@@ -8,6 +9,7 @@ interface UserInfo {
   profileUrl?: string;
   email?: string;
   // Thêm các trường khác nếu cần
+  currentVibe?: UserVibe | null;
 }
 
 interface UserContextType {
@@ -55,6 +57,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           username: userData.username || 'Unknown User',
           profileUrl: userData.profileUrl,
           email: userData.email,
+          currentVibe: userData.currentVibe || null,
         };
 
         // Lưu vào cache
@@ -107,6 +110,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
             username: userData.username || 'Unknown User',
             profileUrl: userData.profileUrl,
             email: userData.email,
+            currentVibe: userData.currentVibe || null,
           };
           return { userId, userInfo };
         }

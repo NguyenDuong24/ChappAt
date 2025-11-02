@@ -13,9 +13,9 @@ export const AppStateProvider = ( { children }) => {
         const subscription = RNAppState.addEventListener("change", nextAppState => {
             setAppState(nextAppState);
             if (nextAppState === "active") {
-                handleUserActive(user?.uid); 
+                handleUserActive(user?.uid, user?.showOnlineStatus);
             } else if((nextAppState === "background")) {
-                handleUserBackground(user?.uid); 
+                handleUserBackground(user?.uid);
             }
         });
 
@@ -25,20 +25,24 @@ export const AppStateProvider = ( { children }) => {
     }, [user]);
 
     // Cập nhật trạng thái người dùng là online
-    const handleUserActive = async (uid) => {
-        if (uid) {
-            const userRef = doc(db, 'users', uid);
-            await setDoc(userRef, { isOnline: true }, { merge: true });
-        }
+    const handleUserActive = async (uid, showOnlineStatus) => {
+        try {
+            if (uid) {
+                const userRef = doc(db, 'users', uid);
+                // Nếu user tắt hiển thị online, luôn ghi false
+                const nextOnline = showOnlineStatus === false ? false : true;
+                await setDoc(userRef, { isOnline: nextOnline }, { merge: true });
+            }
+        } catch {}
     };
 
     const handleUserBackground = async (uid) => {
-        
-        if (uid) {
-            
-            const userRef = doc(db, 'users', uid);
-            await setDoc(userRef, { isOnline: false }, { merge: true });
-        }
+        try {
+            if (uid) {
+                const userRef = doc(db, 'users', uid);
+                await setDoc(userRef, { isOnline: false }, { merge: true });
+            }
+        } catch {}
     };
 
     return (

@@ -1,108 +1,186 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/context/authContext';
-import { getDocs } from 'firebase/firestore';
+import { getDocs, query, where, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { userRef } from '@/firebaseConfig';
 import { useStateCommon } from '../../../context/stateCommon';
 
+const PAGE_SIZE = 20;
+
 const useHome = () => {
-    const { user } = useAuth();
-    const [users, setUsers] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [filtering, setFiltering] = useState(false);
-    const { stateCommon } = useStateCommon();
-    const [refreshing, setRefreshing] = useState(false);
+  const { user } = useAuth();
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtering, setFiltering] = useState(false);
+  const { stateCommon } = useStateCommon();
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const lastTriggerKeyRef = useRef<string>('');
 
-    const getUsers = async (isRefresh = false) => {
-        if (isRefresh) {
-            setRefreshing(true);
-        } else {
-            setLoading(true);
-        }
-        
-        // Show filtering state when applying filter
-        if (stateCommon.filter && (stateCommon.filter.gender || stateCommon.filter.minAge || stateCommon.filter.maxAge)) {
-            setFiltering(true);
-        }
-        
-        console.log('🔍 Getting users with filter:', stateCommon.filter);
-        
-        try {
-            const querySnapshot = await getDocs(userRef);
-            let allUsers = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as any[];
-            
-            console.log('📝 All users before filtering:', allUsers.length);
-            
-            // Apply filters
-            const filteredUsers = allUsers.filter((docUser) => {
-                // Exclude current user
-                if (docUser.id === user?.uid) {
-                    return false;
-                }
-                
-                // Gender filter
-                let matchesGender = true;
-                if (stateCommon.filter.gender && stateCommon.filter.gender !== 'all') {
-                    matchesGender = docUser.gender === stateCommon.filter.gender;
-                }
-            
-                // Age filter
-                let matchesAge = true;
-                if (stateCommon.filter.minAge || stateCommon.filter.maxAge) {
-                    const userAge = Number(docUser.age);
-                    const minAge = stateCommon.filter.minAge ? Number(stateCommon.filter.minAge) : 0;
-                    const maxAge = stateCommon.filter.maxAge ? Number(stateCommon.filter.maxAge) : 999;
-                    
-                    if (stateCommon.filter.minAge && userAge < minAge) {
-                        matchesAge = false;
-                    }
-                    if (stateCommon.filter.maxAge && userAge > maxAge) {
-                        matchesAge = false;
-                    }
-                }
-                
-                const shouldInclude = matchesGender && matchesAge;
-                
-                if (shouldInclude || !matchesGender || !matchesAge) {
-                    console.log(`👤 ${docUser.username}: age=${docUser.age}, gender=${docUser.gender}, matchesGender=${matchesGender}, matchesAge=${matchesAge}, included=${shouldInclude}`);
-                }
-                
-                return shouldInclude;
-            });
-            
-            // Sort by online status
-            const sortedUsers = filteredUsers.sort((a, b) => {
-                if (a.isOnline === b.isOnline) return 0;
-                return a.isOnline ? -1 : 1;
-            });
-            
-            console.log(`✅ Final filtered users: ${sortedUsers.length}`);
-            setUsers(sortedUsers);
-        } catch (error) {
-            console.error('Error getting users:', error);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-            setFiltering(false);
-        }
+  // Memoize filter object to prevent unnecessary re-renders
+  const filterMemo = useMemo(() => {
+    const filter = {
+      gender: stateCommon.filter?.gender || '',
+      minAge: stateCommon.filter?.minAge || '',
+      maxAge: stateCommon.filter?.maxAge || '',
+      job: stateCommon.filter?.job || '',
+      educationLevel: stateCommon.filter?.educationLevel || '',
+      university: stateCommon.filter?.university || ''
     };
+    console.log('[DEBUG] Creating filterMemo:', filter);
+    return filter;
+  }, [stateCommon.filter]);
 
-    const handleRefresh = async () => {
-        await getUsers(true); // Pass true to indicate this is a refresh
-    };
+  console.log('[DEBUG] Filter Memo used:', filterMemo);
 
-    useEffect(() => {
-        console.log('🔄 Filter changed, refreshing users...', stateCommon.filter);
-        handleRefresh();
-    }, [stateCommon.filter, user?.uid]); // Added user?.uid to dependencies
+  const getUsers = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+      // Reset pagination on refresh
+      setLastDoc(null);
+      setHasMore(true);
+    } else {
+      setLoading(true);
+    }
 
-    return {
-        getUsers,
-        users,
-        loading,
-        filtering,
-        refreshing,
-        handleRefresh,
-    };
+    if (filterMemo.gender || filterMemo.minAge || filterMemo.maxAge || filterMemo.job || filterMemo.educationLevel || filterMemo.university) {
+      setFiltering(true);
+    }
+
+    try {
+      setError(null);
+      console.log('[DEBUG] Fetching users with filter:', filterMemo, 'refresh:', isRefresh);
+
+      const constraints: any[] = [];
+
+      // Filters
+      if (filterMemo.gender && filterMemo.gender !== 'all') {
+        constraints.push(where('gender', '==', filterMemo.gender));
+      }
+
+      if (filterMemo.job) {
+        constraints.push(where('job', '==', filterMemo.job));
+      }
+
+      if (filterMemo.educationLevel) {
+        constraints.push(where('educationLevel', '==', filterMemo.educationLevel));
+      }
+
+      if (filterMemo.university && filterMemo.educationLevel === 'Cao đẳng/Đại học') {
+        constraints.push(where('university', '==', filterMemo.university));
+      }
+
+      const hasMin = !!filterMemo.minAge;
+      const hasMax = !!filterMemo.maxAge;
+      const minAge = hasMin ? Number(filterMemo.minAge) : undefined;
+      const maxAge = hasMax ? Number(filterMemo.maxAge) : undefined;
+
+      if (hasMin) constraints.push(where('age', '>=', Number(minAge)));
+      if (hasMax) constraints.push(where('age', '<=', Number(maxAge)));
+
+      // Order by: if using age range, order by age first (required by Firestore)
+      if (hasMin || hasMax) {
+        constraints.push(orderBy('age', 'asc'));
+        // Secondary ordering for stable pagination can be added if needed, e.g., orderBy('__name__', 'asc')
+      } else {
+        constraints.push(orderBy('__name__', 'asc'));
+      }
+
+      // Pagination
+      if (!isRefresh && lastDoc) {
+        constraints.push(startAfter(lastDoc));
+      }
+      constraints.push(limit(PAGE_SIZE));
+
+      const q = query(userRef, ...constraints);
+      const querySnapshot = await getDocs(q);
+
+      let fetchedUsers = querySnapshot.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Record<string, any>) })) as any[];
+
+      // Exclude current user on client side (simpler than Firestore != filter)
+      fetchedUsers = fetchedUsers.filter((u) => u.id !== user?.uid);
+
+      const viewerShowOnline = user?.showOnlineStatus !== false;
+
+      // Sort by online status only if viewer allows seeing online statuses
+      const sortedUsers = viewerShowOnline
+        ? fetchedUsers.sort((a, b) => {
+            if (a.isOnline === b.isOnline) return 0;
+            return a.isOnline ? -1 : 1;
+          })
+        : fetchedUsers;
+
+      if (isRefresh) {
+        setUsers(sortedUsers);
+      } else {
+        setUsers((prev) => [...prev, ...sortedUsers]);
+      }
+
+      // Update pagination cursors
+      if (querySnapshot.docs.length > 0) {
+        setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1] as any);
+        const nextHasMore = querySnapshot.docs.length === PAGE_SIZE;
+        setHasMore(nextHasMore);
+        console.log('[DEBUG] Loaded users:', sortedUsers.length, 'hasMore:', nextHasMore);
+      } else {
+        setHasMore(false);
+        console.log('[DEBUG] Loaded users:', sortedUsers.length, 'hasMore:', false);
+      }
+
+      console.log('[DEBUG] Loaded users:', sortedUsers.length, 'hasMore:', hasMore);
+    } catch (error) {
+      console.error('[ERROR] Error getting users:', error);
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('An error occurred while fetching users.');
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+      setFiltering(false);
+    }
+  }, [user?.uid, filterMemo, lastDoc, hasMore]);
+
+  const loadMore = useCallback(() => {
+    if (!loading && hasMore) {
+      getUsers(false);
+    }
+  }, [loading, hasMore, getUsers]);
+
+  const handleRefresh = useCallback(async () => {
+    await getUsers(true);
+  }, [getUsers]);
+
+  // Initial load and reload when filter changes (debounced, guarded)
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const key = `${user.uid}|${filterMemo.gender}|${filterMemo.minAge}|${filterMemo.maxAge}|${filterMemo.job}|${filterMemo.educationLevel}|${filterMemo.university}`;
+    if (lastTriggerKeyRef.current === key) return; // prevent duplicate triggers
+    lastTriggerKeyRef.current = key;
+
+    console.log('[DEBUG] Triggering getUsers for user:', user.uid, 'with filter:', filterMemo);
+    const t = setTimeout(() => {
+      getUsers(true);
+    }, 300);
+
+    return () => clearTimeout(t);
+  }, [user?.uid, filterMemo.gender, filterMemo.minAge, filterMemo.maxAge, filterMemo.job, filterMemo.educationLevel, filterMemo.university]);
+
+  return {
+    getUsers,
+    users,
+    loading,
+    filtering,
+    refreshing,
+    hasMore,
+    loadMore,
+    handleRefresh,
+    error,
+  };
 };
 
 export default useHome;

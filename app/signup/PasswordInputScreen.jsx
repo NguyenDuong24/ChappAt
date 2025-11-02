@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext'; 
 import { Colors } from '@/constants/Colors';
 import { useLogoState } from '@/context/LogoStateContext'; // Add LogoStateContext
+import { LinearGradient } from 'expo-linear-gradient';
 
 const PasswordInputScreen = () => {
   const {
@@ -12,7 +13,7 @@ const PasswordInputScreen = () => {
     name,
     age,
     gender,
-    register,
+    cancelRegistration,
   } = useAuth(); 
 
   const router = useRouter();
@@ -42,37 +43,27 @@ const PasswordInputScreen = () => {
     handleSignUp();
   };
 
+  const handleCancel = () => {
+    Alert.alert(
+      'Huỷ đăng ký?',
+      'Bạn có chắc muốn huỷ đăng ký và xoá tài khoản tạm thời (nếu có)?',
+      [
+        { text: 'Không', style: 'cancel' },
+        { text: 'Huỷ & Xoá', style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) {} } },
+      ]
+    );
+  };
+
   const handleSignUp = async () => {
-    if (!name || !password || !email || !age || !gender) {
-      Alert.alert('Sign Up', "Please fill all the fields");
-      return;
-    }
 
     if (password !== confirmPassword) {
       Alert.alert('Sign Up', "Passwords do not match");
       return;
     }
 
-    setLoading(true);
-    let response = await register(); 
-    setLoading(false); 
-
-    if (!response.success) {
-      Alert.alert(
-        'Sign Up',
-        response.msg,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              if (response.msg.includes('email')) {
-                router.back('signup/EmailInputScreen'); 
-              }
-            }
-          }
-        ]
-      );
-    } 
+    // Set password and navigate to next screen without registering yet
+    setPassword(password);
+    router.push('/signup/GenderSelectionScreen');
   };
 
   return (
@@ -80,6 +71,8 @@ const PasswordInputScreen = () => {
       source={require('../../assets/images/cover.png')}
       style={styles.backgroundImage}
     >
+      <LinearGradient colors={['rgba(15,23,42,0.85)','rgba(15,23,42,0.65)']} style={styles.backdrop} />
+
       <View style={styles.overlay}>
         {logoUrl ? (
           <Image source={{ uri: logoUrl }} style={styles.logo} />
@@ -90,18 +83,18 @@ const PasswordInputScreen = () => {
         <Text style={[styles.title, { color: Colors.dark.text }]}>Create a Password</Text>
 
         <TextInput
-          style={[styles.input, { backgroundColor: Colors.dark.inputBackground }]}
+          style={[styles.input, { backgroundColor: Colors.dark.inputBackground, borderColor: Colors.dark.inputBorder, color: Colors.dark.text }]}
           placeholder="Password"
-          placeholderTextColor="#888"
+          placeholderTextColor={Colors.dark.placeholderText}
           secureTextEntry
           value={password}
           onChangeText={handlePasswordChange}
         />
 
         <TextInput
-          style={[styles.input, { backgroundColor: Colors.dark.inputBackground }]}
+          style={[styles.input, { backgroundColor: Colors.dark.inputBackground, borderColor: Colors.dark.inputBorder, color: Colors.dark.text }]}
           placeholder="Confirm Password"
-          placeholderTextColor="#888"
+          placeholderTextColor={Colors.dark.placeholderText}
           secureTextEntry
           value={confirmPassword}
           onChangeText={handleConfirmPasswordChange}
@@ -111,12 +104,17 @@ const PasswordInputScreen = () => {
           style={[styles.nextButton, !isButtonEnabled && styles.disabledButton, { backgroundColor: Colors.dark.tint }]}
           onPress={handleNext}
           disabled={!isButtonEnabled || loading}
+          activeOpacity={0.85}
         >
           {loading ? (
             <Text style={styles.nextButtonText}>Loading...</Text>
           ) : (
             <Text style={styles.nextButtonText}>Next</Text>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
+          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>Huỷ đăng ký</Text>
         </TouchableOpacity>
       </View>
     </ImageBackground>
@@ -130,12 +128,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
   },
+  backdrop: { ...StyleSheet.absoluteFillObject },
   overlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 30,
-    backgroundColor: 'rgba(148, 156, 66, 0.0)',
+    backgroundColor: 'transparent',
     width: '100%',
   },
   logo: {
@@ -148,20 +147,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 15,
     textAlign: 'center',
-    textShadowColor: '#000',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 10,
   },
   input: {
     width: '100%',
     padding: 15,
     borderWidth: 1,
-    borderColor: '#ccc',
     borderRadius: 25,
     marginBottom: 20,
     fontSize: 18,
     fontWeight: '500',
-    color: Colors.dark.text,
   },
   nextButton: {
     paddingVertical: 15,
@@ -175,7 +169,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   disabledButton: {
-    backgroundColor: '#cccccc',
+    backgroundColor: '#475569',
   },
 });
 

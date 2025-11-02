@@ -1,9 +1,25 @@
 import React, { useEffect, useRef, useState, useContext } from 'react'; 
-import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Text, Modal, ActivityIndicator } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { TextInput, Appbar } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
-import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, setDoc, Timestamp, updateDoc, where, getDocs } from 'firebase/firestore';
+import { useChatPermission } from '@/hooks/useChatPermission';
+import { BlockedChatView } from '@/components/common/BlockedChatView';
+import { 
+  addDoc, 
+  collection, 
+  doc, 
+  getDoc, 
+  setDoc, 
+  Timestamp, 
+  updateDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  getDocs,
+  where,
+  increment
+} from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 
 import * as ImagePicker from 'expo-image-picker';
@@ -13,28 +29,274 @@ import { Colors } from '@/constants/Colors';
 import ChatRoomHeader from '@/components/chat/ChatRoomHeader';
 import { getRoomId } from '@/utils/common';
 import MessageList from '@/components/chat/MessageList';
-import { ThemeContext } from '@/context/ThemeContext'; // Import ThemeContext
+import { ThemeContext } from '@/context/ThemeContext';
+import ReplyPreview from '@/components/chat/ReplyPreview';
+import { useMessageActions } from '@/hooks/useMessageActions';
+import { useContentModeration } from '@/hooks/useContentModeration';
+import { useOptimizedChatMessages } from '@/hooks/useOptimizedChatMessages';
+import { useChat } from '@/context/OptimizedChatContext';
+import messageBatchService from '@/services/messageBatchService';
+import { MaterialIcons } from '@expo/vector-icons';
+import { giftService } from '@/services/giftService';
+import * as tf from '@tensorflow/tfjs';
+import '@tensorflow/tfjs-react-native';
+import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
+import { manipulateAsync } from 'expo-image-manipulator';
+import * as jpeg from 'jpeg-js';
+import { decode as atob } from 'base-64';
+
+const storage = getStorage();
+const PIC_INPUT_SHAPE = { width: 224, height: 224 };
+const NSFW_CLASSES = { 0: 'Drawing', 1: 'Hentai', 2: 'Neutral', 3: 'Porn', 4: 'Sexy' };
+
+// NSFW model assets (relative to this file)
+const NSFW_MODEL_JSON = require('../../assets/model/model.json');
+const NSFW_MODEL_WEIGHTS = [require('../../assets/model/group1-shard1of1.bin')];
+
+function imageToTensor(rawImageData) {
+  try {
+    const TO_UINT8ARRAY = true;
+    const { width, height, data } = jpeg.decode(rawImageData, TO_UINT8ARRAY);
+    const buffer = new Uint8Array(width * height * 3);
+    let offset = 0;
+    for (let i = 0; i < buffer.length; i += 3) {
+      buffer[i] = data[offset];
+      buffer[i + 1] = data[offset + 1];
+      buffer[i + 2] = data[offset + 2];
+      offset += 4;
+    }
+    return tf.tidy(() => tf.tensor4d(buffer, [1, height, width, 3]).div(255));
+  } catch (error) {
+    console.error('Error in imageToTensor:', error);
+    throw error;
+  }
+}
 
 export default function ChatRoom() {
   const { id } = useLocalSearchParams();  
   const router = useRouter();
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<any[]>([]);
+  const { user, coins, /* optional */ topupCoins } = useAuth();
+  // Route param can be a peer user id OR a roomId (uidA-uidB). Normalize to peerId.
+  const routeId: string = Array.isArray(id) ? id[0] : (id as string);
+  const peerId: string = React.useMemo(() => {
+    if (!routeId) return '';
+    if (routeId.includes('-')) {
+      const parts = routeId.split('-');
+      // If current user known, pick the other id; else fallback to first part
+      if (user?.uid) return parts.find(p => p !== user.uid) || parts[0];
+      return parts[0];
+    }
+    return routeId;
+  }, [routeId, user?.uid]);
+  
+  // Check if chat is allowed (block status)
+  const { canChat, reason, loading: chatPermissionLoading } = useChatPermission(
+    user?.uid,
+    peerId
+  );
+  
   const [newMessage, setNewMessage] = useState('');
   const [userInfo, setUserInfo] = useState<any>(null);
   const [isMarkingAsRead, setIsMarkingAsRead] = useState(false);
+  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
+  const [replyTo, setReplyTo] = useState<{
+    text?: string;
+    imageUrl?: string;
+    senderName: string;
+    uid: string;
+    messageId: string;
+  } | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [giftCatalog, setGiftCatalog] = useState<any[]>([]);
+  const [showGifts, setShowGifts] = useState(false);
+  const [nsfwModel, setNsfwModel] = useState(null);
   const scrollViewRef = useRef<any>(null);
+  const messagePositionsRef = useRef<Record<string, number>>({});
+  const latestMessagesRef = useRef<any[]>([]);
 
-  const { theme } = useContext(ThemeContext); // Lấy theme từ context
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Apply theme colors dynamically
+  // Use optimized chat messages hook
+  const roomId = getRoomId(user?.uid as string, peerId);
+  const { 
+    messages, 
+    loading: messagesLoading, 
+    hasMore, 
+    loadMoreMessages,
+    refreshMessages 
+  } = useOptimizedChatMessages({
+    roomId,
+    pageSize: 30,
+    enableRealtime: true
+  });
+
+  const [displayMessages, setDisplayMessages] = useState<any[]>([]);
+
+  // Keep local display list in sync initially
+  useEffect(() => {
+    setDisplayMessages(messages);
+    latestMessagesRef.current = messages;
+  }, [messages]);
+
+  // Track newest timestamp for new messages listener
+  const [newestTimestamp, setNewestTimestamp] = useState<any>(null);
+  useEffect(() => {
+    if (messages.length > 0) {
+      setNewestTimestamp(messages[messages.length - 1].createdAt);
+    } else {
+      setNewestTimestamp(Timestamp.fromDate(new Date(0)));
+    }
+  }, [messages]);
+
+  // Listener for new messages beyond the loaded window
+  useEffect(() => {
+    if (!roomId || !newestTimestamp) return;
+
+    const roomDocRef = doc(db, 'rooms', roomId);
+    const messagesRef = collection(roomDocRef, 'messages');
+
+    const qNew = query(
+      messagesRef,
+      orderBy('createdAt', 'asc'),
+      where('createdAt', '>', newestTimestamp)
+    );
+
+    const unsub = onSnapshot(qNew, (snap) => {
+      const newMsgs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      if (newMsgs.length > 0) {
+        setDisplayMessages(prev => {
+          const combined = [...prev, ...newMsgs];
+          combined.sort((a, b) => a.createdAt.seconds - b.createdAt.seconds);
+          const unique = combined.filter((item, index, arr) => arr.findIndex(i => i.id === item.id) === index);
+          return unique;
+        });
+        // Update latestMessagesRef and newestTimestamp outside setState
+        setDisplayMessages(prev => {
+          const combined = [...prev, ...newMsgs];
+          combined.sort((a, b) => a.createdAt.seconds - b.createdAt.seconds);
+          const unique = combined.filter((item, index, arr) => arr.findIndex(i => i.id === item.id) === index);
+          latestMessagesRef.current = unique;
+          const latest = unique[unique.length - 1].createdAt;
+          setNewestTimestamp(latest);
+          return unique;
+        });
+      }
+    });
+
+    return () => unsub();
+  }, [roomId, newestTimestamp]);
+
+  // Realtime patch listener for the currently loaded window (oldest..newest)
+  useEffect(() => {
+    if (!roomId || !messages?.length) return;
+    const oldest = messages[0]?.createdAt;
+    const newest = messages[messages.length - 1]?.createdAt;
+    if (!oldest || !newest) return;
+
+    const roomDocRef = doc(db, 'rooms', roomId);
+    const messagesRef = collection(roomDocRef, 'messages');
+
+    try {
+      const qRange = query(
+        messagesRef,
+        orderBy('createdAt', 'asc'),
+        where('createdAt', '>=', oldest),
+        where('createdAt', '<=', newest)
+      );
+
+      const unsub = onSnapshot(qRange, (snap) => {
+        const changeMap = new Map<string, { removed?: boolean; data?: any }>();
+        snap.docChanges().forEach((chg) => {
+          if (chg.type === 'removed') {
+            changeMap.set(chg.doc.id, { removed: true });
+          } else {
+            changeMap.set(chg.doc.id, { data: { id: chg.doc.id, ...chg.doc.data() } });
+          }
+        });
+        if (changeMap.size === 0) return;
+
+        const base = latestMessagesRef.current.length ? latestMessagesRef.current : messages;
+        const seen = new Set<string>();
+        const merged: any[] = [];
+
+        // Merge updates/removals for existing items
+        for (const m of base) {
+          const entry = changeMap.get(m.id);
+          seen.add(m.id);
+          if (!entry) {
+            merged.push(m);
+          } else if (entry.removed) {
+            // skip
+          } else if (entry.data) {
+            merged.push({ ...m, ...entry.data });
+          }
+        }
+
+        // Append any newly added docs within range not present in base
+        changeMap.forEach((entry, id) => {
+          if (!entry.removed && entry.data && !seen.has(id)) {
+            merged.push(entry.data);
+          }
+        });
+
+        // Keep ascending order by createdAt
+        merged.sort((a, b) => {
+          const ta = a?.createdAt?.seconds || a?.createdAt?.toMillis?.() || 0;
+          const tb = b?.createdAt?.seconds || b?.createdAt?.toMillis?.() || 0;
+          return ta - tb;
+        });
+
+        const uniqueMerged = merged.filter((item, index, arr) => arr.findIndex(i => i.id === item.id) === index);
+        setDisplayMessages(uniqueMerged);
+        latestMessagesRef.current = uniqueMerged;
+      });
+
+      return () => {
+        try { unsub(); } catch {}
+      };
+    } catch (e) {
+      console.warn('range realtime listener failed', e);
+    }
+  }, [roomId, messages]);
+
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light'; // Safely access theme with fallback
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const { addReply, isLoading } = useMessageActions();
+  const { checkContent, isChecking } = useContentModeration({
+    autoBlock: true,
+    showWarning: true,
+    onViolation: (result) => {
+      console.log('Content violation detected:', result);
+    }
+  });
 
   const createRoomIfNotExists = async () => {
-    let roomId = getRoomId(user?.uid, id);
-    await setDoc(doc(db, "rooms", roomId), {
-      roomId,
-      createdAt: Timestamp.fromDate(new Date()),
-    });
+    const myUid = user?.uid as string;
+    if (!myUid || !peerId) return;
+    const rId = getRoomId(myUid, peerId);
+    try {
+      await setDoc(
+        doc(db, 'rooms', rId),
+        {
+          roomId: rId,
+          participants: [myUid, peerId],
+          createdAt: Timestamp.fromDate(new Date()),
+          updatedAt: Timestamp.fromDate(new Date()),
+          lastMessage: null,
+          unreadCounts: { [myUid]: 0, [peerId]: 0 },
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('createRoomIfNotExists failed', e);
+    }
   };
+
+  // Ensure room document exists as soon as we know roomId
+  useEffect(() => {
+    if (roomId) {
+      createRoomIfNotExists();
+    }
+  }, [roomId]);
 
   const handleImagePicker = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -49,37 +311,119 @@ export default function ChatRoom() {
     }
   };
 
+  const classifyImageNSFW = async (uri) => {
+    if (!nsfwModel || !uri) {
+      console.warn('NSFW model not loaded or invalid URI');
+      return { isInappropriate: false, scores: {}, reason: 'Model not available' };
+    }
+
+    console.group(`🔎 NSFW check for: ${uri}`);
+    try {
+      const resized = await manipulateAsync(
+        uri,
+        [{ resize: { width: PIC_INPUT_SHAPE.width, height: PIC_INPUT_SHAPE.height } }],
+        { format: 'jpeg', base64: true }
+      );
+      const base64 = resized.base64;
+      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const input = imageToTensor(bytes);
+      const logits = nsfwModel.predict(input);
+      const values = await logits.data();
+      logits.dispose();
+      input.dispose();
+
+      const p = values[3] || 0; // Porn
+      const h = values[1] || 0; // Hentai
+      const s = values[4] || 0; // Sexy
+      const n = values[2] || 0; // Neutral
+      const d = values[0] || 0; // Drawing
+
+      // New thresholds: more sensitive
+      const isInappropriate = 
+        p >= 0.5 ||  
+        h >= 0.5 ||  
+        s >= 0.7 ||  
+        (p + h + s >= 0.8);  
+
+      // Detailed reason, show if above warning threshold
+      const reasonParts = [];
+      if (p >= 0.45) reasonParts.push(`Porn: ${(p * 100).toFixed(1)}%`);
+      if (h >= 0.45) reasonParts.push(`Hentai: ${(h * 100).toFixed(1)}%`);
+      if (s >= 0.6) reasonParts.push(`Sexy: ${(s * 100).toFixed(1)}%`);
+      const reason = reasonParts.join(', ') || 'An toàn';
+
+      const scores = { p, h, s, n, d };
+      console.log('Scores:', scores);
+      console.log('Is inappropriate:', isInappropriate);
+      console.log('Reason:', reason);
+
+      return { isInappropriate, scores, reason };
+    } catch (error) {
+      console.error('NSFW classify error:', error);
+      return { isInappropriate: true, scores: {}, reason: 'Lỗi xử lý ảnh - chặn để an toàn' }; // Fallback: block if error
+    } finally {
+      console.groupEnd();
+    }
+  };
+
   const uploadImage = async (uri: string) => {
     try {
+      console.log('📤 [uploadImage] Start with URI:', uri);
+      // Check image content with NSFW model
+      const checkResult = await classifyImageNSFW(uri);
+      if (checkResult.isInappropriate) {
+        Alert.alert('Ảnh không phù hợp', `Ảnh bị chặn vì: ${checkResult.reason}`);
+        console.log('⛔ [uploadImage] Image blocked by NSFW check');
+        return; // Image blocked
+      }
+      console.log('✅ [uploadImage] Image passed NSFW check');
+
       const blob = await (await fetch(uri)).blob();
-      const roomId = getRoomId(user?.uid, id);
+      const roomId = getRoomId(user?.uid as string, peerId);
       const storage = getStorage();
       const storageRef = ref(storage, `chat-images/${roomId}/${Date.now()}`);
   
       await uploadBytes(storageRef, blob);
       const downloadURL = await getDownloadURL(storageRef);
+      console.log('✅ [uploadImage] Uploaded to storage, URL:', downloadURL);
   
       // Gửi tin nhắn với URL ảnh
-      const docRef = doc(db, "rooms", roomId);
-      const messageRef = collection(docRef, "messages");
+      const docRef = doc(db, 'rooms', roomId);
+      const messageRef = collection(docRef, 'messages');
+      const nowTs = Timestamp.fromDate(new Date());
       await addDoc(messageRef, {
         uid: user?.uid,
         imageUrl: downloadURL,
         profileUrl: user?.profileUrl,
         senderName: user?.username,
-        createdAt: Timestamp.fromDate(new Date()),
+        createdAt: nowTs,
         status: 'sent', // sent, delivered, read
         readBy: [], // array of user IDs who have read this message
       });
+      console.log('📨 [uploadImage] Message document created');
+
+      // Ensure room exists then update room metadata
+      await createRoomIfNotExists();
+      await setDoc(
+        docRef,
+        {
+          updatedAt: nowTs,
+          lastMessage: { imageUrl: downloadURL, createdAt: nowTs, uid: user?.uid, status: 'sent' },
+          [`unreadCounts.${peerId}`]: increment(1),
+        },
+        { merge: true }
+      );
+      console.log('🧾 [uploadImage] Room metadata updated');
     } catch (error: any) {
+      console.error('❌ [uploadImage] Error:', error);
       Alert.alert('Image Upload', error.message);
     }
   };
 
   const fetchUserInfo = async () => {
-    if (!id) return;
+    if (!peerId) return;
     try {
-      const userDoc = await getDoc(doc(db, 'users', id as string));
+      const userDoc = await getDoc(doc(db, 'users', peerId));
       if (userDoc.exists()) {
         setUserInfo(userDoc.data());
       } else {
@@ -90,60 +434,36 @@ export default function ChatRoom() {
     }
   };
 
-  // Mark messages as delivered when user enters chat room
+  // Mark messages as delivered when user enters chat room - optimized
   const markMessagesAsDelivered = async (roomId: string) => {
     try {
-      const messagesRef = collection(doc(db, "rooms", roomId), "messages");
-      // Get all messages first, then filter in memory to avoid composite index
-      const snapshot = await getDocs(messagesRef);
-      
-      const updatePromises = snapshot.docs
-        .filter(messageDoc => {
-          const data = messageDoc.data();
-          return data.uid !== user?.uid && data.status === 'sent';
-        })
-        .map(async (messageDoc) => {
-          await updateDoc(messageDoc.ref, {
-            status: 'delivered'
-          });
-        });
-      
-      await Promise.all(updatePromises);
+      if (!user?.uid) return;
+      const roomRef = doc(db, 'rooms', roomId);
+      // Use setDoc merge to avoid "No document to update"
+      await setDoc(
+        roomRef,
+        { [`unreadCounts.${user.uid}`]: 0 },
+        { merge: true }
+      );
     } catch (error) {
       console.error('Error marking messages as delivered:', error);
     }
   };
 
-  // Mark messages as read when user views the chat
+  // Mark messages as read - optimized: update unreadCounts and lastReadAt
   const markMessagesAsRead = async () => {
-    if (isMarkingAsRead) return; // Prevent multiple simultaneous calls
+    if (isMarkingAsRead || !user?.uid) return;
     setIsMarkingAsRead(true);
-    
     try {
-      const roomId = getRoomId(user?.uid, id);
-      const messagesRef = collection(doc(db, "rooms", roomId), "messages");
-      // Get only recent messages to reduce load
-      const q = query(messagesRef, orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      
-      const updatePromises = snapshot.docs
-        .filter(messageDoc => {
-          const data = messageDoc.data();
-          const readBy = data.readBy || [];
-          return data.uid !== user?.uid && !readBy.includes(user?.uid);
-        })
-        .slice(0, 20) // Only process last 20 messages to avoid performance issues
-        .map(async (messageDoc) => {
-          const messageData = messageDoc.data();
-          const readBy = messageData.readBy || [];
-          
-          await updateDoc(messageDoc.ref, {
-            status: 'read',
-            readBy: [...readBy, user?.uid]
-          });
-        });
-      
-      await Promise.all(updatePromises);
+      const roomRef = doc(db, 'rooms', roomId);
+      await setDoc(
+        roomRef,
+        {
+          [`unreadCounts.${user.uid}`]: 0,
+          [`lastReadAt.${user.uid}`]: Timestamp.fromDate(new Date()),
+        },
+        { merge: true }
+      );
     } catch (error) {
       console.error('Error marking messages as read:', error);
     } finally {
@@ -151,72 +471,89 @@ export default function ChatRoom() {
     }
   };
 
+  // Listen to pinnedIds via room doc only
   useEffect(() => {
-    createRoomIfNotExists();
-    fetchUserInfo();
-
-    const roomId = getRoomId(user?.uid, id);
-    const docRef = doc(db, "rooms", roomId);
-    const messagesRef = collection(docRef, "messages");
-    const q = query(messagesRef, orderBy('createdAt', 'asc'));
-
-    const unsub = onSnapshot(q, async (snapshot) => {
-      let allMessages = snapshot.docs.map((doc) => {
-        return { id: doc.id, ...doc.data() };
-      });
-      setMessages([...allMessages]);
-      
-      // Mark messages as delivered when user enters the chat room
-      await markMessagesAsDelivered(roomId);
+    const docRef = doc(db, 'rooms', roomId);
+    const unsubRoom = onSnapshot(docRef, (roomSnap) => {
+      const roomData = roomSnap.data() as any;
+      const ids = Array.isArray(roomData?.pinnedMessages) ? roomData.pinnedMessages : [];
+      setPinnedIds(ids);
     });
 
-    const KeyboardDidShowListener = Keyboard.addListener(
-      'keyboardDidShow', updateScrollView
-    );
-
-    // Mark messages as read when component mounts (user is viewing the chat)
-    markMessagesAsRead();
+    const KeyboardDidShowListener = Keyboard.addListener('keyboardDidShow', updateScrollView);
 
     return () => {
-      unsub();
+      unsubRoom();
       KeyboardDidShowListener.remove();
     };
-  }, [id]);
+  }, [roomId]);
+
+  // Mark messages as read when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      markMessagesAsRead();
+      markMessagesAsDelivered(roomId);
+    }
+    updateScrollView();
+  }, [messages, roomId]);
 
   const handleSend = async () => {
-    const message = newMessage.trim();
+    const raw = newMessage;
+    const message = raw.trim();
     if (!message) return;
 
-    try {
-      const roomId = getRoomId(user?.uid, id);
-      const docRef = doc(db, "rooms", roomId);
-      const messageRef = collection(docRef, "messages");
+    // Optimistic clear for smooth UX
+    setNewMessage('');
 
-      if (newMessage) {
-        setNewMessage(''); // Clear the input field after sending the message
+    try {
+      const isContentAllowed = await checkContent(message);
+      if (!isContentAllowed) {
+        // Restore input if blocked by moderation
+        setNewMessage(raw);
+        return;
       }
 
-      await addDoc(messageRef, {
+      const rId = getRoomId(user?.uid as string, peerId);
+      const roomDocRef = doc(db, 'rooms', rId);
+      const messageRef = collection(roomDocRef, 'messages');
+
+      const nowTs = Timestamp.fromDate(new Date());
+      const newDoc = await addDoc(messageRef, {
         uid: user?.uid,
         text: message,
         profileUrl: user?.profileUrl,
         senderName: user?.username,
-        createdAt: Timestamp.fromDate(new Date()),
-        status: 'sent', // sent, delivered, read
-        readBy: [], // array of user IDs who have read this message
+        createdAt: nowTs,
+        status: 'sent',
+        readBy: [],
       });
+
+      // Ensure room exists then update room metadata: lastMessage, updatedAt, increment peer unread
+      const peerUid = peerId;
+      await createRoomIfNotExists();
+      await setDoc(
+        roomDocRef,
+        {
+          lastMessage: { text: message, createdAt: nowTs, uid: user?.uid, status: 'sent' },
+          updatedAt: nowTs,
+          [`unreadCounts.${peerUid}`]: increment(1),
+        },
+        { merge: true }
+      );
+
+      setReplyTo(null);
     } catch (error: any) {
+      // Restore input so user can retry
+      setNewMessage(raw);
       Alert.alert('Message', error.message);
     }
   };
 
   useEffect(() => {
     updateScrollView();
-    // Debounce marking messages as read
     const timeoutId = setTimeout(() => {
       markMessagesAsRead();
-    }, 1000); // Wait 1 second after messages change before marking as read
-
+    }, 800);
     return () => clearTimeout(timeoutId);
   }, [messages]);
 
@@ -226,6 +563,149 @@ export default function ChatRoom() {
     }, 100);
   };
 
+  const handleMessageLayout = (messageId: string, y: number) => {
+    messagePositionsRef.current[messageId] = y;
+  };
+
+  const scrollToPinnedMessage = (messageId: string) => {
+    const y = messagePositionsRef.current[messageId];
+    if (typeof y === 'number') {
+      // Offset a bit to avoid being hidden behind header
+      scrollViewRef.current?.scrollTo({ y: Math.max(y - 60, 0), animated: true });
+      // Highlight briefly
+      setHighlightedMessageId(messageId);
+      setTimeout(() => setHighlightedMessageId(null), 1500);
+    }
+  };
+
+  const handleReplySelect = (message: any) => {
+    try {
+      setReplyTo({
+        text: message?.text,
+        imageUrl: message?.imageUrl,
+        senderName: message?.senderName || 'Người dùng',
+        uid: message?.uid,
+        messageId: message?.id || message?.messageId,
+      });
+    } catch (e) {
+      console.warn('Failed to set reply target', e);
+    }
+  };
+
+  // Build otherUser object to help MessageItem compute roomId when needed
+  const otherUser = userInfo ? { uid: peerId, id: peerId, ...userInfo } : undefined;
+
+  // Derive pinned messages from pinnedIds and messages list
+  const pinnedMessages = messages.filter((m) => pinnedIds.includes(m.id));
+
+  // Disable send when no text or moderation running
+  const sendDisabled = newMessage.trim().length === 0 || isChecking;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const items = await giftService.getGiftCatalog();
+        setGiftCatalog(items);
+      } catch (e) {
+        console.warn('Failed to load gifts', e);
+      }
+    })();
+  }, []);
+
+  const handleSendGift = async (giftId: string) => {
+    if (!user?.uid) return;
+    try {
+      await giftService.sendGift({
+        senderUid: user.uid,
+        senderName: user?.username || user?.displayName || 'Bạn',
+        receiverUid: peerId,
+        roomId,
+        giftId,
+      });
+      refreshMessages?.();
+      Alert.alert('Thành công', 'Đã gửi quà');
+    } catch (e: any) {
+      const msg = String(e?.message || 'UNKNOWN');
+      if (msg.includes('INSUFFICIENT_FUNDS')) {
+        Alert.alert(
+          'Không đủ Bánh mì',
+          'Bạn không đủ Bánh mì để gửi quà này.',
+          [
+            { text: 'Hủy', style: 'cancel' },
+            {
+              text: 'Nạp nhanh +50',
+              onPress: async () => {
+                try {
+                  if (typeof topupCoins === 'function') {
+                    await topupCoins(50, { reason: 'quick_topup_gift' });
+                  }
+                } catch {}
+              },
+            },
+          ]
+        );
+      } else if (msg.includes('CANNOT_GIFT_SELF')) {
+        Alert.alert('Không thể gửi quà', 'Bạn không thể tự tặng quà cho chính mình');
+      } else {
+        Alert.alert('Không thể gửi quà', e?.message || 'Lỗi không xác định');
+      }
+    }
+  };
+
+  // Realtime user info (avatar, presence)
+  useEffect(() => {
+    if (!peerId) return;
+    const unsub = onSnapshot(doc(db, 'users', peerId), (snap) => {
+      const data = snap.data() as any;
+      if (!data) return;
+      setUserInfo({
+        id: snap.id,
+        ...data,
+        // normalize avatar url field names
+        profileUrl: data?.profileUrl || data?.photoURL || data?.avatarUrl || '',
+      });
+    });
+    return () => {
+      try { unsub(); } catch {}
+    };
+  }, [peerId]);
+
+  // Load NSFW model once
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        await tf.ready();
+        const model = await tf.loadLayersModel(bundleResourceIO(NSFW_MODEL_JSON, NSFW_MODEL_WEIGHTS));
+        if (isMounted) setNsfwModel(model);
+      } catch (e) {
+        console.error('NSFW model load error:', e);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Show loading while checking permissions
+  if (chatPermissionLoading) {
+    return (
+      <KeyboardAvoidingView style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={[styles.container, { backgroundColor: currentThemeColors.background, justifyContent: 'center', alignItems: 'center' }]}>
+          <ChatRoomHeader router={router} user={userInfo} userId={peerId}/>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#6366F1" />
+            <Text style={{ color: currentThemeColors.text, marginTop: 12 }}>
+              Đang kiểm tra...
+            </Text>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Don't show full BlockedChatView - just disable input
+  // Users can still see old messages
+
   return (
     <KeyboardAvoidingView  
       style={{ flex: 1 }} 
@@ -233,25 +713,159 @@ export default function ChatRoom() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        <ChatRoomHeader router={router} user={userInfo} userId={id}/>
+        <ChatRoomHeader router={router} user={userInfo} userId={peerId}/>
+
+        {/* Gift picker modal */}
+        <Modal
+          visible={!!showGifts}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowGifts(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={() => setShowGifts(false)} style={styles.modalBackdrop} />
+          <View style={[styles.modalSheet, { backgroundColor: currentThemeColors.surface }]}> 
+            <View style={styles.modalHeaderRow}>
+              <Text style={[styles.modalTitle, { color: currentThemeColors.text }]}>Chọn quà tặng</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ fontSize: 12, color: currentThemeColors.subtleText }}>Bánh mì:</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: currentThemeColors.text }}>🥖 {Number(coins || 0)}</Text>
+              </View>
+            </View>
+            <ScrollView contentContainerStyle={styles.giftGrid} showsVerticalScrollIndicator={false}>
+              {giftCatalog.map((g) => {
+                const affordable = Number(coins || 0) >= Number(g.price || 0);
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    onPress={async () => {
+                      if (!affordable) {
+                        Alert.alert(
+                          'Không đủ Bánh mì',
+                          `Cần 🥖 ${g.price}, bạn đang có 🥖 ${Number(coins || 0)}.`,
+                          [
+                            { text: 'Đóng', style: 'cancel' },
+                            {
+                              text: 'Nạp nhanh +50',
+                              onPress: async () => {
+                                try { if (typeof topupCoins === 'function') await topupCoins(50, { reason: 'quick_topup_gift_modal' }); } catch {}
+                              }
+                            }
+                          ]
+                        );
+                        return;
+                      }
+                      await handleSendGift(g.id);
+                      setShowGifts(false);
+                    }}
+                    style={[
+                      styles.giftTile,
+                      { borderColor: currentThemeColors.border, opacity: affordable ? 1 : 0.5 },
+                    ]}
+                    disabled={!affordable}
+                  >
+                    <Text style={{ fontSize: 22 }}>{g.icon || '🎁'}</Text>
+                    <Text style={[styles.giftTitle, { color: currentThemeColors.text }]} numberOfLines={1}>{g.name}</Text>
+                    <Text style={[styles.giftPrice, { color: currentThemeColors.subtleText }]}>🥖 {g.price}</Text>
+                    {!affordable && (
+                      <Text style={{ marginTop: 4, fontSize: 10, color: '#E53935' }}>Không đủ</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Pinned messages section */}
+        {pinnedMessages.length > 0 && (
+          <View style={[styles.pinnedContainer, { backgroundColor: currentThemeColors.backgroundHeader, borderBottomColor: currentThemeColors.border }]}> 
+            <View style={styles.pinnedHeaderRow}>
+              <MaterialIcons name="push-pin" size={16} color="#FFA726" />
+              <Text style={[styles.pinnedTitle, { color: currentThemeColors.text }]}>Tin nhắn đã ghim</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pinnedScroll}>
+              {pinnedMessages.map((pm) => (
+                <TouchableOpacity key={pm.id} onPress={() => scrollToPinnedMessage(pm.id)}
+                  style={[styles.pinnedChip, { backgroundColor: currentThemeColors.surface, borderColor: currentThemeColors.border }]}> 
+                  <Text style={[styles.pinnedText, { color: currentThemeColors.text }]} numberOfLines={1}>
+                    {pm.imageUrl ? '📷 Hình ảnh' : pm.text || 'Tin nhắn' }
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
         <View style={styles.messageListContainer}>
-          <MessageList scrollViewRef={scrollViewRef} messages={messages} currentUser={user} />
-        </View>
-        <View style={styles.inputContainer}>
-          
-          <TextInput
-            value={newMessage}
-            onChangeText={setNewMessage}
-            placeholder="Type a message"
-            mode="outlined"
-            style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
-            theme={{ roundness: 50 }}
-            placeholderTextColor={currentThemeColors.placeholderText}
-            textColor={currentThemeColors.text}
-            right={<TextInput.Icon icon="send" onPress={handleSend} />}
-            left={<TextInput.Icon icon="image" onPress={handleImagePicker} />}
+          <MessageList 
+            scrollViewRef={scrollViewRef} 
+            messages={displayMessages}
+            currentUser={user} 
+            otherUser={otherUser}
+            onReply={handleReplySelect}
+            onMessageLayout={handleMessageLayout}
+            highlightedMessageId={highlightedMessageId || undefined}
           />
         </View>
+        {/* Reply preview above input - only show if can chat */}
+        {canChat && (
+          <ReplyPreview 
+            replyTo={replyTo ? { text: replyTo.text, imageUrl: replyTo.imageUrl, senderName: replyTo.senderName, uid: replyTo.uid } : null}
+            onClearReply={() => setReplyTo(null)}
+            currentThemeColors={currentThemeColors}
+          />
+        )}
+
+        {/* Show blocked banner or normal input bar */}
+        {!canChat ? (
+          <View style={[styles.blockedInputBar, { 
+            backgroundColor: theme === 'dark' ? '#1E293B' : '#FEF2F2',
+            borderTopColor: '#EF4444'
+          }]}>
+            <MaterialIcons name="block" size={20} color="#EF4444" />
+            <Text style={[styles.blockedInputText, { color: theme === 'dark' ? '#FCA5A5' : '#991B1B' }]}>
+              {reason.includes('đã chặn') 
+                ? 'Bạn đã chặn người dùng này. Bỏ chặn để nhắn tin.'
+                : 'Bạn không thể nhắn tin với người dùng này.'
+              }
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.inputBar, { borderTopColor: currentThemeColors.border }]}> 
+            {/* Gift button */}
+            <TouchableOpacity onPress={() => setShowGifts(true)} style={[styles.roundBtn, { backgroundColor: currentThemeColors.surface }]}> 
+              <Text style={{ fontSize: 18 }}>🥖</Text>
+            </TouchableOpacity>
+
+            {/* Text input with inline image icon */}
+            <View style={[styles.inputWrapper, { backgroundColor: currentThemeColors.inputBackground, borderColor: currentThemeColors.border }]}> 
+              <TouchableOpacity onPress={handleImagePicker} style={styles.inlineIcon}>
+                <MaterialIcons name="image" size={22} color={currentThemeColors.subtleText} />
+              </TouchableOpacity>
+              <TextInput
+                value={newMessage}
+                onChangeText={setNewMessage}
+                placeholder="Type a message"
+                mode="flat"
+                style={[styles.textInput]}
+                underlineColor="transparent"
+                placeholderTextColor={currentThemeColors.placeholderText}
+                textColor={currentThemeColors.text}
+                onSubmitEditing={handleSend}
+                blurOnSubmit
+                returnKeyType="send"
+              />
+            </View>
+
+            {/* Send button */}
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={sendDisabled}
+              style={[styles.sendBtn, { backgroundColor: sendDisabled ? '#9CA3AF' : '#667eea' }]}
+            >
+              <MaterialIcons name="send" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -265,15 +879,139 @@ const styles = StyleSheet.create({
     flex: 1,
     marginTop: 10,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#ccc',
-    alignItems: 'center',
+  pinnedContainer: {
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  input: {
+  pinnedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    gap: 6,
+  },
+  pinnedTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  pinnedScroll: {
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  pinnedChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginHorizontal: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    maxWidth: 220,
+  },
+  pinnedText: {
+    fontSize: 13,
+  },
+  // New bottom bar styles
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 8,
+  },
+  roundBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputWrapper: {
     flex: 1,
-    marginRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  inlineIcon: {
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  textInput: {
+    flex: 1,
+    backgroundColor: 'transparent',
+    marginLeft: 4,
+  },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)'
+  },
+  modalSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    maxHeight: '60%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingTop: 12,
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  giftGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 20,
+  },
+  giftTile: {
+    width: '30%',
+    minWidth: 100,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: 6,
+    marginBottom: 10,
+  },
+  giftTitle: {
+    fontSize: 12,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  giftPrice: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  blockedInputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 2,
+    gap: 10,
+  },
+  blockedInputText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

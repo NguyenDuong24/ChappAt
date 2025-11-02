@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   Alert,
   Clipboard,
+  Text,
 } from 'react-native';
-import { Title, Paragraph, Divider, Text } from 'react-native-paper';
-import { AntDesign } from '@expo/vector-icons';
+import { Divider } from 'react-native-paper';
+import { AntDesign, MaterialIcons } from '@expo/vector-icons';
+// Removed MaterialCommunityIcons import
 import { db } from '@/firebaseConfig';
 import {
   doc,
@@ -26,8 +28,11 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import CustomImage from '../common/CustomImage';
 import { useAuth } from '@/context/authContext';
+import { giftService } from '@/services/giftService';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
+import VibeSection from './VibeSection';
+import VibeAvatar from '../vibe/VibeAvatar';
 
 const extractHashtags = (text: string) => {
   const regex = /#[a-zA-Z0-9_]+/g;
@@ -41,15 +46,35 @@ interface TopProfileProps {
 
 const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   const [isEditingBio, setIsEditingBio] = useState(false);
-  const { user } = useAuth();
+  const { user, currentVibe, coins } = useAuth();
   const [bio, setBio] = useState('');
   const router = useRouter();
-  const { theme } = useContext(ThemeContext);
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  
+  // Debug currentVibe
+  console.log('👤 TopProfile currentVibe:', currentVibe);
+
+  
+  // Debug log to check user object
+  useEffect(() => {
+    if (user) {
+      console.log('🔍 TopProfile DEBUG - User object:', {
+        uid: user.uid,
+        username: user.username,
+        displayName: user.displayName,
+        name: user.name,
+        email: user.email,
+        allKeys: Object.keys(user)
+      });
+    }
+  }, [user]);
 
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
+  const [giftStats, setGiftStats] = useState<{ count: number; value: number }>({ count: 0, value: 0 });
 
   // Update bio when user changes
   useEffect(() => {
@@ -92,6 +117,18 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user?.uid) return;
+    // read counters if present
+    try {
+      // lazy load via user state already includes fields sometimes; fallback to Firestore read
+      setGiftStats({
+        count: Number(user?.giftReceivedCount || 0),
+        value: Number(user?.giftReceivedValue || 0),
+      });
+    } catch {}
+  }, [user?.giftReceivedCount, user?.giftReceivedValue, user?.uid]);
+
   const handleSaveBio = async () => {
     try {
       if (user && user.uid) {
@@ -128,6 +165,8 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
 
   const handleHashtagPress = (hashtag: string) => {
     console.log('Hashtag được nhấn:', hashtag);
+    const cleanHashtag = hashtag.replace('#', '');
+    router.push(`/HashtagScreen?hashtag=${cleanHashtag}`);
   };
 
   const handleCopyUID = async () => {
@@ -175,66 +214,105 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
           source={user?.coverImage}
           style={styles.coverPhoto}
         />
-        <TouchableOpacity
-          onPress={() => router.push('/profile/settings')}
-          style={[styles.settingsButton, { backgroundColor: currentThemeColors.icon }]}
-          activeOpacity={0.7}
-        >
-          <Feather name="settings" size={24} color={currentThemeColors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          
+          <TouchableOpacity
+            onPress={() => router.push('/profile/settings')}
+            style={[styles.settingsButton, { backgroundColor: currentThemeColors.icon }]}
+            activeOpacity={0.7}
+          >
+            <Feather name="settings" size={24} color={currentThemeColors.text} />
+          </TouchableOpacity>
+
+                  {/* Coin pill */}
+        <View style={styles.walletRow}>
+          <View
+            style={[
+              styles.coinPill,
+              {
+                backgroundColor: currentThemeColors.cardBackground,
+                borderColor: currentThemeColors.border,
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 16 }}>🥖</Text>
+            <Text style={[styles.coinText, { color: currentThemeColors.text }]}> Bánh mì: {Number(coins || 0)}</Text>
+          </View>
+        </View>
+        </View>
       </View>
 
       <View style={styles.header}>
         <View style={[styles.avatarWrapper, { borderColor: currentThemeColors.text }]}>
-          <CustomImage source={user?.profileUrl} style={styles.avatar} />
+          <VibeAvatar
+            avatarUrl={user?.profileUrl}
+            size={80}
+            currentVibe={currentVibe}
+            showAddButton={true}
+            storyUser={{ id: user?.uid || '', username: user?.username || user?.displayName, profileUrl: user?.profileUrl }}
+          />
           <View style={styles.statsContainer}>
             <View style={styles.stat}>
-              <Title style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
+              <Text style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
                 {postsCount}
-              </Title>
-              <Paragraph style={[styles.statLabel, { color: currentThemeColors.text }]}>
+              </Text>
+              <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>
                 Posts
-              </Paragraph>
+              </Text>
             </View>
 
             <View style={styles.stat}>
-              <Title style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
+              <Text style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
                 {followersCount}
-              </Title>
-              <Paragraph style={[styles.statLabel, { color: currentThemeColors.text }]}>
+              </Text>
+              <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>
                 Followers
-              </Paragraph>
+              </Text>
             </View>
 
             <View style={styles.stat}>
-              <Title style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
+              <Text style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
                 {followingCount}
-              </Title>
-              <Paragraph style={[styles.statLabel, { color: currentThemeColors.text }]}>
+              </Text>
+              <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>
                 Following
-              </Paragraph>
+              </Text>
             </View>
           </View>
         </View>
-        <Title style={[styles.name, { color: currentThemeColors.text }]}>
-          {user?.username || 'Unknown User'}
-        </Title>
+        <Text style={[styles.name, { color: currentThemeColors.text }]}>
+          {user?.username || user?.displayName || user?.name || user?.email?.split('@')[0] || 'Unknown User'}
+        </Text>
         
         {/* UID Display with Copy Button */}
         <View style={[styles.uidContainer]}>
-          <Text style={[styles.uidLabel, { color: currentThemeColors.subtleText }]}>
-            UID: 
-          </Text>
+          <Text style={[styles.uidLabel, { color: currentThemeColors.subtleText }]}> UID: </Text>
           <Text style={[styles.uidText, { color: currentThemeColors.text }]} numberOfLines={1} selectable={true}>
             {user?.uid || 'No UID'}
           </Text>
-          <TouchableOpacity
-            onPress={handleCopyUID}
-            style={[styles.copyButton]}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity onPress={handleCopyUID} style={[styles.copyButton]} activeOpacity={0.7}>
             <Feather name="copy" size={14} color={currentThemeColors.icon} />
           </TouchableOpacity>
+        </View>
+
+        {/* Gift stats row */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 6 }}>
+          <TouchableOpacity onPress={() => router.push('/gifts/Inbox')} activeOpacity={0.8}>
+            <View style={[styles.coinPill, { borderColor: currentThemeColors.border, backgroundColor: currentThemeColors.cardBackground }]}>
+              <Text style={{ fontSize: 14 }}>🎁</Text>
+              <Text style={[styles.coinText, { color: currentThemeColors.text }]}>
+                {' '}
+                {giftStats.count} quà
+              </Text>
+            </View>
+          </TouchableOpacity>
+          <View style={[styles.coinPill, { borderColor: currentThemeColors.border, backgroundColor: currentThemeColors.cardBackground }]}>
+            <Text style={{ fontSize: 14 }}>🥖</Text>
+            <Text style={[styles.coinText, { color: currentThemeColors.text }]}>
+              {' '}
+              {giftStats.value}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.bioContainer}>
@@ -266,6 +344,7 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
             <AntDesign name={isEditingBio ? 'check' : 'edit'} size={16} color={currentThemeColors.icon} />
           </TouchableOpacity>
         </View>
+        <VibeSection />
       </View>
 
 
@@ -376,6 +455,61 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  vibeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+  },
+  editVibeButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  addVibeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+  },
+  addVibeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    position: 'absolute',
+    top: 0,
+    right: 5,
+    gap: 10,
+  },
+  vibeButton: {
+    padding: 6,
+    borderRadius: 20,
+  },
+  walletRow: {
+    position: 'absolute',
+    right: 0,
+    top: 90,
+    alignItems: 'center',
+  },
+  coinPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  coinText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

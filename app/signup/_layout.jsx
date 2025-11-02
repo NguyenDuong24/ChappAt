@@ -29,6 +29,12 @@ const StackLayout = () => {
         <Stack.Screen name="IconSelectionScreen" options={{  
             headerShown: false
         }} />
+        <Stack.Screen name="EducationSelectionScreen" options={{  
+            headerShown: false
+        }} />
+        <Stack.Screen name="CompleteSocialProfileScreen" options={{  
+            headerShown: false
+        }} />
     </Stack>
   )
 }

@@ -6,25 +6,29 @@ import { db } from '@/firebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import { cancelCall, acceptCall, CALL_STATUS } from '@/services/firebaseCallService';
+import { useCallNavigation } from '@/hooks/useNewCallNavigation';
 
 export default function IncomingCallScreen() {
-    const { meetingId, callerId, receiverId, status, type } = useLocalSearchParams();
-    const [callerInfo, setCallerInfo] = useState(null); // State để lưu thông tin người gọi
+    const { callId, meetingId, callerId, receiverId, callType, status } = useLocalSearchParams();
+    const [callerInfo, setCallerInfo] = useState<any>(null);
+    const [callStatus, setCallStatus] = useState(status);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const buttonScaleAnim = useRef(new Animated.Value(1)).current;
     const soundRef = useRef<Audio.Sound | null>(null);
+    const { navigateToCallScreen, navigateBack } = useCallNavigation();
 
     // Fetch thông tin người gọi từ Firestore
     useEffect(() => {
         const fetchCallerInfo = async () => {
-            if (!callerId) return;
+            if (!callerId || Array.isArray(callerId)) return;
 
             try {
                 const userDoc = await getDoc(doc(db, 'users', callerId));
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
                     setCallerInfo(userData);
-                    console.log('Caller Data:', userData);
+                    console.log('Caller Data (person calling):', userData);
                 } else {
                     console.log('No such user!');
                 }
@@ -73,14 +77,16 @@ export default function IncomingCallScreen() {
             ])
         ).start();
 
-        // Phát nhạc chuông
+        // Phát nhạc chuông (disabled to prevent errors)
         const playRingtone = async () => {
             try {
-                const { sound } = await Audio.Sound.createAsync(
-                    { uri: 'https://www.soundjay.com/button/beep-07.wav' },
-                    { shouldPlay: true, isLooping: true }
-                );
-                soundRef.current = sound;
+                // Temporarily disabled sound loading
+                console.log('🔊 Would play ringtone for incoming call');
+                // const { sound } = await Audio.Sound.createAsync(
+                //     { uri: 'path/to/local/ringtone.mp3' },
+                //     { shouldPlay: true, isLooping: true }
+                // );
+                // soundRef.current = sound;
             } catch (error) {
                 console.error('Error playing ringtone:', error);
             }
@@ -107,32 +113,41 @@ export default function IncomingCallScreen() {
     const handleAcceptCall = async () => {
         await stopRingtone();
         try {
-            const q = query(collection(db, 'calls'), where('meetingId', '==', meetingId));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                querySnapshot.forEach(async (docSnapshot) => {
-                    await updateDoc(doc(db, 'calls', docSnapshot.id), { status: 'accepted' });
-                    router.push({ pathname: '/CallScreen', params: { meetingId, callerId, receiverId, status, type } });
+            console.log('🎯 Accepting call with meetingId:', meetingId);
+            if (callId && typeof callId === 'string') {
+                // Accept call trong Firebase
+                await acceptCall(callId);
+                console.log('✅ Call accepted in Firebase');
+                
+                // Navigate to CallScreen với meetingId
+                navigateToCallScreen({
+                    id: callId,
+                    meetingId: meetingId,
+                    callerId: callerId,
+                    receiverId: receiverId,
+                    type: callType,
+                    status: CALL_STATUS.ACCEPTED
                 });
             }
         } catch (error) {
-            console.error('Error accepting the call:', error);
+            console.error('Error accepting call:', error);
         }
     };
 
     const handleDeclineCall = async () => {
         await stopRingtone();
         try {
-            const q = query(collection(db, 'calls'), where('meetingId', '==', meetingId));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                querySnapshot.forEach(async (docSnapshot) => {
-                    await updateDoc(doc(db, 'calls', docSnapshot.id), { status: 'declined' });
-                    router.back();
-                });
+            console.log('❌ Declining call');
+            if (callId && typeof callId === 'string') {
+                // Cancel call trong Firebase
+                await cancelCall(callId);
+                console.log('✅ Call declined in Firebase');
+                
+                // Navigate back
+                navigateBack();
             }
         } catch (error) {
-            console.error('Error declining the call:', error);
+            console.error('Error declining call:', error);
         }
     };
 

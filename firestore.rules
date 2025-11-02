@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Rules for users collection - users can only access their own documents
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Rules for userVibes collection - users can only access their own vibes
+    match /userVibes/{vibeId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Rules for calls collection
+    match /calls/{callId} {
+      // Allow read/write if user is either caller or receiver
+      allow read, write: if resource.data.callerId == request.auth.uid 
+                        || resource.data.receiverId == request.auth.uid;
+      // Allow create if user is the caller
+      allow create: if request.auth != null && request.auth.uid == resource.data.callerId;
+    }
+
+    // Rules for badWords collection - allow public read for moderation
+    match /badWords/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // Default rule for other collections - allow authenticated users
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

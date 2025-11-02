@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Expo",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/expo/bin/cli.js",
+      "args": ["start"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Attach to Hermes",
+      "type": "node",
+      "request": "attach",
+      "address": "localhost",
+      "port": 8081,
+      "outFiles": ["${workspaceFolder}/.expo/**/*.js"],
+      "timeout": 60000
+    }
+  ]
+}

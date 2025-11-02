@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { View, FlatList, ActivityIndicator, Alert, Text, RefreshControl } from 'react-native';
+import React, { useContext, useRef } from 'react';
+import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated } from 'react-native';
 import useExplore from '../../explore/useExplore'; 
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
+import { useExploreHeader } from '@/context/ExploreHeaderContext';
 
 const Tab1Screen = () => {
   // Safe hook usage with error boundary
@@ -24,25 +25,33 @@ const Tab1Screen = () => {
     };
   }
 
-  const { latestPosts, loading, error, deletePost, toggleLike, addComment, fetchPosts } = hookData;
+  const { latestPosts, loading, error, deletePost, toggleLike, addComment, fetchPosts, loadMore, hasMore, loadingMore } = hookData;
   const { user } = useAuth();
-  const [updatedPosts, setUpdatedPosts] = useState(latestPosts || []);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  // header scroll binding - use safe hook
+  const headerContext = useExploreHeader();
+  const { scrollY, handleScroll, effectiveHeaderHeight } = headerContext || {};
+  
+  // Create default scroll handler if context is not available
+  const defaultScrollY = useRef(new Animated.Value(0)).current;
+  const defaultEffectiveHeaderHeight = useRef(new Animated.Value(300)).current; // Default to approximate HEADER_HEIGHT
+  const onScroll = handleScroll || Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY || defaultScrollY } } }], 
+    { 
+      useNativeDriver: false, // Must be false for layout animations (paddingTop)
+      listener: () => {}, // Optional scroll listener
+    }
+  );
 
   // Safe context usage with fallback
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
-  useEffect(() => {
-    if (latestPosts && Array.isArray(latestPosts)) {
-      setUpdatedPosts(latestPosts);
-    }
-  }, [latestPosts]);
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchPosts(); // Fetch posts when refreshing
+    await fetchPosts();
     setRefreshing(false);
   };
 
@@ -59,32 +68,42 @@ const Tab1Screen = () => {
   };
 
   const handleLike = async (postId, userId, isLiked) => {
+    // Delegate to hook which already performs optimistic updates
     await toggleLike(postId, userId, isLiked);
-    const newPosts = updatedPosts.map(post => {
-      if (post.id === postId) {
-        if (isLiked) {
-          return { ...post, likes: post.likes.filter(like => like !== userId) };
-        } else {
-          return { ...post, likes: [...post.likes, userId] };
-        }
-      }
-      return post;
-    });
-    setUpdatedPosts(newPosts);
+  };
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    // Render 3 skeleton placeholders
+    return (
+      <View style={{ paddingVertical: 12 }}>
+        {[0,1,2].map(i => (
+          <View key={`sk-${i}`} style={{ height: 180, borderRadius: 12, marginHorizontal: 16, marginBottom: 12, backgroundColor: currentThemeColors.cardBackground, opacity: 0.5 }} />
+        ))}
+      </View>
+    );
   };
 
   if (loading) {
-    return <ActivityIndicator size="large" color={currentThemeColors.primary} />;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}>
+        <ActivityIndicator size="large" color={currentThemeColors.primary} />
+      </View>
+    );
   }
 
   if (error) {
-    return <Text style={{ color: currentThemeColors.text }}>Error: {error}</Text>;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}>
+        <Text style={{ color: currentThemeColors.text }}>Error: {error}</Text>
+      </View>
+    );
   }
 
   return (
-    <View style={{ flex: 1, paddingTop: 20, backgroundColor: currentThemeColors.background }}>
-      <FlatList
-        data={updatedPosts}
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+      <Animated.FlatList
+        data={latestPosts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <PostCard 
@@ -95,13 +114,26 @@ const Tab1Screen = () => {
             onShare={(id) => console.log(`Shared post ${id}`)} 
             onDeletePost={handleDeletePost} 
             addComment={addComment}
-            themeColors={currentThemeColors} // Chuyển theme colors vào PostCard
+            themeColors={currentThemeColors}
           />
         )}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        contentContainerStyle={{ 
+          paddingTop: effectiveHeaderHeight || defaultEffectiveHeaderHeight,
+          paddingBottom: 120,
+          backgroundColor: 'transparent',
+        }}
+        style={{ backgroundColor: 'transparent' }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        bouncesZoom={false}
+        onEndReachedThreshold={0.4}
+        onEndReached={() => {
+          if (hasMore && !loading) loadMore();
+        }}
+        ListFooterComponent={renderFooter}
       />
     </View>
   );

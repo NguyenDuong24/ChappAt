@@ -23,7 +23,7 @@ const HashtagDisplay: React.FC<HashtagDisplayProps> = ({
   const displayHashtags = hashtags.slice(0, maxDisplay);
   const remainingCount = hashtags.length - maxDisplay;
 
-  const chipHeight = size === 'small' ? 28 : size === 'large' ? 36 : 32;
+  const chipHeight = size === 'small' ? 32 : size === 'large' ? 36 : 34;
   const fontSize = size === 'small' ? 12 : size === 'large' ? 16 : 14;
 
   return (

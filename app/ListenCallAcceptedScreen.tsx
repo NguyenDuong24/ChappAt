@@ -1,33 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Image } from 'react-native';
-import { getDoc, doc, query, collection, where, getDocs, updateDoc } from 'firebase/firestore';
+import { getDoc, doc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { acceptCall, declineCall, cancelCall, CALL_STATUS } from '@/services/firebaseCallService';
+import { useCallNavigation } from '@/hooks/useNewCallNavigation';
 
 const ListenCallAcceptedScreen = () => {
-  const { meetingId, receiverId } = useLocalSearchParams();
-  const [callStatus, setCallStatus] = useState('ringing');
-  const [receiverInfo, setReceiverInfo] = useState(null);
-  const router = useRouter();
+  const { callId, meetingId, callerId, receiverId, callType, status } = useLocalSearchParams();
+  const [callStatus, setCallStatus] = useState(status);
+  const [callerInfo, setCallerInfo] = useState<any>(null);
+  const { navigateToCallScreen, navigateBack } = useCallNavigation();
   const pulse = new Animated.Value(1);
 
   useEffect(() => {
     const fetchReceiverData = async () => {
-      if (!receiverId) return;
+      if (!receiverId || Array.isArray(receiverId)) return;
 
       try {
-        const userDoc = await getDoc(doc(db, 'users', receiverId));
+        const userDoc = await getDoc(doc(db, 'users', receiverId as string));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          setReceiverInfo(userData);
-          console.log('Receiver Data:', userData);
+          setCallerInfo(userData); // Reusing callerInfo state to store receiver data
+          console.log('Receiver Data (person being called):', userData);
         } else {
           console.log('No such user!');
         }
       } catch (error) {
-        console.error('Error fetching user data:', error);
+        console.error('Error fetching receiver data:', error);
       }
     };
 
@@ -52,19 +54,18 @@ const ListenCallAcceptedScreen = () => {
     ).start();
   }, [receiverId]);
 
-  const cancelCall = async () => {
+  const handleCancelCall = async () => {
     try {
-      const q = query(collection(db, 'calls'), where('meetingId', '==', meetingId));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        querySnapshot.forEach(async (docSnapshot) => {
-          const callDocRef = doc(db, 'calls', docSnapshot.id);
-          await updateDoc(callDocRef, { status: 'cancel' });
-          router.back();
-        });
+      console.log('❌ Cancelling call:', callId);
+      if (callId && typeof callId === 'string') {
+        await cancelCall(callId);
+        console.log('✅ Call cancelled in Firebase');
+        
+        // Navigate back
+        navigateBack();
       }
     } catch (error) {
-      console.error('Error declining the call:', error);
+      console.error('Error cancelling call:', error);
     }
   };
 
@@ -75,22 +76,21 @@ const ListenCallAcceptedScreen = () => {
       </View>
 
       <View style={styles.content}>
-        {receiverInfo && (
+        {callerInfo && (
           <Animated.View style={[styles.profileContainer, { transform: [{ scale: pulse }] }]}>
-            <Image source={{ uri: receiverInfo.profileUrl }} style={styles.profileImage} />
-            <Text style={styles.receiverName}>{receiverInfo.username}</Text>
+            <Image source={{ uri: callerInfo.profileUrl }} style={styles.profileImage} />
+            <Text style={styles.receiverName}>{callerInfo.username}</Text>
+            <Text style={styles.callStatus}>
+              {callType === 'audio' ? 'Waiting for answer...' : 'Video call waiting...'}
+            </Text>
           </Animated.View>
         )}
-
-        <Text style={styles.statusText}>
-          Status: <Text style={styles.status}>{callStatus}</Text>
-        </Text>
       </View>
 
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.cancelButton} onPress={cancelCall}>
-          <Ionicons name="close-circle" size={32} color="#FFF" />
-          <Text style={styles.cancelText}>End Call</Text>
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.cancelButton} onPress={handleCancelCall}>
+          <Ionicons name="call" size={30} color="white" style={{ transform: [{ rotate: '135deg' }] }} />
+          <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     </LinearGradient>
@@ -151,27 +151,36 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFD700',
   },
-  footer: {
-    width: '100%',
+  callStatus: {
+    fontSize: 16,
+    color: '#E0E0E0',
+    marginTop: 8,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingBottom: 50,
+    width: '100%',
   },
   cancelButton: {
-    flexDirection: 'row',
+    backgroundColor: '#F44336',
+    borderRadius: 40,
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FF3B30',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 30,
     elevation: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
     shadowRadius: 4,
   },
-  cancelText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 10,
+  buttonText: {
+    color: 'white',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '600',
   },
 });

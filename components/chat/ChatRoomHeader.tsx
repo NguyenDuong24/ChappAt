@@ -1,47 +1,55 @@
 import React, { useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Appbar, Avatar } from 'react-native-paper';
+// import { Appbar } from 'react-native-paper'; // not used
+import { Avatar } from 'react-native-paper';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/authContext';
-import { addDoc, collection } from 'firebase/firestore';
-import { db } from '@/firebaseConfig';
-import { createMeeting, token } from '@/api';
+// removed unused: addDoc, collection, db, createMeeting, token
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { createCall, CALL_TYPE } from '@/services/firebaseCallService';
+import { useCallNavigation } from '@/hooks/useNewCallNavigation';
+import VibeAvatar from '@/components/vibe/VibeAvatar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ChatRoomHeader({ user, router, userId }: any) {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const { user: userCurrent } = useAuth();
+  const viewerShowOnline = userCurrent?.showOnlineStatus !== false;
+  const { navigateToListenCallScreen } = useCallNavigation();
+  const insets = useSafeAreaInsets();
 
-  const initiateCall = async (callerId: string, receiverId: string, type: string) => {
+  const handleAudioCall = async () => {
     try {
-      const meetingId = await createMeeting({ token });
-      await addDoc(collection(db, 'calls'), {
-        callerId,
-        receiverId,
-        status: 'ringing',
-        type,
-        meetingId,
-        timestamp: new Date().toISOString(),
-      });
+      if (!userCurrent?.uid) return;
+      const callData = await createCall(userCurrent.uid, userId, CALL_TYPE.AUDIO);
+      navigateToListenCallScreen(callData);
     } catch (error) {
-      console.error('Error initiating call: ', error);
+      console.error('Error starting audio call:', error);
+    }
+  };
+
+  const handleVideoCall = async () => {
+    try {
+      if (!userCurrent?.uid) return;
+      const callData = await createCall(userCurrent.uid, userId, CALL_TYPE.VIDEO);
+      navigateToListenCallScreen(callData);
+    } catch (error) {
+      console.error('Error starting video call:', error);
     }
   };
 
   return (
     <LinearGradient
-      colors={theme === 'dark' 
-        ? ['#1E293B', '#334155'] 
-        : ['#FFFFFF', '#F8FAFC']
-      }
-      style={styles.headerContainer}
+      colors={theme === 'dark' ? ['#1E293B', '#334155'] : ['#FFFFFF', '#F8FAFC']}
+      style={[styles.headerContainer, { paddingTop: insets.top }]}
     >
       <View style={styles.headerContent}>
         {/* Left section with back button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.backButton, { backgroundColor: currentThemeColors.surface }]}
           onPress={() => router.back()}
         >
@@ -51,51 +59,56 @@ export default function ChatRoomHeader({ user, router, userId }: any) {
         {/* Center section with user info */}
         <View style={styles.userInfo}>
           <View style={styles.avatarContainer}>
-            <Avatar.Image 
-              size={44} 
-              source={{ uri: user?.profileUrl }} 
-              style={styles.avatar}
+            <VibeAvatar
+              avatarUrl={user?.profileUrl}
+              size={40} // giảm từ 56 xuống 40
+              currentVibe={user?.currentVibe || null}
+              showAddButton={false}
+              storyUser={{ id: userId, username: user?.username, profileUrl: user?.profileUrl }}
+              vibeBadgePosition="top-left"
             />
-            <View style={[
-              styles.onlineIndicator, 
-              { backgroundColor: user?.isOnline ? Colors.success : Colors.warning }
-            ]} />
+            {/* Online dot at bottom-right */}
+            {viewerShowOnline && (
+              <View
+                style={[
+                  styles.onlineIndicator,
+                  { backgroundColor: user?.isOnline ? Colors.success : Colors.warning, width: 10, height: 10, borderRadius: 5 }
+                ]}
+              />
+            )}
           </View>
-          <View style={styles.userDetails}>
-            <Text style={[styles.userName, { color: currentThemeColors.text }]}>
-              {user?.username}
+          <TouchableOpacity style={styles.userDetails} onPress={() => router.push
+            ({
+              pathname: "/UserProfileScreen",
+              params: { userId: userId }
+            })}>
+            <Text style={[styles.userName, { color: currentThemeColors.text, fontSize: 16 }]}>{user?.username}</Text>
+            <Text style={[styles.userStatus, { color: currentThemeColors.subtleText }]}
+            >
+              {viewerShowOnline ? (user?.isOnline ? 'Online' : 'Last seen recently') : ''}
             </Text>
-            <Text style={[styles.userStatus, { color: currentThemeColors.subtleText }]}>
-              {user?.isOnline ? 'Online' : 'Last seen recently'}
-            </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Right section with action buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: currentThemeColors.surface }]}
-            onPress={async () => {
-              await initiateCall(userCurrent?.uid, userId, "phone");
-            }}
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
+            onPress={handleAudioCall}
           >
-            <Ionicons name="call" size={20} color={Colors.success} />
+            <Ionicons name="call" size={16} color={Colors.success} />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: currentThemeColors.surface }]}
-            onPress={async () => {
-              await initiateCall(userCurrent?.uid, userId, "video");
-            }}
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
+            onPress={handleVideoCall}
           >
-            <Ionicons name="videocam" size={20} color={Colors.primary} />
+            <Ionicons name="videocam" size={16} color={Colors.primary} />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: currentThemeColors.surface }]}
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
             onPress={() => {}}
           >
-            <MaterialIcons name="more-vert" size={20} color={currentThemeColors.text} />
+            <MaterialIcons name="more-vert" size={16} color={currentThemeColors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -105,7 +118,7 @@ export default function ChatRoomHeader({ user, router, userId }: any) {
 
 const styles = StyleSheet.create({
   headerContainer: {
-    paddingTop: 50, // StatusBar height
+    // paddingTop provided dynamically via insets.top
     paddingBottom: 8,
     paddingHorizontal: 16,
     shadowColor: '#000',
@@ -147,27 +160,28 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 12,
+    marginRight: 10, // giảm từ 12 xuống 10
   },
   avatar: {
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
   },
   onlineIndicator: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 10, // giảm từ 14 xuống 10
+    height: 10,
+    borderRadius: 5, // giảm từ 7 xuống 5
     borderWidth: 2,
     borderColor: '#FFFFFF',
+    zIndex: 3,
   },
   userDetails: {
     flex: 1,
   },
   userName: {
-    fontSize: 18,
+    fontSize: 16, // giảm từ 18 xuống 16
     fontWeight: '600',
     marginBottom: 2,
   },
@@ -181,9 +195,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32, // giảm từ 40 xuống 32
+    height: 32,
+    borderRadius: 16, // giảm từ 20 xuống 16
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

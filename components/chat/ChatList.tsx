@@ -1,6 +1,6 @@
 import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import React, { useEffect, useState, useContext } from 'react';
-import { doc, collection, query, orderBy, onSnapshot, limit } from 'firebase/firestore';
+import { doc, collection, query, orderBy, onSnapshot, limit, getDoc } from 'firebase/firestore';
 import ChatItem from './ChatItem';
 import { getRoomId } from '@/utils/common';
 import { db } from '@/firebaseConfig';
@@ -9,68 +9,148 @@ import { Colors } from '@/constants/Colors';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 const ChatList = ({ users = [], currenUser, onRefresh }: { users?: any[], currenUser: any, onRefresh: () => void }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [sortedUsers, setSortedUsers] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    // Kiểm tra an toàn cho users array
-    if (!users || !Array.isArray(users) || users.length === 0) {
+    // Safety check for users array and current user
+    if (!currenUser?.uid) {
       setSortedUsers([]);
       return;
     }
 
-    let usersWithMessages: any[] = [];
-    const unsubscribes = users.map((user) => {
-      const roomId = getRoomId(currenUser?.uid, user?.id);
-      const docRef = doc(db, 'rooms', roomId);
-      const messagesRef = collection(docRef, 'messages');
-      const q = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
+    // Store unsubscribe functions for cleanup
+    const unsubscribes: (() => void)[] = [];
+    
+    // Track users with messages using Map for better performance
+    const usersWithMessagesMap = new Map();
 
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const lastMessageDoc = snapshot.docs[0];
+    const updateUsersList = () => {
+      const usersList = Array.from(usersWithMessagesMap.values());
+      const sorted = usersList.sort((a, b) => {
+        const aTime = a.lastMessage?.createdAt?.seconds || a.lastMessage?.lastMessageTime?.seconds || 0;
+        const bTime = b.lastMessage?.createdAt?.seconds || b.lastMessage?.lastMessageTime?.seconds || 0;
+        return bTime - aTime;
+      });
+      setSortedUsers(sorted);
+    };
+
+    // 1. Set up listeners for regular chat (rooms collection)
+    if (users && Array.isArray(users) && users.length > 0) {
+      users.forEach((user) => {
+        if (!user?.id) return;
         
-        if (lastMessageDoc) {
-          const lastMessage = lastMessageDoc.data();
-          const updatedUser = {
-            user,
-            lastMessage,
-          };
+        try {
+          const roomId = getRoomId(currenUser.uid, user.id);
+          const docRef = doc(db, 'rooms', roomId);
+          const messagesRef = collection(docRef, 'messages');
+          const q = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
 
-          const userIndex = usersWithMessages.findIndex(u => u.user.id === user.id);
-          if (userIndex >= 0) {
-            usersWithMessages[userIndex] = updatedUser;
-          } else {
-            usersWithMessages.push(updatedUser);
-          }
+          const unsubscribe = onSnapshot(
+            q, 
+            (snapshot) => {
+              try {
+                const lastMessageDoc = snapshot.docs[0];
+                
+                if (lastMessageDoc) {
+                  const lastMessage = lastMessageDoc.data();
+                  usersWithMessagesMap.set(user.id, {
+                    user,
+                    lastMessage,
+                    chatType: 'regular',
+                    unreadCount: 0,
+                  });
+                } 
+                
+                updateUsersList();
+              } catch (error) {
+                console.error('Error processing message snapshot:', error);
+              }
+            },
+            (error) => {
+              console.error('Error listening to messages:', error);
+            }
+          );
 
-          usersWithMessages = [...usersWithMessages].sort((a, b) => {
-            const aTime = a.lastMessage?.createdAt?.seconds || 0;
-            const bTime = b.lastMessage?.createdAt?.seconds || 0;
-            return bTime - aTime;
-          });
-
-          setSortedUsers(usersWithMessages);
-        } else {
-          // No messages yet, add user without last message
-          const userWithoutMessage = { user, lastMessage: null };
-          if (!usersWithMessages.find(u => u.user.id === user.id)) {
-            usersWithMessages.push(userWithoutMessage);
-            setSortedUsers([...usersWithMessages]);
-          }
+          unsubscribes.push(unsubscribe);
+        } catch (error) {
+          console.error('Error setting up message listener for user:', user.id, error);
         }
       });
+    }
 
-      return unsubscribe;
-    });
+    // 2. Set up listener for Hot Spot chats (hotSpotChats collection)
+    try {
+      const hotSpotChatsRef = collection(db, 'hotSpotChats');
+      
+      const unsubscribeHotSpotChats = onSnapshot(
+        hotSpotChatsRef,
+        async (snapshot) => {
+          try {
+            for (const chatDoc of snapshot.docs) {
+              const chatData = chatDoc.data();
+              const participants = chatData.participants || [];
+              
+              // Check if current user is a participant
+              if (participants.includes(currenUser.uid)) {
+                const otherUserId = participants.find((id: string) => id !== currenUser.uid);
+                
+                if (otherUserId) {
+                  // Fetch other user's profile
+                  const userDoc = await doc(db, 'users', otherUserId);
+                  const userSnap = await getDoc(userDoc);
+                  
+                  if (userSnap.exists()) {
+                    const userData = userSnap.data();
+                    
+                    usersWithMessagesMap.set(`hotspot_${otherUserId}`, {
+                      user: {
+                        id: otherUserId,
+                        ...userData,
+                      },
+                      lastMessage: {
+                        text: chatData.lastMessage || '',
+                        lastMessageTime: chatData.lastMessageTime,
+                      },
+                      chatType: 'hotspot',
+                      chatRoomId: chatDoc.id,
+                      hotSpotId: chatData.eventId,
+                      unreadCount: 0,
+                    });
+                    
+                    updateUsersList();
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error processing hot spot chats:', error);
+          }
+        },
+        (error) => {
+          console.error('Error listening to hot spot chats:', error);
+        }
+      );
 
+      unsubscribes.push(unsubscribeHotSpotChats);
+    } catch (error) {
+      console.error('Error setting up hot spot chat listener:', error);
+    }
+
+    // Cleanup function
     return () => {
-      if (unsubscribes && unsubscribes.length > 0) {
-        unsubscribes.forEach(unsub => unsub());
-      }
+      unsubscribes.forEach(unsub => {
+        try {
+          unsub();
+        } catch (error) {
+          console.error('Error unsubscribing:', error);
+        }
+      });
     };
-  }, [users, currenUser]);
+  }, [users, currenUser?.uid]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -99,14 +179,26 @@ const ChatList = ({ users = [], currenUser, onRefresh }: { users?: any[], curren
       ) : (
         <FlatList
           data={sortedUsers}
-          keyExtractor={(item) => item.user.id}
-          renderItem={({ item, index }) => (
-            <ChatItem 
-              item={item.user} 
-              currenUser={currenUser}
-              noBorder={index === sortedUsers.length - 1}
-            />
-          )}
+          keyExtractor={(item) => `${item.user.id}_${item.chatType}`}
+          renderItem={({ item, index }) => {
+            // Safety check for item structure
+            if (!item?.user?.id) {
+              return null;
+            }
+            
+            return (
+              <ChatItem 
+                item={item.user} 
+                currenUser={currenUser}
+                noBorder={index === sortedUsers.length - 1}
+                chatType={item.chatType}
+                chatRoomId={item.chatRoomId}
+                hotSpotId={item.hotSpotId}
+                lastMessage={item.lastMessage}
+                unreadCount={item.unreadCount}
+              />
+            );
+          }}
           contentContainerStyle={styles.listContainer}
           refreshControl={
             <RefreshControl 
@@ -117,6 +209,10 @@ const ChatList = ({ users = [], currenUser, onRefresh }: { users?: any[], curren
             />
           }
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          initialNumToRender={10}
+          maxToRenderPerBatch={5}
+          windowSize={10}
         />
       )}
     </View>

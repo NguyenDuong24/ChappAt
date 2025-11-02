@@ -6,6 +6,7 @@ import { useUserContext } from '@/context/UserContext';
 interface Post {
   id: string;
   content: string;
+  hashtags?: string[]; // Thêm field hashtags
   images?: string[];
   address?: string;
   likes: string[];
@@ -13,6 +14,8 @@ interface Post {
   shares: number;
   timestamp: any;
   userID: string;
+  privacy?: 'public' | 'friends' | 'private'; // Thêm privacy setting
+  locationPrivacy?: 'detailed' | 'district' | 'city' | 'none'; // Thêm location privacy
 }
 
 interface PostWithUser extends Post {

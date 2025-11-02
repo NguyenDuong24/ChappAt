@@ -19,7 +19,10 @@
         "NSLocationWhenInUseUsageDescription": "We need location access to find nearby users."
       },
       "bitcode": false,
-      "bundleIdentifier": "com.duongnguyen1263.Chat"
+      "bundleIdentifier": "com.duongnguyen1263.Chat",
+      "entitlements": {
+        "aps-environment": "development"
+      }
     },
     "android": {
       "permissions": [
@@ -37,7 +40,11 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.WAKE_LOCK",
-        "android.permission.BLUETOOTH"
+        "android.permission.BLUETOOTH",
+        "android.permission.VIBRATE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.USE_FULL_SCREEN_INTENT"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -58,6 +65,46 @@
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
           "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#4f8bff",
+          "sounds": [
+            "./assets/sounds/join.mp3",
+            "./assets/sounds/calling.mp3"
+          ],
+          "mode": "production",
+          "android": {
+            "channelId": "default",
+            "priority": "high"
+          },
+          "ios": {
+            "sound": true,
+            "badge": true,
+            "alert": true
+          }
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.256923005911-m2j0sqfikfi21dor3mjo0rlnehe7p4a1"
+        }
+      ],
+      [
+        "react-native-fbsdk-next",
+        {
+          "appID": "3128658277362764",
+          "clientToken": "727f260d6676a9b07d206e7f42a9a92c",
+          "displayName": "ChappAt",
+          "scheme": "fb3128658277362764",
+          "advertiserIDCollectionEnabled": false,
+          "autoLogAppEventsEnabled": false,
+          "isAutoInitEnabled": true,
+          "iosUserTrackingPermission": "This identifier will be used to deliver personalized ads to you."
         }
       ],
       "expo-router",

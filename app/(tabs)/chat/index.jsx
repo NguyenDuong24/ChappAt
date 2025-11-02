@@ -8,6 +8,10 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 
+// Simple in-memory cache for users
+let USERS_CACHE = { items: [], ts: 0 };
+const USERS_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
 export default function Chat() {
   const { user } = useAuth();
   const { theme } = useContext(ThemeContext);
@@ -21,11 +25,17 @@ export default function Chat() {
     }
   }, [user]);
 
-  const getUsers = async () => {
+  const getUsers = async (force = false) => {
     try {
       setLoading(true);
       if (!user?.uid) {
         setUsers([]);
+        return;
+      }
+
+      const now = Date.now();
+      if (!force && USERS_CACHE.items.length > 0 && now - USERS_CACHE.ts < USERS_TTL_MS) {
+        setUsers(USERS_CACHE.items);
         return;
       }
       
@@ -33,10 +43,12 @@ export default function Chat() {
       const data = querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(docUser => docUser.id !== user?.uid);
-      setUsers(data || []);
+      const items = data || [];
+      setUsers(items);
+      USERS_CACHE = { items, ts: now };
     } catch (error) {
       console.error("Error fetching users: ", error);
-      setUsers([]); // Đảm bảo users luôn là array
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -55,7 +67,7 @@ export default function Chat() {
         </View>
       ) : (
         <View style={styles.chatContainer}>
-          <ChatList currenUser={user} users={users || []} onRefresh={getUsers} />
+          <ChatList currenUser={user} users={users || []} onRefresh={() => getUsers(true)} />
         </View>
       )}
     </View>

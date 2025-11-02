@@ -1,0 +1,21 @@
+{
+  "name": "chapapat-hotspots-importer",
+  "version": "1.0.0",
+  "description": "Script to import sample HotSpots data into Firebase for ChappAt app",
+  "type": "commonjs",
+  "scripts": {
+    "import": "node importHotSpotsDataNode.js",
+    "import:clear": "node importHotSpotsDataNode.js --clear",
+    "import:categories": "node importCategoriesNode.js",
+    "import:categories:clear": "node importCategoriesNode.js --clear"
+  },
+  "dependencies": {
+    "firebase": "^10.5.0"
+  },
+  "keywords": [
+    "firebase",
+    "hotspots",
+    "import",
+    "chapapat"
+  ]
+}

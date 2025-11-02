@@ -1,6 +1,19 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { onSnapshot, query, collection, where } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+
+// Debounce function
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
 
 /**
  * Hook để lắng nghe cuộc gọi được chấp nhận
@@ -9,6 +22,26 @@ import { db } from '../firebaseConfig';
  * @returns {function} Unsubscribe function
  */
 export const useCallAcceptedListener = (callerId, onCallAccepted) => {
+  const processedCallsRef = useRef(new Set());
+  
+  const debouncedOnCallAccepted = useCallback(
+    debounce((callData) => {
+      const callKey = `${callData.callerId}-${callData.timestamp?.seconds || Date.now()}`;
+      if (!processedCallsRef.current.has(callKey)) {
+        processedCallsRef.current.add(callKey);
+        console.log('✅ Call accepted in context:', callData);
+        onCallAccepted(callData);
+        
+        // Clean up old processed calls
+        if (processedCallsRef.current.size > 10) {
+          const entries = Array.from(processedCallsRef.current);
+          entries.slice(0, 5).forEach(entry => processedCallsRef.current.delete(entry));
+        }
+      }
+    }, 500),
+    [onCallAccepted]
+  );
+
   const listenCallAccepted = useCallback((callerId, onCaller) => {
     if (!callerId) return () => {};
     
@@ -30,11 +63,14 @@ export const useCallAcceptedListener = (callerId, onCallAccepted) => {
   }, []);
 
   useEffect(() => {
-    if (!callerId || !onCallAccepted) return;
+    if (!callerId || !debouncedOnCallAccepted) return;
     
-    const unsubscribe = listenCallAccepted(callerId, onCallAccepted);
-    return () => unsubscribe();
-  }, [callerId, onCallAccepted, listenCallAccepted]);
+    const unsubscribe = listenCallAccepted(callerId, debouncedOnCallAccepted);
+    return () => {
+      unsubscribe();
+      processedCallsRef.current.clear();
+    };
+  }, [callerId, debouncedOnCallAccepted, listenCallAccepted]);
 };
 
 /**
@@ -77,6 +113,8 @@ export const useCallRequestListener = (callerId, onCallRequest) => {
  * @param {function} onCallCanceled - Callback khi cuộc gọi bị hủy
  */
 export const useCallCanceledListener = (receiverId, onCallCanceled) => {
+  const processedCalls = useRef(new Set());
+  
   const listencCallerCancelCall = useCallback((receiverId, onCaller) => {
     if (!receiverId) return () => {};
     
@@ -89,7 +127,20 @@ export const useCallCanceledListener = (receiverId, onCallCanceled) => {
     const unsubscribe = onSnapshot(callsQuery, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
-          onCaller(change.doc.data());
+          const callData = change.doc.data();
+          const callId = change.doc.id;
+          
+          // Prevent duplicate processing
+          if (!processedCalls.current.has(callId)) {
+            processedCalls.current.add(callId);
+            onCaller(callData);
+            
+            // Clean up old entries to prevent memory leak
+            if (processedCalls.current.size > 100) {
+              const entries = Array.from(processedCalls.current);
+              processedCalls.current = new Set(entries.slice(-50));
+            }
+          }
         }
       });
     });

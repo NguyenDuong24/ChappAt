@@ -1,52 +1,431 @@
 import * as Notifications from 'expo-notifications';
-import { getMessaging, getToken, onMessage } from 'firebase/messaging';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from './firebaseConfig'; // Đảm bảo đã cấu hình Firestore
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db, auth } from './firebaseConfig';
+import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, deleteField } from 'firebase/firestore';
 
-const messaging = getMessaging();
+// Cấu hình notification handler cho background/foreground
+Notifications.setNotificationHandler({
+  handleNotification: async (notification) => {
+    console.log('📱 Handling notification:', notification.request.content.title);
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      // Quan trọng: Luôn hiển thị notification
+      shouldActivateApp: true,
+    };
+  },
+});
 
-// Đăng ký quyền nhận thông báo
-export async function registerForPushNotificationsAsync() {
-  let token;
-  
-  const { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') {
-    const { status: newStatus } = await Notifications.requestPermissionsAsync();
-    if (newStatus !== 'granted') {
-      alert('Bạn cần cấp quyền để nhận thông báo');
-      return;
+// Cấu hình notification categories (cho iOS)
+if (Platform.OS === 'ios') {
+  Notifications.setNotificationCategoryAsync('social', [
+    {
+      identifier: 'view',
+      buttonTitle: 'Xem',
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: 'reply',
+      buttonTitle: 'Trả lời',
+      options: { opensAppToForeground: true },
+    },
+  ]);
+}
+
+class NotificationService {
+  constructor() {
+    this.expoPushToken = null;
+    this.initialized = false;
+    this.messageUnsubscribe = null;
+  }
+
+  // Utility functions for token encoding/decoding
+  encodeTokenForFirestore(token) {
+    return token
+      .replace(/\[/g, '_LB_')  // [ -> _LB_ (Left Bracket)
+      .replace(/\]/g, '_RB_')  // ] -> _RB_ (Right Bracket)
+      .replace(/~/g, '_TLD_')  // ~ -> _TLD_ (Tilde)
+      .replace(/\*/g, '_AST_') // * -> _AST_ (Asterisk)
+      .replace(/\//g, '_SL_'); // / -> _SL_ (Slash)
+  }
+
+  decodeTokenFromFirestore(encodedToken) {
+    return encodedToken
+      .replace(/_LB_/g, '[')
+      .replace(/_RB_/g, ']')
+      .replace(/_TLD_/g, '~')
+      .replace(/_AST_/g, '*')
+      .replace(/_SL_/g, '/');
+  }
+
+  async initialize() {
+    try {
+      console.log('🔄 Initializing notification service...');
+      
+      // Kiểm tra device compatibility
+      if (!Device.isDevice) {
+        console.log('❌ Must use physical device for push notifications');
+        return false;
+      }
+
+      // Setup notification channels for Android
+      await this.setupAndroidChannels();
+      
+      // Request permissions và get token
+      const token = await this.registerForPushNotifications();
+      if (!token) {
+        console.log('❌ Failed to get push token');
+        return false;
+      }
+
+      this.expoPushToken = token;
+      
+      // Clean up old invalid tokens
+      await this.cleanupInvalidTokensInFirestore();
+      
+      // Save token to Firestore
+      await this.saveTokenToFirestore(token);
+      
+      // Setup listeners
+      this.setupNotificationListeners();
+      
+      this.initialized = true;
+      console.log('✅ Notification service initialized successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error initializing notification service:', error);
+      return false;
     }
   }
 
-  token = await getToken(messaging, {
-    vapidKey: 'YOUR_VAPID_KEY' // Lấy từ Firebase Console
-  });
+  async registerForPushNotifications() {
+    try {
+      // Check permissions
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
 
-  return token;
-}
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
 
-// Lắng nghe tin nhắn mới từ Firestore
-export function listenForNewMessages(userId) {
-  const messagesQuery = query(
-    collection(db, 'messages'),
-    where('receiverId', '==', userId),
-    where('status', '==', 'unread') // Chỉ lắng nghe tin nhắn chưa đọc
-  );
+      if (finalStatus !== 'granted') {
+        console.log('❌ Notification permissions denied');
+        return null;
+      }
 
-  return onSnapshot(messagesQuery, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type === 'added') {
-        const messageData = change.doc.data();
-        
-        Notifications.scheduleNotificationAsync({
-          content: {
+      // Get Expo push token
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? 
+                       Constants.easConfig?.projectId ?? 
+                       Constants.expoConfig?.projectId;
+
+      if (!projectId) {
+        console.log('❌ No project ID found');
+        return null;
+      }
+
+      const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
+      const token = tokenResponse.data;
+      
+      console.log('✅ Got Expo push token:', token);
+      await AsyncStorage.setItem('expoPushToken', token);
+      
+      return token;
+    } catch (error) {
+      console.error('❌ Error getting push token:', error);
+      return null;
+    }
+  }
+
+  async saveTokenToFirestore(token) {
+    try {
+      const user = auth.currentUser;
+      if (!user || !token) return;
+
+      // Tạo safe key cho Firestore bằng cách encode token
+      const safeTokenKey = this.encodeTokenForFirestore(token);
+
+      const userRef = doc(db, 'users', user.uid);
+      
+      // Lưu token với cả safe key và original token
+      await updateDoc(userRef, {
+        [`expoPushTokens.${safeTokenKey}`]: {
+          token: token,  // Token gốc để gửi notification
+          timestamp: new Date().toISOString(),
+          device: Platform.OS,
+          appVersion: Constants.expoConfig?.version || '1.0.0'
+        },
+        // Cập nhật current token để dễ truy cập
+        currentExpoPushToken: token,
+        lastTokenUpdate: new Date().toISOString()
+      });
+      
+      console.log('✅ Token saved to Firestore with safe key:', safeTokenKey);
+    } catch (error) {
+      console.error('❌ Error saving token to Firestore:', error);
+    }
+  }
+
+  async setupAndroidChannels() {
+    if (Platform.OS === 'android') {
+      console.log('📱 Setting up Android notification channels...');
+      
+      // Default channel - HIGH importance for background visibility  
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Thông báo chung',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#6366F1',
+        sound: 'default',
+        showBadge: true,
+        enableLights: true,
+        enableVibrate: true,
+      });
+
+      // Messages - MAX importance
+      await Notifications.setNotificationChannelAsync('messages', {
+        name: 'Tin nhắn',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#4CAF50',
+        sound: 'default',
+        showBadge: true,
+        enableLights: true,
+        enableVibrate: true,
+      });
+
+      // Calls - MAX importance with special sound
+      await Notifications.setNotificationChannelAsync('calls', {
+        name: 'Cuộc gọi',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 1000, 500, 1000],
+        lightColor: '#2196F3',
+        sound: 'default',
+        showBadge: true,
+        enableLights: true,
+        enableVibrate: true,
+      });
+
+      // Social - HIGH importance for background visibility
+      await Notifications.setNotificationChannelAsync('social', {
+        name: 'Tương tác xã hội',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF9800',
+        sound: 'default',
+        showBadge: true,
+        enableLights: true,
+        enableVibrate: true,
+        description: 'Thông báo về like, comment, follow và mention',
+      });
+
+      // System notifications
+      await Notifications.setNotificationChannelAsync('system', {
+        name: 'Hệ thống',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 150, 150, 150],
+        lightColor: '#9E9E9E',
+        sound: 'default',
+        showBadge: false,
+        enableLights: false,
+        enableVibrate: true,
+      });
+
+      console.log('✅ Android notification channels setup complete');
+    } else if (Platform.OS === 'ios') {
+      console.log('📱 iOS notification categories already configured');
+    }
+  }
+
+  setupNotificationListeners() {
+    // Listen for foreground notifications
+    this.notificationListener = Notifications.addNotificationReceivedListener(
+      (notification) => {
+        console.log('📱 Notification received:', notification);
+        this.handleNotificationReceived(notification);
+      }
+    );
+
+    // Listen for notification taps
+    this.responseListener = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        console.log('👆 Notification tapped:', response);
+        this.handleNotificationTap(response);
+      }
+    );
+  }
+
+  handleNotificationReceived(notification) {
+    // Có thể thêm logic xử lý notification khi app foreground
+    // Ví dụ: update badge count, play custom sound, etc.
+  }
+
+  handleNotificationTap(response) {
+    const { data } = response.notification.request.content;
+    
+    if (data && typeof data === 'object') {
+      // Navigate based on notification type
+      switch (data.type) {
+        case 'message':
+          if (data.chatId) {
+            // Navigate to chat screen
+            console.log('Navigate to chat:', data.chatId);
+          }
+          break;
+        case 'call':
+          if (data.callId) {
+            // Navigate to call screen
+            console.log('Navigate to call:', data.callId);
+          }
+          break;
+        default:
+          console.log('Unknown notification type:', data.type);
+      }
+    }
+  }
+
+  async scheduleLocalNotification(notification) {
+    try {
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: notification.title || 'ChappAt',
+          body: notification.body || 'You have a new notification',
+          data: notification.data || {},
+          sound: notification.sound !== false,
+          badge: notification.badge,
+        },
+        trigger: notification.trigger || null,
+      });
+      
+      console.log('✅ Local notification scheduled:', notificationId);
+      return notificationId;
+    } catch (error) {
+      console.error('❌ Error scheduling notification:', error);
+      return null;
+    }
+  }
+
+  async clearBadge() {
+    try {
+      await Notifications.setBadgeCountAsync(0);
+    } catch (error) {
+      console.error('❌ Error clearing badge:', error);
+    }
+  }
+
+  async cancelNotification(notificationId) {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(notificationId);
+      console.log('✅ Notification cancelled:', notificationId);
+    } catch (error) {
+      console.error('❌ Error cancelling notification:', error);
+    }
+  }
+
+  cleanup() {
+    if (this.notificationListener) {
+      Notifications.removeNotificationSubscription(this.notificationListener);
+      this.notificationListener = null;
+    }
+
+    if (this.responseListener) {
+      Notifications.removeNotificationSubscription(this.responseListener);
+      this.responseListener = null;
+    }
+
+    if (this.messageUnsubscribe) {
+      this.messageUnsubscribe();
+      this.messageUnsubscribe = null;
+    }
+
+    this.initialized = false;
+    console.log('✅ Notification service cleaned up');
+  }
+
+  // Listen for new messages from Firestore
+  listenForNewMessages(userId) {
+    if (this.messageUnsubscribe) {
+      this.messageUnsubscribe();
+    }
+
+    const messagesQuery = query(
+      collection(db, 'messages'),
+      where('receiverId', '==', userId),
+      where('status', '==', 'unread')
+    );
+
+    this.messageUnsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const messageData = change.doc.data();
+          
+          this.scheduleLocalNotification({
             title: 'Tin nhắn mới 📩',
             body: `${messageData.senderName}: ${messageData.text}`,
-            data: { chatId: messageData.chatId },
-          },
-          trigger: null,
-        });
-      }
+            data: { 
+              type: 'message',
+              chatId: messageData.chatId,
+              senderId: messageData.senderId
+            },
+          });
+        }
+      });
     });
-  });
+
+    return this.messageUnsubscribe;
+  }
+
+  async cleanupInvalidTokensInFirestore() {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) return;
+      
+      const userData = userDoc.data();
+      const expoPushTokens = userData.expoPushTokens || {};
+      
+      // Tìm các token có ký tự không hợp lệ
+      const invalidTokenKeys = Object.keys(expoPushTokens).filter(key => 
+        key.includes('[') || 
+        key.includes(']') || 
+        key.includes('~') || 
+        key.includes('*') || 
+        key.includes('/')
+      );
+      
+      if (invalidTokenKeys.length > 0) {
+        console.log('🧹 Cleaning up invalid token keys:', invalidTokenKeys);
+        
+        // Xóa các token không hợp lệ
+        const updates = {};
+        invalidTokenKeys.forEach(key => {
+          updates[`expoPushTokens.${key}`] = deleteField();
+        });
+        
+        await updateDoc(userRef, updates);
+        console.log('✅ Cleaned up invalid tokens from Firestore');
+      }
+    } catch (error) {
+      console.error('❌ Error cleaning up invalid tokens:', error);
+    }
+  }
+
+  getExpoPushToken() {
+    return this.expoPushToken;
+  }
+
+  isInitialized() {
+    return this.initialized;
+  }
 }
+
+// Export singleton instance
+export default new NotificationService();

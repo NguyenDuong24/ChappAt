@@ -27,7 +27,7 @@ export function formatTime(timestamp) {
     }
   }
 
-export function formatDetailedTime(timestamp) {
+export const formatDetailedTime = (timestamp) => {
     if (!timestamp || !timestamp.seconds) {
       return '';
     }
@@ -55,7 +55,7 @@ export function formatDetailedTime(timestamp) {
       const year = messageDate.getFullYear();
       return `${day}/${month}/${year} ${timeStr}`;
     }
-  }
+  };
 export const calculateAge = (timestamp: { seconds: number; nanoseconds: number }) => {
   if (!timestamp || !timestamp.seconds) {
     return null; 

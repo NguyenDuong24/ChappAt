@@ -4,6 +4,7 @@ import { TextInput, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { FontAwesome } from '@expo/vector-icons';
+import { Colors } from '@/constants/Colors';
 
 const SignUpScreen = () => {
   const [username, setUsername] = React.useState('');
@@ -15,8 +16,13 @@ const SignUpScreen = () => {
   const { register } = useAuth();
   const router = useRouter();
 
+  // Auto redirect to gender selection for new signup flow
+  React.useEffect(() => {
+    router.replace('/signup/GenderSelectionScreen');
+  }, []);
+
   const handleLogin = () => {
-    router.push('signin');
+    router.push('/signin');
   };
 
   const handleSignUp = async () => {
@@ -38,6 +44,18 @@ const SignUpScreen = () => {
     }
   };
 
+  const paperTheme = {
+    colors: {
+      primary: Colors.primary,
+      onPrimary: Colors.white,
+      background: Colors.dark.inputBackground,
+      surface: Colors.dark.cardBackground,
+      text: Colors.dark.text,
+      onSurface: Colors.dark.text,
+      placeholder: Colors.dark.placeholderText,
+    },
+  } as const;
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Create Account</Text>
@@ -51,7 +69,9 @@ const SignUpScreen = () => {
           onChangeText={text => setUsername(text)}
           style={styles.input}
           mode="flat"
-          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }} 
+          theme={paperTheme}
+          underlineColor={Colors.dark.inputBorder}
+          activeUnderlineColor={Colors.primary}
         />
       </View>
       <View style={styles.inputContainer}>
@@ -63,7 +83,10 @@ const SignUpScreen = () => {
           keyboardType="email-address"
           style={styles.input}
           mode="flat"
-          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }} 
+          theme={paperTheme}
+          underlineColor={Colors.dark.inputBorder}
+          activeUnderlineColor={Colors.primary}
+          autoCapitalize="none"
         />
       </View>
       <View style={styles.inputContainer}>
@@ -75,7 +98,9 @@ const SignUpScreen = () => {
           secureTextEntry
           style={styles.input}
           mode="flat"
-          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }}
+          theme={paperTheme}
+          underlineColor={Colors.dark.inputBorder}
+          activeUnderlineColor={Colors.primary}
         />
       </View>
       <View style={styles.inputContainer}>
@@ -87,16 +112,18 @@ const SignUpScreen = () => {
           secureTextEntry
           style={styles.input}
           mode="flat"
-          theme={{ colors: { primary: '#1e90ff', background: '#1f1f1f', text: '#ffffff' } }}
+          theme={paperTheme}
+          underlineColor={Colors.dark.inputBorder}
+          activeUnderlineColor={Colors.primary}
         />
       </View>
 
 
       <View style={styles.buttonContainer}>
         {loading ? (
-          <Text>Loading...</Text>
+          <Text style={{ color: Colors.dark.text }}>Loading...</Text>
         ) : (
-          <Button mode="contained" onPress={handleSignUp} style={styles.button}>
+          <Button mode="contained" onPress={handleSignUp} style={styles.button} labelStyle={{ color: Colors.white, fontWeight: '700' }}>
             Sign Up
           </Button>
         )}
@@ -117,37 +144,40 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#121212', 
+    backgroundColor: Colors.dark.background, 
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: Colors.dark.text,
     alignSelf: 'center',
     marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
-    color: '#b0b0b0',
+    color: Colors.dark.subtleText,
     alignSelf: 'center',
     marginBottom: 30,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1f1f1f',
+    backgroundColor: Colors.dark.inputBackground,
     borderRadius: 10,
     padding: 12,
     marginBottom: 15,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.dark.inputBorder,
   },
   icon: {
     marginRight: 10,
-    color: '#b0b0b0',
+    color: Colors.dark.placeholderText,
   },
   input: {
     flex: 1,
-    color: '#ffffff', 
+    color: Colors.dark.text, 
+    backgroundColor: 'transparent',
   },
   buttonContainer: {
     marginTop: 20,
@@ -155,7 +185,7 @@ const styles = StyleSheet.create({
   button: {
     borderRadius: 10,
     paddingVertical: 10,
-    backgroundColor: '#1e90ff',
+    backgroundColor: Colors.primary,
   },
   signUpTextContainer: {
     flexDirection: 'row',
@@ -164,12 +194,12 @@ const styles = StyleSheet.create({
   },
   signUpText: {
     fontSize: 16,
-    color: '#b0b0b0', 
+    color: Colors.dark.subtleText, 
   },
   signUpLink: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1e90ff', 
+    color: Colors.primary, 
   },
 });
 

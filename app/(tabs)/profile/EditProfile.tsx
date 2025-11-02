@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, StyleSheet, ScrollView, ImageBackground, TouchableOpacity } from 'react-native';
 import { TextInput, Button, RadioButton, Text, Card, Avatar } from 'react-native-paper';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/authContext';
 import { useRouter } from 'expo-router';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { Colors } from '@/constants/Colors';
-import { ThemeContext } from '@/context/ThemeContext'; // Import the ThemeContext
+import { ThemeContext } from '@/context/ThemeContext';
+import VibeAvatar from '@/components/vibe/VibeAvatar';
 
 const EditProfile = () => {
     const { user, setName, setEmail, setAge, setGender, setBio, setIcon, icon, refreshUser } = useAuth();
     const router = useRouter();
     
-    const { theme } = useContext(ThemeContext); // Truy cập vào theme hiện tại
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; // Chọn màu sắc theo theme
+    const themeContext = useContext(ThemeContext);
+    const theme = themeContext?.theme || 'light';
+    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+
+    const { currentVibe } = useAuth();
 
     const [profile, setProfile] = useState({
         name: '',
@@ -25,7 +30,7 @@ const EditProfile = () => {
     });
 
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -40,7 +45,7 @@ const EditProfile = () => {
         }
     }, [user, icon]);
 
-    const handleChange = (field, value) => {
+    const handleChange = (field: string, value: any) => {
         setProfile((prev) => ({
             ...prev,
             [field]: value,
@@ -158,7 +163,33 @@ const EditProfile = () => {
                                 </View>
                             </RadioButton.Group>
                         </View>
-                        {error && <Text style={[styles.error, { color: currentThemeColors.error }]}>{error}</Text>}
+
+                        {/* Current Vibe Section */}
+                        <View style={styles.vibeSection}>
+                            <Text style={[styles.radioTitle, { color: currentThemeColors.text }]}>Vibe hiện tại</Text>
+                            <View style={styles.vibeAvatarContainer}>
+                                <VibeAvatar
+                                    avatarUrl={profile.icon}
+                                    size={80}
+                                    currentVibe={currentVibe}
+                                    showAddButton={true}
+                                />
+                                {currentVibe && (
+                                    <View style={styles.vibeInfo}>
+                                        <Text style={[styles.vibeName, { color: currentThemeColors.text }]}>
+                                            {currentVibe.vibe?.name} {currentVibe.vibe?.emoji}
+                                        </Text>
+                                        {currentVibe.customMessage && (
+                                            <Text style={[styles.vibeMessage, { color: currentThemeColors.subtleText }]}>
+                                                "{currentVibe.customMessage}"
+                                            </Text>
+                                        )}
+                                    </View>
+                                )}
+                            </View>
+                        </View>
+
+                        {error && <Text style={[styles.error, { color: Colors.error }]}>{error}</Text>}
                         <Button
                             mode="contained"
                             onPress={handleSave}
@@ -229,8 +260,62 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     icon: {
-      alignItems: 'center'
-    }
+        alignItems: 'center'
+    },
+    vibeSection: {
+        marginBottom: 20,
+    },
+    vibeAvatarContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    vibeInfo: {
+        marginLeft: 12,
+        flex: 1,
+    },
+    vibeName: {
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    vibeMessage: {
+        fontSize: 14,
+        fontStyle: 'italic',
+        marginTop: 4,
+    },
+    currentVibeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 10,
+        marginTop: 8,
+    },
+    changeVibeButton: {
+        padding: 8,
+        borderRadius: 20,
+        marginLeft: 8,
+    },
+    addVibeButton: {
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderStyle: 'dashed',
+        marginTop: 8,
+    },
+    addVibeText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    addVibeSubtext: {
+        fontSize: 12,
+        marginTop: 4,
+        textAlign: 'center',
+    },
 });
 
 export default EditProfile;

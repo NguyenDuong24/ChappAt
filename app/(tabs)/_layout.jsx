@@ -16,9 +16,10 @@ export default function TabsLayout() {
   return (
     <>
       <StatusBar
-    barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
-    backgroundColor={currentThemeColors.background}
-  />
+        barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent={true}
+      />
     <Tabs
       listeners={{
           tabPress: (e) => {
@@ -75,6 +76,22 @@ export default function TabsLayout() {
             <View style={styles.iconContainer}>
               <Entypo
                 name="chat"
+                size={focused ? 22 : 20}
+                color={focused ? Colors.primary : currentThemeColors.text}
+              />
+               {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="groups"
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name="people"
                 size={focused ? 22 : 20}
                 color={focused ? Colors.primary : currentThemeColors.text}
               />

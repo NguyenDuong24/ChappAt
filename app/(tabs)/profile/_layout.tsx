@@ -49,6 +49,20 @@ const StackLayout = () => {
           headerTintColor: currentThemeColors.text,
         }}
       />
+      <Stack.Screen
+        name="ChangePasswordScreen"
+        options={{
+          headerStyle: {
+            backgroundColor: currentThemeColors.backgroundHeader,
+          },
+          headerTitle: 'Đổi mật khẩu',
+          headerTintColor: currentThemeColors.text,
+          headerTitleStyle: {
+            fontSize: 20,
+            fontWeight: 'bold',
+          },
+        }}
+      />
     </Stack>
   );
 };

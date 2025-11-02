@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
-import { ROUTES } from '../constants/Navigation';
 
 /**
  * Hook để xử lý authentication routing
@@ -13,22 +12,62 @@ export const useAuthRouting = (isAuthenticated) => {
 
   useEffect(() => {
     if (typeof isAuthenticated === 'undefined') return;
-    
+
+    const inSignupFlow = segments[0] === 'signup';
     const inApp = segments[0] === '(tabs)';
     const inChat = segments[0] === 'chat';
-    const inAuthenticatedScreens = inApp || inChat || 
-      segments.includes('CallScreen') || 
+    const inCallScreens = segments.includes('CallScreen') || 
       segments.includes('IncomingCallScreen') || 
-      segments.includes('ListenCallAcceptedScreen') ||
+      segments.includes('ListenCallAcceptedScreen');
+    const inGroupChat = segments[0] === 'groups';
+    const inGroupManagementScreen = segments[0]?.toLowerCase().includes('groupmanagementscreen');
+    // Cho phép các màn hình gifts (ví dụ: /gifts/Inbox)
+    const inGifts = segments[0] === 'gifts';
+    const inAuthenticatedScreens = inApp || inChat || inCallScreens || inGroupChat || inGroupManagementScreen || inGifts ||
       segments.includes('UserProfileScreen') ||
-      segments.includes('AddFriend');
-    
+      segments.includes('AddFriend') ||
+      segments.includes('explore') ||
+      segments.includes('ButtonToChat') ||
+      segments.includes('NotificationsScreen') ||
+      segments.includes('HotSpotsScreen') ||
+      segments.includes('PostDetailScreen') ||
+      segments.includes('SimpleNavigationTest') ||
+      segments.includes('NotificationNavigationTest') ||
+      segments.includes('NotificationDebugScreen') ||
+      segments.includes('UserDebugScreen') ||
+      segments.includes('HashtagPostsScreen') ||
+      segments.includes('HashtagScreen') ||
+      segments.includes('VibesScreen') ||
+      segments.includes('VibeScreen') ||
+      segments.includes('vibes') ||
+      segments.includes('SearchMessageScreen') ||
+      segments.includes('HotSpotChatScreen') ||
+      segments.includes('HotSpotDetailScreen');
+
+    console.log('🔐 Auth routing check:', { isAuthenticated, segments });
+
+    // QUAN TRỌNG: Không redirect nếu đang ở call screens
+    if (inCallScreens) {
+      console.log('🔐 User in call screens, skipping auth routing');
+      return;
+    }
+
+    if (isAuthenticated === 'pendingProfile') {
+      // Force stay in signup onboarding
+      if (!inSignupFlow) {
+        router.replace('/signup/GenderSelectionScreen');
+      }
+      return;
+    }
+
     if (isAuthenticated && !inAuthenticatedScreens) {
       // User đã đăng nhập nhưng không ở trong app screens
-      router.replace(ROUTES.HOME);
-    } else if (isAuthenticated === false) {
-      // User chưa đăng nhập
-      router.replace(ROUTES.SIGNIN);
+      console.log('🔐 Redirecting authenticated user to home');
+      router.replace('/(tabs)/home');
+    } else if (isAuthenticated === false && inAuthenticatedScreens) {
+      // User chưa đăng nhập nhưng đang cố truy cập authenticated screens
+      console.log('🔐 Redirecting unauthenticated user to signin');
+      router.replace('/signin');
     }
   }, [isAuthenticated, segments, router]);
 };

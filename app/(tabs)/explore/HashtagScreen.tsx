@@ -7,7 +7,8 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
-  StatusBar
+  StatusBar,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Chip } from 'react-native-paper';
@@ -17,8 +18,9 @@ import { useAuth } from '@/context/authContext';
 import { useUserContext } from '@/context/UserContext';
 import { Colors } from '@/constants/Colors';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { getPostsByHashtag } from '@/utils/hashtagUtils';
 import PostCard from '@/components/profile/PostCard';
+import { db } from '@/firebaseConfig';
+import { collection, query as fsQuery, where, orderBy, limit as fsLimit, startAfter, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
 interface PostData {
   id: string;
@@ -35,7 +37,8 @@ interface PostData {
 }
 
 const HashtagScreen: React.FC = () => {
-  const { theme } = useContext(ThemeContext);
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const { user } = useAuth();
   const { getUserInfo } = useUserContext();
@@ -46,67 +49,79 @@ const HashtagScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userInfoCache, setUserInfoCache] = useState<{[key: string]: any}>({});
-  
+  const [hasMore, setHasMore] = useState(true);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+
   const hashtag = params.hashtag as string || '';
   const displayHashtag = hashtag.startsWith('#') ? hashtag : `#${hashtag}`;
+  const normalizedHashtag = displayHashtag.toLowerCase();
 
   useEffect(() => {
-    console.log('🔍 HashtagScreen mounted');
-    console.log('🔍 HashtagScreen params:', params);
-    console.log('🔍 HashtagScreen hashtag:', hashtag);
-    
+    console.log('🔍 HashtagScreen mounted with hashtag:', hashtag);
     if (hashtag) {
-      console.log('🔍 Loading posts for hashtag:', hashtag);
-      loadPosts();
+      loadPosts(true);
     } else {
-      console.warn('🔍 No hashtag parameter found!');
+      Alert.alert('Lỗi', 'Không tìm thấy hashtag!', [
+        { text: 'OK', onPress: () => router.back() }
+      ]);
     }
   }, [hashtag]);
 
-  const loadPosts = async () => {
+  const loadPosts = async (refresh: boolean = false) => {
     try {
-      setLoading(true);
-      console.log('🔍 Calling getPostsByHashtag with:', displayHashtag);
-      
-      // Gọi API để lấy posts theo hashtag
-      const hashtagPosts = await getPostsByHashtag(displayHashtag, 50);
-      console.log('🔍 Found posts:', hashtagPosts.length);
-      
-      // Sắp xếp theo thời gian mới nhất trước
-      const sortedPosts = hashtagPosts.sort((a, b) => {
-        const timeA = a.timestamp?.toDate?.() || (a.timestamp instanceof Date ? a.timestamp : new Date());
-        const timeB = b.timestamp?.toDate?.() || (b.timestamp instanceof Date ? b.timestamp : new Date());
-        return timeB.getTime() - timeA.getTime();
-      });
-      
-      setPosts(sortedPosts);
-      
-      // Preload thông tin user cho tất cả posts
-      const userIds = [...new Set(sortedPosts.map(post => post.userID))];
-      const userInfoPromises = userIds.map(async (userId) => {
-        if (!userInfoCache[userId]) {
-          try {
-            const userInfo = await getUserInfo(userId);
-            return { userId, userInfo };
-          } catch (error) {
-            console.error('Error fetching user info:', error);
-            return { userId, userInfo: null };
-          }
-        }
-        return { userId, userInfo: userInfoCache[userId] };
-      });
-      
-      const userInfoResults = await Promise.all(userInfoPromises);
-      const newUserInfoCache = { ...userInfoCache };
-      userInfoResults.forEach(({ userId, userInfo }) => {
-        if (userInfo) {
-          newUserInfoCache[userId] = userInfo;
-        }
-      });
-      setUserInfoCache(newUserInfoCache);
-      
+      if (refresh) {
+        setLoading(true);
+        setLastDoc(null);
+        setHasMore(true);
+      }
+      console.log('🔍 Loading posts for hashtag:', normalizedHashtag);
+
+      const limitCount = 20;
+      const constraints: any[] = [
+        where('hashtags', 'array-contains', normalizedHashtag),
+        orderBy('timestamp', 'desc'),
+        fsLimit(limitCount),
+      ];
+      if (!refresh && lastDoc) {
+        constraints.splice(2, 0, startAfter(lastDoc));
+      }
+
+      let q = fsQuery(collection(db, 'posts'), ...constraints);
+      let snapshot = await getDocs(q);
+
+      // Fallback: if nothing found on refresh, try original display hashtag format once
+      if (refresh && snapshot.empty) {
+        const fbConstraints: any[] = [
+          where('hashtags', 'array-contains', displayHashtag),
+          orderBy('timestamp', 'desc'),
+          fsLimit(limitCount),
+        ];
+        q = fsQuery(collection(db, 'posts'), ...fbConstraints);
+        snapshot = await getDocs(q);
+      }
+
+      const pagePosts = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PostData));
+      const nextLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : lastDoc;
+
+      const newList = refresh ? pagePosts : [...posts, ...pagePosts.filter(p => !posts.some(e => e.id === p.id))];
+      setPosts(newList);
+      setLastDoc(nextLastDoc);
+      setHasMore(snapshot.docs.length === limitCount);
+
+      // Preload user info (cache)
+      const userIds = [...new Set(newList.map(p => p.userID).filter(Boolean))];
+      const missing = userIds.filter(uid => !userInfoCache[uid]);
+      if (missing.length) {
+        const results = await Promise.all(missing.map(async uid => {
+          try { const info = await getUserInfo(uid); return { uid, info }; } catch { return { uid, info: null }; }
+        }));
+        const merged = { ...userInfoCache };
+        results.forEach(({ uid, info }) => { if (info) merged[uid] = info; });
+        setUserInfoCache(merged);
+      }
     } catch (error) {
       console.error('🔍 Error loading hashtag posts:', error);
+      Alert.alert('Lỗi', 'Không thể tải bài viết. Vui lòng thử lại!');
     } finally {
       setLoading(false);
     }
@@ -114,18 +129,18 @@ const HashtagScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadPosts();
+    await loadPosts(true);
     setRefreshing(false);
+  };
+
+  const loadMore = async () => {
+    if (!hasMore || loading) return;
+    await loadPosts(false);
   };
 
   const handleLike = async (postId: string, userId: string, isLiked: boolean) => {
     // Implement like functionality
     console.log('Like post:', postId, userId, isLiked);
-  };
-
-  const handleShare = async (postId: string) => {
-    // Implement share functionality
-    console.log('Share post:', postId);
   };
 
   const handleDeletePost = () => {
@@ -155,7 +170,6 @@ const HashtagScreen: React.FC = () => {
         post={postWithDefaults}
         user={user}
         onLike={handleLike}
-        onShare={handleShare}
         onDeletePost={handleDeletePost}
         addComment={addComment}
         owner={isOwner}
@@ -167,7 +181,7 @@ const HashtagScreen: React.FC = () => {
   const renderHeader = () => (
     <View style={[styles.header, { backgroundColor: currentThemeColors.surface }]}>
       <TouchableOpacity 
-        style={styles.backButton}
+        style={[styles.backButton, { backgroundColor: currentThemeColors.background + '80' }]}
         onPress={() => router.back()}
       >
         <MaterialIcons name="arrow-back" size={24} color={currentThemeColors.text} />
@@ -178,7 +192,7 @@ const HashtagScreen: React.FC = () => {
           {displayHashtag}
         </Text>
         <Text style={[styles.postCount, { color: currentThemeColors.subtleText }]}>
-          {posts.length} bài viết • Sắp xếp mới nhất
+          {posts.length} bài viết • Mới nhất
         </Text>
       </View>
       
@@ -258,6 +272,8 @@ const HashtagScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={posts.length === 0 ? styles.emptyContentContainer : undefined}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        onEndReachedThreshold={0.4}
+        onEndReached={loadMore}
       />
     </SafeAreaView>
   );

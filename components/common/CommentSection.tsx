@@ -67,7 +67,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onReply, onLike, cur
   return (
     <View style={styles.commentContainer}>
       <CustomImage
-        source={comment.avatar || 'default_avatar_url_here'}
+        source={comment.avatar || 'https://via.placeholder.com/150'}
         style={styles.commentAvatar}
       />
       <View style={styles.commentContent}>
@@ -119,7 +119,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onReply, onLike, cur
         {showReplyInput && (
           <View style={styles.replyContainer}>
             <CustomImage
-              source={'default_avatar_url_here'} // Current user avatar
+              source={'https://via.placeholder.com/150'} // Current user avatar
               style={styles.replyAvatar}
             />
             <View style={styles.replyInputContainer}>
@@ -160,7 +160,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onReply, onLike, cur
         {comment.replies && comment.replies.map((reply: Reply, index: number) => (
           <View key={index} style={styles.replyItem}>
             <CustomImage
-              source={reply.avatar || 'default_avatar_url_here'}
+              source={reply.avatar || 'https://via.placeholder.com/150'}
               style={styles.replyAvatar}
             />
             <View style={styles.replyContent}>
@@ -191,7 +191,8 @@ const CommentSection: React.FC<CommentSectionProps> = ({
   currentUserId,
   currentUserAvatar 
 }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [commentText, setCommentText] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -237,7 +238,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
       {/* Add Comment Input */}
       <View style={styles.addCommentContainer}>
         <CustomImage
-          source={currentUserAvatar || 'default_avatar_url_here'}
+          source={currentUserAvatar || 'https://via.placeholder.com/150'}
           style={styles.commentAvatar}
         />
         <View style={styles.commentInputContainer}>

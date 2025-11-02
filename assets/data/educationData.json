@@ -1,0 +1,34 @@
+{
+  "educationLevels": [
+    { "label": "Cao đẳng/Đại học", "value": "Cao đẳng/Đại học", "icon": "school" },
+    { "label": "Thạc sĩ", "value": "Thạc sĩ", "icon": "school-outline" },
+    { "label": "Tiến sĩ", "value": "Tiến sĩ", "icon": "medal" },
+    { "label": "Trung học", "value": "Trung học", "icon": "library" },
+    { "label": "Khác", "value": "Khác", "icon": "ellipsis-horizontal" }
+  ],
+  "jobs": [
+    { "label": "Kỹ sư", "value": "Kỹ sư", "icon": "construct" },
+    { "label": "IT/Phần mềm", "value": "IT/Phần mềm", "icon": "laptop" },
+    { "label": "Giáo viên/Giảng viên", "value": "Giáo viên/Giảng viên", "icon": "school" },
+    { "label": "Kinh doanh/Marketing", "value": "Kinh doanh/Marketing", "icon": "megaphone" },
+    { "label": "Bác sĩ/Y tế", "value": "Bác sĩ/Y tế", "icon": "medkit" },
+    { "label": "Công nhân", "value": "Công nhân", "icon": "hammer" },
+    { "label": "Quản lý chuỗi cung ứng", "value": "Quản lý chuỗi cung ứng", "icon": "basket" },
+    { "label": "Tài chính/Kế toán", "value": "Tài chính/Kế toán", "icon": "calculator" },
+    { "label": "Luật sư/Pháp lý", "value": "Luật sư/Pháp lý", "icon": "briefcase" },
+    { "label": "Nhân viên văn phòng", "value": "Nhân viên văn phòng", "icon": "reader" },
+    { "label": "Kiến trúc sư/Thiết kế", "value": "Kiến trúc sư/Thiết kế", "icon": "color-palette" },
+    { "label": "Nghệ sĩ/Sáng tạo", "value": "Nghệ sĩ/Sáng tạo", "icon": "brush" },
+    { "label": "Nhà hàng/Dịch vụ", "value": "Nhà hàng/Dịch vụ", "icon": "restaurant" },
+    { "label": "Kinh doanh tự do", "value": "Kinh doanh tự do", "icon": "rocket" },
+    { "label": "Thợ điện/Thợ sửa chữa", "value": "Thợ điện/Thợ sửa chữa", "icon": "build" },
+    { "label": "Tài xế/Vận tải", "value": "Tài xế/Vận tải", "icon": "car" },
+    { "label": "Bán hàng", "value": "Bán hàng", "icon": "cart" },
+    { "label": "Chăm sóc khách hàng", "value": "Chăm sóc khách hàng", "icon": "headset" },
+    { "label": "Nông nghiệp", "value": "Nông nghiệp", "icon": "leaf" },
+    { "label": "Bất động sản", "value": "Bất động sản", "icon": "home" },
+    { "label": "Sinh viên", "value": "Sinh viên", "icon": "school-outline" },
+    { "label": "Đang tìm việc", "value": "Đang tìm việc", "icon": "search" },
+    { "label": "Khác", "value": "Khác", "icon": "ellipsis-horizontal" }
+  ]
+}

@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
-import { View, StatusBar, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, StatusBar, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import ListUser from '@/components/home/ListUser';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -10,9 +11,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 export default function Home() {
   const { user } = useAuth();
-  const { getUsers, users, loading, refreshing, handleRefresh } = useHome();
+  const { getUsers, users, loading, refreshing, handleRefresh, error } = useHome();
   const { theme } = useContext(ThemeContext);
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light; 
+  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const router = useRouter();
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
@@ -21,6 +23,22 @@ export default function Home() {
         backgroundColor="transparent"
         translucent
       />
+      
+      {error && (
+        <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.surface }]}
+        >
+          <MaterialIcons name="error-outline" size={24} color="#ff4757" />
+          <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
+            {error}
+          </Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => getUsers(true)}
+          >
+            <Text style={styles.retryText}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       
       {/* Main Content */}
       <View style={styles.contentContainer}>
@@ -126,9 +144,61 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: 16,
-    marginTop: 8,
+    fontSize: 14,
     textAlign: 'center',
-    lineHeight: 22,
+    marginTop: 8,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ff4757',
+    backgroundColor: 'rgba(255, 71, 87, 0.1)',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  retryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#667eea',
+    borderRadius: 6,
+  },
+  retryText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  demoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  socialDemoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  demoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

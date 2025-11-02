@@ -1,0 +1,466 @@
+{
+    "universities": [
+        {
+            "code": "ANS",
+            "name": "Đại học An ninh Nhân dân"
+        },
+        {
+            "code": "BVS",
+            "name": "Học viện Công nghệ Bưu chính Viễn thông (Cơ sở phía Nam)"
+        },
+        {
+            "code": "CSS",
+            "name": "Đại học Cảnh sát nhân dân"
+        },
+        {
+            "code": "DCG",
+            "name": "Đại học Gia Định"
+        },
+        {
+            "code": "DCT",
+            "name": "Đại học Công nghiệp Thực phẩm TP. Hồ Chí Minh"
+        },
+        {
+            "code": "DHV",
+            "name": "Đại học Hùng Vương TP. Hồ Chí Minh"
+        },
+        {
+            "code": "DKC",
+            "name": "Đại học Công nghệ TP. Hồ Chí Minh (Hutech)"
+        },
+        {
+            "code": "DLS",
+            "name": "Đại học Lao động - Xã hội (Cơ sở II TP. HCM)"
+        },
+        {
+            "code": "DMS",
+            "name": "Đại học Tài chính - Marketing"
+        },
+        {
+            "code": "DNT",
+            "name": "Đại học Ngoại ngữ - Tin học TP. HCM"
+        },
+        {
+            "code": "DNV.HCM",
+            "name": "Đại học Nội vụ Hà Nội (Cơ sở TP. HCM)"
+        },
+        {
+            "code": "DSD",
+            "name": "Đại học Sân khấu - Điện ảnh TP. Hồ Chí Minh"
+        },
+        {
+            "code": "DSG",
+            "name": "Đại học Công nghệ Sài Gòn"
+        },
+        {
+            "code": "DTM",
+            "name": "Đại học Tài nguyên và Môi trường TP. Hồ Chí Minh"
+        },
+        {
+            "code": "DTT",
+            "name": "Đại học Tôn Đức Thắng"
+        },
+        {
+            "code": "DVH",
+            "name": "Đại học Văn Hiến"
+        },
+        {
+            "code": "DVL",
+            "name": "Đại học Văn Lang"
+        },
+        {
+            "code": "FPT.HCM",
+            "name": "Đại học FPT TP. Hồ Chí Minh"
+        },
+        {
+            "code": "GSA",
+            "name": "Phân hiệu Đại học Giao thông vận tải tại TP. HCM"
+        },
+        {
+            "code": "GTS",
+            "name": "Đại học Giao thông vận tải TP. Hồ Chí Minh"
+        },
+        {
+            "code": "HBU",
+            "name": "Đại học Quốc tế Hồng Bàng"
+        },
+        {
+            "code": "HCS",
+            "name": "Học viện Hành chính Quốc gia (Cơ sở phía Nam)"
+        },
+        {
+            "code": "HHK",
+            "name": "Học viện Hàng không Việt Nam"
+        },
+        {
+            "code": "HSU",
+            "name": "Đại học Hoa Sen"
+        },
+        {
+            "code": "HTN-N",
+            "name": "Học viện Thanh thiếu niên Việt Nam (Cơ sở phía Nam)"
+        },
+        {
+            "code": "HVC",
+            "name": "Học viện Cán bộ TP. Hồ Chí Minh"
+        },
+        {
+            "code": "HVC.HCM",
+            "name": "Học viện Tư pháp (Cơ sở TP. Hồ Chí Minh)"
+        },
+        {
+            "code": "IUH",
+            "name": "Đại học Công nghiệp TP. Hồ Chí Minh"
+        },
+        {
+            "code": "KMA.HCM",
+            "name": "Học viện Kỹ thuật Mật mã (Cơ sở phía Nam)"
+        },
+        {
+            "code": "KSA",
+            "name": "Đại học Kinh tế TP. Hồ Chí Minh"
+        },
+        {
+            "code": "KTS",
+            "name": "Đại học Kiến trúc TP. Hồ Chí Minh"
+        },
+        {
+            "code": "LPS",
+            "name": "Đại học Luật TP. Hồ Chí Minh"
+        },
+        {
+            "code": "MBS",
+            "name": "Đại học Mở TP. Hồ Chí Minh"
+        },
+        {
+            "code": "MCA.HCM",
+            "name": "Đại học Mỹ thuật Công nghiệp Á Châu (Cơ sở TP. HCM)"
+        },
+        {
+            "code": "MTS",
+            "name": "Đại học Mỹ thuật TP. Hồ Chí Minh"
+        },
+        {
+            "code": "NHS",
+            "name": "Đại học Ngân hàng TP. Hồ Chí Minh"
+        },
+        {
+            "code": "NLS",
+            "name": "Đại học Nông Lâm TP. Hồ Chí Minh"
+        },
+        {
+            "code": "NTS",
+            "name": "Đại học Ngoại thương (Cơ sở TP. HCM)"
+        },
+        {
+            "code": "NTT",
+            "name": "Đại học Nguyễn Tất Thành"
+        },
+        {
+            "code": "NVS",
+            "name": "Nhạc viện TP. Hồ Chí Minh"
+        },
+        {
+            "code": "QSB",
+            "name": "Đại học Bách Khoa - ĐH Quốc gia TP. HCM"
+        },
+        {
+            "code": "QSC",
+            "name": "Đại học Công nghệ Thông tin - ĐH Quốc gia TP. HCM"
+        },
+        {
+            "code": "QSK",
+            "name": "Đại học Kinh tế - Luật - ĐH Quốc gia TP. HCM"
+        },
+        {
+            "code": "QSQ",
+            "name": "Đại học Quốc tế - ĐH Quốc gia TP. HCM"
+        },
+        {
+            "code": "QST",
+            "name": "Đại học Khoa học Tự nhiên - ĐH Quốc gia TP. HCM"
+        },
+        {
+            "code": "QSX",
+            "name": "Đại học Khoa học Xã hội và Nhân văn - ĐH Quốc gia TP. HCM"
+        },
+        {
+            "code": "QSY",
+            "name": "Khoa Y - ĐH Quốc gia TP. HCM"
+        },
+        {
+            "code": "RMU.HCM",
+            "name": "Đại học RMIT Nam Sài Gòn"
+        },
+        {
+            "code": "SGD",
+            "name": "Đại học Sài Gòn"
+        },
+        {
+            "code": "SPK",
+            "name": "Đại học Sư phạm Kỹ thuật TP. Hồ Chí Minh"
+        },
+        {
+            "code": "SPS",
+            "name": "Đại học Sư phạm TP. Hồ Chí Minh"
+        },
+        {
+            "code": "STS",
+            "name": "Đại học Sư phạm Thể dục Thể thao TP. HCM"
+        },
+        {
+            "code": "TDS",
+            "name": "Đại học Thể dục Thể thao TP. Hồ Chí Minh"
+        },
+        {
+            "code": "TLS",
+            "name": "Đại học Thủy lợi (Cơ sở 2)"
+        },
+        {
+            "code": "TTQ",
+            "name": "Đại học Quốc tế Sài Gòn"
+        },
+        {
+            "code": "TYS",
+            "name": "Đại học Y khoa Phạm Ngọc Thạch"
+        },
+        {
+            "code": "UEF",
+            "name": "Đại học Kinh tế - Tài chính TP. HCM"
+        },
+        {
+            "code": "VHS",
+            "name": "Đại học Văn hóa TP. Hồ Chí Minh"
+        },
+        {
+            "code": "VGU",
+            "name": "Đại học Việt - Đức (Cơ sở TP. HCM)"
+        },
+        {
+            "code": "VPH",
+            "name": "Trường Sĩ quan Kỹ thuật quân sự (Đại học Trần Đại Nghĩa)"
+        },
+        {
+            "code": "YDS",
+            "name": "Đại học Y Dược TP. HCM"
+        },
+        {
+            "code": "ZPH",
+            "name": "Đại học Trần Đại Nghĩa (hệ dân sự)"
+        }
+    ],
+    "colleges": [
+        {
+            "code": "CBC",
+            "name": "Cao đẳng Bán công Công nghệ và Quản trị doanh nghiệp"
+        },
+        {
+            "code": "CBV",
+            "name": "Cao đẳng Bách Việt"
+        },
+        {
+            "code": "CCO",
+            "name": "Cao đẳng Công nghệ Thủ Đức"
+        },
+        {
+            "code": "CCS",
+            "name": "Cao đẳng Kinh tế - Kỹ thuật Vinatex TP. HCM"
+        },
+        {
+            "code": "CDC",
+            "name": "Cao đẳng Công nghệ Thông tin TP. HCM"
+        },
+        {
+            "code": "CDD0201",
+            "name": "Cao đẳng nghề Thành phố Hồ Chí Minh"
+        },
+        {
+            "code": "CDD0204",
+            "name": "Cao đẳng Kinh tế - Kỹ thuật Thủ Đức"
+        },
+        {
+            "code": "CDD0205",
+            "name": "Cao đẳng Công nghệ Thủ Đức"
+        },
+        {
+            "code": "CDD0207",
+            "name": "Cao đẳng Lý Tự Trọng TP. Hồ Chí Minh"
+        },
+        {
+            "code": "CDD0210",
+            "name": "Cao đẳng Du lịch Sài Gòn"
+        },
+        {
+            "code": "CDD0211",
+            "name": "Cao đẳng Kỹ thuật Nguyễn Trường Tộ"
+        },
+        {
+            "code": "CDD0212",
+            "name": "Cao đẳng Kinh tế TP. HCM"
+        },
+        {
+            "code": "CDD0213",
+            "name": "Cao đẳng Kinh tế Kỹ thuật TP. Hồ Chí Minh"
+        },
+        {
+            "code": "CDD0214",
+            "name": "Cao đẳng Giao thông Vận tải TP. HCM"
+        },
+        {
+            "code": "CDD0229",
+            "name": "Cao đẳng Bách khoa Nam Sài Gòn"
+        },
+        {
+            "code": "CDE",
+            "name": "Cao đẳng Điện lực TP. HCM"
+        },
+        {
+            "code": "CDT0204",
+            "name": "Cao đẳng Hàng hải II"
+        },
+        {
+            "code": "CDT0205",
+            "name": "Cao đẳng Giao thông vận tải Trung ương III"
+        },
+        {
+            "code": "CDT0207",
+            "name": "Cao đẳng nghề Giao thông vận tải Đường thủy II"
+        },
+        {
+            "code": "CDT0208",
+            "name": "Cao đẳng Công nghệ TP. Hồ Chí Minh"
+        },
+        {
+            "code": "CDT0209.HCM",
+            "name": "Cao đẳng Kinh tế Đối ngoại"
+        },
+        {
+            "code": "CDT0211",
+            "name": "Cao đẳng Điện lực TP. HCM"
+        },
+        {
+            "code": "CDT0213",
+            "name": "Cao đẳng Xây dựng TP. Hồ Chí Minh"
+        },
+        {
+            "code": "CEP",
+            "name": "Cao đẳng Kinh tế TP. HCM"
+        },
+        {
+            "code": "CES",
+            "name": "Cao đẳng Công thương TP. HCM"
+        },
+        {
+            "code": "CET",
+            "name": "Cao đẳng Kinh tế - Công nghệ TP. HCM"
+        },
+        {
+            "code": "CGS",
+            "name": "Cao đẳng Giao thông Vận tải Trung ương VI"
+        },
+        {
+            "code": "CGT",
+            "name": "Cao đẳng Giao thông Vận tải TP. HCM"
+        },
+        {
+            "code": "CHD",
+            "name": "Cao đẳng Y Dược Hồng Đức"
+        },
+        {
+            "code": "CKD",
+            "name": "Cao đẳng Kinh tế Đối ngoại"
+        },
+        {
+            "code": "CKC",
+            "name": "Cao đẳng Kỹ thuật Cao Thắng"
+        },
+        {
+            "code": "CKM",
+            "name": "Cao đẳng Kinh tế Kỹ thuật Miền Nam"
+        },
+        {
+            "code": "CKP",
+            "name": "Cao đẳng Kỹ thuật Lý Tự Trọng TP. HCM"
+        },
+        {
+            "code": "CM3",
+            "name": "Cao đẳng Sư phạm Trung ương TP. HCM"
+        },
+        {
+            "code": "CPS",
+            "name": "Cao đẳng Phát thanh Truyền hình II"
+        },
+        {
+            "code": "CSG",
+            "name": "Cao đẳng Đại Việt Sài Gòn"
+        },
+        {
+            "code": "CTS",
+            "name": "Cao đẳng Tài chính Hải quan"
+        },
+        {
+            "code": "CVN",
+            "name": "Cao đẳng Văn hóa Nghệ thuật TP. HCM"
+        },
+        {
+            "code": "CVS",
+            "name": "Cao đẳng Văn hóa Nghệ thuật và Du lịch Sài Gòn"
+        },
+        {
+            "code": "CVX",
+            "name": "Cao đẳng Kỹ thuật Công nghệ Vạn Xuân"
+        },
+        {
+            "code": "CXS",
+            "name": "Cao đẳng Xây dựng số 2"
+        },
+        {
+            "code": "CĐT0202",
+            "name": "Cao đẳng Kỹ nghệ II"
+        },
+        {
+            "code": "CDV",
+            "name": "Cao đẳng Viễn Đông"
+        },
+        {
+            "code": "FPTPOLY",
+            "name": "Cao đẳng FPT Polytechnic TP. Hồ Chí Minh"
+        },
+        {
+            "code": "MNC",
+            "name": "Cao đẳng Miền Nam"
+        },
+        {
+            "code": "KENT",
+            "name": "Cao đẳng Quốc tế Kent"
+        },
+        {
+            "code": "ISPACE",
+            "name": "Cao đẳng Công nghệ Thông tin iSPACE"
+        },
+        {
+            "code": "CDYDSG",
+            "name": "Cao đẳng Y Dược Sài Gòn"
+        },
+        {
+            "code": "CDYDVN",
+            "name": "Cao đẳng Công nghệ Y Dược Việt Nam"
+        },
+        {
+            "code": "CNI",
+            "name": "Cao đẳng Công nghệ Quốc tế"
+        },
+        {
+            "code": "VIETMY",
+            "name": "Cao đẳng Việt Mỹ"
+        },
+        {
+            "code": "HIC",
+            "name": "Cao đẳng Quốc tế TP. HCM"
+        },
+        {
+            "code": "BKS",
+            "name": "Cao đẳng Bách Khoa Sài Gòn"
+        }
+    ]
+}

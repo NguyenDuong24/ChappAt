@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ImageBackground } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ImageBackground, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
 import { Colors } from '@/constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const EmailInputScreen = () => {
-  const { setEmail } = useAuth();
+  const { setEmail, cancelRegistration } = useAuth();
   const router = useRouter();
   const logoUrl = useLogoState();
 
@@ -25,7 +26,22 @@ const EmailInputScreen = () => {
 
   const handleNext = () => {
     setEmail(email);
-    router.push('signup/PasswordInputScreen');
+    router.push('/signup/PasswordInputScreen');
+  };
+
+  const handleCancel = () => {
+    Alert.alert(
+      'Huỷ đăng ký?',
+      'Bạn có chắc muốn huỷ đăng ký và xoá tài khoản tạm thời (nếu có)?',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Huỷ & Xoá',
+          style: 'destructive',
+          onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) {} },
+        },
+      ]
+    );
   };
 
   return (
@@ -34,6 +50,8 @@ const EmailInputScreen = () => {
       style={styles.background}
       resizeMode="cover"
     >
+      <LinearGradient colors={['rgba(15,23,42,0.85)','rgba(15,23,42,0.65)']} style={styles.backdrop} />
+
       <View style={styles.container}>
         {logoUrl ? (
           <Image source={{ uri: logoUrl }} style={styles.logo} />
@@ -42,9 +60,9 @@ const EmailInputScreen = () => {
         )}
         <Text style={styles.title}>Enter Your Email</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: Colors.dark.text, borderColor: Colors.dark.inputBorder, backgroundColor: Colors.dark.inputBackground }]}
           placeholder="Your Email"
-          placeholderTextColor="#888"
+          placeholderTextColor={Colors.dark.placeholderText}
           keyboardType="email-address"
           value={email}
           onChangeText={handleEmailChange}
@@ -54,8 +72,13 @@ const EmailInputScreen = () => {
           style={[styles.nextButton, !isButtonEnabled && styles.disabledButton]}
           onPress={handleNext}
           disabled={!isButtonEnabled}
+          activeOpacity={0.85}
         >
           <Text style={styles.nextButtonText}>Next</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn}>
+          <Text style={styles.cancelText}>Huỷ đăng ký</Text>
         </TouchableOpacity>
       </View>
     </ImageBackground>
@@ -68,12 +91,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  backdrop: { ...StyleSheet.absoluteFillObject },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.0)',
+    backgroundColor: 'transparent',
   },
   logo: {
     width: 200,
@@ -82,7 +106,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 18,
-    color: '#fff',
+    color: Colors.light.text,
     marginBottom: 20,
   },
   title: {
@@ -95,11 +119,9 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: 15,
     borderWidth: 1,
-    borderColor: '#ccc',
     borderRadius: 25,
     marginBottom: 20,
     fontSize: 18,
-    backgroundColor: '#fff',
   },
   nextButton: {
     backgroundColor: Colors.primary,
@@ -110,13 +132,15 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   disabledButton: {
-    backgroundColor: '#cccccc',
+    backgroundColor: '#475569',
   },
   nextButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
   },
+  cancelBtn: { marginTop: 14 },
+  cancelText: { color: '#ffd1d1', textDecorationLine: 'underline' },
 });
 
 export default EmailInputScreen;

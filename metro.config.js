@@ -4,6 +4,9 @@ const resolveFrom = require("resolve-from");
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
+// Add .bin to assetExts so Metro can bundle NSFW model weights
+config.resolver.assetExts.push("bin");
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (
     // If the bundle is resolving "event-target-shim" from a module that is part of "react-native-webrtc".

@@ -6,12 +6,14 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { formatTime } from '@/utils/common';
 import { getPrivacyIcon } from '@/utils/postPrivacyUtils';
-import CustomImage from './CustomImage';
+import VibeAvatar from '@/components/vibe/VibeAvatar';
+import { UserVibe } from '@/types/vibe';
 
 interface PostHeaderProps {
   userInfo: {
     username: string;
     profileUrl?: string;
+    currentVibe?: UserVibe | null;
   } | null;
   timestamp: any;
   userId: string;
@@ -32,7 +34,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPrivacyChange,
   postPrivacy = 'public'
 }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -52,9 +55,12 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={onUserPress} style={styles.userContainer}>
-        <CustomImage
-          source={userInfo?.profileUrl || 'default_avatar_url_here'}
-          style={styles.avatar}
+        <VibeAvatar
+          avatarUrl={userInfo?.profileUrl || 'https://via.placeholder.com/150'}
+          size={44}
+          currentVibe={userInfo?.currentVibe || null}
+          showAddButton={false}
+          storyUser={{ id: userId, username: userInfo?.username, profileUrl: userInfo?.profileUrl }}
         />
         <View style={styles.userInfo}>
           <View style={styles.usernameContainer}>
@@ -76,33 +82,36 @@ const PostHeader: React.FC<PostHeaderProps> = ({
       </TouchableOpacity>
       
       {isOwner && (
-        <Menu
-          visible={menuVisible}
-          onDismiss={closeMenu}
-          anchor={
-            <TouchableOpacity onPress={openMenu} style={styles.menuButton}>
-              <MaterialIcons 
-                name="more-vert" 
-                size={24} 
-                color={currentThemeColors.icon} 
-              />
-            </TouchableOpacity>
-          }
-          contentStyle={[styles.menuContent, { backgroundColor: currentThemeColors.background }]}
-        >
-          <Menu.Item 
-            onPress={handlePrivacyChange} 
-            title="Quyền riêng tư"
-            titleStyle={{ color: currentThemeColors.text }}
-            leadingIcon="shield-account"
-          />
-          <Menu.Item 
-            onPress={handleDeletePost} 
-            title="Xóa bài viết"
-            titleStyle={{ color: '#ff4444' }}
-            leadingIcon="delete"
-          />
-        </Menu>
+        <View style={styles.menuWrapper}>
+          <Menu
+            visible={menuVisible}
+            onDismiss={closeMenu}
+            anchor={
+              <TouchableOpacity onPress={openMenu} style={styles.menuButton}>
+                <MaterialIcons 
+                  name="more-vert" 
+                  size={28} 
+                  color={currentThemeColors.icon} 
+                />
+              </TouchableOpacity>
+            }
+            contentStyle={[styles.menuContent, { backgroundColor: currentThemeColors.background }]}
+            style={styles.menuPaper}
+          >
+            <Menu.Item 
+              onPress={handlePrivacyChange} 
+              title="Quyền riêng tư"
+              titleStyle={{ color: currentThemeColors.text }}
+              leadingIcon="shield-account"
+            />
+            <Menu.Item 
+              onPress={handleDeletePost} 
+              title="Xóa bài viết"
+              titleStyle={{ color: '#ff4444' }}
+              leadingIcon="delete"
+            />
+          </Menu>
+        </View>
       )}
     </View>
   );
@@ -127,6 +136,8 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
+    marginLeft: 12,
+    marginTop: 2, // Thêm marginTop để căn giữa với avatar
   },
   username: {
     fontWeight: '600',
@@ -145,12 +156,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '400',
   },
+  menuWrapper: {
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    height: '100%',
+    marginLeft: 8,
+  },
   menuButton: {
     padding: 4,
+    marginRight: 0,
   },
   menuContent: {
     borderRadius: 8,
     marginTop: 8,
+    minWidth: 160,
+  },
+  menuPaper: {
+    position: 'absolute',
+    right: 0,
+    top: 36,
+    zIndex: 999,
   },
 });
 

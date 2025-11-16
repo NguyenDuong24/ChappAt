@@ -13,8 +13,10 @@ import {
   updateDoc,
   writeBatch,
   increment,
-  deleteDoc
+  deleteDoc,
+  getDoc
 } from 'firebase/firestore';
+import ExpoPushNotificationService from './expoPushNotificationService';
 import { db } from '@/firebaseConfig';
 
 interface CachedHotSpot {
@@ -211,6 +213,21 @@ class OptimizedHotSpotsService {
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
       
+      // Push to creator notifying user joined
+      try {
+        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
+        if (creatorId && creatorId !== userId) {
+          await ExpoPushNotificationService.sendPushToUser(creatorId, {
+            title: '🎉 Có người tham gia',
+            body: 'Một người dùng vừa tham gia HotSpot của bạn',
+            data: { type: 'hotspot_join', hotSpotId, userId },
+          });
+        }
+      } catch (e) {
+        console.warn('⚠️ Push joinHotSpot failed:', e);
+      }
+      
       console.log(`✅ User ${userId} joined hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error joining hotspot:', error);
@@ -236,6 +253,21 @@ class OptimizedHotSpotsService {
       
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
+      
+      // Push to creator notifying user interested
+      try {
+        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
+        if (creatorId && creatorId !== userId) {
+          await ExpoPushNotificationService.sendPushToUser(creatorId, {
+            title: '💜 Có người quan tâm',
+            body: 'Một người dùng vừa quan tâm HotSpot của bạn',
+            data: { type: 'hotspot_interested', hotSpotId, userId },
+          });
+        }
+      } catch (e) {
+        console.warn('⚠️ Push markInterested failed:', e);
+      }
       
       console.log(`💖 User ${userId} marked interested in hotspot ${hotSpotId}`);
     } catch (error) {
@@ -264,6 +296,21 @@ class OptimizedHotSpotsService {
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
       
+      // Push to creator notifying user check-in
+      try {
+        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
+        if (creatorId && creatorId !== userId) {
+          await ExpoPushNotificationService.sendPushToUser(creatorId, {
+            title: '📍 Có người check-in',
+            body: 'Một người dùng vừa check-in HotSpot của bạn',
+            data: { type: 'hotspot_checkin', hotSpotId, userId },
+          });
+        }
+      } catch (e) {
+        console.warn('⚠️ Push checkIn failed:', e);
+      }
+      
       console.log(`📍 User ${userId} checked in to hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error checking in:', error);
@@ -286,6 +333,21 @@ class OptimizedHotSpotsService {
       
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
+      
+      // Optional push to creator for favorite
+      try {
+        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
+        if (creatorId && creatorId !== userId) {
+          await ExpoPushNotificationService.sendPushToUser(creatorId, {
+            title: '⭐ Được thêm vào yêu thích',
+            body: 'Một người đã thêm HotSpot của bạn vào danh sách yêu thích',
+            data: { type: 'hotspot_favorite', hotSpotId, userId },
+          });
+        }
+      } catch (e) {
+        console.warn('⚠️ Push addFavorite failed:', e);
+      }
       
       console.log(`⭐ User ${userId} favorited hotspot ${hotSpotId}`);
     } catch (error) {
@@ -407,9 +469,9 @@ class OptimizedHotSpotsService {
     this.setCache(baseKey, result);
 
     // Cache variations for optimization
-    const variations = [
-      { ...baseFilters, sortBy: 'popular' },
-      { ...baseFilters, sortBy: 'rating' },
+    const variations: HotSpotFilters[] = [
+      { ...baseFilters, sortBy: 'popular' as const },
+      { ...baseFilters, sortBy: 'rating' as const },
       { ...baseFilters, featured: true },
     ];
 

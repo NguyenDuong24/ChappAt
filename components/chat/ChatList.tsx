@@ -1,6 +1,6 @@
 import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import React, { useEffect, useState, useContext } from 'react';
-import { doc, collection, query, orderBy, onSnapshot, limit, getDoc } from 'firebase/firestore';
+import { doc, collection, query, orderBy, onSnapshot, limit, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore';
 import ChatItem from './ChatItem';
 import { getRoomId } from '@/utils/common';
 import { db } from '@/firebaseConfig';
@@ -27,9 +27,32 @@ const ChatList = ({ users = [], currenUser, onRefresh }: { users?: any[], curren
     
     // Track users with messages using Map for better performance
     const usersWithMessagesMap = new Map();
+    // Track lastReadAt for each room
+    const lastReadAtMap = new Map();
 
     const updateUsersList = () => {
-      const usersList = Array.from(usersWithMessagesMap.values());
+      const usersList = Array.from(usersWithMessagesMap.values()).map(userData => {
+        const roomId = getRoomId(currenUser.uid, userData.user.id);
+        const lastReadAt = lastReadAtMap.get(roomId);
+        // Recalculate unreadCount with current lastReadAt
+        let unreadCount = 0;
+        if (userData.messagesSnapshot) {
+          unreadCount = userData.messagesSnapshot.docs.reduce((acc: number, d: any) => {
+            const data = d.data();
+            const createdAt = data?.createdAt;
+            const isOwn = data?.uid === currenUser.uid;
+            if (isOwn) return acc;
+            if (!lastReadAt) return acc + 1;
+            try {
+              const msgSec = createdAt?.seconds || 0;
+              const readSec = lastReadAt?.seconds || (lastReadAt?.toMillis ? Math.floor(lastReadAt.toMillis() / 1000) : 0);
+              if (msgSec > readSec) return acc + 1;
+            } catch {}
+            return acc;
+          }, 0);
+        }
+        return { ...userData, unreadCount };
+      });
       const sorted = usersList.sort((a, b) => {
         const aTime = a.lastMessage?.createdAt?.seconds || a.lastMessage?.lastMessageTime?.seconds || 0;
         const bTime = b.lastMessage?.createdAt?.seconds || b.lastMessage?.lastMessageTime?.seconds || 0;
@@ -42,40 +65,66 @@ const ChatList = ({ users = [], currenUser, onRefresh }: { users?: any[], curren
     if (users && Array.isArray(users) && users.length > 0) {
       users.forEach((user) => {
         if (!user?.id) return;
-        
         try {
-          const roomId = getRoomId(currenUser.uid, user.id);
-          const docRef = doc(db, 'rooms', roomId);
-          const messagesRef = collection(docRef, 'messages');
-          const q = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
+          // Wrap per-user logic in async IIFE to allow awaiting read status
+          (async () => {
+            const roomId = getRoomId(currenUser.uid, user.id);
+            const roomRef = doc(db, 'rooms', roomId);
+            const messagesRef = collection(roomRef, 'messages');
+            // Fetch initial last read timestamp for current user
+            let initialLastReadAt: any = null;
+            try {
+              const readStatusRef = doc(db, 'rooms', roomId, 'readStatus', currenUser.uid);
+              const readSnap = await getDoc(readStatusRef);
+              if (readSnap.exists()) {
+                initialLastReadAt = readSnap.data()?.lastReadAt || null;
+              }
+            } catch (e) {
+              console.warn('Could not fetch read status for room', roomId, e);
+            }
+            lastReadAtMap.set(roomId, initialLastReadAt);
 
-          const unsubscribe = onSnapshot(
-            q, 
-            (snapshot) => {
-              try {
-                const lastMessageDoc = snapshot.docs[0];
-                
-                if (lastMessageDoc) {
-                  const lastMessage = lastMessageDoc.data();
+            // Listen to readStatus changes
+            const readStatusRef = doc(db, 'rooms', roomId, 'readStatus', currenUser.uid);
+            const unsubscribeReadStatus = onSnapshot(
+              readStatusRef,
+              (readSnap) => {
+                const lastReadAt = readSnap.exists() ? readSnap.data()?.lastReadAt || null : null;
+                lastReadAtMap.set(roomId, lastReadAt);
+                updateUsersList(); // Recalculate unreadCount when lastReadAt changes
+              },
+              (error) => {
+                console.warn('Error listening to read status:', error);
+              }
+            );
+            unsubscribes.push(unsubscribeReadStatus);
+
+            // Listen latest batch of messages (limit to reduce cost)
+            const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'), limit(100));
+            const unsubscribeMessages = onSnapshot(
+              messagesQuery,
+              (snapshot) => {
+                try {
+                  let lastMessageDoc = snapshot.docs[0];
+                  let lastMessage = lastMessageDoc ? lastMessageDoc.data() : null;
+
                   usersWithMessagesMap.set(user.id, {
                     user,
                     lastMessage,
                     chatType: 'regular',
-                    unreadCount: 0,
+                    messagesSnapshot: snapshot,
                   });
-                } 
-                
-                updateUsersList();
-              } catch (error) {
-                console.error('Error processing message snapshot:', error);
+                  updateUsersList();
+                } catch (error) {
+                  console.error('Error processing direct chat snapshot:', error);
+                }
+              },
+              (error) => {
+                console.error('Error listening to direct chat messages:', error);
               }
-            },
-            (error) => {
-              console.error('Error listening to messages:', error);
-            }
-          );
-
-          unsubscribes.push(unsubscribe);
+            );
+            unsubscribes.push(unsubscribeMessages);
+          })();
         } catch (error) {
           console.error('Error setting up message listener for user:', user.id, error);
         }

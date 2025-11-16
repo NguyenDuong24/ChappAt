@@ -41,9 +41,14 @@ import { giftService } from '@/services/giftService';
 import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-react-native';
 import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
-import { manipulateAsync } from 'expo-image-manipulator';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as jpeg from 'jpeg-js';
 import { decode as atob } from 'base-64';
+import ReportModalSimple from '@/components/common/ReportModalSimple';
+import ExpoPushNotificationService from '@/services/expoPushNotificationService';
+import { useSound } from '@/hooks/useSound';
+import { ChatThemeProvider, useChatTheme } from '@/context/ChatThemeContext';
+import ChatThemePicker from '@/components/chat/ChatThemePicker';
 
 const storage = getStorage();
 const PIC_INPUT_SHAPE = { width: 224, height: 224 };
@@ -53,10 +58,10 @@ const NSFW_CLASSES = { 0: 'Drawing', 1: 'Hentai', 2: 'Neutral', 3: 'Porn', 4: 'S
 const NSFW_MODEL_JSON = require('../../assets/model/model.json');
 const NSFW_MODEL_WEIGHTS = [require('../../assets/model/group1-shard1of1.bin')];
 
-function imageToTensor(rawImageData) {
+function imageToTensor(rawImageData: any) {
   try {
-    const TO_UINT8ARRAY = true;
-    const { width, height, data } = jpeg.decode(rawImageData, TO_UINT8ARRAY);
+    const TO_UINT8ARRAY = { useTArray: true } as any;
+    const { width, height, data } = (jpeg as any).decode(rawImageData, TO_UINT8ARRAY);
     const buffer = new Uint8Array(width * height * 3);
     let offset = 0;
     for (let i = 0; i < buffer.length; i += 3) {
@@ -65,14 +70,14 @@ function imageToTensor(rawImageData) {
       buffer[i + 2] = data[offset + 2];
       offset += 4;
     }
-    return tf.tidy(() => tf.tensor4d(buffer, [1, height, width, 3]).div(255));
+    return (tf as any).tidy(() => (tf as any).tensor4d(buffer, [1, height, width, 3]).div(255));
   } catch (error) {
     console.error('Error in imageToTensor:', error);
     throw error;
   }
 }
 
-export default function ChatRoom() {
+function ChatRoomInner() {
   const { id } = useLocalSearchParams();  
   const router = useRouter();
   const { user, coins, /* optional */ topupCoins } = useAuth();
@@ -109,10 +114,15 @@ export default function ChatRoom() {
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [giftCatalog, setGiftCatalog] = useState<any[]>([]);
   const [showGifts, setShowGifts] = useState(false);
-  const [nsfwModel, setNsfwModel] = useState(null);
+  const [nsfwModel, setNsfwModel] = useState<tf.LayersModel | null>(null);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reportTarget, setReportTarget] = useState<any>(null);
+  const [showThemePicker, setShowThemePicker] = useState(false);
   const scrollViewRef = useRef<any>(null);
   const messagePositionsRef = useRef<Record<string, number>>({});
   const latestMessagesRef = useRef<any[]>([]);
+  const previousMessageCountRef = useRef(0);
+  const { playMessageReceivedSound, playMessageSentSound } = useSound();
 
   // Use optimized chat messages hook
   const roomId = getRoomId(user?.uid as string, peerId);
@@ -162,6 +172,18 @@ export default function ChatRoom() {
     const unsub = onSnapshot(qNew, (snap) => {
       const newMsgs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       if (newMsgs.length > 0) {
+        console.log('🔔 [Chat] New messages received:', newMsgs.length);
+        
+        // Check if any new message is from another user
+        const hasMessageFromOther = newMsgs.some((msg: any) => msg.uid !== user?.uid);
+        
+        if (hasMessageFromOther) {
+          console.log('🔊 [Chat] Playing sound for new message from other user');
+          playMessageReceivedSound();
+        } else {
+          console.log('⏭️ [Chat] All messages are from current user, skipping sound');
+        }
+        
         setDisplayMessages(prev => {
           const combined = [...prev, ...newMsgs];
           combined.sort((a, b) => a.createdAt.seconds - b.createdAt.seconds);
@@ -182,7 +204,7 @@ export default function ChatRoom() {
     });
 
     return () => unsub();
-  }, [roomId, newestTimestamp]);
+  }, [roomId, newestTimestamp, playMessageReceivedSound, user?.uid]);
 
   // Realtime patch listener for the currently loaded window (oldest..newest)
   useEffect(() => {
@@ -268,6 +290,7 @@ export default function ChatRoom() {
       console.log('Content violation detected:', result);
     }
   });
+  const { loadTheme, currentTheme } = useChatTheme();
 
   const createRoomIfNotExists = async () => {
     const myUid = user?.uid as string;
@@ -311,10 +334,10 @@ export default function ChatRoom() {
     }
   };
 
-  const classifyImageNSFW = async (uri) => {
+  const classifyImageNSFW = async (uri: string) => {
     if (!nsfwModel || !uri) {
       console.warn('NSFW model not loaded or invalid URI');
-      return { isInappropriate: false, scores: {}, reason: 'Model not available' };
+      return { isInappropriate: false, scores: {}, reason: 'Model not available' } as any;
     }
 
     console.group(`🔎 NSFW check for: ${uri}`);
@@ -322,15 +345,15 @@ export default function ChatRoom() {
       const resized = await manipulateAsync(
         uri,
         [{ resize: { width: PIC_INPUT_SHAPE.width, height: PIC_INPUT_SHAPE.height } }],
-        { format: 'jpeg', base64: true }
+        { format: SaveFormat.JPEG, base64: true }
       );
-      const base64 = resized.base64;
-      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      const base64: string = (resized as any).base64;
+      const bytes = Uint8Array.from(atob(base64), (c: any) => (c as string).charCodeAt(0));
       const input = imageToTensor(bytes);
-      const logits = nsfwModel.predict(input);
-      const values = await logits.data();
-      logits.dispose();
-      input.dispose();
+      const logits = (nsfwModel as tf.LayersModel).predict(input) as tf.Tensor;
+      const values = await (logits as any).data();
+      (logits as any).dispose?.();
+      (input as any).dispose?.();
 
       const p = values[3] || 0; // Porn
       const h = values[1] || 0; // Hentai
@@ -338,29 +361,27 @@ export default function ChatRoom() {
       const n = values[2] || 0; // Neutral
       const d = values[0] || 0; // Drawing
 
-      // New thresholds: more sensitive
       const isInappropriate = 
         p >= 0.5 ||  
         h >= 0.5 ||  
         s >= 0.7 ||  
         (p + h + s >= 0.8);  
 
-      // Detailed reason, show if above warning threshold
-      const reasonParts = [];
+      const reasonParts: string[] = [];
       if (p >= 0.45) reasonParts.push(`Porn: ${(p * 100).toFixed(1)}%`);
       if (h >= 0.45) reasonParts.push(`Hentai: ${(h * 100).toFixed(1)}%`);
       if (s >= 0.6) reasonParts.push(`Sexy: ${(s * 100).toFixed(1)}%`);
       const reason = reasonParts.join(', ') || 'An toàn';
 
-      const scores = { p, h, s, n, d };
+      const scores = { p, h, s, n, d } as any;
       console.log('Scores:', scores);
       console.log('Is inappropriate:', isInappropriate);
       console.log('Reason:', reason);
 
-      return { isInappropriate, scores, reason };
+      return { isInappropriate, scores, reason } as any;
     } catch (error) {
       console.error('NSFW classify error:', error);
-      return { isInappropriate: true, scores: {}, reason: 'Lỗi xử lý ảnh - chặn để an toàn' }; // Fallback: block if error
+      return { isInappropriate: true, scores: {}, reason: 'Lỗi xử lý ảnh - chặn để an toàn' } as any;
     } finally {
       console.groupEnd();
     }
@@ -414,6 +435,18 @@ export default function ChatRoom() {
         { merge: true }
       );
       console.log('🧾 [uploadImage] Room metadata updated');
+
+      // NEW: Gửi push notification qua Expo (FCM/APNs) cho người nhận khi có ảnh mới
+      try {
+        await ExpoPushNotificationService.sendPushToUser(peerId, {
+          title: user?.username || user?.displayName || 'Tin nhắn mới',
+          body: '📷 Đã gửi một hình ảnh',
+          data: { type: 'message', chatId: roomId, senderId: user?.uid, receiverId: peerId },
+        });
+        console.log('📬 [uploadImage] Push sent to peer');
+      } catch (e) {
+        console.warn('⚠️ [uploadImage] Cannot send push:', e);
+      }
     } catch (error: any) {
       console.error('❌ [uploadImage] Error:', error);
       Alert.alert('Image Upload', error.message);
@@ -497,6 +530,46 @@ export default function ChatRoom() {
     updateScrollView();
   }, [messages, roomId]);
 
+  const openReportForMessage = (message: any) => {
+    try {
+      const messageType = message?.imageUrl ? 'image' : 'text';
+      setReportTarget({
+        id: message?.id || message?.messageId,
+        name: message?.senderName || 'Người dùng',
+        content: message?.text || (message?.imageUrl ? 'Hình ảnh' : ''),
+        messageType,
+        messageText: messageType === 'text' ? (message?.text || '') : '',
+        messageImageUrl: messageType === 'image' ? (message?.imageUrl || '') : '',
+      });
+      setReportVisible(true);
+    } catch (e) {
+      console.warn('openReportForMessage failed', e);
+    }
+  };
+
+  const submitMessageReport = async (data: any) => {
+    try {
+      const sanitized = {
+        ...data,
+        images: Array.isArray(data?.images) ? data.images : [],
+      };
+      await addDoc(collection(db, 'reports'), {
+        ...sanitized,
+        context: 'private_chat',
+        roomId,
+        // Include original message snapshot
+        reportedMessageId: reportTarget?.id || null,
+        reportedMessageType: reportTarget?.messageType || null,
+        reportedMessageText: reportTarget?.messageType === 'text' ? (reportTarget?.messageText || '') : '',
+        reportedMessageImageUrl: reportTarget?.messageType === 'image' ? (reportTarget?.messageImageUrl || '') : '',
+        createdAt: Timestamp.fromDate(new Date()),
+      });
+    } catch (e) {
+      console.error('submitMessageReport error', e);
+      throw e;
+    }
+  };
+
   const handleSend = async () => {
     const raw = newMessage;
     const message = raw.trim();
@@ -541,6 +614,19 @@ export default function ChatRoom() {
         { merge: true }
       );
 
+      // NEW: Gửi push notification qua Expo (FCM/APNs) cho người nhận khi có tin nhắn mới
+      try {
+        await ExpoPushNotificationService.sendPushToUser(peerUid, {
+          title: user?.username || user?.displayName || 'Tin nhắn mới',
+          body: message,
+          data: { type: 'message', chatId: rId, senderId: user?.uid, receiverId: peerUid },
+        });
+        console.log('📬 [handleSend] Push sent to peer');
+      } catch (e) {
+        console.warn('⚠️ [handleSend] Cannot send push:', e);
+      }
+
+      playMessageSentSound();
       setReplyTo(null);
     } catch (error: any) {
       // Restore input so user can retry
@@ -675,9 +761,9 @@ export default function ChatRoom() {
     let isMounted = true;
     (async () => {
       try {
-        await tf.ready();
-        const model = await tf.loadLayersModel(bundleResourceIO(NSFW_MODEL_JSON, NSFW_MODEL_WEIGHTS));
-        if (isMounted) setNsfwModel(model);
+        await (tf as any).ready();
+        const model = await (tf as any).loadLayersModel(bundleResourceIO(NSFW_MODEL_JSON, NSFW_MODEL_WEIGHTS));
+        if (isMounted) setNsfwModel(model as tf.LayersModel);
       } catch (e) {
         console.error('NSFW model load error:', e);
       }
@@ -685,13 +771,20 @@ export default function ChatRoom() {
     return () => { isMounted = false; };
   }, []);
 
+  // Load chat theme on mount
+  useEffect(() => {
+    if (roomId) {
+      loadTheme(roomId);
+    }
+  }, [roomId, loadTheme]);
+
   // Show loading while checking permissions
   if (chatPermissionLoading) {
     return (
       <KeyboardAvoidingView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, { backgroundColor: currentThemeColors.background, justifyContent: 'center', alignItems: 'center' }]}>
-          <ChatRoomHeader router={router} user={userInfo} userId={peerId}/>
+          <ChatRoomHeader router={router} user={userInfo} userId={peerId} chatTheme={currentTheme}/>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#6366F1" />
             <Text style={{ color: currentThemeColors.text, marginTop: 12 }}>
@@ -712,8 +805,8 @@ export default function ChatRoom() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        <ChatRoomHeader router={router} user={userInfo} userId={peerId}/>
+      <View style={[styles.container, { backgroundColor: currentTheme?.backgroundColor || currentThemeColors.background }]}>
+        <ChatRoomHeader router={router} user={userInfo} userId={peerId} onThemePress={() => setShowThemePicker(true)} chatTheme={currentTheme}/>
 
         {/* Gift picker modal */}
         <Modal
@@ -776,6 +869,13 @@ export default function ChatRoom() {
           </View>
         </Modal>
 
+        {/* Theme picker modal */}
+        <ChatThemePicker 
+          visible={showThemePicker} 
+          onClose={() => setShowThemePicker(false)} 
+          roomId={roomId} 
+        />
+
         {/* Pinned messages section */}
         {pinnedMessages.length > 0 && (
           <View style={[styles.pinnedContainer, { backgroundColor: currentThemeColors.backgroundHeader, borderBottomColor: currentThemeColors.border }]}> 
@@ -804,6 +904,8 @@ export default function ChatRoom() {
             onReply={handleReplySelect}
             onMessageLayout={handleMessageLayout}
             highlightedMessageId={highlightedMessageId || undefined}
+            onReport={openReportForMessage}
+            backgroundColor={currentTheme?.backgroundColor}
           />
         </View>
         {/* Reply preview above input - only show if can chat */}
@@ -830,17 +932,18 @@ export default function ChatRoom() {
             </Text>
           </View>
         ) : (
-          <View style={[styles.inputBar, { borderTopColor: currentThemeColors.border }]}> 
-            {/* Gift button */}
-            <TouchableOpacity onPress={() => setShowGifts(true)} style={[styles.roundBtn, { backgroundColor: currentThemeColors.surface }]}> 
-              <Text style={{ fontSize: 18 }}>🥖</Text>
-            </TouchableOpacity>
+          <View style={[styles.inputBar, { borderTopColor: currentTheme?.textColor || currentThemeColors.border }]}> 
+
 
             {/* Text input with inline image icon */}
-            <View style={[styles.inputWrapper, { backgroundColor: currentThemeColors.inputBackground, borderColor: currentThemeColors.border }]}> 
+            <View style={[styles.inputWrapper, { backgroundColor: currentTheme?.backgroundColor || currentThemeColors.inputBackground, borderColor: currentTheme?.textColor || currentThemeColors.border }]}> 
               <TouchableOpacity onPress={handleImagePicker} style={styles.inlineIcon}>
-                <MaterialIcons name="image" size={22} color={currentThemeColors.subtleText} />
+                <MaterialIcons name="image" size={22} color={currentTheme?.textColor || currentThemeColors.subtleText} />
               </TouchableOpacity>
+              {/* Gift button */}
+            <TouchableOpacity onPress={() => setShowGifts(true)} style={[styles.roundBtn]}> 
+              <Text style={{ fontSize: 18 }}>🥖</Text>
+            </TouchableOpacity>
               <TextInput
                 value={newMessage}
                 onChangeText={setNewMessage}
@@ -848,8 +951,9 @@ export default function ChatRoom() {
                 mode="flat"
                 style={[styles.textInput]}
                 underlineColor="transparent"
-                placeholderTextColor={currentThemeColors.placeholderText}
-                textColor={currentThemeColors.text}
+                theme={{ colors: { primary: 'transparent', underlineColor: 'transparent' } }}
+                placeholderTextColor={currentTheme?.textColor ? `${currentTheme.textColor}80` : currentThemeColors.placeholderText}
+                textColor={currentTheme?.textColor || currentThemeColors.text}
                 onSubmitEditing={handleSend}
                 blurOnSubmit
                 returnKeyType="send"
@@ -867,6 +971,19 @@ export default function ChatRoom() {
           </View>
         )}
       </View>
+
+      <ReportModalSimple
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onSubmit={submitMessageReport}
+        targetType="message"
+        currentUser={{ uid: user?.uid || '' }}
+        targetInfo={{
+          id: reportTarget?.id || '',
+          name: reportTarget?.name || '',
+          content: reportTarget?.content || '',
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -930,7 +1047,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 20,
+    borderRadius: 25,
     paddingHorizontal: 8,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -942,6 +1059,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
     marginLeft: 4,
+    paddingBottom: 0,
   },
   sendBtn: {
     width: 36,
@@ -1015,3 +1133,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+export default function ChatRoom() {
+  return (
+    <ChatThemeProvider>
+      <ChatRoomInner />
+    </ChatThemeProvider>
+  );
+}

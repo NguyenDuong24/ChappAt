@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Share, Linking, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Share, Linking, Platform, Alert } from 'react-native';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { HotSpot } from '@/types/hotSpots';
 import { useRouter } from 'expo-router';
@@ -38,6 +38,11 @@ const ActionMenu = ({ hotSpot }: ActionMenuProps) => {
     });
   };
 
+  const handleViewReviews = () => {
+    // TODO: Navigate to reviews screen
+    Alert.alert('Tính năng đang phát triển', 'Chức năng xem đánh giá sẽ được thêm trong phiên bản sau.');
+  };
+
   return (
     <View style={styles.actionsContainer}>
       <TouchableOpacity style={styles.actionButton} onPress={handleGetDirections}>
@@ -47,6 +52,10 @@ const ActionMenu = ({ hotSpot }: ActionMenuProps) => {
       <TouchableOpacity style={styles.actionButton} onPress={handleInviteFriend}>
         <MaterialIcons name="person-add" size={24} color="#4ECDC4" />
         <Text style={styles.actionText}>Mời bạn</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.actionButton} onPress={handleViewReviews}>
+        <MaterialIcons name="star" size={24} color="#4ECDC4" />
+        <Text style={styles.actionText}>Đánh giá</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
         <MaterialIcons name="share" size={24} color="#4ECDC4" />
@@ -68,6 +77,8 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     alignItems: 'center',
+    flex: 1,
+    paddingVertical: 8,
   },
   actionText: {
     marginTop: 5,

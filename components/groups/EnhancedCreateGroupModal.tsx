@@ -1,4 +1,4 @@
-import React, { useState, useContext, useCallback } from 'react';
+import React, { useState, useContext, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,9 +9,8 @@ import {
   TouchableOpacity,
   Modal as RNModal,
   SafeAreaView,
-  Animated,
 } from 'react-native';
-import { Text, Button, TextInput, Chip } from 'react-native-paper';
+import { Text, TextInput, Switch } from 'react-native-paper';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,8 +20,6 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/firebaseConfig';
 import { nanoid } from 'nanoid';
 import FriendSelectionList from '../friends/FriendSelectionList';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 
 interface CreateGroupModalProps {
   visible: boolean;
@@ -38,7 +35,7 @@ const CreateGroupModal = ({
   currentUser,
 }: CreateGroupModalProps) => {
   const themeCtx = useContext(ThemeContext);
-  const theme = themeCtx?.theme || 'light';
+  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   
   const [name, setName] = useState('');
@@ -52,6 +49,8 @@ const CreateGroupModal = ({
   const [uidAdding, setUidAdding] = useState(false);
   const [uidError, setUidError] = useState<string | null>(null);
   const [selectedDetails, setSelectedDetails] = useState<Record<string, { displayName?: string; photoURL?: string }>>({});
+  const [groupType, setGroupType] = useState<'public' | 'private'>('private');
+  const [isSearchable, setIsSearchable] = useState(true);
 
   const pickImage = async () => {
     try {
@@ -128,6 +127,8 @@ const CreateGroupModal = ({
         updatedAt: serverTimestamp(),
         members: [currentUser.uid, ...selectedFriends],
         admins: [currentUser.uid],
+        type: groupType,
+        isSearchable: groupType === 'private' ? false : isSearchable,
       };
 
       const docRef = await addDoc(collection(db, 'groups'), groupData);
@@ -139,6 +140,8 @@ const CreateGroupModal = ({
       setSelectedFriends([]);
       setStep(1);
       setErrors({});
+      setGroupType('private');
+      setIsSearchable(true);
       
       onClose();
     } catch (error) {
@@ -188,217 +191,321 @@ const CreateGroupModal = ({
     });
   }, []);
 
+  useEffect(() => {
+    if (groupType === 'private') {
+      setIsSearchable(false);
+    } else {
+      setIsSearchable(true);
+    }
+  }, [groupType]);
+
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      <View style={[styles.glassCard, { backgroundColor: theme === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
-        <TouchableOpacity style={styles.imageContainer} onPress={pickImage} activeOpacity={0.8}>
-          <LinearGradient
-            colors={theme === 'dark' ? ['#6366F1', '#8B5CF6', '#EC4899'] : ['#667EEA', '#764BA2', '#F093FB']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientRing}
-          >
-            <View style={[styles.gradientRingInner, { backgroundColor: theme === 'dark' ? '#1E293B' : '#FFFFFF' }]}>
-              {image ? (
-                <Image source={{ uri: image }} style={styles.groupImage} />
-              ) : (
-                <View style={styles.imagePlaceholder}>
-                  <LinearGradient
-                    colors={theme === 'dark' ? ['#334155', '#475569'] : ['#E0E7FF', '#C7D2FE']}
-                    style={styles.placeholderGradient}
-                  >
-                    <MaterialCommunityIcons 
-                      name="camera-plus-outline" 
-                      size={42} 
-                      color={theme === 'dark' ? '#94A3B8' : '#6366F1'} 
-                    />
-                  </LinearGradient>
-                </View>
-              )}
+      {/* Image Picker */}
+      <TouchableOpacity 
+        style={styles.imagePickerContainer} 
+        onPress={pickImage} 
+        activeOpacity={0.7}
+      >
+        {image ? (
+          <View style={styles.imageWrapper}>
+            <Image source={{ uri: image }} style={styles.groupImage} />
+            <View style={styles.imageOverlay}>
+              <MaterialCommunityIcons name="camera" size={24} color="#FFF" />
             </View>
-          </LinearGradient>
-          <View style={styles.editBadge}>
-            <LinearGradient
-              colors={['#667EEA', '#764BA2']}
-              style={styles.editBadgeGradient}
-            >
-              <MaterialCommunityIcons name="pencil" size={16} color="#FFFFFF" />
-            </LinearGradient>
           </View>
-        </TouchableOpacity>
-        
-        <Text style={[styles.helperText, { color: theme === 'dark' ? '#94A3B8' : '#64748B' }]}>
-          Nhấn để thêm ảnh nhóm
+        ) : (
+          <View style={[styles.imagePlaceholder, { 
+            backgroundColor: theme === 'dark' ? '#1F2937' : '#F3F4F6',
+            borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
+          }]}>
+            <MaterialCommunityIcons 
+              name="camera-plus" 
+              size={40} 
+              color={theme === 'dark' ? '#6B7280' : '#9CA3AF'} 
+            />
+            <Text style={[styles.placeholderText, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+              Thêm ảnh nhóm
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      {/* Group Name */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>
+          Tên nhóm <Text style={styles.required}>*</Text>
         </Text>
+        <TextInput
+          mode="outlined"
+          placeholder="Ví dụ: Nhóm bạn thân"
+          value={name}
+          onChangeText={setName}
+          style={[styles.input, { backgroundColor: 'transparent' }]}
+          error={!!errors.name}
+          disabled={loading}
+          outlineColor={theme === 'dark' ? '#374151' : '#E5E7EB'}
+          activeOutlineColor="#0084FF"
+          textColor={currentThemeColors.text}
+          placeholderTextColor={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
+          dense
+        />
+        {errors.name && (
+          <View style={styles.errorRow}>
+            <MaterialCommunityIcons name="alert-circle" size={14} color="#EF4444" />
+            <Text style={styles.errorText}>{errors.name}</Text>
+          </View>
+        )}
+      </View>
 
-        <View style={styles.inputContainer}>
-          <TextInput
-            mode="outlined"
-            label="Tên nhóm"
-            placeholder="Ví dụ: Nhóm bạn thân"
-            value={name}
-            onChangeText={setName}
-            style={styles.input}
-            error={!!errors.name}
-            disabled={loading}
-            outlineColor={theme === 'dark' ? '#334155' : '#E2E8F0'}
-            activeOutlineColor="#667EEA"
-            textColor={currentThemeColors.text}
-            theme={{ colors: { onSurfaceVariant: theme === 'dark' ? '#94A3B8' : '#64748B' } }}
-            left={<TextInput.Icon icon="account-group" color="#667EEA" />}
-          />
-          {errors.name && (
-            <View style={styles.errorContainer}>
-              <MaterialCommunityIcons name="alert-circle" size={14} color="#EF4444" />
-              <Text style={styles.errorText}>{errors.name}</Text>
+      {/* Description */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>
+          Mô tả
+        </Text>
+        <TextInput
+          mode="outlined"
+          placeholder="Thêm mô tả cho nhóm..."
+          value={description}
+          onChangeText={setDescription}
+          style={[styles.input, styles.textArea, { backgroundColor: 'transparent' }]}
+          multiline
+          numberOfLines={3}
+          disabled={loading}
+          outlineColor={theme === 'dark' ? '#374151' : '#E5E7EB'}
+          activeOutlineColor="#0084FF"
+          textColor={currentThemeColors.text}
+          placeholderTextColor={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
+          dense
+        />
+      </View>
+
+      {/* Group Type */}
+      <View style={styles.inputGroup}>
+        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>
+          Quyền riêng tư
+        </Text>
+        <View style={styles.typeOptions}>
+          <TouchableOpacity
+            style={[
+              styles.typeCard,
+              { 
+                backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
+                borderColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
+              },
+              groupType === 'private' && styles.typeCardSelected
+            ]}
+            onPress={() => setGroupType('private')}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.typeIconContainer,
+              { backgroundColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }
+            ]}>
+              <MaterialCommunityIcons 
+                name="lock" 
+                size={20} 
+                color={groupType === 'private' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')} 
+              />
             </View>
-          )}
-        </View>
+            <View style={styles.typeContent}>
+              <Text style={[styles.typeTitle, { color: currentThemeColors.text }]}>
+                Riêng tư
+              </Text>
+              <Text style={[styles.typeDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                Chỉ thành viên được mời
+              </Text>
+            </View>
+            {groupType === 'private' && (
+              <MaterialCommunityIcons name="check-circle" size={20} color="#0084FF" />
+            )}
+          </TouchableOpacity>
 
-        <View style={styles.inputContainer}>
-          <TextInput
-            mode="outlined"
-            label="Mô tả nhóm"
-            placeholder="Mô tả ngắn về nhóm của bạn..."
-            value={description}
-            onChangeText={setDescription}
-            style={[styles.input, styles.textArea]}
-            multiline
-            numberOfLines={3}
-            disabled={loading}
-            outlineColor={theme === 'dark' ? '#334155' : '#E2E8F0'}
-            activeOutlineColor="#667EEA"
-            textColor={currentThemeColors.text}
-            theme={{ colors: { onSurfaceVariant: theme === 'dark' ? '#94A3B8' : '#64748B' } }}
-            left={<TextInput.Icon icon="text-box-outline" color="#667EEA" />}
-          />
+          <TouchableOpacity
+            style={[
+              styles.typeCard,
+              { 
+                backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
+                borderColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
+              },
+              groupType === 'public' && styles.typeCardSelected
+            ]}
+            onPress={() => setGroupType('public')}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              styles.typeIconContainer,
+              { backgroundColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }
+            ]}>
+              <MaterialCommunityIcons 
+                name="earth" 
+                size={20} 
+                color={groupType === 'public' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')} 
+              />
+            </View>
+            <View style={styles.typeContent}>
+              <Text style={[styles.typeTitle, { color: currentThemeColors.text }]}>
+                Công khai
+              </Text>
+              <Text style={[styles.typeDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                Ai cũng có thể tham gia
+              </Text>
+            </View>
+            {groupType === 'public' && (
+              <MaterialCommunityIcons name="check-circle" size={20} color="#0084FF" />
+            )}
+          </TouchableOpacity>
         </View>
+      </View>
 
-        <View style={styles.infoBox}>
-          <MaterialCommunityIcons name="information-outline" size={18} color="#667EEA" />
-          <Text style={[styles.infoText, { color: theme === 'dark' ? '#94A3B8' : '#64748B' }]}>
-            Bạn sẽ là quản trị viên của nhóm này
-          </Text>
+      {/* Searchable Option */}
+      {groupType === 'public' && (
+        <View style={[styles.switchCard, { 
+          backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
+          borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
+        }]}>
+          <View style={styles.switchContent}>
+            <View style={styles.switchTextContainer}>
+              <Text style={[styles.switchTitle, { color: currentThemeColors.text }]}>
+                Cho phép tìm kiếm
+              </Text>
+              <Text style={[styles.switchDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+                Hiển thị nhóm trong kết quả tìm kiếm
+              </Text>
+            </View>
+            <Switch
+              value={isSearchable}
+              onValueChange={setIsSearchable}
+              color="#0084FF"
+            />
+          </View>
         </View>
+      )}
+
+      {/* Info Box */}
+      <View style={[styles.infoBox, { 
+        backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 132, 255, 0.05)',
+        borderColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 132, 255, 0.1)'
+      }]}>
+        <MaterialCommunityIcons name="information" size={18} color="#0084FF" />
+        <Text style={[styles.infoText, { color: theme === 'dark' ? '#93C5FD' : '#0084FF' }]}>
+          Bạn sẽ là quản trị viên của nhóm này
+        </Text>
       </View>
     </View>
   );
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      <View style={[styles.glassCard, { backgroundColor: theme === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.9)' }]}>
-        <View style={styles.sectionHeader}>
-          <MaterialCommunityIcons name="account-multiple-plus" size={24} color="#667EEA" />
-          <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-            Thêm thành viên
-          </Text>
+      {/* Add by UID */}
+      <View style={styles.uidSection}>
+        <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+          Thêm bằng UID
+        </Text>
+        <View style={styles.uidInputRow}>
+          <TextInput
+            mode="outlined"
+            placeholder="Nhập UID người dùng"
+            value={uidInput}
+            onChangeText={(t) => {
+              setUidError(null);
+              setUidInput(t);
+            }}
+            onSubmitEditing={handleAddUid}
+            disabled={uidAdding || loading}
+            style={[styles.input, styles.uidInput, { backgroundColor: 'transparent' }]}
+            outlineColor={theme === 'dark' ? '#374151' : '#E5E7EB'}
+            activeOutlineColor="#0084FF"
+            textColor={currentThemeColors.text}
+            placeholderTextColor={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
+            dense
+          />
+          <TouchableOpacity
+            style={[styles.uidAddButton, { backgroundColor: '#0084FF' }]}
+            onPress={handleAddUid}
+            disabled={uidAdding || loading}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons 
+              name={uidAdding ? "loading" : "plus"} 
+              size={22} 
+              color="#FFF" 
+            />
+          </TouchableOpacity>
         </View>
-        
+        {uidError && (
+          <View style={styles.errorRow}>
+            <MaterialCommunityIcons name="alert-circle" size={14} color="#EF4444" />
+            <Text style={styles.errorText}>{uidError}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Selected Members */}
+      {selectedFriends.length > 0 && (
+        <View style={styles.selectedSection}>
+          <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+            Đã chọn ({selectedFriends.length})
+          </Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.selectedList}
+          >
+            {selectedFriends.map((uid) => {
+              const displayName = selectedDetails[uid]?.displayName || `User ${uid.slice(0, 6)}`;
+              return (
+                <View 
+                  key={uid} 
+                  style={[styles.selectedChip, { 
+                    backgroundColor: theme === 'dark' ? '#1F2937' : '#F3F4F6',
+                    borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
+                  }]}
+                >
+                  <Text 
+                    style={[styles.selectedChipText, { color: currentThemeColors.text }]} 
+                    numberOfLines={1}
+                  >
+                    {displayName}
+                  </Text>
+                  <TouchableOpacity 
+                    onPress={() => removeSelected(uid)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialCommunityIcons 
+                      name="close-circle" 
+                      size={18} 
+                      color={theme === 'dark' ? '#6B7280' : '#9CA3AF'} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Friend List */}
+      <View style={styles.friendSection}>
+        <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+          Chọn từ danh sách bạn bè
+        </Text>
         {errors.members && (
-          <View style={[styles.errorContainer, { marginBottom: 16 }]}>
+          <View style={[styles.errorRow, { marginBottom: 12 }]}>
             <MaterialCommunityIcons name="alert-circle" size={14} color="#EF4444" />
             <Text style={styles.errorText}>{errors.members}</Text>
           </View>
         )}
-
-        <View style={styles.uidSection}>
-          <Text style={[styles.uidLabel, { color: theme === 'dark' ? '#CBD5E1' : '#475569' }]}>
-            Thêm bằng UID
-          </Text>
-          <View style={styles.addUidRow}>
-            <TextInput
-              mode="outlined"
-              style={[styles.uidInput, { flex: 1 }]}
-              placeholder="Nhập UID người dùng"
-              value={uidInput}
-              onChangeText={(t) => {
-                setUidError(null);
-                setUidInput(t);
-              }}
-              onSubmitEditing={handleAddUid}
-              disabled={uidAdding || loading}
-              outlineColor={theme === 'dark' ? '#334155' : '#E2E8F0'}
-              activeOutlineColor="#667EEA"
-              textColor={currentThemeColors.text}
-              left={<TextInput.Icon icon="identifier" color="#8B5CF6" />}
-            />
-            <TouchableOpacity 
-              onPress={handleAddUid}
-              disabled={uidAdding || loading}
-              style={styles.addButton}
-            >
-              <LinearGradient
-                colors={['#667EEA', '#764BA2']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.addButtonGradient}
-              >
-                {uidAdding ? (
-                  <MaterialCommunityIcons name="loading" size={20} color="#FFFFFF" />
-                ) : (
-                  <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-          {uidError && (
-            <View style={styles.errorContainer}>
-              <MaterialCommunityIcons name="alert-circle" size={14} color="#EF4444" />
-              <Text style={styles.errorText}>{uidError}</Text>
-            </View>
-          )}
-        </View>
-
-        {selectedFriends.length > 0 && (
-          <View style={styles.selectedSection}>
-            <Text style={[styles.selectedLabel, { color: theme === 'dark' ? '#CBD5E1' : '#475569' }]}>
-              Đã chọn ({selectedFriends.length})
-            </Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              style={styles.chipsScroll}
-              contentContainerStyle={styles.chipsContent}
-            >
-              {selectedFriends.map((uid) => {
-                const displayName = selectedDetails[uid]?.displayName || `User ${uid.slice(0, 6)}`;
-                return (
-                  <View key={uid} style={styles.chipWrapper}>
-                    <LinearGradient
-                      colors={theme === 'dark' ? ['#334155', '#475569'] : ['#E0E7FF', '#DDD6FE']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.chipGradient}
-                    >
-                      <Text style={[styles.chipText, { color: currentThemeColors.text }]} numberOfLines={1}>
-                        {displayName}
-                      </Text>
-                      <TouchableOpacity onPress={() => removeSelected(uid)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <MaterialCommunityIcons name="close-circle" size={18} color={theme === 'dark' ? '#94A3B8' : '#6366F1'} />
-                      </TouchableOpacity>
-                    </LinearGradient>
-                  </View>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
-
-        <View style={styles.friendListSection}>
-          <Text style={[styles.selectedLabel, { color: theme === 'dark' ? '#CBD5E1' : '#475569', marginBottom: 12 }]}>
-            Danh sách bạn bè
-          </Text>
-          <View style={[styles.friendListCard, { 
-            backgroundColor: theme === 'dark' ? 'rgba(15, 23, 42, 0.5)' : 'rgba(248, 250, 252, 0.8)',
-            borderColor: theme === 'dark' ? '#334155' : '#E2E8F0'
-          }]}>
-            <FriendSelectionList
-              currentUser={currentUser}
-              selectedFriends={selectedFriends}
-              onSelectionChange={setSelectedFriends}
-              disabled={loading}
-            />
-          </View>
+        <View style={[styles.friendListContainer, { 
+          backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
+          borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
+        }]}>
+          <FriendSelectionList
+            currentUser={currentUser}
+            selectedFriends={selectedFriends}
+            onSelectionChange={setSelectedFriends}
+            disabled={loading}
+          />
         </View>
       </View>
     </View>
@@ -409,66 +516,41 @@ const CreateGroupModal = ({
       visible={visible}
       animationType="slide"
       onRequestClose={onClose}
-      presentationStyle="fullScreen"
+      presentationStyle="pageSheet"
     >
       <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        <LinearGradient
-          colors={theme === 'dark' 
-            ? ['#1E293B', '#0F172A', '#020617'] 
-            : ['#667EEA', '#764BA2', '#F093FB']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1.5, y: 1 }}
-          style={styles.header}
-        >
-          <View style={styles.headerTop}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>
-                {step === 1 ? 'Tạo nhóm mới' : 'Chọn thành viên'}
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                {step === 1 
-                  ? 'Thiết lập thông tin cơ bản cho nhóm' 
-                  : 'Mời bạn bè tham gia nhóm của bạn'
-                }
-              </Text>
-            </View>
-            <TouchableOpacity 
-              onPress={onClose} 
-              style={styles.closeButton}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <View style={styles.closeButtonInner}>
-                <MaterialCommunityIcons name="close" size={22} color="#FFFFFF" />
-              </View>
-            </TouchableOpacity>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <MaterialCommunityIcons name="close" size={24} color={currentThemeColors.text} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>
+              {step === 1 ? 'Tạo nhóm mới' : 'Thêm thành viên'}
+            </Text>
           </View>
+          <View style={styles.headerRight} />
+        </View>
 
-          <View style={styles.progressContainer}>
-            <View style={styles.stepIndicators}>
-              <View style={[styles.stepBubble, step >= 1 && styles.stepBubbleActive]}>
-                <Text style={[styles.stepNumber, step >= 1 && styles.stepNumberActive]}>1</Text>
-              </View>
-              <View style={[styles.stepConnector, step === 2 && styles.stepConnectorActive]} />
-              <View style={[styles.stepBubble, step === 2 && styles.stepBubbleActive]}>
-                <Text style={[styles.stepNumber, step === 2 && styles.stepNumberActive]}>2</Text>
-              </View>
-            </View>
-            <View style={styles.progressBarContainer}>
-              <View style={styles.progressTrack} />
-              <Animated.View 
-                style={[
-                  styles.progressFill,
-                  { width: `${(step / 2) * 100}%` }
-                ]} 
-              />
-            </View>
+        {/* Step Indicator */}
+        <View style={[styles.stepIndicator, { borderBottomColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
+          <View style={styles.stepDots}>
+            <View style={[styles.stepDot, step === 1 && styles.stepDotActive, { 
+              backgroundColor: step === 1 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
+            }]} />
+            <View style={[styles.stepDot, step === 2 && styles.stepDotActive, { 
+              backgroundColor: step === 2 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
+            }]} />
           </View>
-        </LinearGradient>
+          <Text style={[styles.stepText, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
+            Bước {step}/2
+          </Text>
+        </View>
 
+        {/* Content */}
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-          style={{ flex: 1 }}
+          style={styles.content}
         >
           <ScrollView
             style={styles.scrollView}
@@ -479,62 +561,46 @@ const CreateGroupModal = ({
             {step === 1 ? renderStep1() : renderStep2()}
           </ScrollView>
 
+          {/* Footer */}
           <View style={[styles.footer, { 
-            backgroundColor: theme === 'dark' ? 'rgba(15, 23, 42, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-            borderTopColor: theme === 'dark' ? '#334155' : '#E2E8F0'
+            backgroundColor: currentThemeColors.background,
+            borderTopColor: theme === 'dark' ? '#374151' : '#E5E7EB'
           }]}>
             {step === 1 ? (
-              <TouchableOpacity 
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: '#0084FF' }]}
                 onPress={handleNext}
                 disabled={loading}
-                activeOpacity={0.9}
-                style={styles.primaryButtonWrapper}
+                activeOpacity={0.8}
               >
-                <LinearGradient
-                  colors={['#667EEA', '#764BA2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.primaryButtonGradient}
-                >
-                  <Text style={styles.primaryButtonText}>Tiếp tục</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={20} color="#FFFFFF" />
-                </LinearGradient>
+                <Text style={styles.primaryButtonText}>Tiếp tục</Text>
               </TouchableOpacity>
             ) : (
-              <View style={styles.footerRow}>
-                <TouchableOpacity 
+              <View style={styles.footerButtons}>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, { 
+                    borderColor: theme === 'dark' ? '#374151' : '#E5E7EB',
+                    backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB'
+                  }]}
                   onPress={handleBack}
                   disabled={loading}
-                  style={[styles.secondaryButton, { borderColor: theme === 'dark' ? '#475569' : '#CBD5E1' }]}
+                  activeOpacity={0.8}
                 >
-                  <MaterialCommunityIcons name="arrow-left" size={20} color={currentThemeColors.text} />
-                  <Text style={[styles.secondaryButtonText, { color: currentThemeColors.text }]}>Quay lại</Text>
+                  <Text style={[styles.secondaryButtonText, { color: currentThemeColors.text }]}>
+                    Quay lại
+                  </Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+                <TouchableOpacity
+                  style={[styles.primaryButton, { backgroundColor: '#0084FF', flex: 1 }]}
                   onPress={handleCreate}
                   disabled={loading}
-                  activeOpacity={0.9}
-                  style={[styles.primaryButtonWrapper, { flex: 1 }]}
+                  activeOpacity={0.8}
                 >
-                  <LinearGradient
-                    colors={['#667EEA', '#764BA2']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.primaryButtonGradient}
-                  >
-                    {loading ? (
-                      <>
-                        <MaterialCommunityIcons name="loading" size={20} color="#FFFFFF" />
-                        <Text style={styles.primaryButtonText}>Đang tạo...</Text>
-                      </>
-                    ) : (
-                      <>
-                        <MaterialCommunityIcons name="check-circle" size={20} color="#FFFFFF" />
-                        <Text style={styles.primaryButtonText}>Tạo nhóm</Text>
-                      </>
-                    )}
-                  </LinearGradient>
+                  {loading ? (
+                    <MaterialCommunityIcons name="loading" size={20} color="#FFF" />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Tạo nhóm</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
@@ -550,102 +616,55 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTop: {
+  closeButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  headerRight: {
+    width: 40,
+  },
+  stepIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 0.3,
+  stepDots: {
+    flexDirection: 'row',
+    gap: 6,
   },
-  headerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 14,
-    marginTop: 4,
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  stepDotActive: {
+    width: 24,
+  },
+  stepText: {
+    fontSize: 13,
     fontWeight: '500',
   },
-  closeButton: {
-    marginLeft: 12,
-  },
-  closeButtonInner: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressContainer: {
-    gap: 12,
-  },
-  stepIndicators: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepBubble: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepBubbleActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  stepNumber: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  stepNumberActive: {
-    color: '#667EEA',
-  },
-  stepConnector: {
-    width: 60,
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    marginHorizontal: 8,
-    borderRadius: 1.5,
-  },
-  stepConnectorActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  progressBarContainer: {
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  progressTrack: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 3,
+  content: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -655,219 +674,218 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   stepContainer: {
-    flex: 1,
+    gap: 24,
   },
-  glassCard: {
-    borderRadius: 20,
-    padding: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  imageContainer: {
+  imagePickerContainer: {
     alignSelf: 'center',
-    marginBottom: 16,
-    position: 'relative',
+    marginBottom: 8,
   },
-  gradientRing: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    padding: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gradientRingInner: {
-    width: 142,
-    height: 142,
-    borderRadius: 71,
+  imageWrapper: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative',
   },
   groupImage: {
     width: '100%',
     height: '100%',
   },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   imagePlaceholder: {
-    width: '100%',
-    height: '100%',
-  },
-  placeholderGradient: {
-    width: '100%',
-    height: '100%',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
-  editBadge: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-  },
-  editBadgeGradient: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  helperText: {
-    textAlign: 'center',
+  placeholderText: {
     fontSize: 13,
     fontWeight: '500',
-    marginBottom: 24,
   },
-  inputContainer: {
-    marginBottom: 20,
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  required: {
+    color: '#EF4444',
   },
   input: {
-    backgroundColor: 'transparent',
+    fontSize: 15,
   },
   textArea: {
     minHeight: 100,
   },
-  errorContainer: {
+  errorRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
     gap: 6,
+    marginTop: 4,
   },
   errorText: {
-    color: '#EF4444',
     fontSize: 12,
-    fontWeight: '500',
+    color: '#EF4444',
+  },
+  typeOptions: {
+    gap: 12,
+  },
+  typeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    gap: 12,
+  },
+  typeCardSelected: {
+    backgroundColor: 'rgba(0, 132, 255, 0.05)',
+  },
+  typeIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeContent: {
+    flex: 1,
+    gap: 2,
+  },
+  typeTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  typeDescription: {
+    fontSize: 13,
+  },
+  switchCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  switchContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  switchTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  switchDescription: {
+    fontSize: 13,
   },
   infoBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     padding: 14,
     borderRadius: 12,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(102, 126, 234, 0.2)',
   },
   infoText: {
     fontSize: 13,
     fontWeight: '500',
     flex: 1,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  uidSection: {
     gap: 12,
-    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  uidSection: {
-    marginBottom: 24,
-  },
-  uidLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: 10,
   },
-  addUidRow: {
+  uidInputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
+    alignItems: 'center',
   },
   uidInput: {
-    backgroundColor: 'transparent',
+    flex: 1,
   },
-  addButton: {
+  uidAddButton: {
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    overflow: 'hidden',
-  },
-  addButtonGradient: {
-    width: 50,
-    height: 50,
     alignItems: 'center',
     justifyContent: 'center',
   },
   selectedSection: {
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  selectedLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  chipsContent: {
-    paddingRight: 10,
-  },
-  chipWrapper: {
-    marginRight: 8,
-  },
-  chipGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-  },
-  chipText: {
-    maxWidth: 180,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  friendListSection: {
-    marginTop: 8,
-  },
-  footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
-  primaryButtonWrapper: {
-    borderRadius: 14,
+  selectedList: {
+    paddingRight: 20,
+    gap: 8,
+  },
+  selectedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  selectedChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    maxWidth: 150,
+  },
+  friendSection: {
+    gap: 12,
+  },
+  friendListContainer: {
+    borderRadius: 12,
+    borderWidth: 1,
     overflow: 'hidden',
   },
-  primaryButtonGradient: {
-    height: 50,
-    borderRadius: 14,
+  footer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  footerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  primaryButton: {
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   secondaryButton: {
-    height: 50,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
+    height: 48,
+    borderRadius: 12,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    borderWidth: 1,
+    paddingHorizontal: 24,
   },
   secondaryButtonText: {
-    fontSize: 15.5,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

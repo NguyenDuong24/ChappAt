@@ -9,7 +9,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -50,8 +49,35 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+        }
+      },
       "package": "com.duongnguyen1263.Chat",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "notification": {
+        "icon": "./android/app/src/main/res/drawable/notification_icon.png",
+        "color": "#4f8bff",
+        "channelId": "calls",
+        "priority": "max",
+        "sound": true,
+        "channels": [
+          {
+            "id": "calls",
+            "name": "Incoming Calls",
+            "importance": "max",
+            "description": "Notifications for incoming calls",
+            "sound": "./assets/sounds/incoming.mp3",
+            "vibrationPattern": [0, 250, 250, 250],
+            "lightColor": "#4f8bff",
+            "bypassDnd": true,
+            "showWhen": false,
+            "ongoing": true,
+            "sticky": true
+          }
+        ]
+      }
     },
     "web": {
       "bundler": "metro",
@@ -70,21 +96,26 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
           "color": "#4f8bff",
           "sounds": [
             "./assets/sounds/join.mp3",
-            "./assets/sounds/calling.mp3"
+            "./assets/sounds/calling.mp3",
+            "./assets/sounds/incoming.mp3",
+            "./assets/sounds/notification.mp3"
           ],
           "mode": "production",
           "android": {
+            "color": "#4f8bff",
+            "icon": "./android/app/src/main/res/drawable/notification_icon.png",
             "channelId": "default",
-            "priority": "high"
+            "priority": "max",
+            "sound": true
           },
           "ios": {
             "sound": true,
             "badge": true,
-            "alert": true
+            "alert": true,
+            "criticalAlert": true
           }
         }
       ],
@@ -114,7 +145,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-secure-store"

@@ -49,7 +49,8 @@ export async function submitReport(report: ReportData, user?: { uid?: string; em
     status: 'open',
     app: 'ChappAt',
     type: 'report',
-    images: report.images || null,
+    // Ensure images is always an array
+    images: Array.isArray(report.images) ? report.images : [],
   };
 
   console.log('📝 Payload to save:', payload);
@@ -78,7 +79,8 @@ export async function submitSupportRequest(message: string, email?: string | nul
     contactEmail: email || user?.email || null,
     userId: user?.uid || null,
     username: user?.username || null,
-    images: images || null,
+    // Ensure images is always an array
+    images: Array.isArray(images) ? images : [],
     type: type || 'support',
     createdAt: serverTimestamp(),
     status: 'new',

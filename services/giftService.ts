@@ -1,4 +1,4 @@
-import { db, functions as fbFunctions } from '../firebaseConfig';
+import { db } from '../firebaseConfig';
 import {
   collection,
   doc,
@@ -16,7 +16,7 @@ import {
   writeBatch,
   increment,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+import { coinServerApi } from '../src/services/coinServerApi';
 
 export interface GiftItem {
   id: string;
@@ -154,17 +154,8 @@ export async function sendGift(params: {
   if (!senderUid || !receiverUid || !roomId || !giftId) throw new Error('Missing params');
   if (senderUid === receiverUid) throw new Error('CANNOT_GIFT_SELF');
 
-  const fn = httpsCallable(fbFunctions, 'giftsSend');
-  try {
-    await fn({ receiverUid, roomId, giftId, senderName });
-  } catch (e: any) {
-    if (isFunctionNotFoundError(e)) {
-      // Fallback local when callable not available (dev/no billing)
-      await sendGiftLocal(params);
-    } else {
-      throw e;
-    }
-  }
+  // Use coin server - no fallback to local if server fails
+  await coinServerApi.sendGift(receiverUid, roomId, giftId, senderName || 'Bạn');
 }
 
 // Receiver APIs
@@ -197,15 +188,18 @@ export async function listReceivedGifts(uid: string, options: { pageSize?: numbe
 // Cho phép người nhận quy đổi quà về Bánh mì (dùng increment để không cần đọc user)
 export async function redeemGiftReceipt(uid: string, receiptId: string, options: { rate?: number } = {}) {
   const rate = typeof options.rate === 'number' ? Math.max(0, Math.min(1, options.rate)) : 1;
-  const fn = httpsCallable(fbFunctions, 'giftsRedeem');
+  
+  // Use coin server instead of Cloud Functions
   try {
-    const res: any = await fn({ receiptId, rate });
-    return { redeemValue: res?.data?.redeemValue } as any;
+    const res = await coinServerApi.redeemGift(receiptId, rate);
+    return { redeemValue: res.redeemValue };
   } catch (e: any) {
-    if (isFunctionNotFoundError(e)) {
-      return await redeemGiftLocal(uid, receiptId, rate);
+    // Fallback to local if server fails
+    if (e.code === 'ALREADY_REDEEMED') {
+      throw new Error('Quà đã được đổi rồi');
     }
-    throw e;
+    console.warn('Coin server failed, using local fallback:', e);
+    return await redeemGiftLocal(uid, receiptId, rate);
   }
 }
 

@@ -25,7 +25,8 @@ const PrivacySelector: React.FC<PrivacySelectorProps> = ({
   onClose,
   onSelect
 }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const handleSelect = (privacy: PrivacyLevel) => {

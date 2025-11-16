@@ -19,7 +19,6 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
-  const [showBlockMenu, setShowBlockMenu] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
@@ -107,8 +106,6 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
 
   const handleBlockToggle = async () => {
     if (!currentUser?.uid || !uid || uid === 'No UID') return;
-
-    setShowBlockMenu(false);
 
     if (!isBlocked) {
       // Show confirmation before blocking
@@ -220,7 +217,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                       backgroundColor: isFollowing 
                         ? (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')
                         : 'rgba(255,255,255,0.25)'
-                    }]}>
+                    }]}> 
                       <Feather
                         name={isFollowing ? 'user-check' : 'user-plus'}
                         size={16}
@@ -229,7 +226,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                     </View>
                     <Text style={[styles.followText, { 
                       color: isFollowing ? currentThemeColors.text : 'white' 
-                    }]}>
+                    }]}> 
                       {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
                     </Text>
                   </>
@@ -237,42 +234,47 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Block Button - Menu */}
+            {/* Block Button - Styled like Follow Button */}
             <TouchableOpacity
-              onPress={() => setShowBlockMenu(!showBlockMenu)}
+              onPress={handleBlockToggle}
               activeOpacity={0.85}
-              style={styles.blockButton}
+              style={styles.followButtonWrapper}
+              disabled={followLoading}
             >
-              <Feather
-                name={isBlocked ? 'user-x' : 'slack'}
-                size={22}
-                color={currentThemeColors.text}
-              />
-            </TouchableOpacity>
-
-            {/* Block Menu - Popover */}
-            {showBlockMenu && (
-              <View style={[styles.blockMenu, { backgroundColor: currentThemeColors.cardBackground || currentThemeColors.surface }]}
-                onTouchEnd={() => setShowBlockMenu(false)}
+              <LinearGradient
+                colors={isBlocked 
+                  ? ['#a1a1aa', '#6b7280'] // xám khi đã chặn
+                  : ['#d1d5db', '#6b7280']} // xám nhạt khi chưa chặn
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.followButton, {
+                  shadowColor: isBlocked ? '#6b7280' : '#d1d5db',
+                }]}
               >
-                <TouchableOpacity
-                  onPress={handleBlockToggle}
-                  style={[styles.blockMenuItem, { 
-                    borderColor: isBlocked ? 'rgba(255,255,255,0.1)' : 'transparent' 
-                  }]}
-                >
-                  <Feather
-                    name={isBlocked ? 'unlock' : 'lock'}
-                    size={16}
-                    color={currentThemeColors.text}
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text style={[styles.blockMenuText, { color: currentThemeColors.text }]}>
-                    {isBlocked ? 'Bỏ chặn' : 'Chặn người dùng'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+                {followLoading ? (
+                  <ActivityIndicator size="small" color={'#fff'} />
+                ) : (
+                  <>
+                    <View style={[styles.followIconCircle, {
+                      backgroundColor: isBlocked 
+                        ? 'rgba(156,163,175,0.15)' // xám nhạt
+                        : 'rgba(209,213,219,0.25)' // xám nhạt
+                    }]}> 
+                      <Feather
+                        name={isBlocked ? 'user-x' : 'lock'}
+                        size={16}
+                        color={isBlocked ? '#374151' : '#374151'} // xám đậm cho icon
+                      />
+                    </View>
+                    <Text style={[styles.followText, { 
+                      color: '#374151' // xám đậm cho text
+                    }]}> 
+                      {isBlocked ? 'Đã chặn' : 'Chặn'}
+                    </Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
           </Animated.View>
         )}
       </Animated.View>
@@ -462,6 +464,7 @@ const styles = StyleSheet.create({
   },
   followButtonWrapper: {
     borderRadius: 30,
+    marginTop: 8,
   },
   followButton: {
     flexDirection: 'row',
@@ -604,32 +607,6 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  blockMenu: {
-    position: 'absolute',
-    top: 50,
-    right: 0,
-    width: 150,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  blockMenuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  blockMenuText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
 

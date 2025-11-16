@@ -20,6 +20,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/authContext';
 import GroupMessageList from '../groups/GroupMessageList';
 import { useGroupMessages } from '@/hooks/useGroupMessages';
+import { useSound } from '@/hooks/useSound';
 
 interface GroupChatScreenProps {
   groupId?: string;
@@ -35,10 +36,13 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<any>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
-  const { theme } = useContext(ThemeContext);
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme ?? 'light';
   const { user } = useAuth();
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const flatListRef = useRef<FlatList>(null);
+  const { playMessageReceivedSound, playMessageSentSound } = useSound();
+  const previousMessageCountRef = useRef(0);
 
   // Mock current user if not available
   const currentUser = user || {
@@ -65,11 +69,24 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
     }
   }, [messages.length]);
 
+  // Play sound when new message received
+  useEffect(() => {
+    if (messages.length > previousMessageCountRef.current && previousMessageCountRef.current > 0) {
+      const latestMessage = messages[messages.length - 1];
+      // Only play sound if message is from another user
+      if (latestMessage.uid !== currentUser.uid) {
+        playMessageReceivedSound();
+      }
+    }
+    previousMessageCountRef.current = messages.length;
+  }, [messages, currentUser.uid, playMessageReceivedSound]);
+
   const handleSendMessage = async () => {
     if (!input.trim()) return;
     
     try {
       await sendMessage(input, replyTo);
+      playMessageSentSound();
       setInput('');
       setReplyTo(null);
     } catch (error) {
@@ -126,6 +143,14 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
     }
   };
 
+  useEffect(() => {
+    // Play sound when new messages are received
+    if (messages.length > previousMessageCountRef.current) {
+      playMessageReceivedSound();
+    }
+    previousMessageCountRef.current = messages.length;
+  }, [messages, playMessageReceivedSound]);
+
   if (loading) {
     return (
       <View style={[styles.container, styles.loadingContainer, { backgroundColor: currentThemeColors.background }]}>
@@ -167,15 +192,18 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={[styles.groupName, { color: currentThemeColors.text }]}>{groupName}</Text>
-          <Text style={[styles.memberCount, { color: currentThemeColors.subtleText }]}
+          <Text 
+            style={[styles.memberCount, { color: currentThemeColors.subtleText }]}
             numberOfLines={1}
           >
             {memberCount} thành viên • {messages.length} tin nhắn
           </Text>
         </View>
-        <TouchableOpacity>
-          <MaterialCommunityIcons name="dots-vertical" size={24} color={currentThemeColors.tint} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity>
+            <MaterialCommunityIcons name="dots-vertical" size={24} color={currentThemeColors.tint} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Messages */}
@@ -285,6 +313,10 @@ const styles = StyleSheet.create({
   },
   headerInfo: {
     flex: 1,
+    alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   groupName: {

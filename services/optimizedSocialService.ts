@@ -13,11 +13,13 @@ import {
   writeBatch,
   startAfter,
   DocumentSnapshot,
-  serverTimestamp
+  serverTimestamp,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import userCacheService from './userCacheService';
 import optimizedHashtagService from './optimizedHashtagService';
+import ExpoPushNotificationService from './expoPushNotificationService';
 
 export interface OptimizedSocialPost {
   id: string;
@@ -348,6 +350,36 @@ class OptimizedSocialService {
 
       await batch.commit();
 
+      // NEW: Push notification to post owner only when adding like (not removing)
+      try {
+        await Promise.all(likesToggles.filter(t => !t.isLiked).map(async ({ postId, userId }) => {
+          try {
+            const postSnap = await getDoc(doc(db, 'posts', postId));
+            if (!postSnap.exists()) return;
+            const post = postSnap.data() as any;
+            const ownerId = post.userId || post.userID;
+            if (!ownerId || ownerId === userId) return;
+
+            // Get liker name from cache or fetch
+            let likerName = 'Ai đó';
+            try {
+              const cached = await userCacheService.getUser(userId);
+              likerName = cached?.displayName || cached?.username || cached?.fullName || 'Ai đó';
+            } catch {}
+
+            await ExpoPushNotificationService.sendPushToUser(ownerId, {
+              title: '❤️ Lượt thích mới',
+              body: `${likerName} đã thích bài viết của bạn`,
+              data: { type: 'like', postId, userId },
+            });
+          } catch (e) {
+            console.warn('⚠️ Failed to send like push:', e);
+          }
+        }));
+      } catch (e) {
+        console.warn('⚠️ Batch like push error:', e);
+      }
+
       // Update cache
       this.postsCache.forEach((cache) => {
         cache.posts = cache.posts.map(post => {
@@ -640,7 +672,7 @@ class OptimizedSocialService {
         comments: arrayUnion({
           ...commentData,
           id: Date.now().toString(), // Simple ID generation
-          timestamp: serverTimestamp()
+          timestamp: new Date()
         })
       });
 
@@ -648,6 +680,28 @@ class OptimizedSocialService {
       this.clearCache(commentData.userId);
       
       console.log('✅ Comment added to post:', postId);
+
+      // Notify owner of the post via Expo Push (không dùng Cloud Function)
+      try {
+        const snap = await getDoc(postRef);
+        if (snap.exists()) {
+          const post = snap.data() as any;
+          const ownerId = post.userId || post.userID; // hỗ trợ 2 naming
+          const commenterName = commentData.username || commentData.displayName || 'Ai đó';
+          const body = `${commenterName} đã bình luận: ${commentData.text || ''}`;
+
+          if (ownerId && ownerId !== commentData.userId) {
+            const ExpoPushNotificationService = (await import('./expoPushNotificationService')).default;
+            await ExpoPushNotificationService.sendPushToUser(ownerId, {
+              title: '💬 Bình luận mới',
+              body,
+              data: { type: 'comment', postId, userId: commentData.userId },
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Không thể gửi push khi có comment:', e);
+      }
     } catch (error) {
       console.error('❌ Error adding comment:', error);
       throw error;

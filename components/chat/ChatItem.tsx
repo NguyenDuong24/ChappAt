@@ -1,7 +1,7 @@
 import { db } from '@/firebaseConfig';
 import { formatTime, getRoomId } from '@/utils/common';
 import { useRouter } from 'expo-router';
-import { collection, doc, DocumentData, onSnapshot, orderBy, query, limit, getDoc } from 'firebase/firestore';
+import { collection, doc, DocumentData, onSnapshot, orderBy, query, limit, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -237,6 +237,13 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
         return;
       }
 
+      // Update read status (mark all as read now)
+      try {
+        const roomId = getRoomId(currenUser.uid, item.id);
+        const readStatusRef = doc(db, 'rooms', roomId, 'readStatus', currenUser.uid);
+        setDoc(readStatusRef, { lastReadAt: serverTimestamp() }, { merge: true }).catch(() => {});
+      } catch {}
+
       // Navigate to Hot Spot chat if it's a hot spot conversation
       if (chatType === 'hotspot' && chatRoomId) {
         router.push({
@@ -244,7 +251,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
           params: { 
             chatRoomId,
             hotSpotId: hotSpotId || '',
-            hotSpotTitle: '', // Will be loaded in HotSpotChatScreen
+            hotSpotTitle: '',
           },
         });
       } else {
@@ -333,14 +340,13 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
               <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
                 {renderTime()}
               </Text>
-              {unreadCount > 0 && (
-                <LinearGradient colors={currentThemeColors.gradientBackground as [string, string]} style={styles.unreadBadge}>
-                  <Text style={styles.unreadText}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </LinearGradient>
-              )}
+
             </View>
+            {unreadCount > 0 && (
+              <View style={[styles.unreadBadge, { backgroundColor: '#F43F5E', position: 'absolute', top: 30, right: 0 }]}>
+                <Text style={styles.unreadText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+              </View>
+            )}
           </View>
           <Text style={[styles.lastMessage, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
             {renderLastMessage()}

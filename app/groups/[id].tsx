@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { doc, getDoc, onSnapshot, collection, query, orderBy, addDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import GroupChatHeader from '@/components/groups/GroupChatHeader';
 import GroupMessageList from '@/components/groups/GroupMessageList';
@@ -17,6 +17,8 @@ import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
 import { manipulateAsync } from 'expo-image-manipulator';
 import * as jpeg from 'jpeg-js';
 import { decode as atob } from 'base-64';
+import ReportModalSimple from '@/components/common/ReportModalSimple';
+import { useOptimizedGroupMessages } from '@/hooks/useOptimizedGroupMessages';
 
 const storage = getStorage();
 const PIC_INPUT_SHAPE = { width: 224, height: 224 };
@@ -48,20 +50,37 @@ function imageToTensor(rawImageData) {
 export default function GroupChatScreen() {
   const { id } = useLocalSearchParams();
   const { user } = useAuth();
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
   const scrollViewRef = useRef<any>(null);
 
   const [group, setGroup] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
   const [newMessage, setNewMessage] = useState('');
   const [replyTo, setReplyTo] = useState<any>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [nsfwModel, setNsfwModel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+  // NEW: simple report modal state
+  const [reportVisible, setReportVisible] = useState(false);
+  const [reportTarget, setReportTarget] = useState<any>(null);
+
+  // Use optimized group messages hook
+  const { 
+    messages, 
+    loading: messagesLoading, 
+    hasMore, 
+    loadMore,
+    refresh 
+  } = useOptimizedGroupMessages({
+    groupId: id as string,
+    currentUserId: user?.uid || '',
+    pageSize: 30,
+    enabled: true
+  });
 
   const loadGroup = async () => {
     try {
@@ -72,11 +91,11 @@ export default function GroupChatScreen() {
         const groupData = { id: groupDoc.id, ...groupDoc.data() } as any;
         console.log(`[DEBUG] Group data: ${JSON.stringify(groupData)}`);
 
-        // if (!groupData.members || !Array.isArray(groupData.members) || !groupData.members.includes(user.uid)) {
-        //   console.warn(`[WARN] User ${user.uid} not member. Members: ${JSON.stringify(groupData.members)}`);
-        //   setError('Bạn không phải thành viên của nhóm này. Kiểm tra quyền truy cập.');
-        //   return;
-        // }
+        if (!groupData.members || !Array.isArray(groupData.members) || !groupData.members.includes(user.uid)) {
+          console.warn(`[WARN] User ${user.uid} not member. Members: ${JSON.stringify(groupData.members)}`);
+          setError('Bạn không phải thành viên của nhóm này. Kiểm tra quyền truy cập.');
+          return;
+        }
 
         setGroup(groupData);
       } else {
@@ -123,36 +142,13 @@ export default function GroupChatScreen() {
     return () => clearTimeout(timeout);
   }, [loading, group]);
 
-  // Load messages - ✅ This one is correct
-  useEffect(() => {
-    if (!id || !group || error || loading) return;
-
-    console.log(`[DEBUG] Setup messages listener for group ${id}`);
-    const messagesRef = collection(doc(db, 'groups', id as string), 'messages');
-    const q = query(messagesRef, orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messagesList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setMessages(messagesList.reverse());
-      console.log(`[DEBUG] Loaded ${messagesList.length} messages`);
-    }, (err) => {
-      console.error('[ERROR] Messages snapshot failed:', err.message);
-      setError(`Lỗi tải tin nhắn: ${err.message}`);
-    });
-
-    return () => unsubscribe();
-  }, [id, group, error, loading]);
-
   const handleSend = async () => {
     if (!newMessage.trim()) return;
     try {
       const messagesRef = collection(doc(db, 'groups', id as string), 'messages');
       const messageData: any = {
         text: newMessage,
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
         uid: user.uid,
         profileUrl: user.photoURL || user.profileUrl || '',
         senderName: user.displayName || user.username || '',
@@ -193,6 +189,51 @@ export default function GroupChatScreen() {
   const cancelReply = () => {
     setReplyTo(null);
     setHighlightedMessageId(null);
+  };
+
+  // Handle user press to navigate to profile
+  const handleUserPress = (userId: string) => {
+    router.push({ pathname: '/UserProfileScreen', params: { userId } });
+  };
+
+  // NEW: open report modal for a message
+  const openReportForMessage = (message: any) => {
+    try {
+      const messageType = message?.imageUrl ? 'image' : 'text';
+      setReportTarget({
+        id: message?.id || message?.messageId,
+        name: message?.senderName || 'Người dùng',
+        content: message?.text || (message?.imageUrl ? 'Hình ảnh' : ''),
+        messageType,
+        messageText: messageType === 'text' ? (message?.text || '') : '',
+        messageImageUrl: messageType === 'image' ? (message?.imageUrl || '') : '',
+      });
+      setReportVisible(true);
+    } catch (e) {
+      console.warn('openReportForMessage failed', e);
+    }
+  };
+
+  const submitMessageReport = async (data: any) => {
+    try {
+      const sanitized = {
+        ...data,
+        images: Array.isArray(data?.images) ? data.images : [],
+      };
+      await addDoc(collection(db, 'reports'), {
+        ...sanitized,
+        context: 'group_chat',
+        groupId: id,
+        reportedMessageId: reportTarget?.id || null,
+        reportedMessageType: reportTarget?.messageType || null,
+        reportedMessageText: reportTarget?.messageType === 'text' ? (reportTarget?.messageText || '') : '',
+        reportedMessageImageUrl: reportTarget?.messageType === 'image' ? (reportTarget?.messageImageUrl || '') : '',
+        createdAt: new Date(),
+      });
+    } catch (e) {
+      console.error('submitMessageReport error', e);
+      throw e;
+    }
   };
 
   const classifyImageNSFW = async (uri) => {
@@ -279,7 +320,8 @@ export default function GroupChatScreen() {
         const messagesRef = collection(doc(db, 'groups', id as string), 'messages');
         await addDoc(messagesRef, {
           imageUrl: downloadURL,
-          createdAt: new Date(),
+          url: downloadURL,
+          createdAt: serverTimestamp(),
           uid: user.uid,
           profileUrl: user.photoURL || user.profileUrl || '',
           senderName: user.displayName || user.username || '',
@@ -354,9 +396,7 @@ export default function GroupChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}> 
-        <TouchableOpacity activeOpacity={0.8} onPress={() => router.push(`/groups/${group.id}`)}>
-          <GroupChatHeader group={group} onBack={() => router.back()} />
-        </TouchableOpacity>
+        <GroupChatHeader group={group} onBack={() => router.back()} />
         <View style={styles.messagesContainer}>
           <GroupMessageList 
             scrollViewRef={scrollViewRef}
@@ -366,6 +406,9 @@ export default function GroupChatScreen() {
             onReply={handleReply}
             highlightedMessageId={highlightedMessageId}
             onClearHighlight={() => setHighlightedMessageId(null)}
+            onReport={openReportForMessage}
+            onUserPress={handleUserPress}
+            loading={messagesLoading}
           />
         </View>
         
@@ -401,6 +444,19 @@ export default function GroupChatScreen() {
           />
         </View>
       </View>
+
+      <ReportModalSimple
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onSubmit={submitMessageReport}
+        targetType="message"
+        currentUser={{ uid: user?.uid || '' }}
+        targetInfo={{
+          id: reportTarget?.id || '',
+          name: reportTarget?.name || '',
+          content: reportTarget?.content || '',
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }

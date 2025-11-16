@@ -1,7 +1,7 @@
-import React, { useState, useContext, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, TouchableWithoutFeedback } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-icons';
-import { ThemeContext } from '@/context/ThemeContext';
+import { useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,8 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 const ChatListHeader = () => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const animation = useRef(new Animated.Value(0)).current;
-  const themeCtx = useContext(ThemeContext);
-  const theme = themeCtx?.theme || 'light';
+  const { theme } = useTheme();
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -36,32 +35,6 @@ const ChatListHeader = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" backgroundColor="transparent" translucent />
-      <LinearGradient
-        colors={theme === 'dark' 
-          ? ['#1a1a2e', '#16213e', '#0f3460'] 
-          : ['#667eea', '#764ba2', '#f093fb']
-        }
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.headerGradient}
-      >
-        <View style={styles.particlesContainer}>
-          {[...Array(6)].map((_, i) => (
-            <Animated.View
-              key={i}
-              style={[
-                styles.particle,
-                {
-                  left: `${20 + i * 15}%`,
-                  top: `${30 + (i % 2) * 40}%`,
-                  opacity: Math.random() * 0.5 + 0.3,
-                }
-              ]}
-            />
-          ))}
-        </View>
-
         <View style={styles.header}>
           <View style={styles.leftSection}>
             <View style={styles.iconContainer}>
@@ -78,11 +51,10 @@ const ChatListHeader = () => {
               style={styles.actionButton}
               onPress={toggleDrawer}
             >
-              <MaterialIcons name="more-vert" size={22} color="white" />
+              <MaterialIcons name="more-vert" size={28} color="white" />
             </TouchableOpacity>
           </View>
         </View>
-      </LinearGradient>
 
       {drawerVisible && (
         <>
@@ -161,11 +133,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    paddingVertical: 16,
-    minHeight: 64,
+    minHeight: 48,
     position: 'relative',
     zIndex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   leftSection: {
     flexDirection: 'row',
@@ -173,41 +145,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   titleSection: {
     flex: 1,
   },
   title: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '700',
     color: 'white',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-    marginTop: 2,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '400',
+    marginTop: 1,
   },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 8,
+    marginLeft: 6,
   },
   overlay: {
     position: 'absolute',
@@ -219,7 +191,7 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     position: 'absolute',
-    top: 85,
+    top: 60,
     right: 20,
     backgroundColor: 'white',
     borderRadius: 12,

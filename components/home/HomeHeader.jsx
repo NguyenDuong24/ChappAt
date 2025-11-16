@@ -30,7 +30,7 @@ const HomeHeader = () => {
   const [universitiesList, setUniversitiesList] = useState([]);
   const [universitySearch, setUniversitySearch] = useState('');
 
-  const { theme } = useContext(ThemeContext);
+  const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   // Animation values
@@ -216,11 +216,11 @@ const HomeHeader = () => {
 
   return (
     <View style={styles.container}>
-      {/* Modern Header with Gradient */}
+      {/* Modern Header with Theme-Aware Gradient */}
       <LinearGradient
         colors={theme === 'dark' 
-          ? ['#1a1a2e', '#16213e', '#0f3460'] 
-          : ['#667eea', '#764ba2', '#f093fb']
+          ? ['#1a1a2e', '#16213e'] 
+          : ['#4facfe', '#00f2fe']
         }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -262,6 +262,7 @@ const HomeHeader = () => {
 
           <TouchableOpacity
             style={styles.scanButton}
+            onPress={() => router.push('/ProximityRadar')}
           >
             <Entypo name="rss" size={22} color="white" />
           </TouchableOpacity>
@@ -548,7 +549,8 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   headerGradient: {
-    paddingTop: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 20) + 10,
+    // Make room for translucent status bar + nice spacing
+    paddingTop: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24) + 8,
     paddingBottom: 16,
     paddingHorizontal: 16,
     position: 'relative',
@@ -572,7 +574,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 56,
+    height: 50,
     position: 'relative',
     zIndex: 1,
   },
@@ -588,7 +590,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
   },
   filterButtonActive: {
     backgroundColor: 'rgba(255,255,255,0.35)',
@@ -644,14 +645,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
   },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-start',
     alignItems: 'stretch',
-    paddingTop: Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 20,
+    // Respect translucent status bar spacing
+    paddingTop: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24),
   },
   backdropTouchable: {
     position: 'absolute',

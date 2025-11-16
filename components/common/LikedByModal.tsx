@@ -34,7 +34,8 @@ const LikedByModal: React.FC<LikedByModalProps> = ({
   onClose,
   likedUserIds,
 }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [users, setUsers] = useState<UserInfo[]>([]);
   const [loading, setLoading] = useState(false);

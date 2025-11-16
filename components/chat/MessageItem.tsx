@@ -1,8 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import React, { useState, useContext } from 'react';
 import { Avatar } from 'react-native-paper';
-import { formatTime, formatDetailedTime, getRoomId } from '../../utils/common';
-import { Image } from 'react-native';
+import { formatTime, getRoomId } from '../../utils/common';
 import CustomImage from '../common/CustomImage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -14,6 +13,7 @@ import EditMessageModal from './EditMessageModal';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useChatTheme } from '@/context/ChatThemeContext';
 
 interface MessageItemProps {
   message: any;
@@ -22,6 +22,7 @@ interface MessageItemProps {
   onReply?: (message: any) => void;
   onMessageLayout?: (messageId: string, y: number) => void;
   isHighlighted?: boolean;
+  onReport?: (message: any) => void;
 }
 
 export default function MessageItem({ 
@@ -31,6 +32,7 @@ export default function MessageItem({
   onReply,
   onMessageLayout,
   isHighlighted,
+  onReport,
 }: MessageItemProps) {
   const isCurrentUser = message?.uid === currentUser?.uid;
   const [showTime, setShowTime] = useState(false);
@@ -45,16 +47,12 @@ export default function MessageItem({
   const computedRoomId = currentUid && otherUid ? getRoomId(currentUid, otherUid) : undefined;
   const roomId = computedRoomId || (message?.roomId as string | undefined) || (message?.chatId as string | undefined) || '';
   
-  // Tuple-typed gradients for bubbles
-  const meColors: readonly [string, string] = theme === 'dark'
-    ? [Colors.dark.tintDark, Colors.accent] // Indigo-500 to Emerald-500
-    : ['#D1FAE5', '#A7F3D0'];
-  const otherColors: readonly [string, string] = theme === 'dark'
-    ? [Colors.dark.surface, Colors.dark.background]
-    : ['#EEF2FF', '#E0E7FF'];
-  const bubbleColors: readonly [string, string] = isCurrentUser ? meColors : otherColors;
+  // Messenger-style colors using chat theme
+  const { currentTheme: chatTheme } = useChatTheme();
+  const sentBubbleColor = chatTheme.sentMessageColor;
+  const receivedBubbleColor = chatTheme.receivedMessageColor;
+  const bubbleColors: readonly [string, string] = isCurrentUser ? [sentBubbleColor, sentBubbleColor] : [receivedBubbleColor, receivedBubbleColor];
 
-  // Use message actions hook
   const {
     toggleReaction,
     pinMessage,
@@ -63,7 +61,6 @@ export default function MessageItem({
     copyToClipboard,
     showDeleteConfirm,
     isLoading,
-    error,
   } = useMessageActions();
 
   const handlePress = () => {
@@ -124,25 +121,9 @@ export default function MessageItem({
     }
   };
 
-  const getStatusIcon = () => {
-    if (!isCurrentUser) return null;
-    
-    switch (message?.status) {
-      case 'sent':
-        return <MaterialIcons name="done" size={14} color="#999" />;
-      case 'delivered':
-        return <MaterialIcons name="done-all" size={14} color="#999" />;
-      case 'read':
-        return <MaterialIcons name="done-all" size={14} color="#4CAF50" />;
-      default:
-        return <MaterialIcons name="schedule" size={14} color="#999" />;
-    }
-  };
-
   const formatMessageTime = () => {
     if (!message?.createdAt) return '';
-    const time = formatTime(message.createdAt);
-    return time;
+    return formatTime(message.createdAt);
   };
 
   const onContainerLayout = (e: any) => {
@@ -154,44 +135,52 @@ export default function MessageItem({
   };
 
   const isReplyingToVibe = message?.replyTo?.type === 'vibe';
+  const isImageMessage = !!message?.imageUrl && !message?.text;
+  const isGiftMessage = message?.type === 'gift' && message?.gift;
 
   return (
     <>
       <TouchableOpacity 
         onPress={handlePress} 
         onLongPress={handleLongPress}
-        delayLongPress={500}
+        delayLongPress={300}
+        activeOpacity={0.95}
         style={[styles.messageContainer, isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage]}
         onLayout={onContainerLayout}
       >
         {!isCurrentUser && (
           <Avatar.Image
-            size={32} // giảm từ 40 xuống 32
+            size={32}
             source={{ uri: message.profileUrl }}
             style={styles.avatar}
           />
         )}
-        <View style={styles.messageContent}>
-          {/* Reply indicator for message reply */}
+        <View style={[styles.messageContent, { maxWidth: '80%' }]}>
+          {/* Reply Preview */}
           {message?.replyTo && !isReplyingToVibe && (
-            <View style={styles.replyContainer}>
-              <View style={styles.replyIndicator} />
-              <View
-                style={[
-                  styles.replyContent,
-                  styles.replyBox,
-                  {
-                    backgroundColor: theme === 'dark' ? Colors.dark.commentBackground : Colors.light.commentBackground,
-                    borderColor: theme === 'dark' ? Colors.gray600 : Colors.gray200,
-                  },
-                ]}
-              >
-                <Text style={[styles.replySender, { color: currentThemeColors.tint }]}>
+            <View style={[
+              styles.replyContainer,
+              { 
+                backgroundColor: isCurrentUser 
+                  ? 'rgba(255,255,255,0.1)' 
+                  : theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                borderLeftColor: isCurrentUser ? 'rgba(255,255,255,0.5)' : currentThemeColors.tint,
+                marginBottom: 6,
+              }
+            ]}> 
+              <View style={styles.replyContent}>
+                <Text style={[
+                  styles.replySender, 
+                  { color: isCurrentUser ? 'rgba(255,255,255,0.85)' : currentThemeColors.tint }
+                ]}>
                   {message.replyTo.senderName}
                 </Text>
                 <Text 
-                  style={[styles.replyText, { color: currentThemeColors.text }]} 
-                  numberOfLines={1}
+                  style={[
+                    styles.replyText, 
+                    { color: isCurrentUser ? 'rgba(255,255,255,0.65)' : currentThemeColors.subtleText }
+                  ]} 
+                  numberOfLines={2}
                 >
                   {message.replyTo.imageUrl ? '📷 Hình ảnh' : message.replyTo.text}
                 </Text>
@@ -199,85 +188,145 @@ export default function MessageItem({
             </View>
           )}
 
-          {/* Reply indicator for vibe reply */}
+          {/* Vibe Reply */}
           {isReplyingToVibe && (
-            <View style={[styles.replyContainer, { paddingLeft: 10 }]}>
-              <View
-                style={[
-                  styles.vibeChip,
-                  {
-                    backgroundColor: theme === 'dark' ? '#818CF826' : '#6366F11A',
-                    borderColor: theme === 'dark' ? Colors.gray600 : Colors.gray200,
-                  },
-                ]}
-              > 
-                <Text style={[styles.vibeChipText, { color: currentThemeColors.tint }]} numberOfLines={1}>
-                  Trả lời Vibe: {message?.replyTo?.vibeEmoji || '✨'} {message?.replyTo?.vibeName || ''}
+            <View style={[
+              styles.replyContainer,
+              { 
+                backgroundColor: isCurrentUser 
+                  ? 'rgba(255,255,255,0.1)' 
+                  : theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                borderLeftColor: isCurrentUser ? 'rgba(255,255,255,0.5)' : currentThemeColors.tint,
+                marginBottom: 6,
+              }
+            ]}> 
+              <View style={styles.replyContent}>
+                <Text style={[
+                  styles.replySender, 
+                  { color: isCurrentUser ? 'rgba(255,255,255,0.85)' : currentThemeColors.tint }
+                ]}>
+                  Trả lời Vibe
+                </Text>
+                <Text 
+                  style={[
+                    styles.replyText, 
+                    { color: isCurrentUser ? 'rgba(255,255,255,0.65)' : currentThemeColors.subtleText }
+                  ]} 
+                  numberOfLines={2}
+                >
+                  {message?.replyTo?.vibeEmoji || '✨'} {message?.replyTo?.vibeName || ''}
                 </Text>
               </View>
             </View>
           )}
 
-          {/* Message bubble */}
-          <LinearGradient
-            colors={bubbleColors}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[
-              styles.bubbleGradient,
+          {/* Message Bubble */}
+          <View style={[styles.bubbleContainer, isCurrentUser ? styles.bubbleContainerRight : styles.bubbleContainerLeft]}>
+            <View style={[
+              styles.bubble,
               isCurrentUser ? styles.bubbleRight : styles.bubbleLeft,
-              isCurrentUser ? styles.currentUserBubbleShadow : styles.otherUserBubbleShadow,
-              { borderColor: theme === 'dark' ? Colors.gray700 : Colors.gray200 },
-              isHighlighted ? { borderColor: currentThemeColors.tint, borderWidth: 2 } : null,
-              { padding: 8, borderRadius: 12 }, // giảm padding và borderRadius
-            ]}
-          >
-            {message?.type === 'gift' && message?.gift ? (
-              <GiftMessage
-                gift={message.gift}
-                senderName={message?.senderName}
-                isCurrentUser={isCurrentUser}
-                themeColors={currentThemeColors}
-              />
-            ) : message?.imageUrl ? (
-              <CustomImage source={message.imageUrl} style={[styles.image, { height: 120, width: 160 }]} /> // giảm kích thước ảnh
-            ) : (
-              <Text style={[styles.messageText, { color: isCurrentUser && theme === 'dark' ? Colors.dark.text : currentThemeColors.text, fontSize: 13.5, lineHeight: 18 }]}> 
-                {message?.text}
-              </Text>
-            )}
-
-            {/* Time and status row */}
-            <View style={styles.timeStatusContainer}>
-              <Text style={[styles.timeText, { color: isCurrentUser && theme === 'dark' ? Colors.dark.subtleText : '#64748B', fontSize: 9 }]}> 
-                {formatMessageTime()}
-              </Text>
-              {isCurrentUser ? (
-                (() => {
-                  switch (message?.status) {
-                    case 'sent':
-                      return <MaterialIcons name="done" size={12} color={theme === 'dark' ? Colors.dark.icon : '#999'} />;
-                    case 'delivered':
-                      return <MaterialIcons name="done-all" size={12} color={theme === 'dark' ? Colors.dark.icon : '#999'} />;
-                    case 'read':
-                      return <MaterialIcons name="done-all" size={12} color={theme === 'dark' ? Colors.dark.iconActive : '#4CAF50'} />;
-                    default:
-                      return <MaterialIcons name="schedule" size={12} color={theme === 'dark' ? Colors.dark.icon : '#999'} />;
-                  }
-                })()
-              ) : getStatusIcon()}
+              isHighlighted && styles.highlightedBubble,
+              isImageMessage && styles.imageBubble,
+            ]}>
+              <View
+                style={[
+                  styles.bubbleContent,
+                  { backgroundColor: isImageMessage || isGiftMessage ? 'transparent' : bubbleColors[0] },
+                  isCurrentUser ? styles.currentUserBubbleShadow : styles.otherUserBubbleShadow,
+                  isImageMessage && { padding: 0 },
+                  isGiftMessage && { padding: 0 },
+                ]}
+              >
+                {isGiftMessage ? (
+                  <GiftMessage
+                    gift={message.gift}
+                    senderName={message?.senderName}
+                    isCurrentUser={isCurrentUser}
+                    themeColors={currentThemeColors}
+                  />
+                ) : message?.imageUrl ? (
+                  <View style={styles.imageWrapper}>
+                    <CustomImage 
+                      source={message.imageUrl} 
+                      style={styles.messageImage}
+                      onLongPress={handleLongPress} 
+                    />
+                    {message.text && (
+                      <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : chatTheme.textColor, marginTop: 8 }]}>
+                        {message.text}
+                      </Text>
+                    )}
+                    <LinearGradient
+                      colors={['transparent', 'rgba(0,0,0,0.4)']}
+                      style={styles.imageOverlay}
+                    >
+                      <View style={styles.timeStatusRow}>
+                        <Text style={[styles.timeText, { color: '#FFFFFF' }]}>
+                          {formatMessageTime()}
+                        </Text>
+                        {isCurrentUser && (
+                          (() => {
+                            switch (message?.status) {
+                              case 'sent':
+                                return <MaterialIcons name="done" size={14} color="#FFF" />;
+                              case 'delivered':
+                                return <MaterialIcons name="done-all" size={14} color="#FFF" />;
+                              case 'read':
+                                return <MaterialIcons name="done-all" size={14} color="#4CAF50" />;
+                              default:
+                                return <MaterialIcons name="schedule" size={14} color="#FFF" />;
+                            }
+                          })()
+                        )}
+                      </View>
+                    </LinearGradient>
+                  </View>
+                ) : (
+                  <>
+                    <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : chatTheme.textColor }]}>
+                      {message?.text}
+                    </Text>
+                    <View style={styles.timeStatusRow}>
+                      <Text style={[styles.timeText, { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText }]}>
+                        {formatMessageTime()}
+                      </Text>
+                      {isCurrentUser && (
+                        (() => {
+                          switch (message?.status) {
+                            case 'sent':
+                              return <MaterialIcons name="done" size={14} color="rgba(255,255,255,0.7)" />;
+                            case 'delivered':
+                              return <MaterialIcons name="done-all" size={14} color="rgba(255,255,255,0.7)" />;
+                            case 'read':
+                              return <MaterialIcons name="done-all" size={14} color="#FFFFFF" />;
+                            default:
+                              return <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.7)" />;
+                          }
+                        })()
+                      )}
+                    </View>
+                  </>
+                )}
+                {message.isEdited && (
+                  <Text style={[styles.editedLabel, { color: isCurrentUser ? 'rgba(255,255,255,0.6)' : currentThemeColors.subtleText }]}>
+                    đã chỉnh sửa
+                  </Text>
+                )}
+              </View>
             </View>
-          </LinearGradient>
+          </View>
 
-          {/* Optional celebration badge for gifts */}
-          {message?.type === 'gift' && (
-            <View style={{ alignSelf: isCurrentUser ? 'flex-end' : 'flex-start', marginTop: 4 }}>
-              <Text style={{ fontSize: 12 }}>🎉 Cám ơn vì món quà!</Text>
+          {/* Gift Badge */}
+          {isGiftMessage && (
+            <View style={[styles.giftBadge, { alignSelf: isCurrentUser ? 'flex-end' : 'flex-start' }]}>
+              <Text style={[styles.giftBadgeText, { color: currentThemeColors.tint }]}>
+                🎉 Cám ơn vì món quà!
+              </Text>
             </View>
           )}
 
           {/* Reactions */}
-          {message?.reactions && (
+          {message?.reactions && Object.keys(message.reactions).length > 0 && (
             <MessageReactions
               reactions={message.reactions}
               onReactionPress={handleReactionPress}
@@ -286,23 +335,16 @@ export default function MessageItem({
           )}
           
           {showTime && (
-            <View style={styles.detailedTimeContainer}>
+            <View style={[styles.detailedTimeContainer, { alignSelf: isCurrentUser ? 'flex-end' : 'flex-start' }]}>
               <Text style={[styles.detailedTimeText, { color: currentThemeColors.subtleText }]}>
-                {message?.createdAt && formatDetailedTime(message.createdAt)}
+                {message?.createdAt?.toDate?.().toLocaleString('vi-VN') || 'N/A'}
               </Text>
-              {isCurrentUser && message?.status && (
-                <Text style={[styles.statusText, { color: currentThemeColors.subtleText }]}>
-                  {message.status === 'sent' && 'Đã gửi'}
-                  {message.status === 'delivered' && 'Đã nhận'}
-                  {message.status === 'read' && 'Đã xem'}
-                </Text>
-              )}
             </View>
           )}
         </View>
         {isCurrentUser && (
           <Avatar.Image
-            size={32} // giảm từ 40 xuống 32
+            size={32}
             source={{ uri: currentUser?.profileUrl }}
             style={styles.avatar}
           />
@@ -321,6 +363,7 @@ export default function MessageItem({
         isCurrentUser={isCurrentUser}
         isPinned={message?.isPinned}
         message={message}
+        onReport={() => onReport?.(message)}
       />
 
       <EditMessageModal
@@ -335,101 +378,59 @@ export default function MessageItem({
 }
 
 const styles = StyleSheet.create({
-  image: {
-    borderRadius: 10, // giảm từ 12 xuống 10
-  },
   messageContainer: {
     flexDirection: 'row',
-    marginVertical: 6,
-    paddingHorizontal: 10,
-    maxWidth: '85%',
-    alignSelf: 'flex-start',
+    marginVertical: 2,
+    paddingHorizontal: 12,
+    alignItems: 'flex-end',
   },
   currentUserMessage: {
-    alignSelf: 'flex-end',
+    flexDirection: 'row-reverse',
   },
   otherUserMessage: {
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
   },
   avatar: {
-    marginRight: 6, // giảm từ 10 xuống 6
-    marginLeft: 6, // giảm từ 10 xuống 6
+    marginHorizontal: 8,
   },
   messageContent: {
-    flex: 1,
+    flexShrink: 1,
   },
-  messageText: {
-    fontSize: 13.5, // giảm từ 15.5 xuống 13.5
-    lineHeight: 18, // giảm từ 21 xuống 18
-    fontWeight: '500',
+  bubbleContainer: {
+    position: 'relative',
+    marginVertical: 2,
   },
-  // Reply block
-  replyContainer: {
-    flexDirection: 'row',
-    marginBottom: 6,
-    paddingLeft: 10,
-    opacity: 0.95,
+  bubbleContainerRight: {
+    alignItems: 'flex-end',
   },
-  replyIndicator: {
-    width: 3,
-    backgroundColor: '#6366F1',
-    borderRadius: 1.5,
-    marginRight: 8,
+  bubbleContainerLeft: {
+    alignItems: 'flex-start',
   },
-  replyContent: {
-    flex: 1,
+  bubble: {
+    maxWidth: '100%',
   },
-  replySender: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  replyText: {
-    fontSize: 12.5,
-  },
-  replyBox: {
-    borderRadius: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  // Vibe chip
-  vibeChip: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignSelf: 'flex-start',
-  },
-  vibeChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  // Bubble look
   bubbleGradient: {
-    padding: 8, // giảm từ 12 xuống 8
-    borderRadius: 12, // giảm từ 16 xuống 12
-    minWidth: 48, // giảm từ 60 xuống 48
-    borderWidth: StyleSheet.hairlineWidth,
+    padding: 12,
+    borderRadius: 20,
   },
   bubbleRight: {
-    borderTopRightRadius: 6, // giảm từ 8 xuống 6
-    borderTopLeftRadius: 12, // giảm từ 16 xuống 12
-    borderBottomLeftRadius: 12, // giảm từ 16 xuống 12
-    borderBottomRightRadius: 4, // giảm từ 6 xuống 4
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 4,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
   },
   bubbleLeft: {
-    borderTopRightRadius: 12, // giảm từ 16 xuống 12
-    borderTopLeftRadius: 6, // giảm từ 8 xuống 6
-    borderBottomRightRadius: 12, // giảm từ 16 xuống 12
-    borderBottomLeftRadius: 4, // giảm từ 6 xuống 4
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 18,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
   },
   currentUserBubbleShadow: {
-    shadowColor: '#000',
+    shadowColor: '#0084FF',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2.5,
-    elevation: 2,
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 1,
   },
   otherUserBubbleShadow: {
     shadowColor: '#000',
@@ -438,25 +439,88 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
-  timeStatusContainer: {
+  highlightedBubble: {
+    borderWidth: 2,
+    borderColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  timeStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 6, // giảm từ 8 xuống 6
-    gap: 3, // giảm từ 4 xuống 3
+    gap: 2,
+    marginTop: 2,
+    opacity: 0.7,
   },
   timeText: {
-    fontSize: 9, // giảm từ 10.5 xuống 9
+    fontSize: 10,
+    fontWeight: '400',
+  },
+  editedLabel: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
   detailedTimeContainer: {
-    alignItems: 'flex-start',
-    marginTop: 2, // giảm từ 4 xuống 2
-    paddingLeft: 6, // giảm từ 10 xuống 6
+    marginTop: 4,
   },
   detailedTimeText: {
-    fontSize: 9, // giảm từ 11 xuống 9
+    fontSize: 11,
+    fontStyle: 'italic',
   },
-  statusText: {
-    fontSize: 9, // giảm từ 11 xuống 9
+  replyContainer: {
+    padding: 8,
+    borderLeftWidth: 3,
+    borderRadius: 8,
+  },
+  replyContent: {
+    gap: 2,
+  },
+  replySender: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  replyText: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  giftBadge: {
+    marginTop: 4,
+  },
+  giftBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  imageBubble: {
+    overflow: 'hidden',
+    borderRadius: 20,
+  },
+  imageWrapper: {
+    position: 'relative',
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 18,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  bubbleContent: {
+    padding: 12,
+    borderRadius: 18,
+    maxWidth: '100%',
   },
 });

@@ -5,12 +5,11 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  Clipboard,
   Text,
+  Platform,
 } from 'react-native';
 import { Divider } from 'react-native-paper';
-import { AntDesign, MaterialIcons } from '@expo/vector-icons';
-// Removed MaterialCommunityIcons import
+import { AntDesign } from '@expo/vector-icons';
 import { db } from '@/firebaseConfig';
 import {
   doc,
@@ -28,11 +27,12 @@ import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import CustomImage from '../common/CustomImage';
 import { useAuth } from '@/context/authContext';
-import { giftService } from '@/services/giftService';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import VibeSection from './VibeSection';
 import VibeAvatar from '../vibe/VibeAvatar';
+import * as Clipboard from 'expo-clipboard';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const extractHashtags = (text: string) => {
   const regex = /#[a-zA-Z0-9_]+/g;
@@ -53,11 +53,8 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   
-  // Debug currentVibe
   console.log('👤 TopProfile currentVibe:', currentVibe);
 
-  
-  // Debug log to check user object
   useEffect(() => {
     if (user) {
       console.log('🔍 TopProfile DEBUG - User object:', {
@@ -76,7 +73,6 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   const [postsCount, setPostsCount] = useState(0);
   const [giftStats, setGiftStats] = useState<{ count: number; value: number }>({ count: 0, value: 0 });
 
-  // Update bio when user changes
   useEffect(() => {
     if (user?.bio) {
       setBio(user.bio);
@@ -119,9 +115,7 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
 
   useEffect(() => {
     if (!user?.uid) return;
-    // read counters if present
     try {
-      // lazy load via user state already includes fields sometimes; fallback to Firestore read
       setGiftStats({
         count: Number(user?.giftReceivedCount || 0),
         value: Number(user?.giftReceivedValue || 0),
@@ -143,7 +137,7 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   };
 
   const updateBioHashtags = async (newBio: string) => {
-    if (!user?.uid) return; // Add safety check
+    if (!user?.uid) return;
     
     const hashtags = extractHashtags(newBio);
     for (const tagItem of hashtags) {
@@ -163,22 +157,14 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
     }
   };
 
-  const handleHashtagPress = (hashtag: string) => {
-    console.log('Hashtag được nhấn:', hashtag);
-    const cleanHashtag = hashtag.replace('#', '');
-    router.push(`/HashtagScreen?hashtag=${cleanHashtag}`);
-  };
-
   const handleCopyUID = async () => {
     if (__DEV__) {
-      console.log('User UID:', user?.uid); // Debug log
+      console.log('User UID:', user?.uid);
     }
     if (user?.uid) {
       try {
-        Clipboard.setString(user.uid);
-        Alert.alert('Đã sao chép', 'UID đã được sao chép vào clipboard', [
-          { text: 'OK', style: 'default' }
-        ]);
+        await Clipboard.setStringAsync(user.uid);
+        Alert.alert('Đã sao chép', 'UID đã được sao chép vào clipboard');
       } catch (error) {
         console.error('Error copying UID:', error);
         Alert.alert('Lỗi', 'Không thể sao chép UID');
@@ -196,186 +182,185 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
     );
   }
 
-  // Debug log only in development
   if (__DEV__) {
     console.log('Rendering TopProfile with user:', user.uid);
   }
 
   return (
-    <View>
-      <View
-        style={[
-          styles.coverPhotoContainer,
-          { backgroundColor: currentThemeColors.cardBackground },
-        ]}
-      >
-        <CustomImage
-          type="cover"
-          source={user?.coverImage}
-          style={styles.coverPhoto}
-        />
-        <View style={styles.headerButtons}>
-          
+    <View style={styles.container}>
+      <View>
+        <View style={styles.coverPhotoContainer}>
+          <CustomImage
+            type="cover"
+            source={user?.coverImage}
+            style={styles.coverPhoto}
+          />
+          <LinearGradient
+            colors={["transparent", currentThemeColors.background + "cc"]}
+            style={styles.coverOverlay}
+          />
           <TouchableOpacity
             onPress={() => router.push('/profile/settings')}
-            style={[styles.settingsButton, { backgroundColor: currentThemeColors.icon }]}
+            style={styles.settingsButton}
             activeOpacity={0.7}
           >
-            <Feather name="settings" size={24} color={currentThemeColors.text} />
+            <Feather name="settings" size={22} color={currentThemeColors.icon} />
           </TouchableOpacity>
+        </View>
 
-                  {/* Coin pill */}
-        <View style={styles.walletRow}>
-          <View
-            style={[
-              styles.coinPill,
-              {
-                backgroundColor: currentThemeColors.cardBackground,
-                borderColor: currentThemeColors.border,
-              },
-            ]}
+        <View style={styles.header}>
+          <View style={[styles.avatarWrapper, { borderColor: currentThemeColors.text }]}> 
+            <VibeAvatar
+              avatarUrl={user?.profileUrl}
+              size={80}
+              currentVibe={currentVibe}
+              showAddButton={true}
+              storyUser={{ id: user?.uid || '', username: user?.username || user?.displayName, profileUrl: user?.profileUrl }}
+            />
+          </View>
+          <View style={styles.vibeOverlay}>
+            <VibeSection />
+          </View>
+          <View style={styles.nameUidContainer}>
+            <Text style={[styles.name, { color: currentThemeColors.text }]}> 
+              {user?.username || user?.displayName || user?.name || user?.email?.split('@')[0] || 'Unknown User'}
+            </Text>
+            <View style={styles.uidContainer}>
+              <Text style={[styles.uidLabel, { color: currentThemeColors.subtleText }]}>UID:</Text>
+              <Text style={[styles.uidText, { color: currentThemeColors.text }]}> 
+                {user?.uid?.slice(0, 6) + '...'}
+              </Text>
+              <TouchableOpacity onPress={handleCopyUID} style={styles.copyButton}>
+                <Feather name="copy" size={14} color={currentThemeColors.icon} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.bioContainer, { backgroundColor: currentThemeColors.cardBackground }]}> 
+          {isEditingBio ? (
+            <TextInput
+              style={[styles.bioInput, { color: currentThemeColors.text, borderColor: currentThemeColors.border }]
+              }
+              value={bio}
+              onChangeText={setBio}
+              autoFocus
+              placeholder="Write your bio..."
+              placeholderTextColor={currentThemeColors.placeholderText}
+              multiline
+              numberOfLines={3}
+              maxLength={160}
+            />
+          ) : (
+            <Text style={[styles.bio, { color: currentThemeColors.text }]}> 
+              {bio || 'Tap to add a bio'}
+            </Text>
+          )}
+          <TouchableOpacity
+            onPress={() => (isEditingBio ? handleSaveBio() : setIsEditingBio(true))}
+            style={styles.editButton}
+            activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 16 }}>🥖</Text>
-            <Text style={[styles.coinText, { color: currentThemeColors.text }]}> Bánh mì: {Number(coins || 0)}</Text>
-          </View>
-        </View>
-        </View>
-      </View>
-
-      <View style={styles.header}>
-        <View style={[styles.avatarWrapper, { borderColor: currentThemeColors.text }]}>
-          <VibeAvatar
-            avatarUrl={user?.profileUrl}
-            size={80}
-            currentVibe={currentVibe}
-            showAddButton={true}
-            storyUser={{ id: user?.uid || '', username: user?.username || user?.displayName, profileUrl: user?.profileUrl }}
-          />
-          <View style={styles.statsContainer}>
-            <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
-                {postsCount}
-              </Text>
-              <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>
-                Posts
-              </Text>
-            </View>
-
-            <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
-                {followersCount}
-              </Text>
-              <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>
-                Followers
-              </Text>
-            </View>
-
-            <View style={styles.stat}>
-              <Text style={[styles.statValue, { color: currentThemeColors.subtleText }]}>
-                {followingCount}
-              </Text>
-              <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>
-                Following
-              </Text>
-            </View>
-          </View>
-        </View>
-        <Text style={[styles.name, { color: currentThemeColors.text }]}>
-          {user?.username || user?.displayName || user?.name || user?.email?.split('@')[0] || 'Unknown User'}
-        </Text>
-        
-        {/* UID Display with Copy Button */}
-        <View style={[styles.uidContainer]}>
-          <Text style={[styles.uidLabel, { color: currentThemeColors.subtleText }]}> UID: </Text>
-          <Text style={[styles.uidText, { color: currentThemeColors.text }]} numberOfLines={1} selectable={true}>
-            {user?.uid || 'No UID'}
-          </Text>
-          <TouchableOpacity onPress={handleCopyUID} style={[styles.copyButton]} activeOpacity={0.7}>
-            <Feather name="copy" size={14} color={currentThemeColors.icon} />
+            <AntDesign name={isEditingBio ? 'checkcircle' : 'edit'} size={20} color={currentThemeColors.icon} />
           </TouchableOpacity>
         </View>
 
-        {/* Gift stats row */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 6 }}>
-          <TouchableOpacity onPress={() => router.push('/gifts/Inbox')} activeOpacity={0.8}>
-            <View style={[styles.coinPill, { borderColor: currentThemeColors.border, backgroundColor: currentThemeColors.cardBackground }]}>
-              <Text style={{ fontSize: 14 }}>🎁</Text>
-              <Text style={[styles.coinText, { color: currentThemeColors.text }]}>
-                {' '}
-                {giftStats.count} quà
-              </Text>
-            </View>
+        <View style={styles.statsRow}>
+          <TouchableOpacity style={[styles.statCard, { backgroundColor: currentThemeColors.cardBackground }]} activeOpacity={0.7}>
+            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{postsCount}</Text>
+            <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Posts</Text>
           </TouchableOpacity>
-          <View style={[styles.coinPill, { borderColor: currentThemeColors.border, backgroundColor: currentThemeColors.cardBackground }]}>
-            <Text style={{ fontSize: 14 }}>🥖</Text>
-            <Text style={[styles.coinText, { color: currentThemeColors.text }]}>
-              {' '}
+          <TouchableOpacity style={[styles.statCard, { backgroundColor: currentThemeColors.cardBackground }]} activeOpacity={0.7}>
+            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{followersCount}</Text>
+            <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Followers</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.statCard, { backgroundColor: currentThemeColors.cardBackground }]} activeOpacity={0.7}>
+            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{followingCount}</Text>
+            <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Following</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.pillsRow}>
+          <View style={[styles.pill, { backgroundColor: currentThemeColors.cardBackground, borderColor: currentThemeColors.border }]}> 
+            <Text style={styles.emoji}>🥖</Text>
+            <Text style={[styles.pillText, { color: currentThemeColors.text }]}> 
+              {Number(coins || 0)}
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={[styles.pill, { backgroundColor: currentThemeColors.cardBackground, borderColor: currentThemeColors.border }]} 
+            onPress={() => router.push('/gifts/Inbox')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.emoji}>🎁</Text>
+            <Text style={[styles.pillText, { color: currentThemeColors.text }]}> 
+              {giftStats.count}
+            </Text>
+          </TouchableOpacity>
+          <View style={[styles.pill, { backgroundColor: currentThemeColors.cardBackground, borderColor: currentThemeColors.border }]}> 
+            <Text style={styles.emoji}>💰</Text>
+            <Text style={[styles.pillText, { color: currentThemeColors.text }]}> 
               {giftStats.value}
             </Text>
           </View>
         </View>
 
-        <View style={styles.bioContainer}>
-          {isEditingBio ? (
-            <TextInput
-              style={[
-                styles.bioInput,
-                {
-                  color: currentThemeColors.text,
-                  borderBottomColor: currentThemeColors.icon,
-                },
-              ]}
-              value={bio}
-              onChangeText={setBio}
-              autoFocus
-              placeholder="Add a bio..."
-              placeholderTextColor={currentThemeColors.placeholderText}
-            />
-          ) : (
-            <Text style={[styles.bio, { color: currentThemeColors.text }]}>
-              {bio || 'No bio available'}
-            </Text>
-          )}
-          <TouchableOpacity
-            onPress={() => (isEditingBio ? handleSaveBio() : setIsEditingBio(true))}
-            style={styles.editIcon}
-            activeOpacity={0.7}
-          >
-            <AntDesign name={isEditingBio ? 'check' : 'edit'} size={16} color={currentThemeColors.icon} />
-          </TouchableOpacity>
-        </View>
-        <VibeSection />
+        <Divider style={[styles.divider, { backgroundColor: currentThemeColors.border }]} />
       </View>
-
-
-      <Divider style={[styles.divider, { backgroundColor: currentThemeColors.border }]} />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  container: {
+    backgroundColor: 'transparent',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   coverPhotoContainer: {
     height: 200,
     overflow: 'hidden',
     position: 'relative',
-    marginTop: -20,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   coverPhoto: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
   },
+  coverOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+  },
   settingsButton: {
     position: 'absolute',
-    top: 40,
-    right: 15,
-    padding: 8,
-    borderRadius: 50,
+    top: 48,
+    right: 16,
   },
   header: {
-    width: '100%',
-    padding: 16,
-    marginTop: -50,
+    paddingHorizontal: 16,
+    marginTop: -48,
+  },
+  avatarNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 16,
+  },
+  avatarContainer: {
+    marginRight: 16,
+    position: 'relative', // To allow overlay
   },
   avatarWrapper: {
     marginLeft: -10,
@@ -387,65 +372,91 @@ const styles = StyleSheet.create({
     borderRadius: 50,
   },
   name: {
-    marginTop: 8,
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
   },
   uidContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
-    marginBottom: 8,
   },
   uidLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '500',
     marginRight: 4,
   },
   uidText: {
-    fontSize: 10,
-    fontFamily: 'monospace',
-    flex: 1,
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   copyButton: {
-    padding: 2,
-    marginLeft: 2,
+    marginLeft: 8,
+    padding: 4,
   },
   bioContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 16,
   },
   bio: {
-    fontSize: 14,
-    textAlign: 'center',
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
   },
   bioInput: {
-    fontSize: 16,
-    borderBottomWidth: 1,
-    width: '80%',
-    textAlign: 'center',
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 8,
   },
-  editIcon: {
-    marginLeft: 8,
+  editButton: {
+    marginLeft: 12,
+    padding: 6,
   },
-  statsContainer: {
+  statsRow: {
     flexDirection: 'row',
-    marginTop: 45,
-    width: '100%',
-
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
-  stat: {
+  statCard: {
+    flex: 1,
     alignItems: 'center',
-    marginRight: 25,
-    marginLeft: 10
+    paddingVertical: 12,
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   statLabel: {
     fontSize: 12,
+    marginTop: 2,
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    shadowOpacity: 0.05,
+  },
+  emoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  pillText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   divider: {
     marginVertical: 16,
@@ -455,61 +466,6 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  vibeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 10,
-  },
-  editVibeButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  addVibeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-  },
-  addVibeText: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 8,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    position: 'absolute',
-    top: 0,
-    right: 5,
-    gap: 10,
-  },
-  vibeButton: {
-    padding: 6,
-    borderRadius: 20,
-  },
-  walletRow: {
-    position: 'absolute',
-    right: 0,
-    top: 90,
-    alignItems: 'center',
-  },
-  coinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  coinText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
 

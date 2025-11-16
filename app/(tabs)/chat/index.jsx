@@ -14,7 +14,7 @@ const USERS_TTL_MS = 2 * 60 * 1000; // 2 minutes
 
 export default function Chat() {
   const { user } = useAuth();
-  const { theme } = useContext(ThemeContext);
+  const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);

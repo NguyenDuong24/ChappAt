@@ -45,5 +45,23 @@ if (typeof global.btoa !== 'function') {
   global.btoa = (bin) => RNBuffer.from(bin, 'binary').toString('base64');
 }
 
+// Notification handler configuration
+import * as Notifications from 'expo-notifications';
+
+Notifications.setNotificationHandler({
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data;
+    const isCallNotification = data?.type === 'call';
+    
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      // Đặt priority cao cho call notifications
+      priority: isCallNotification ? Notifications.AndroidNotificationPriority.MAX : Notifications.AndroidNotificationPriority.HIGH,
+    };
+  },
+});
+
 // Continue with normal Expo Router entry
 import 'expo-router/entry';

@@ -188,7 +188,7 @@ const ProfileScreen = () => {
         renderItem={renderPost}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={<TopProfile onEditProfile={() => console.log('Edit Profile Pressed')} />}
-        contentContainerStyle={[styles.flatListContainer, { paddingHorizontal: 16 }]}
+        contentContainerStyle={[styles.flatListContainer]}
         onScroll={() => setIsScroll(true)}
         onMomentumScrollEnd={() => setIsScroll(false)}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -203,7 +203,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   flatListContainer: {
-    paddingTop: 20,
     paddingBottom: 20,
   },
 });

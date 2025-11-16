@@ -275,7 +275,8 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       };
       console.log('👨‍💼 User info for report:', userInfo);
 
-      await submitReport(report, userInfo);
+      const sanitized = { ...report, images: Array.isArray(report?.images) ? report.images : [] };
+      await submitReport(sanitized, userInfo);
       console.log('✅ Report submitted successfully from SettingsScreen');
     } catch (e) {
       console.log('❌ submitReport error:', e);

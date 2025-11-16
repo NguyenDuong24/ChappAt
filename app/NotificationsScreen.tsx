@@ -21,15 +21,17 @@ import { useAuth } from '@/context/authContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { useNotificationContext, NotificationNavigationService } from '@/services/core';
+import { useNotificationContext } from '../context/NotificationProvider';
+import NotificationNavigationService from '../services/notificationNavigationService';
 import { db } from '@/firebaseConfig';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { NotificationActionsService } from '@/services/notificationActions';
 
 const { width, height } = Dimensions.get('window');
 
 interface Notification {
   id: string;
-  type: 'message' | 'call' | 'friend_request' | 'hot_spot' | 'event_pass' | 'system' | 'like' | 'comment' | 'follow' | 'mention';
+  type: 'message' | 'call' | 'friend_request' | 'hot_spot' | 'event_pass' | 'system' | 'like' | 'comment' | 'follow' | 'mention' | 'accepted_invite';
   title: string;
   message: string;
   timestamp: string;
@@ -46,7 +48,7 @@ type CategoryKey = 'all' | 'message' | 'call' | 'friend_request' | 'event_pass' 
 const NotificationsScreen = () => {
   const router = useRouter();
   const { user } = useAuth();
-  const { pushToken } = useNotificationContext();
+  const { expoPushToken } = useNotificationContext();
   
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'dark';
@@ -454,7 +456,7 @@ const NotificationsScreen = () => {
     
     console.log('🧭 Notification pressed:', notification);
     
-    // Use navigation service for proper routing
+    // Prepare navigation data based on notification type
     const navigationData = {
       type: notification.type,
       postId: notification.data?.postId,
@@ -471,45 +473,106 @@ const NotificationsScreen = () => {
     console.log('🧭 Navigation data prepared:', navigationData);
     
     try {
-      // Try notification service first
-      NotificationNavigationService.handleNotificationTap(navigationData);
-      console.log('✅ Navigation triggered successfully');
-    } catch (error) {
-      console.error('❌ Navigation service failed:', error);
-      
-      // Fallback: try direct router navigation
-      try {
-        console.log('🔄 Trying direct router navigation...');
-        
-        if (navigationData.type === 'like' || navigationData.type === 'comment') {
+      // Handle different notification types with proper navigation
+      switch (notification.type) {
+        case 'like':
+        case 'comment':
+        case 'mention':
+          // Navigate to post detail
           if (navigationData.postId) {
+            console.log('🧭 Navigating to post:', navigationData.postId);
             router.push(`/PostDetailScreen?postId=${navigationData.postId}` as any);
-            console.log('✅ Direct post navigation successful');
-            return;
+          } else {
+            Alert.alert('Lỗi', 'Không tìm thấy bài viết');
           }
-        } else if (navigationData.type === 'follow') {
+          break;
+
+        case 'follow':
+          // Navigate to user profile
           if (navigationData.userId) {
+            console.log('🧭 Navigating to profile:', navigationData.userId);
             router.push(`/UserProfileScreen?userId=${navigationData.userId}` as any);
-            console.log('✅ Direct profile navigation successful');
-            return;
+          } else {
+            Alert.alert('Lỗi', 'Không tìm thấy người dùng');
           }
-        }
-        
-        // If no specific navigation worked, show alert
-        Alert.alert(
-          'Debug Info',
-          `Navigation data: ${JSON.stringify(navigationData)}`,
-          [{ text: 'OK' }]
-        );
-        
-      } catch (directError) {
-        console.error('❌ Direct navigation also failed:', directError);
-        Alert.alert(
-          'Lỗi Navigation',
-          'Không thể mở nội dung này. Vui lòng thử lại.',
-          [{ text: 'OK' }]
-        );
+          break;
+
+        case 'message':
+          // Navigate to chat
+          if (navigationData.chatId) {
+            console.log('🧭 Navigating to chat:', navigationData.chatId);
+            router.push(`/chat/${navigationData.chatId}` as any);
+          } else if (navigationData.userId) {
+            // If no chatId, navigate to profile where they can start a chat
+            router.push(`/UserProfileScreen?userId=${navigationData.userId}` as any);
+          } else {
+            Alert.alert('Lỗi', 'Không tìm thấy cuộc trò chuyện');
+          }
+          break;
+
+        case 'friend_request':
+          // Navigate to friend requests screen or user profile
+          if (navigationData.userId) {
+            console.log('🧭 Navigating to profile for friend request:', navigationData.userId);
+            router.push(`/UserProfileScreen?userId=${navigationData.userId}` as any);
+          } else {
+            // Navigate to invitations/friend requests screen
+            router.push('/InvitationsScreen' as any);
+          }
+          break;
+
+        case 'accepted_invite':
+          // Navigate to the user's profile who accepted
+          if (navigationData.userId) {
+            console.log('🧭 Navigating to profile (accepted invite):', navigationData.userId);
+            router.push(`/UserProfileScreen?userId=${navigationData.userId}` as any);
+          }
+          break;
+
+        case 'hot_spot':
+          // Navigate to hot spot detail
+          if (navigationData.hotSpotId) {
+            console.log('🧭 Navigating to hot spot:', navigationData.hotSpotId);
+            router.push(`/HotSpotDetailScreen?hotSpotId=${navigationData.hotSpotId}` as any);
+          } else {
+            // Navigate to hot spots list
+            router.push('/HotSpotsScreen' as any);
+          }
+          break;
+
+        case 'call':
+          // Navigate to user profile or call history
+          if (navigationData.userId) {
+            console.log('🧭 Navigating to profile for call:', navigationData.userId);
+            router.push(`/UserProfileScreen?userId=${navigationData.userId}` as any);
+          } else {
+            Alert.alert('Cuộc gọi nhỡ', 'Bạn có một cuộc gọi nhỡ');
+          }
+          break;
+
+        case 'event_pass':
+          // Navigate to events or profile to see achievements
+          if (user?.uid) {
+            router.push(`/UserProfileScreen?userId=${user.uid}` as any);
+          }
+          break;
+
+        case 'system':
+          // System notifications don't need navigation
+          Alert.alert(notification.title, notification.message);
+          break;
+
+        default:
+          console.log('⚠️ Unknown notification type:', notification.type);
+          Alert.alert(notification.title, notification.message);
       }
+    } catch (error) {
+      console.error('❌ Navigation failed:', error);
+      Alert.alert(
+        'Lỗi',
+        'Không thể mở nội dung này. Vui lòng thử lại.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -571,55 +634,121 @@ const NotificationsScreen = () => {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleAction = (notification: Notification, action: string) => {
+  const handleAction = async (notification: Notification, action: string) => {
     // Mark as read when user interacts
-    markAsRead(notification.id);
+    await markAsRead(notification.id);
     
-    switch (action) {
-      case 'accept':
-        Alert.alert('Chấp nhận', `Bạn đã chấp nhận lời mời kết bạn từ ${notification.senderName}`);
-        break;
-      case 'decline':
-        Alert.alert('Từ chối', `Bạn đã từ chối lời mời từ ${notification.senderName}`);
-        break;
-      case 'reply':
-        if (notification.data?.chatId) {
-          router.push(`/chat/${notification.data.chatId}`);
-        } else {
-          Alert.alert('Trả lời', `Mở chat với ${notification.senderName}`);
-        }
-        break;
-      case 'view_post':
-        if (notification.data?.postId) {
-          Alert.alert('Xem bài viết', `Mở bài viết ${notification.data.postId}`);
-          // router.push(`/post/${notification.data.postId}`);
-        }
-        break;
-      case 'like_back':
-        Alert.alert('❤️', `Bạn đã like lại bài viết của ${notification.senderName}`);
-        break;
-      case 'reply_comment':
-        if (notification.data?.postId) {
-          Alert.alert('Trả lời comment', `Mở bài viết để trả lời comment từ ${notification.senderName}`);
-        }
-        break;
-      case 'follow_back':
-        Alert.alert('Theo dõi lại', `Bạn đã theo dõi lại ${notification.senderName}`);
-        break;
-      case 'view_profile':
-        if (notification.senderId) {
-          Alert.alert('Xem profile', `Mở profile của ${notification.senderName}`);
-          // router.push(`/profile/${notification.senderId}`);
-        }
-        break;
-      case 'join':
-        Alert.alert('Tham gia', `Bạn đã tham gia Hot Spot`);
-        break;
-      case 'view':
-        Alert.alert('Xem', `Xem chi tiết Hot Spot`);
-        break;
-      default:
-        break;
+    try {
+      switch (action) {
+        case 'accept':
+          // Accept friend request
+          if (notification.senderId && user?.uid) {
+            await NotificationActionsService.acceptFriendRequest(
+              user.uid,
+              notification.senderId,
+              notification.senderName || 'người dùng này'
+            );
+          }
+          break;
+          
+        case 'decline':
+          // Decline friend request
+          if (notification.senderId && user?.uid) {
+            await NotificationActionsService.declineFriendRequest(
+              user.uid,
+              notification.senderId,
+              notification.senderName || 'người dùng này'
+            );
+          }
+          break;
+          
+        case 'reply':
+          // Reply to message
+          if (notification.data?.chatId) {
+            router.push(`/chat/${notification.data.chatId}` as any);
+          } else if (notification.senderId) {
+            // Navigate to user profile to start a chat
+            router.push(`/UserProfileScreen?userId=${notification.senderId}` as any);
+          }
+          break;
+          
+        case 'view_post':
+          // View post
+          if (notification.data?.postId) {
+            router.push(`/PostDetailScreen?postId=${notification.data.postId}` as any);
+          } else {
+            Alert.alert('Lỗi', 'Không tìm thấy bài viết');
+          }
+          break;
+          
+        case 'like_back':
+          // Like back the post
+          if (notification.data?.postId && user?.uid && notification.senderId) {
+            const success = await NotificationActionsService.likePost(
+              user.uid,
+              notification.data.postId,
+              notification.senderId
+            );
+            if (success) {
+              Alert.alert('❤️', `Bạn đã thích bài viết của ${notification.senderName}`);
+            }
+            // Navigate to post regardless
+            router.push(`/PostDetailScreen?postId=${notification.data.postId}` as any);
+          }
+          break;
+          
+        case 'reply_comment':
+          // Reply to comment
+          if (notification.data?.postId) {
+            router.push(`/PostDetailScreen?postId=${notification.data.postId}` as any);
+          }
+          break;
+          
+        case 'follow_back':
+          // Follow back
+          if (notification.senderId && user?.uid) {
+            await NotificationActionsService.followUser(
+              user.uid,
+              notification.senderId,
+              notification.senderName || 'người dùng này'
+            );
+          }
+          break;
+          
+        case 'view_profile':
+          // View profile
+          if (notification.senderId) {
+            router.push(`/UserProfileScreen?userId=${notification.senderId}` as any);
+          } else {
+            Alert.alert('Lỗi', 'Không tìm thấy người dùng');
+          }
+          break;
+          
+        case 'join':
+          // Join hot spot
+          if (notification.data?.hotSpotId) {
+            router.push(`/HotSpotDetailScreen?hotSpotId=${notification.data.hotSpotId}` as any);
+          } else {
+            router.push('/HotSpotsScreen' as any);
+          }
+          break;
+          
+        case 'view':
+          // View hot spot
+          if (notification.data?.hotSpotId) {
+            router.push(`/HotSpotDetailScreen?hotSpotId=${notification.data.hotSpotId}` as any);
+          } else {
+            router.push('/HotSpotsScreen' as any);
+          }
+          break;
+          
+        default:
+          console.log('⚠️ Unknown action:', action);
+          break;
+      }
+    } catch (error) {
+      console.error('❌ Error handling action:', error);
+      Alert.alert('Lỗi', 'Không thể thực hiện hành động này. Vui lòng thử lại.');
     }
   };
 

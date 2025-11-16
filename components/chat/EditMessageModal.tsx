@@ -29,7 +29,8 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
   originalText,
   loading = false,
 }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [editedText, setEditedText] = useState(originalText);
 

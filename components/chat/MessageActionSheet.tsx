@@ -27,6 +27,7 @@ interface MessageActionSheetProps {
   isCurrentUser: boolean;
   isPinned?: boolean;
   message: any;
+  onReport?: () => void; // optional to avoid breaking existing callers
 }
 
 const REACTIONS = ['❤️', '👍', '👎', '😂', '😮', '😢', '😡', '🔥', '👏', '💯'];
@@ -43,8 +44,10 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
   isCurrentUser,
   isPinned = false,
   message,
+  onReport,
 }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const actions = [
@@ -75,6 +78,14 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
       title: isPinned ? 'Bỏ ghim' : 'Ghim tin nhắn',
       onPress: onPin,
       show: true,
+    },
+    {
+      id: 'report',
+      icon: 'flag',
+      title: 'Báo cáo',
+      onPress: onReport,
+      show: !!onReport, // only show when handler is provided
+      danger: true,
     },
     {
       id: 'delete',

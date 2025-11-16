@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { vibeService } from '../services/vibeService';
 import { PREDEFINED_VIBES } from '../types/vibe';
 import { walletService } from '../services/walletService';
+import ExpoPushNotificationService from '../services/expoPushNotificationService';
 
 export const AuthContext = createContext();
 
@@ -39,6 +40,10 @@ export const AuthContextProvider = ({ children }) => {
 
     // Wallet state
     const [coins, setCoins] = useState(0);
+
+    // Expo Push Notification state
+    const [notificationToken, setNotificationToken] = useState(null);
+    const [notificationInitialized, setNotificationInitialized] = useState(false);
 
     // Configure Google Sign-In when the app starts
     useEffect(() => {
@@ -156,6 +161,32 @@ export const AuthContextProvider = ({ children }) => {
         return data.profileCompleted === true || hasAllRequired;
     };
 
+    // Initialize Expo Push Notifications
+    const initializeNotifications = async (userId) => {
+        try {
+            console.log('🚀 Initializing Expo Push Notifications for user:', userId);
+            await ExpoPushNotificationService.initializeWithRealtimeListeners(userId);
+            const token = ExpoPushNotificationService.getExpoPushToken();
+            setNotificationToken(token);
+            setNotificationInitialized(true);
+            console.log('✅ Expo Push Notifications initialized successfully');
+            console.log('📱 Push Token:', token);
+        } catch (error) {
+            console.error('❌ Failed to initialize Expo Push Notifications:', error);
+            setNotificationInitialized(false);
+        }
+    };
+
+    // Cleanup Expo Push Notifications
+    const cleanupNotifications = () => {
+        try {
+            ExpoPushNotificationService.cleanup();
+            console.log('🧹 Expo Push Notifications cleaned up');
+        } catch (error) {
+            console.error('❌ Error cleaning up notifications:', error);
+        }
+    };
+
     useEffect(() => {
         // Listen to user profile changes to update isAuthenticated when onboarding completes
         if (!user?.uid) return;
@@ -250,6 +281,9 @@ export const AuthContextProvider = ({ children }) => {
                             
                             // Start vibe subscription for authenticated users
                             startVibeSubscription(userFB.uid);
+                            
+                            // Initialize Expo Push Notifications
+                            initializeNotifications(userFB.uid);
                         } else {
                             setIsAuthenticated('pendingProfile');
                             setIsOnboarding(true);
@@ -286,6 +320,7 @@ export const AuthContextProvider = ({ children }) => {
                 } else {
                     // Clear all user-related state safely
                     stopVibeSubscription();
+                    cleanupNotifications(); // Cleanup notifications
                     setUser(null);
                     setName('');
                     setEmail('');
@@ -302,11 +337,15 @@ export const AuthContextProvider = ({ children }) => {
                     setVibeError(null);
                     // Reset coins
                     setCoins(0);
+                    // Clear notification state
+                    setNotificationToken(null);
+                    setNotificationInitialized(false);
                 }
             } catch (error) {
                 console.error('Error in auth state change:', error);
                 setIsAuthenticated(false);
                 stopVibeSubscription();
+                cleanupNotifications(); // Cleanup on error
                 setCurrentVibe(null);
             } finally {
                 setLoading(false);
@@ -885,6 +924,9 @@ export const AuthContextProvider = ({ children }) => {
             settingVibe,
             vibeError,
             debugVibeData,
+            // Expo Push Notifications
+            notificationToken,
+            notificationInitialized,
             // Thêm hàm mới
             updateUserPassword,
         }}>

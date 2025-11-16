@@ -21,40 +21,26 @@ const InteractionButtons = ({
 }: InteractionButtonsProps) => {
   return (
     <View style={styles.interactionContainer}>
+      {/* Chỉ hiển thị nút Quan tâm - user không thể tự check-in hay join */}
       <TouchableOpacity
         style={[styles.interactionButton, isInterested && styles.interestedButton]}
         onPress={() => onInteract('interested')}
       >
         <FontAwesome name={isInterested ? 'star' : 'star-o'} size={20} color={isInterested ? '#fff' : '#FFC300'} />
         <Text style={[styles.interactionText, isInterested && styles.interestedText]}>
-          Quan tâm
+          {isInterested ? 'Đã quan tâm' : 'Quan tâm'}
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.interactionButton, isJoined && styles.joinedButton]}
-        onPress={() => onInteract('joined')}
-      >
-        <MaterialIcons name={isJoined ? 'event-available' : 'event'} size={24} color={isJoined ? '#fff' : '#4ECDC4'} />
-        <Text style={[styles.interactionText, isJoined && styles.joinedText]}>
-          {isJoined ? 'Đã tham gia' : 'Tham gia'}
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.interactionButton, isCheckedIn && styles.checkedInButton]}
-        onPress={onCheckIn}
-        disabled={isCheckedIn || checkingIn}
-      >
-        {checkingIn ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <FontAwesome name="check-circle" size={24} color={isCheckedIn ? '#fff' : '#45B8AC'} />
-        )}
-        <Text style={[styles.interactionText, isCheckedIn && styles.checkedInText]}>
-          {isCheckedIn ? 'Đã Check-in' : 'Check-in'}
-        </Text>
-      </TouchableOpacity>
+      {/* Hiển thị trạng thái check-in nếu đã check-in (chỉ hiển thị, không cho click) */}
+      {isCheckedIn && (
+        <View style={[styles.interactionButton, styles.checkedInButton]}>
+          <FontAwesome name="check-circle" size={24} color="#fff" />
+          <Text style={[styles.interactionText, styles.checkedInText]}>
+            Đã Check-in
+          </Text>
+        </View>
+      )}
     </View>
   );
 };

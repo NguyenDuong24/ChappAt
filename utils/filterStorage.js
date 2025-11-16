@@ -18,10 +18,8 @@ export const saveFilterPreferences = async (filterData) => {
   try {
     const filterToSave = { ...DEFAULT_FILTER, ...filterData };
     await AsyncStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filterToSave));
-    console.log('💾 Filter preferences saved:', filterToSave);
     return true;
   } catch (error) {
-    console.error('❌ Error saving filter preferences:', error);
     return false;
   }
 };
@@ -35,14 +33,11 @@ export const loadFilterPreferences = async () => {
     const savedFilters = await AsyncStorage.getItem(FILTER_STORAGE_KEY);
     if (savedFilters) {
       const filterData = JSON.parse(savedFilters);
-      console.log('📱 Loaded saved filters:', filterData);
       return { ...DEFAULT_FILTER, ...filterData };
     } else {
-      console.log('📱 No saved filters found, using defaults');
       return DEFAULT_FILTER;
     }
   } catch (error) {
-    console.error('❌ Error loading filter preferences:', error);
     return DEFAULT_FILTER;
   }
 };
@@ -53,10 +48,8 @@ export const loadFilterPreferences = async () => {
 export const clearFilterPreferences = async () => {
   try {
     await AsyncStorage.removeItem(FILTER_STORAGE_KEY);
-    console.log('🗑️ Filter preferences cleared from storage');
     return true;
   } catch (error) {
-    console.error('❌ Error clearing filter preferences:', error);
     return false;
   }
 };

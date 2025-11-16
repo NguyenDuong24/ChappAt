@@ -20,7 +20,8 @@ export default function ThemedStatusBar({ backgroundColor, style, translucent = 
   return (
     <StatusBar
       style={style ?? (theme === 'dark' ? 'light' : 'dark')}
-      backgroundColor={backgroundColor ?? currentThemeColors.backgroundHeader}
+      // If translucent, use transparent so gradient/header can show through
+      backgroundColor={translucent ? 'transparent' : (backgroundColor ?? currentThemeColors.backgroundHeader)}
       translucent={translucent}
       animated
     />

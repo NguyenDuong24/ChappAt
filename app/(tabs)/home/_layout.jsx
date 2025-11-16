@@ -11,6 +11,7 @@ const StackLayout = () => {
          options={{
             headerShown: true,
             header: () => <HomeHeader/>,
+            headerTransparent: true,
             headerTitle: "",
          }}
         />

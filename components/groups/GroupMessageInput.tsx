@@ -15,7 +15,8 @@ interface GroupMessageInputProps {
 }
 
 const GroupMessageInput = ({ groupId, currentUser, group }: GroupMessageInputProps) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);

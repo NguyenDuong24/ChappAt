@@ -2,7 +2,6 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, collection } from 'firebase/firestore';
-import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 import * as Notifications from 'expo-notifications';
 
@@ -41,9 +40,9 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Initialize Firestore / Functions / Storage once per app instance
+// Initialize Firestore / Storage once per app instance
+// Note: Firebase Cloud Functions removed - using custom coin server instead
 export const db = getFirestore(app);
-export const functions = getFunctions(app);
 export const storage = getStorage(app);
 
 // Firestore collection refs

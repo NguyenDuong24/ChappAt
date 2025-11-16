@@ -3,8 +3,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  Platform,
-  Image,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
@@ -13,12 +12,13 @@ import { getDistance } from 'geolib';
 
 import LoadingComponent from '@/components/common/LoadingComponent';
 import ErrorComponent from '@/components/common/ErrorComponent';
-import HotSpotHeader from '@/components/hotspots/HotSpotHeader';
 import InteractionButtons from '@/components/hotspots/InteractionButtons';
 import ActionMenu from '@/components/hotspots/ActionMenu';
 import HotSpotDetailsContent from '@/components/hotspots/HotSpotDetailsContent';
+import ImageGallery from '@/components/hotspots/ImageGallery';
+import EventDetails from '@/components/hotspots/EventDetails';
 
-const CHECK_IN_RADIUS_METERS = 200; // 200 meters
+const CHECK_IN_RADIUS_METERS = 200;
 
 const HotSpotDetailScreen = () => {
   const { hotSpotId } = useLocalSearchParams<{ hotSpotId: string }>();
@@ -113,24 +113,58 @@ const HotSpotDetailScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <ScrollView style={styles.scrollView}>
-        <Image source={{ uri: hotSpot.thumbnail }} style={styles.thumbnail} />
-        
-        <HotSpotHeader hotSpot={hotSpot} />
+      <ScrollView 
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+      >
+        {/* Image Gallery - Full Width */}
+        <ImageGallery images={hotSpot.images} thumbnail={hotSpot.thumbnail} />
 
-        <InteractionButtons
-          isInterested={isInterested}
-          isJoined={isJoined}
-          isCheckedIn={isCheckedIn}
-          checkingIn={checkingIn}
-          onInteract={handleInteraction}
-          onCheckIn={handleCheckIn}
-        />
+        {/* Main Content */}
+        <View style={styles.content}>
 
-        <ActionMenu hotSpot={hotSpot} />
+          {/* Interaction Buttons - Highlighted */}
+          <View style={styles.interactionSection}>
+            <InteractionButtons
+              isInterested={isInterested}
+              isJoined={isJoined}
+              isCheckedIn={isCheckedIn}
+              checkingIn={checkingIn}
+              onInteract={handleInteraction}
+              onCheckIn={handleCheckIn}
+            />
+          </View>
 
-        <HotSpotDetailsContent hotSpot={hotSpot} />
+          {/* Divider */}
+          <View style={styles.divider} />
 
+          {/* Action Menu */}
+          <View style={styles.section}>
+            <ActionMenu hotSpot={hotSpot} />
+          </View>
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* Details Content */}
+          <View style={styles.section}>
+            <HotSpotDetailsContent hotSpot={hotSpot} />
+          </View>
+
+          {/* Event Details */}
+          {hotSpot.eventInfo && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.section}>
+                <EventDetails hotSpot={hotSpot} />
+              </View>
+            </>
+          )}
+
+          {/* Bottom Space */}
+          <View style={styles.bottomSpace} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -139,14 +173,30 @@ const HotSpotDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
   },
-  thumbnail: {
-    width: '100%',
-    height: 250,
+  content: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  section: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  interactionSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: '#F8F9FA',
+  },
+  divider: {
+    height: 8,
+    backgroundColor: '#F0F2F5',
+  },
+  bottomSpace: {
+    height: 32,
   },
 });
 

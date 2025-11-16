@@ -16,6 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { UserProfile } from '@/types/eventInvites';
 import { eventInviteService } from '@/services/eventInviteService';
 import { useAuth } from '@/context/authContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
 
 const { width } = Dimensions.get('window');
 
@@ -37,6 +39,8 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
   const [interestedUsers, setInterestedUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
   const [invitingUsers, setInvitingUsers] = useState<{[key: string]: boolean}>({});
+  const [hotSpotData, setHotSpotData] = useState<any>(null);
+  const [pendingInvites, setPendingInvites] = useState<{[key: string]: boolean}>({});
 
   // Helper: safely format location which may be string or { latitude, longitude }
   const getLocationText = (loc: any): string | undefined => {
@@ -56,6 +60,7 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
   useEffect(() => {
     if (visible) {
       loadInterestedUsers();
+      loadHotSpotData();
     }
   }, [visible, eventId]);
 
@@ -64,7 +69,27 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
     try {
       const users = await eventInviteService.getInterestedUsers(eventId);
       // Filter out current user
-      setInterestedUsers(users.filter(u => u.id !== user?.uid));
+      const filteredUsers = users.filter(u => u.id !== user?.uid);
+      setInterestedUsers(filteredUsers);
+      
+      // Check for existing pending invites
+      if (user?.uid) {
+        const pendingChecks: {[key: string]: boolean} = {};
+        for (const targetUser of filteredUsers) {
+          try {
+            const existing = await eventInviteService.checkExistingInvite(
+              eventId,
+              user.uid,
+              targetUser.id
+            );
+            pendingChecks[targetUser.id] = !!existing;
+          } catch (error) {
+            console.error('Error checking pending invite for user:', targetUser.id, error);
+            pendingChecks[targetUser.id] = false;
+          }
+        }
+        setPendingInvites(pendingChecks);
+      }
     } catch (error) {
       console.error('Error loading interested users:', error);
       Alert.alert('Lỗi', 'Không thể tải danh sách người quan tâm');
@@ -73,17 +98,45 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
     }
   };
 
+  const loadHotSpotData = async () => {
+    try {
+      const hotSpotRef = doc(db, 'hotSpots', eventId);
+      const hotSpotSnap = await getDoc(hotSpotRef);
+      if (hotSpotSnap.exists()) {
+        setHotSpotData({ id: hotSpotSnap.id, ...hotSpotSnap.data() });
+      }
+    } catch (error) {
+      console.error('Error loading hot spot data:', error);
+    }
+  };
+
   const handleInviteUser = async (targetUserId: string) => {
     if (!user?.uid) return;
+    if (pendingInvites[targetUserId]) {
+      Alert.alert('Đã gửi', 'Bạn đã có lời mời đang chờ người này.');
+      return;
+    }
     
     setInvitingUsers(prev => ({ ...prev, [targetUserId]: true }));
     
     try {
-      await eventInviteService.sendInvite(eventId, user.uid, targetUserId);
+      const targetUser = interestedUsers.find(u => u.id === targetUserId);
+
+      // Ensure no duplicate pending invite
+      const existing = await eventInviteService.checkExistingInvite(eventId, user.uid, targetUserId);
+      if (existing) {
+        setPendingInvites(prev => ({ ...prev, [targetUserId]: true }));
+        Alert.alert('Đã gửi', 'Bạn đã có lời mời đang chờ người này.');
+        return;
+      }
+
+      const inviteId = await eventInviteService.sendInvite(eventId, user.uid, targetUserId);
+      setPendingInvites(prev => ({ ...prev, [targetUserId]: true }));
+      
       Alert.alert(
         'Thành công! 💌', 
-        'Lời mời đã được gửi! Họ sẽ nhận được thông báo và có thể phản hồi.',
-        [{ text: 'OK', onPress: onClose }]
+        `Đã gửi lời mời đến ${targetUser?.name || 'người dùng'}! Họ sẽ nhận được thông báo.`,
+        [{ text: 'OK' }]
       );
     } catch (error: any) {
       Alert.alert('Lỗi', error.message || 'Không thể gửi lời mời');
@@ -129,16 +182,21 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
         </View>
   
         <TouchableOpacity 
-          style={[styles.inviteButton, invitingUsers[item.id] && styles.inviteButtonDisabled]}
+          style={[styles.inviteButton, (invitingUsers[item.id] || pendingInvites[item.id]) && styles.inviteButtonDisabled]}
           onPress={() => handleInviteUser(item.id)}
-          disabled={invitingUsers[item.id]}
+          disabled={invitingUsers[item.id] || pendingInvites[item.id]}
         >
           <LinearGradient
-            colors={invitingUsers[item.id] ? ['#ccc', '#999'] : ['#EC4899', '#8B5CF6']}
+            colors={invitingUsers[item.id] ? ['#ccc', '#999'] : pendingInvites[item.id] ? ['#10B981', '#059669'] : ['#EC4899', '#8B5CF6']}
             style={styles.inviteButtonGradient}
           >
             {invitingUsers[item.id] ? (
               <ActivityIndicator size="small" color="white" />
+            ) : pendingInvites[item.id] ? (
+              <>
+                <MaterialIcons name="check-circle" size={16} color="white" />
+                <Text style={styles.inviteButtonText}>Đã gửi lời mời</Text>
+              </>
             ) : (
               <>
                 <MaterialIcons name="group-add" size={16} color="white" />

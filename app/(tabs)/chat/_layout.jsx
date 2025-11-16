@@ -6,29 +6,26 @@ import { ThemeContext } from '../../../context/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '../../../components/common/ThemedStatusBar';
 
 const StackLayout = () => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={styles.container}>
-      <StatusBar
-        style="light"
-        backgroundColor="transparent"
-        translucent
-      />
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+      {/* Consistent ThemedStatusBar with translucent for gradient header */}
+      <ThemedStatusBar translucent />
       
-      {/* Modern Chat Header */}
+      {/* Modern Chat Header with theme-aware gradient */}
       <LinearGradient
         colors={theme === 'dark' 
-          ? ['#667eea', '#764ba2'] 
-          : ['#667eea', '#764ba2']
+          ? ['#1a1a2e', '#16213e'] 
+          : ['#4facfe', '#00f2fe']
         }
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={[styles.headerGradient, { paddingTop: insets.top }]}
       >
         <ChatListHeader />
@@ -47,7 +44,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
   },
   headerGradient: {
-    // paddingTop provided by insets.top for consistent safe area
+    // paddingTop provided by insets.top for consistent safe area (status bar translucent)
+    paddingBottom: 8,
   },
 });
 

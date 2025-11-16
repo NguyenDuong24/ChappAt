@@ -7,12 +7,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { acceptCall, declineCall, cancelCall, CALL_STATUS } from '@/services/firebaseCallService';
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
+import { useAudio } from '@/context/AudioContext';
 
 const ListenCallAcceptedScreen = () => {
   const { callId, meetingId, callerId, receiverId, callType, status } = useLocalSearchParams();
   const [callStatus, setCallStatus] = useState(status);
   const [callerInfo, setCallerInfo] = useState<any>(null);
   const { navigateToCallScreen, navigateBack } = useCallNavigation();
+  const { playSound, stopSound } = useAudio();
   const pulse = new Animated.Value(1);
 
   useEffect(() => {
@@ -52,12 +54,32 @@ const ListenCallAcceptedScreen = () => {
         }),
       ])
     ).start();
+
+    // Phát âm thanh gọi đi
+    const playOutgoingCallSound = async () => {
+      try {
+        console.log('🔊 Playing outgoing call sound');
+        await playSound('outgoingCall', { isLooping: true });
+      } catch (error) {
+        console.error('Error playing outgoing call sound:', error);
+      }
+    };
+
+    playOutgoingCallSound();
+
+    return () => {
+      // Dừng âm thanh khi component unmount
+      stopSound('outgoingCall');
+    };
   }, [receiverId]);
 
   const handleCancelCall = async () => {
     try {
       console.log('❌ Cancelling call:', callId);
       if (callId && typeof callId === 'string') {
+        // Dừng âm thanh trước khi cancel
+        await stopSound('outgoingCall');
+        
         await cancelCall(callId);
         console.log('✅ Call cancelled in Firebase');
         

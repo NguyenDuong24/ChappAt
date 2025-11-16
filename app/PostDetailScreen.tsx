@@ -11,14 +11,15 @@ import {
   StatusBar,
   Platform,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '@/firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import PostCard from '@/components/profile/PostCard';
+import { doc, getDoc } from 'firebase/firestore';
+import PostCardStandard from '@/components/profile/PostCardStandard';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 
@@ -36,6 +37,7 @@ const PostDetailScreen = () => {
   const [postUser, setPostUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scrollY] = useState(new Animated.Value(0));
 
   useEffect(() => {
     if (postId) {
@@ -48,7 +50,6 @@ const PostDetailScreen = () => {
       setLoading(true);
       console.log('🔍 Loading post:', postId);
 
-      // Try to load post from posts collection
       const postRef = doc(db, 'posts', postId as string);
       const postSnap = await getDoc(postRef);
 
@@ -56,7 +57,6 @@ const PostDetailScreen = () => {
         const postData = { id: postSnap.id, ...postSnap.data() } as any;
         setPost(postData);
         
-        // Load post author info
         if (postData.userID) {
           const userRef = doc(db, 'users', postData.userID);
           const userSnap = await getDoc(userRef);
@@ -83,12 +83,10 @@ const PostDetailScreen = () => {
   };
 
   const handleLike = async (postId: string, userId: string, isLiked: boolean) => {
-    // Implement like functionality
     console.log('Like post:', postId, userId, isLiked);
   };
 
   const handleDeletePost = () => {
-    // Implement delete functionality
     Alert.alert(
       'Xóa bài viết',
       'Bạn có chắc muốn xóa bài viết này?',
@@ -98,7 +96,6 @@ const PostDetailScreen = () => {
           text: 'Xóa', 
           style: 'destructive',
           onPress: () => {
-            // Delete post and go back
             router.back();
           }
         }
@@ -107,48 +104,63 @@ const PostDetailScreen = () => {
   };
 
   const addComment = async (postId: string, comment: any) => {
-    // Implement add comment functionality
     console.log('Add comment:', postId, comment);
   };
+
+  const handleShare = async (postId: string) => {
+    console.log('Share post:', postId);
+  };
+
+  // Animated header opacity
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0.95, 1],
+    extrapolate: 'clamp',
+  });
 
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
         <StatusBar 
           barStyle={theme === 'dark' ? "light-content" : "dark-content"} 
-          backgroundColor={currentThemeColors.background} 
+          translucent
+          backgroundColor="transparent"
         />
         
-        {/* Modern Header with Blur Effect */}
         <LinearGradient
           colors={theme === 'dark' 
-            ? ['rgba(0,0,0,0.9)', 'rgba(0,0,0,0.7)'] 
-            : ['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.8)']}
-          style={styles.modernHeader}
+            ? ['rgba(18,18,18,0.98)', 'rgba(18,18,18,0.95)'] 
+            : ['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.95)']}
+          style={styles.header}
         >
           <SafeAreaView>
             <View style={styles.headerContent}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.modernBackButton}>
-                <View style={[styles.iconContainer, { backgroundColor: currentThemeColors.surface }]}>
-                  <Ionicons name="arrow-back" size={20} color={currentThemeColors.text} />
-                </View>
+              <TouchableOpacity 
+                onPress={() => router.back()} 
+                style={[styles.iconButton, { backgroundColor: currentThemeColors.surface }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={22} color={currentThemeColors.text} />
               </TouchableOpacity>
-              <Text style={[styles.modernTitle, { color: currentThemeColors.text }]}>Chi tiết bài viết</Text>
-              <View style={styles.headerActions}>
-                <TouchableOpacity style={[styles.iconContainer, { backgroundColor: currentThemeColors.surface }]}>
-                  <Ionicons name="share-outline" size={18} color={currentThemeColors.text} />
-                </TouchableOpacity>
-              </View>
+              
+              <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>
+                Đang tải...
+              </Text>
+              
+              <View style={styles.iconButton} />
             </View>
           </SafeAreaView>
         </LinearGradient>
 
-        {/* Modern Loading State */}
-        <View style={styles.modernLoadingContainer}>
+        <View style={styles.centerContainer}>
           <View style={[styles.loadingCard, { backgroundColor: currentThemeColors.surface }]}>
-            <ActivityIndicator size="large" color={currentThemeColors.tint} />
-            <Text style={[styles.modernLoadingText, { color: currentThemeColors.text }]}>
-              Đang tải bài viết...
+            <View style={styles.loadingDots}>
+              <View style={[styles.dot, { backgroundColor: currentThemeColors.tint }]} />
+              <View style={[styles.dot, { backgroundColor: currentThemeColors.tint }]} />
+              <View style={[styles.dot, { backgroundColor: currentThemeColors.tint }]} />
+            </View>
+            <Text style={[styles.loadingTitle, { color: currentThemeColors.text }]}>
+              Đang tải bài viết
             </Text>
             <Text style={[styles.loadingSubtext, { color: currentThemeColors.mutedText }]}>
               Vui lòng chờ trong giây lát
@@ -159,54 +171,83 @@ const PostDetailScreen = () => {
     );
   }
 
-  if (error) {
+  if (error || !post) {
     return (
       <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
         <StatusBar 
           barStyle={theme === 'dark' ? "light-content" : "dark-content"} 
-          backgroundColor={currentThemeColors.background} 
+          translucent
+          backgroundColor="transparent"
         />
         
-        {/* Modern Header */}
         <LinearGradient
           colors={theme === 'dark' 
-            ? ['rgba(0,0,0,0.9)', 'rgba(0,0,0,0.7)'] 
-            : ['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.8)']}
-          style={styles.modernHeader}
+            ? ['rgba(18,18,18,0.98)', 'rgba(18,18,18,0.95)'] 
+            : ['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.95)']}
+          style={styles.header}
         >
           <SafeAreaView>
             <View style={styles.headerContent}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.modernBackButton}>
-                <View style={[styles.iconContainer, { backgroundColor: currentThemeColors.surface }]}>
-                  <Ionicons name="arrow-back" size={20} color={currentThemeColors.text} />
-                </View>
+              <TouchableOpacity 
+                onPress={() => router.back()} 
+                style={[styles.iconButton, { backgroundColor: currentThemeColors.surface }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={22} color={currentThemeColors.text} />
               </TouchableOpacity>
-              <Text style={[styles.modernTitle, { color: currentThemeColors.text }]}>Bài viết không tồn tại</Text>
-              <View style={styles.headerActions} />
+              
+              <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>
+                Lỗi
+              </Text>
+              
+              <View style={styles.iconButton} />
             </View>
           </SafeAreaView>
         </LinearGradient>
 
-        {/* Modern Error State */}
-        <View style={styles.modernLoadingContainer}>
+        <View style={styles.centerContainer}>
           <View style={[styles.errorCard, { backgroundColor: currentThemeColors.surface }]}>
-            <View style={[styles.errorIconContainer, { backgroundColor: '#ff4757' + '20' }]}>
-              <Ionicons name="alert-circle-outline" size={48} color="#ff4757" />
+            <View style={styles.errorIconContainer}>
+              <LinearGradient
+                colors={['#ff6b6b', '#ee5a6f']}
+                style={styles.errorIconGradient}
+              >
+                <Ionicons name="alert-circle" size={40} color="#fff" />
+              </LinearGradient>
             </View>
+            
             <Text style={[styles.errorTitle, { color: currentThemeColors.text }]}>
               Không thể tải bài viết
             </Text>
+            
             <Text style={[styles.errorMessage, { color: currentThemeColors.mutedText }]}>
-              {error}
+              {error || 'Bài viết có thể đã bị xóa hoặc không tồn tại'}
             </Text>
-            <TouchableOpacity style={styles.modernRetryButton} onPress={loadPost}>
+            
+            <TouchableOpacity 
+              style={styles.retryButton} 
+              onPress={loadPost}
+              activeOpacity={0.8}
+            >
               <LinearGradient
                 colors={['#667eea', '#764ba2']}
-                style={styles.retryButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.retryGradient}
               >
                 <Ionicons name="refresh" size={20} color="#fff" />
-                <Text style={styles.retryButtonText}>Thử lại</Text>
+                <Text style={styles.retryText}>Thử lại</Text>
               </LinearGradient>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.backButtonText, { color: currentThemeColors.mutedText }]}>
+                Quay lại
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -214,125 +255,84 @@ const PostDetailScreen = () => {
     );
   }
 
-  if (!post) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#000" />
-          </TouchableOpacity>
-          <Text style={styles.title}>Bài viết</Text>
-        </View>
-        <View style={styles.errorContainer}>
-          <MaterialIcons name="info-outline" size={64} color="#6c757d" />
-          <Text style={styles.errorTitle}>Không tìm thấy bài viết</Text>
-          <Text style={styles.errorMessage}>Bài viết có thể đã bị xóa hoặc không tồn tại.</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       <StatusBar 
         barStyle={theme === 'dark' ? "light-content" : "dark-content"} 
-        backgroundColor={currentThemeColors.background} 
+        translucent
+        backgroundColor="transparent"
       />
       
-      {/* Modern Header with Floating Design */}
-      <LinearGradient
-        colors={theme === 'dark' 
-          ? ['rgba(0,0,0,0.95)', 'rgba(0,0,0,0.8)'] 
-          : ['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.9)']}
-        style={styles.modernHeader}
-      >
-        <SafeAreaView>
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.modernBackButton}>
-              <View style={[styles.iconContainer, { backgroundColor: currentThemeColors.surface }]}>
-                <Ionicons name="arrow-back" size={20} color={currentThemeColors.text} />
-              </View>
-            </TouchableOpacity>
-            
-            <View style={styles.headerTitleContainer}>
-              <Text style={[styles.modernTitle, { color: currentThemeColors.text }]}>
-                Bài viết
-              </Text>
-              {post && (
-                <Text style={[styles.headerSubtitle, { color: currentThemeColors.mutedText }]}>
-                  {postUser?.username || postUser?.displayName || 'Người dùng'}
+      <Animated.View style={{ opacity: headerOpacity }}>
+        <LinearGradient
+          colors={theme === 'dark' 
+            ? ['rgba(18,18,18,0.98)', 'rgba(18,18,18,0.95)'] 
+            : ['rgba(255,255,255,0.98)', 'rgba(255,255,255,0.95)']}
+          style={styles.header}
+        >
+          <SafeAreaView>
+            <View style={styles.headerContent}>
+              <TouchableOpacity 
+                onPress={() => router.back()} 
+                style={[styles.iconButton, { backgroundColor: currentThemeColors.surface }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="arrow-back" size={22} color={currentThemeColors.text} />
+              </TouchableOpacity>
+              
+              <View style={styles.headerTitleContainer}>
+                <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>
+                  Bài viết
                 </Text>
-              )}
+                {postUser && (
+                  <Text style={[styles.headerSubtitle, { color: currentThemeColors.mutedText }]}>
+                    @{postUser?.username || postUser?.displayName || 'user'}
+                  </Text>
+                )}
+              </View>
+              
+              <View style={styles.headerActions}>
+                <TouchableOpacity 
+                  style={[styles.iconButton, { backgroundColor: currentThemeColors.surface }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="ellipsis-horizontal" size={22} color={currentThemeColors.text} />
+                </TouchableOpacity>
+              </View>
             </View>
-            
-            <View style={styles.headerActions}>
-              <TouchableOpacity style={[styles.iconContainer, { backgroundColor: currentThemeColors.surface }]}>
-                <Ionicons name="share-outline" size={18} color={currentThemeColors.text} />
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.iconContainer, { backgroundColor: currentThemeColors.surface, marginLeft: 8 }]}>
-                <Ionicons name="ellipsis-vertical" size={18} color={currentThemeColors.text} />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+          </SafeAreaView>
+        </LinearGradient>
+      </Animated.View>
 
-      {/* Main Content with Modern Styling */}
-      <ScrollView 
-        style={styles.modernContent} 
+      <Animated.ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
       >
-        {/* Post Card with Enhanced Container */}
-        <View style={[styles.postContainer, { backgroundColor: currentThemeColors.surface }]}>
-          <PostCard
+        <View style={[styles.postCard, { backgroundColor: currentThemeColors.surface }]}>
+          <PostCardStandard
             post={post}
-            user={postUser || { uid: post.userID }}
+            currentUserId={user?.uid || ''}
+            currentUserAvatar={user?.photoURL}
             onLike={handleLike}
-            onDeletePost={handleDeletePost}
-            addComment={addComment}
-            owner={post.userID === user?.uid}
-            postUserInfo={postUser ? {
-              username: postUser.username || postUser.displayName || 'Unknown User',
-              profileUrl: postUser.profileUrl || postUser.photoURL
-            } : undefined}
+            onComment={(postId, comment) => addComment(postId, { 
+              text: comment, 
+              userId: user?.uid, 
+              username: user?.displayName || user?.email 
+            })}
+            onShare={handleShare}
+            onDelete={handleDeletePost}
+            onUserPress={(userId) => console.log('Navigate to user:', userId)}
+            isOwner={post.userID === user?.uid}
           />
         </View>
-        
-        {/* Modern Post Meta Info */}
-        <View style={[styles.modernPostInfo, { backgroundColor: currentThemeColors.surface }]}>
-          <View style={styles.metaRow}>
-            <Ionicons name="information-circle-outline" size={16} color={currentThemeColors.mutedText} />
-            <Text style={[styles.metaText, { color: currentThemeColors.mutedText }]}>
-              Post ID: {postId}
-            </Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Ionicons name="navigate-outline" size={16} color={currentThemeColors.mutedText} />
-            <Text style={[styles.metaText, { color: currentThemeColors.mutedText }]}>
-              Mở từ thông báo
-            </Text>
-          </View>
-          {post?.timestamp && (
-            <View style={styles.metaRow}>
-              <Ionicons name="time-outline" size={16} color={currentThemeColors.mutedText} />
-              <Text style={[styles.metaText, { color: currentThemeColors.mutedText }]}>
-                {new Date(post.timestamp.seconds * 1000).toLocaleDateString('vi-VN')}
-              </Text>
-            </View>
-          )}
-        </View>
 
-        {/* Floating Action Button */}
-        <TouchableOpacity style={styles.floatingActionButton}>
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.fabGradient}
-          >
-            <Ionicons name="heart-outline" size={24} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 };
@@ -340,112 +340,25 @@ const PostDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
   },
-  // Legacy styles for fallback
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    marginRight: 16,
-    padding: 8,
-  },
-  title: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerButton: {
-    padding: 8,
-  },
-  content: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  errorMessage: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: '#007bff',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  postInfo: {
-    padding: 16,
-    backgroundColor: '#f8f9fa',
-    margin: 16,
-    borderRadius: 8,
-  },
-  postInfoText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-
-  // Modern UI Styles
-  modernHeader: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 1000,
     paddingBottom: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
       },
       android: {
-        elevation: 8,
+        elevation: 4,
       },
     }),
   },
@@ -453,170 +366,201 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    height: 56,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 48 : 8,
+    minHeight: 56,
   },
-  modernBackButton: {
-    marginRight: 12,
-  },
-  iconContainer: {
+  iconButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   headerTitleContainer: {
     flex: 1,
     alignItems: 'center',
+    paddingHorizontal: 12,
   },
-  modernTitle: {
-    fontSize: 18,
+  headerTitle: {
+    fontSize: 17,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
-    opacity: 0.8,
+    opacity: 0.7,
   },
   headerActions: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 8,
   },
-
-  // Loading States
-  modernLoadingContainer: {
+  scrollView: {
+    flex: 1,
+    paddingTop: Platform.OS === 'ios' ? 100 : 112,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  statsContainer: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    padding: 16,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingTop: 120,
+    padding: 24,
+    paddingTop: Platform.OS === 'ios' ? 120 : 140,
   },
   loadingCard: {
-    padding: 32,
-    borderRadius: 20,
+    padding: 40,
+    borderRadius: 24,
     alignItems: 'center',
-    minWidth: width * 0.7,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    width: width * 0.85,
+    maxWidth: 400,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
-  modernLoadingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-    textAlign: 'center',
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  loadingTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   loadingSubtext: {
-    fontSize: 14,
-    marginTop: 8,
+    fontSize: 15,
     textAlign: 'center',
     opacity: 0.7,
   },
-
-  // Error States
   errorCard: {
     padding: 32,
-    borderRadius: 20,
+    borderRadius: 24,
     alignItems: 'center',
-    minWidth: width * 0.8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
+    width: width * 0.85,
+    maxWidth: 400,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
   errorIconContainer: {
+    marginBottom: 24,
+  },
+  errorIconGradient: {
     width: 80,
     height: 80,
     borderRadius: 40,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
   },
-  modernRetryButton: {
-    marginTop: 24,
-    borderRadius: 25,
+  errorTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+    opacity: 0.8,
+  },
+  retryButton: {
+    width: '100%',
+    borderRadius: 14,
     overflow: 'hidden',
+    marginBottom: 12,
   },
-  retryButtonGradient: {
+  retryGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    gap: 8,
-  },
-
-  // Content Styles
-  modernContent: {
-    flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 100 : 80,
-  },
-  contentContainer: {
-    paddingBottom: 100,
-  },
-  postContainer: {
-    margin: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  modernPostInfo: {
-    margin: 16,
-    marginTop: 8,
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
-  },
-  metaText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
-  // Floating Action Button
-  floatingActionButton: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    borderRadius: 28,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  fabGradient: {
-    width: 56,
-    height: 56,
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  backButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  backButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 
 export default PostDetailScreen;
-

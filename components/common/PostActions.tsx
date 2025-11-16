@@ -9,6 +9,7 @@ import LikedByModal from './LikedByModal';
 import { buildPostDeepLink } from '@/utils/shareUtils';
 import socialNotificationService from '@/services/socialNotificationService';
 import { useAuth } from '@/context/authContext';
+import ExpoPushNotificationService from '@/services/expoPushNotificationService';
 
 interface PostActionsProps {
   post: {
@@ -56,6 +57,16 @@ const PostActions: React.FC<PostActionsProps> = ({
             user.displayName || 'Unknown User',
             user.photoURL
           );
+          // Fallback: send Expo push directly to post owner
+          try {
+            await ExpoPushNotificationService.sendPushToUser(post.authorId, {
+              title: '❤️ Lượt thích mới',
+              body: `${user.displayName || 'Ai đó'} đã thích bài viết của bạn`,
+              data: { type: 'like', postId, userId: user.uid },
+            });
+          } catch (e) {
+            console.warn('⚠️ Fallback push like failed:', e);
+          }
           console.log('✅ Like notification created');
         } else {
           // User is unliking the post - remove notification
@@ -64,7 +75,6 @@ const PostActions: React.FC<PostActionsProps> = ({
             post.authorId,
             user.uid
           );
-          console.log('✅ Like notification removed');
         }
       }
     } catch (error) {

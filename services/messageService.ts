@@ -12,9 +12,8 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { httpsCallable } from 'firebase/functions';
 import contentModerationService from './contentModerationService';
-import { functions } from '../firebaseConfig';
+import ExpoPushNotificationService from './expoPushNotificationService';
 
 export interface MessageData {
   text: string;
@@ -59,18 +58,16 @@ class MessageService {
       // Import content moderation service
       const contentModerationService = (await import('./contentModerationService')).default;
       
-      // Kiểm tra content moderation
+      // Kiểm tra content moderation (theo interface mới: chỉ text)
       const moderationResult = await contentModerationService.moderateContent(
-        messageData.text || undefined,
-        messageData.imageUrl || undefined
+        messageData.text || undefined
       );
 
       // Nếu content không clean, throw error với thông tin chi tiết
       if (!moderationResult.isContentClean) {
         const errorDetails = {
           textViolation: moderationResult.textResult && !moderationResult.textResult.isClean ? moderationResult.textResult : null,
-          imageViolation: moderationResult.imageResult && moderationResult.imageResult.isInappropriate ? moderationResult.imageResult : null
-        };
+        } as any;
         
         const error: any = new Error('Content moderation failed');
         error.moderationResult = moderationResult;
@@ -89,19 +86,38 @@ class MessageService {
         timestamp: serverTimestamp(),
         status: 'sent',
         createdAt: new Date().toISOString(),
-        // Thêm flag nếu content có warning nhỏ (không block nhưng có thể nghi ngờ)
+        // Có thể thêm điểm text moderation nếu cần
         ...(moderationResult.textResult?.confidence && moderationResult.textResult.confidence > 0.3 && {
           contentModerationScore: moderationResult.textResult.confidence
-        }),
-        ...(moderationResult.imageResult?.confidence && moderationResult.imageResult.confidence > 0.2 && {
-          imageModerationScore: moderationResult.imageResult.confidence
         })
       };
 
-      // Thêm tin nhắn vào Firestore - Cloud Function sẽ tự động gửi notification
+      // Thêm tin nhắn vào Firestore
       const docRef = await addDoc(collection(db, 'messages'), messageWithTimestamp);
       
       console.log('Message sent successfully with moderation check:', docRef.id);
+
+      // Gửi Expo push notification cho người nhận (không dùng Cloud Functions)
+      try {
+        let body = messageData.text || '';
+        const anyData: any = messageData as any;
+        if (anyData.imageUrl) body = '📷 Đã gửi một hình ảnh';
+        else if (anyData.fileUrl) body = `📎 Đã gửi tệp${anyData.fileName ? `: ${anyData.fileName}` : ''}`;
+
+        await ExpoPushNotificationService.sendPushToUser(messageData.receiverId, {
+          title: senderName,
+          body,
+          data: {
+            type: 'message',
+            chatId: messageData.chatId,
+            senderId: messageData.senderId,
+            receiverId: messageData.receiverId,
+          },
+        });
+      } catch (e) {
+        console.warn('⚠️ Không thể gửi Expo push cho người nhận:', e);
+      }
+
       return docRef.id;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -123,13 +139,34 @@ class MessageService {
         timestamp: serverTimestamp(),
         status: 'sent',
         createdAt: new Date().toISOString(),
-        bypassedModeration: true // Flag để biết message này đã bypass moderation
+        bypassedModeration: true
       };
 
-      // Thêm tin nhắn vào Firestore
       const docRef = await addDoc(collection(db, 'messages'), messageWithTimestamp);
       
       console.log('Message sent without moderation:', docRef.id);
+
+      // Gửi Expo push notification cho người nhận
+      try {
+        let body = messageData.text || '';
+        const anyData: any = messageData as any;
+        if (anyData.imageUrl) body = '📷 Đã gửi một hình ảnh';
+        else if (anyData.fileUrl) body = `📎 Đã gửi tệp${anyData.fileName ? `: ${anyData.fileName}` : ''}`;
+
+        await ExpoPushNotificationService.sendPushToUser(messageData.receiverId, {
+          title: senderName,
+          body,
+          data: {
+            type: 'message',
+            chatId: messageData.chatId,
+            senderId: messageData.senderId,
+            receiverId: messageData.receiverId,
+          },
+        });
+      } catch (e) {
+        console.warn('⚠️ Không thể gửi Expo push cho người nhận:', e);
+      }
+
       return docRef.id;
     } catch (error) {
       console.error('Error sending message without moderation:', error);
@@ -156,6 +193,18 @@ class MessageService {
       const docRef = await addDoc(collection(db, 'calls'), callWithTimestamp);
       
       console.log('Call created successfully:', docRef.id);
+
+      // NEW: Gửi Expo push trực tiếp cho callee để không phụ thuộc CF
+      try {
+        await ExpoPushNotificationService.sendPushToUser(callData.receiverId, {
+          title: '📞 Cuộc gọi đến',
+          body: `${callerName} đang gọi ${callData.type === 'video' ? 'video' : 'thoại'}`,
+          data: { type: 'call', callId: docRef.id, from: callData.callerId, callType: callData.type },
+        });
+      } catch (e) {
+        console.warn('⚠️ Không thể gửi push cuộc gọi:', e);
+      }
+
       return docRef.id;
     } catch (error) {
       console.error('Error creating call:', error);
@@ -189,17 +238,17 @@ class MessageService {
     }
   }
 
-  // Gửi notification thủ công qua Cloud Function
+  // NOTE: Manual notification via Cloud Function removed - use ExpoPushNotificationService directly
   async sendManualNotification(targetUserId: string, notification: any): Promise<boolean> {
     try {
-      const sendNotificationFunction = httpsCallable(functions, 'sendNotification');
-      
-      const result = await sendNotificationFunction({
-        targetUserId,
-        notification,
+      // Use Expo Push Notification Service directly instead of Cloud Function
+      await ExpoPushNotificationService.sendPushToUser(targetUserId, {
+        title: notification.title || 'Thông báo',
+        body: notification.body || '',
+        data: notification.data || {},
       });
-
-      console.log('Manual notification sent:', (result as any).data);
+      
+      console.log('Manual notification sent via Expo Push');
       return true;
     } catch (error) {
       console.error('Error sending manual notification:', error);
@@ -271,7 +320,7 @@ class MessageService {
       const promises = memberIds
         .filter(memberId => memberId !== senderId)
         .map(async (memberId) => {
-          const messageData = {
+          const payload = {
             text,
             senderId,
             receiverId: memberId,
@@ -285,7 +334,20 @@ class MessageService {
             createdAt: new Date().toISOString(),
           };
 
-          return addDoc(collection(db, 'messages'), messageData);
+          const added = await addDoc(collection(db, 'messages'), payload);
+
+          // Gửi push cho từng thành viên
+          try {
+            await ExpoPushNotificationService.sendPushToUser(memberId, {
+              title: groupName,
+              body: `${senderName}: ${text}`,
+              data: { type: 'group', groupId, chatId: `group_${groupId}`, senderId },
+            });
+          } catch (e) {
+            console.warn('⚠️ Không thể gửi push cho thành viên nhóm:', memberId, e);
+          }
+
+          return added;
         });
 
       const results = await Promise.all(promises);

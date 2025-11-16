@@ -5,9 +5,13 @@ import notificationNavigationService from '../services/notificationNavigationSer
 import { useAuth } from './authContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebaseConfig';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import NotificationModal from '../components/notifications/NotificationModal';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import ExpoPushNotificationService from '../services/expoPushNotificationService';
+import { updateCallStatus, CALL_STATUS } from '../services/firebaseCallService';
+import callTimeoutService from '../services/callTimeoutService.js';
 
 interface NotificationContextType {
   expoPushToken: string | null;
@@ -61,6 +65,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
             (notification) => {
               console.log('🔔 Foreground notification received:', notification);
               const data = notification.request.content.data;
+              
+              // Play sound for all notifications except those from the current user
+              // if (data?.senderId !== user.uid) {
+              //   playNotificationSound();
+              // }
               
               // Show modal for social notifications
               if (data?.type && ['like', 'comment', 'follow', 'mention'].includes(data.type)) {
@@ -133,11 +142,53 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   const sendNotificationToUser = async (userId: string, notification: any) => {
     try {
-      // This would typically be handled by your backend/cloud functions
-      // For now, we'll just schedule a local notification for testing
-      await notificationService.scheduleLocalNotification(notification);
+      // Fetch user document to get pushToken (sử dụng expoPushToken như chat)
+      const userDocRef = doc(db, 'users', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        console.warn('❌ User document not found for notification');
+        return;
+      }
+      
+      const userData = userDoc.data();
+      const expoPushToken = userData?.expoPushToken;
+      
+      if (!expoPushToken) {
+        console.warn('❌ No push token found for user:', userId);
+        // Fallback to local notification
+        await notificationService.scheduleLocalNotification(notification);
+        return;
+      }
+      
+      console.log('📤 Sending REAL push notification for call to user:', userId);
+      
+      // Sử dụng ExpoPushNotificationService giống như chat
+      const success = await ExpoPushNotificationService.sendRealPushNotification(expoPushToken, {
+        title: notification.title,
+        body: notification.body,
+        data: notification.data || {},
+        priority: 'high',
+        sound: 'default',
+        badge: 1,
+        channelId: 'calls' // Sử dụng calls channel với HIGH importance
+      });
+
+      if (success) {
+        console.log('✅ REAL Push notification sent successfully for call to user:', userId);
+      } else {
+        console.log('🔄 Real push failed, trying fallback...');
+        // Fallback to local notification
+        await notificationService.scheduleLocalNotification(notification);
+      }
     } catch (error) {
-      throw error;
+      console.error('❌ Error sending call notification:', error);
+      // Fallback to local
+      try {
+        await notificationService.scheduleLocalNotification(notification);
+      } catch (localError) {
+        console.error('Local notification fallback failed:', localError);
+      }
     }
   };
 

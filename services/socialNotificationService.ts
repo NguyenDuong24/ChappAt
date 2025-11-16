@@ -1,6 +1,7 @@
 import { db } from '../firebaseConfig';
 import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { CoreNotificationService } from './core';
+import ExpoPushNotificationService from './expoPushNotificationService';
 
 class SocialNotificationService {
   // Tạo notification khi có người like bài viết
@@ -302,22 +303,17 @@ class SocialNotificationService {
       }
 
       const userData = userDoc.data();
-      let expoPushToken = userData.currentExpoPushToken;
+      let expoPushToken = userData.expoPushToken;
 
       if (!expoPushToken) {
         console.log('❌ No push token found for user:', userId);
         return;
       }
 
-      // Decode token nếu cần
-      if (expoPushToken.includes('_LB_')) {
-        expoPushToken = notificationService.decodeTokenFromFirestore(expoPushToken);
-      }
-
       console.log('📤 Sending REAL push notification to user:', userId);
       
       // Gửi REAL push notification qua Expo Push API
-      const success = await expoPushNotificationService.sendRealPushNotification(expoPushToken, {
+      const success = await ExpoPushNotificationService.sendRealPushNotification(expoPushToken, {
         title: notification.title,
         body: notification.body || notification.message,
         data: notification.data || {},
@@ -332,7 +328,7 @@ class SocialNotificationService {
       } else {
         console.log('🔄 Real push failed, trying fallback...');
         // Fallback to local notification
-        await notificationService.scheduleLocalNotification({
+        await CoreNotificationService.scheduleLocalNotification({
           title: notification.title,
           body: notification.body || notification.message,
           data: notification.data || {}

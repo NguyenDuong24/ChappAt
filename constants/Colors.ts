@@ -14,7 +14,7 @@ export const Colors = {
     tint: modernPrimary, // Indigo-500 - Main brand color
     tintLight: '#A5B4FC', // Indigo-300 - Lighter variant
     tintDark: '#4338CA', // Indigo-700 - Darker variant
-    
+
     // Icons & Interactive Elements
     icon: '#64748B', // Slate-500 - Balanced gray for icons
     iconActive: modernPrimary, // Active state
@@ -24,12 +24,15 @@ export const Colors = {
     tabIconDefault: '#94A3B8', // Slate-400 - Subtle inactive tabs
     tabIconSelected: modernPrimary, // Active tab color
     backgroundHeader: '#F1F5F9', // Slate-100 - Light header background
+    // Header gradient and text for large/modern headers (centralized)
+    headerGradient: ['#667eea', '#764ba2', '#f093fb'],
+    headerText: '#FFFFFF',
     
     // Borders & Dividers
     border: '#E2E8F0', // Slate-200 - Subtle borders
     borderLight: '#F1F5F9', // Slate-100 - Very light borders
     borderDark: '#CBD5E1', // Slate-300 - Stronger borders
-    
+
     // Cards & Surfaces
     cardBackground: '#FFFFFF', // Pure white cards
     cardBackgroundElevated: '#FEFEFE', // Slightly off-white for elevated cards
@@ -60,6 +63,7 @@ export const Colors = {
     hotSpotsText: '#0F172A', // Dark text for light mode
     hotSpotsTextSecondary: 'rgba(15, 23, 42, 0.8)', // Secondary text
     hotSpotsTextTertiary: 'rgba(15, 23, 42, 0.6)', // Tertiary text
+    hotSpotsIcon: '#FF6B35', // Orange color for HotSpots icons
     
     // Gradients
     gradientBackground: ['#6366F1', '#8B5CF6'], // Indigo to Purple
@@ -75,12 +79,12 @@ export const Colors = {
     text: '#F8FAFC', // Slate-50 - Light text on dark
     background: '#0F172A', // Slate-900 - Deep dark background
     surface: '#1E293B', // Slate-800 - Dark surface variation
-    
+
     // Primary Colors
     tint: '#818CF8', // Indigo-400 - Lighter primary for dark mode
     tintLight: '#C7D2FE', // Indigo-200 - Very light variant
     tintDark: '#6366F1', // Indigo-500 - Standard variant
-    
+
     // Icons & Interactive Elements
     icon: '#CBD5E1', // Slate-300 - Light icons on dark
     iconActive: '#818CF8', // Indigo-400 - Active state
@@ -90,6 +94,9 @@ export const Colors = {
     tabIconDefault: '#64748B', // Slate-500 - Inactive tabs
     tabIconSelected: '#818CF8', // Indigo-400 - Active tab
     backgroundHeader: '#1E293B', // Slate-800 - Dark header
+    // Header gradient and text for large/modern headers (centralized)
+    headerGradient: ['#1a1a2e', '#16213e', '#0f3460'],
+    headerText: '#FFFFFF',
     
     // Borders & Dividers
     border: '#334155', // Slate-700 - Dark borders
@@ -126,6 +133,7 @@ export const Colors = {
     hotSpotsText: '#FFFFFF', // White text for dark mode
     hotSpotsTextSecondary: 'rgba(255, 255, 255, 0.8)', // Secondary text
     hotSpotsTextTertiary: 'rgba(255, 255, 255, 0.6)', // Tertiary text
+    hotSpotsIcon: '#FF6B35', // Orange color for HotSpots icons
     
     // Gradients
     gradientBackground: ['#312E81', '#1E293B'], // Indigo-800 to Slate-800

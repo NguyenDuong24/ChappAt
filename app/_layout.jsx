@@ -14,7 +14,7 @@ import { LogoStateProvider } from '../context/LogoStateContext';
 import { LocationProvider } from '../context/LocationContext';
 import { ThemeProvider, ThemeContext } from '../context/ThemeContext';
 import { StateCommonProvider } from '../context/stateCommon';
-import { NotificationProvider } from '../services/core';
+import { NotificationProvider } from '../context/NotificationProvider';
 import { UserProvider } from '../context/UserContext';
 import { AudioProvider } from '../context/AudioContext';
 import contentModerationService from '@/services/contentModerationService';
@@ -22,12 +22,19 @@ import Constants from 'expo-constants';
 import { VideoCallProvider } from '../context/VideoCallContext';
 import { Colors } from '../constants/Colors';
 import { register, VideoSDKProvider } from "@videosdk.live/react-native-sdk";
+import ThemedStatusBar from '@/components/common/ThemedStatusBar';
 
 // Import Firebase call services
 import { useFirebaseCallListener } from '../hooks/useFirebaseCallListener';
 import { useCallNavigation } from '../hooks/useNewCallNavigation';
 import { useAuthRouting } from '../hooks/useAuthRouting';
 import { CALL_STATUS } from '../services/firebaseCallService';
+
+// Import sound hook for local sound playback
+import { useSound } from '../hooks/useSound';
+
+// Import call timeout service
+import callTimeoutService from '../services/callTimeoutService.js';
 
 // VideoSDK token - trong production, store trong environment variables
 const VIDEOSDK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlrZXkiOiI5OWY1MWM0YS1mNWVjLTRkMzUtOTZjYy0zZWE1NDNmNWNiMGYiLCJwZXJtaXNzaW9ucyI6WyJhbGxvd19qb2luIl0sImlhdCI6MTczNDQ5MjA2NCwiZXhwIjoxODUwNDA0MDY0fQ.1b9RFFR2c5KWV5DFJ2XH1K6CwRTBBuNPBcWqKnGhSag";
@@ -37,9 +44,11 @@ SplashScreen.preventAutoHideAsync();
 
 const MainLayout = () => {
   const { isAuthenticated, user } = useAuth();
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  
+  const { playIncomingCallSound, stopCallSounds } = useSound();
+
   // Add font loading state
   const [fontsLoaded] = useFonts({
     // Add any custom fonts here if needed
@@ -88,7 +97,7 @@ const MainLayout = () => {
   }, [user?.uid]);
 
   // Handle incoming call và call status changes
-  const handleCallUpdate = useCallback((callData) => {
+  const handleCallUpdate = useCallback(async (callData) => {
     if (!callData || !user?.uid) {
       return;
     }
@@ -102,6 +111,17 @@ const MainLayout = () => {
         case CALL_STATUS.RINGING:
           // Có cuộc gọi đến → hiển thị IncomingCallScreen để accept/decline
           navigateToIncomingCallScreen(callData);
+          
+          // DỪNG TIMEOUT vì user đã thấy notification và vào màn hình
+          callTimeoutService.stopCallTimeout(callData.id);
+          
+          // Chỉ phát âm thanh nếu app đang foreground (push notification đã được gửi từ firebaseCallService)
+          try {
+            await playIncomingCallSound();
+            console.log('🔔 Playing incoming call sound');
+          } catch (error) {
+            console.error('❌ Error playing call sound:', error);
+          }
           break;
           
         case CALL_STATUS.ACCEPTED:
@@ -112,8 +132,16 @@ const MainLayout = () => {
         case CALL_STATUS.DECLINED:
         case CALL_STATUS.CANCELLED:
         case CALL_STATUS.ENDED:
-          // Call kết thúc → navigate back
+          // Call kết thúc → navigate back và dừng âm thanh
           navigateBack();
+          
+          // Dừng âm thanh cuộc gọi nếu đang phát
+          try {
+            await stopCallSounds();
+            console.log('🔇 Stopped call sounds for ended call');
+          } catch (error) {
+            console.error('❌ Error stopping call sounds:', error);
+          }
           break;
       }
     } else if (userRole === 'caller') {
@@ -122,6 +150,10 @@ const MainLayout = () => {
         case CALL_STATUS.RINGING:
           // Tôi đã gọi và đang chờ → hiển thị ListenCallAcceptedScreen
           navigateToListenCallScreen(callData);
+          
+          // DỪNG TIMEOUT vì caller đã thấy trạng thái chờ
+          callTimeoutService.stopCallTimeout(callData.id);
+          
           break;
           
         case CALL_STATUS.ACCEPTED:
@@ -132,13 +164,21 @@ const MainLayout = () => {
         case CALL_STATUS.DECLINED:
         case CALL_STATUS.CANCELLED:
         case CALL_STATUS.ENDED:
-          // Call bị từ chối hoặc kết thúc → navigate back
+          // Call bị từ chối hoặc kết thúc → navigate back và dừng âm thanh
           navigateBack();
+          
+          // Dừng âm thanh cuộc gọi nếu đang phát
+          try {
+            await stopCallSounds();
+            console.log('🔇 Stopped call sounds for ended call (caller)');
+          } catch (error) {
+            console.error('❌ Error stopping call sounds:', error);
+          }
           break;
       }
     } else {
     }
-  }, [getUserRole, navigateToIncomingCallScreen, navigateToListenCallScreen, navigateToCallScreen, navigateBack, user?.uid]);
+  }, [getUserRole, navigateToIncomingCallScreen, navigateToListenCallScreen, navigateToCallScreen, navigateBack, user?.uid, playIncomingCallSound, stopCallSounds]);
 
   // Setup Firebase call listener với unified handler
   useFirebaseCallListener(handleCallUpdate, handleCallUpdate);
@@ -147,47 +187,52 @@ const MainLayout = () => {
   useAuthRouting(isAuthenticated);
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="TestScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="signin" options={{ headerShown: false }} />
-      <Stack.Screen name="signup" options={{ headerShown: false }} />
-      <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="groups/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="explore/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="ButtonToChat" options={{ headerShown: false }} />
-      <Stack.Screen name="IncomingCallScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="ListenCallAcceptedScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="CallScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="NavigationTestScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="NotificationsScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="NotificationDebugScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="QuickNotificationTest" options={{ headerShown: false }} />
-      <Stack.Screen name="TokenTestScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="NotificationNavigationTest" options={{ headerShown: false }} />
-      <Stack.Screen name="UserDebugScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="HotSpotsScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="HashtagScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="AdminHashtagScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="HashtagPostsScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="DeviceScan" options={{ headerShown: false }} />
-      <Stack.Screen name="AddFriend" options={{ headerShown: false }} />
-      <Stack.Screen name="GroupManagementScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="SearchMessageScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="PostDetailScreen" options={{ }} />
-      <Stack.Screen name="HotSpotDetailScreen" options={{ headerShown: false }} />
-      <Stack.Screen name="HotSpotChatScreen" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="UserProfileScreen"
-        options={{
-          headerShown: true,
-          headerStyle: { backgroundColor: currentThemeColors.backgroundHeader },
-          headerTintColor: currentThemeColors.text,
-          headerTitleStyle: { fontWeight: 'bold' },
-          title: 'Hồ Sơ',
-        }}
-      />
-    </Stack>
+    <>
+      <ThemedStatusBar translucent />
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="TestScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="signin" options={{ headerShown: false }} />
+        <Stack.Screen name="signup" options={{ headerShown: false }} />
+        <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="groups/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="explore/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="ButtonToChat" options={{ headerShown: false }} />
+        <Stack.Screen name="IncomingCallScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="ListenCallAcceptedScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="CallScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="NavigationTestScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="NotificationsScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="NotificationDebugScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="QuickNotificationTest" options={{ headerShown: false }} />
+        <Stack.Screen name="TokenTestScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="NotificationNavigationTest" options={{ headerShown: false }} />
+        <Stack.Screen name="UserDebugScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="HotSpotsScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="HashtagScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="AdminHashtagScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="HashtagPostsScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="DeviceScan" options={{ headerShown: false }} />
+        <Stack.Screen name="AddFriend" options={{ headerShown: false }} />
+        <Stack.Screen name="GroupManagementScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="SearchMessageScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="PostDetailScreen"  options={{ headerShown: false }} />
+        <Stack.Screen name="HotSpotDetailScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="HotSpotChatScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="VibeScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="GroupVoiceRoom" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="UserProfileScreen"
+          options={{
+            headerShown: true,
+            headerStyle: { backgroundColor: currentThemeColors.backgroundHeader },
+            headerTintColor: currentThemeColors.text,
+            headerTitleStyle: { fontWeight: 'bold' },
+            title: 'Hồ Sơ',
+          }}
+        />
+      </Stack>
+    </>
   );
 };
 
@@ -201,36 +246,52 @@ export default function RootLayout() {
     }
   };
 
-  // Call initVideoSDK on component mount
+  // Initialize call timeout service
+  const initCallTimeoutService = () => {
+    try {
+      // Guard against undefined import
+      if (callTimeoutService && typeof callTimeoutService.initialize === 'function') {
+        console.log('⏰ callTimeoutService is available, initializing...');
+        callTimeoutService.initialize();
+      } else {
+        console.error('❌ callTimeoutService is undefined or missing initialize():', callTimeoutService);
+      }
+    } catch (error) {
+      console.error('❌ Call timeout service initialization failed:', error);
+    }
+  };
+
+  // Call init functions on component mount
   React.useEffect(() => {
     initVideoSDK();
+    initCallTimeoutService();
   }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
       <AuthContextProvider>
-        <NotificationProvider>
-          <StateCommonProvider>
-            <ThemeProvider>
-              <AppStateProvider>
-                <LogoStateProvider>
-                  <LocationProvider>
-                    <PaperProvider>
-                      <AudioProvider>
+        <AudioProvider>
+          <NotificationProvider>
+            <StateCommonProvider>
+              <ThemeProvider>
+                <AppStateProvider>
+                  <LogoStateProvider>
+                    <LocationProvider>
+                      <PaperProvider>
                         <VideoCallProvider>
                           <UserProvider>
                             <MainLayout />
                           </UserProvider>
                         </VideoCallProvider>
-                      </AudioProvider>
-                    </PaperProvider>
-                  </LocationProvider>
-                </LogoStateProvider>
-              </AppStateProvider>
-            </ThemeProvider>
-          </StateCommonProvider>
-        </NotificationProvider>
+                      </PaperProvider>
+                    </LocationProvider>
+                  </LogoStateProvider>
+                </AppStateProvider>
+              </ThemeProvider>
+            </StateCommonProvider>
+          </NotificationProvider>
+        </AudioProvider>
       </AuthContextProvider>
     </GestureHandlerRootView>
   );

@@ -1,26 +1,37 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Image } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { collection, doc, getDocs, query, updateDoc, where, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query, updateDoc, where, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
 import { cancelCall, acceptCall, CALL_STATUS } from '@/services/firebaseCallService';
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
+import { useAudio } from '@/context/AudioContext';
 
 export default function IncomingCallScreen() {
-    const { callId, meetingId, callerId, receiverId, callType, status } = useLocalSearchParams();
+    const { callId, meetingId, callerId, receiverId, callType, status, senderName, senderAvatar } = useLocalSearchParams();
     const [callerInfo, setCallerInfo] = useState<any>(null);
     const [callStatus, setCallStatus] = useState(status);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const buttonScaleAnim = useRef(new Animated.Value(1)).current;
-    const soundRef = useRef<Audio.Sound | null>(null);
     const { navigateToCallScreen, navigateBack } = useCallNavigation();
+    const { playSound, stopSound } = useAudio();
 
-    // Fetch thông tin người gọi từ Firestore
+    // Fetch thông tin người gọi từ Firestore hoặc từ notification data
     useEffect(() => {
         const fetchCallerInfo = async () => {
+            // Nếu đã có senderName và senderAvatar từ notification, sử dụng chúng
+            if (senderName && senderAvatar) {
+                setCallerInfo({
+                    username: Array.isArray(senderName) ? senderName[0] : senderName,
+                    profileUrl: Array.isArray(senderAvatar) ? senderAvatar[0] : senderAvatar,
+                });
+                console.log('Caller info from notification:', { senderName, senderAvatar });
+                return;
+            }
+
+            // Fallback: fetch từ callerId
             if (!callerId || Array.isArray(callerId)) return;
 
             try {
@@ -38,7 +49,75 @@ export default function IncomingCallScreen() {
         };
 
         fetchCallerInfo();
-    }, [callerId]);
+    }, [callerId, senderName, senderAvatar]);
+
+    // Fetch call data từ callId nếu chỉ có callId được provide (từ notification tap)
+    useEffect(() => {
+        const fetchCallData = async () => {
+            if (!callId || Array.isArray(callId)) return;
+            if (meetingId && callerId && receiverId) return; // Đã có đủ data từ params
+
+            try {
+                console.log('📞 Fetching call data from callId:', callId);
+                const callDoc = await getDoc(doc(db, 'calls', callId));
+                if (callDoc.exists()) {
+                    const callData = callDoc.data();
+                    console.log('Call data from notification:', callData);
+                    
+                    // Update caller info if not already fetched
+                    if (!callerInfo && callData.callerId) {
+                        const userDoc = await getDoc(doc(db, 'users', callData.callerId));
+                        if (userDoc.exists()) {
+                            setCallerInfo(userDoc.data());
+                        }
+                    }
+                    
+                    // Update call status
+                    setCallStatus(callData.status);
+                } else {
+                    console.log('Call not found:', callId);
+                    // Navigate back if call doesn't exist
+                    navigateBack();
+                }
+            } catch (error) {
+                console.error('Error fetching call data:', error);
+                navigateBack();
+            }
+        };
+
+        fetchCallData();
+    }, [callId, meetingId, callerId, receiverId, callerInfo, navigateBack]);
+
+    // Listen for real-time call status changes
+    useEffect(() => {
+        if (!callId || Array.isArray(callId)) return;
+
+        const callDocRef = doc(db, 'calls', callId);
+        const unsubscribe = onSnapshot(callDocRef, (doc) => {
+            if (doc.exists()) {
+                const callData = doc.data();
+                const newStatus = callData.status;
+                console.log('📞 Call status updated:', newStatus);
+
+                // Update local status
+                setCallStatus(newStatus);
+
+                // If call is cancelled, declined, ended, navigate back
+                if ([CALL_STATUS.CANCELLED, CALL_STATUS.DECLINED, CALL_STATUS.ENDED].includes(newStatus)) {
+                    console.log('📞 Call ended, navigating back');
+                    stopSound('incomingCall');
+                    navigateBack();
+                }
+            } else {
+                console.log('Call document deleted');
+                navigateBack();
+            }
+        }, (error) => {
+            console.error('Error listening to call status:', error);
+        });
+
+        return () => unsubscribe();
+    }, [callId, navigateBack, stopSound]);
 
     useEffect(() => {
         // Hiệu ứng avatar
@@ -77,16 +156,11 @@ export default function IncomingCallScreen() {
             ])
         ).start();
 
-        // Phát nhạc chuông (disabled to prevent errors)
+        // Phát nhạc chuông cho cuộc gọi đến
         const playRingtone = async () => {
             try {
-                // Temporarily disabled sound loading
-                console.log('🔊 Would play ringtone for incoming call');
-                // const { sound } = await Audio.Sound.createAsync(
-                //     { uri: 'path/to/local/ringtone.mp3' },
-                //     { shouldPlay: true, isLooping: true }
-                // );
-                // soundRef.current = sound;
+                console.log('🔊 Playing ringtone for incoming call');
+                await playSound('incomingCall', { isLooping: true });
             } catch (error) {
                 console.error('Error playing ringtone:', error);
             }
@@ -95,20 +169,10 @@ export default function IncomingCallScreen() {
         playRingtone();
 
         return () => {
-            if (soundRef.current) {
-                soundRef.current.stopAsync();
-                soundRef.current.unloadAsync();
-            }
+            // Dừng nhạc chuông khi component unmount
+            stopSound('incomingCall');
         };
     }, []);
-
-    const stopRingtone = async () => {
-        if (soundRef.current) {
-            await soundRef.current.stopAsync();
-            await soundRef.current.unloadAsync();
-            soundRef.current = null;
-        }
-    };
 
     const handleAcceptCall = async () => {
         await stopRingtone();
@@ -118,6 +182,9 @@ export default function IncomingCallScreen() {
                 // Accept call trong Firebase
                 await acceptCall(callId);
                 console.log('✅ Call accepted in Firebase');
+                
+                // Phát âm thanh call accepted
+                await playSound('callAccepted');
                 
                 // Navigate to CallScreen với meetingId
                 navigateToCallScreen({
@@ -135,7 +202,7 @@ export default function IncomingCallScreen() {
     };
 
     const handleDeclineCall = async () => {
-        await stopRingtone();
+        await stopSound();
         try {
             console.log('❌ Declining call');
             if (callId && typeof callId === 'string') {
@@ -149,6 +216,10 @@ export default function IncomingCallScreen() {
         } catch (error) {
             console.error('Error declining call:', error);
         }
+    };
+
+    const stopRingtone = async () => {
+        await stopSound('incomingCall');
     };
 
     return (

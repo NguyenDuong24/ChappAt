@@ -17,11 +17,16 @@ interface GroupMessageListProps {
   onReply?: (message: any) => void;
   highlightedMessageId?: string | null;
   onClearHighlight?: () => void;
+  // NEW: forward report handler like chat
+  onReport?: (message: any) => void;
+  onUserPress?: (userId: string) => void;
+  loading?: boolean; // Add loading prop
 }
 
 // Day separator component
 const DaySeparator = ({ date }: { date: string }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   
   return (
@@ -37,7 +42,8 @@ const DaySeparator = ({ date }: { date: string }) => {
 
 // Scroll to bottom button
 const ScrollToBottomButton = ({ onPress, visible }: { onPress: () => void, visible: boolean }) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   
   if (!visible) return null;
@@ -59,22 +65,29 @@ export default function GroupMessageList({
   scrollViewRef,
   onReply,
   highlightedMessageId,
-  onClearHighlight
+  onClearHighlight,
+  onReport,
+  onUserPress,
+  loading = false, // Add loading prop
 }: GroupMessageListProps) {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const flatListRef = useRef<FlatList>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [messagePositions, setMessagePositions] = useState<{ [key: string]: number }>({});
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when messages change
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && !loading) {
+      const timeout = isInitialLoad ? 1000 : 100; // Increase timeout for initial load to ensure rendering
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+        (scrollViewRef?.current || flatListRef.current)?.scrollToEnd({ animated: !isInitialLoad });
+        if (isInitialLoad) setIsInitialLoad(false);
+      }, timeout);
     }
-  }, [messages.length]);
+  }, [messages, isInitialLoad, scrollViewRef, loading]);
 
   // Handle scroll events
   const handleScroll = (event: any) => {
@@ -164,6 +177,9 @@ export default function GroupMessageList({
           onReply={onReply}
           onMessageLayout={handleMessageLayout}
           isHighlighted={isHighlighted}
+          // Pass through report handler to show Report action like chat
+          onReport={onReport}
+          onUserPress={onUserPress} // Pass down onUserPress prop
         />
       );
     }
@@ -176,7 +192,7 @@ export default function GroupMessageList({
   };
 
   const scrollToBottom = () => {
-    flatListRef.current?.scrollToEnd({ animated: true });
+    (scrollViewRef?.current || flatListRef.current)?.scrollToEnd({ animated: true });
     setShowScrollButton(false);
   };
 
@@ -196,6 +212,21 @@ export default function GroupMessageList({
         maxToRenderPerBatch={10}
         windowSize={10}
         getItemLayout={undefined} // Disable for dynamic content
+        onLayout={() => {
+          if (isInitialLoad && messages.length > 0 && !loading) {
+            setTimeout(() => {
+              (scrollViewRef?.current || flatListRef.current)?.scrollToEnd({ animated: false });
+            }, 100);
+          }
+        }}
+        onContentSizeChange={() => {
+          if (isInitialLoad && messages.length > 0 && !loading) {
+            setTimeout(() => {
+              (scrollViewRef?.current || flatListRef.current)?.scrollToEnd({ animated: false });
+              setIsInitialLoad(false);
+            }, 200); // Small delay to ensure layout is complete
+          }
+        }}
         onScrollToIndexFailed={() => {
           // Handle scroll to index failures gracefully
           setTimeout(() => {
@@ -217,15 +248,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    paddingBottom: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingBottom: 24,
   },
   daySeparatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 16,
-    paddingHorizontal: 20,
+    marginVertical: 18,
+    paddingHorizontal: 24,
   },
   daySeparatorLine: {
     flex: 1,
@@ -234,13 +265,15 @@ const styles = StyleSheet.create({
   daySeparatorText: {
     marginHorizontal: 12,
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
     textAlign: 'center',
   },
   scrollToBottomButton: {
     position: 'absolute',
     bottom: 20,
-    right: 20,
+    right: 16,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -249,7 +282,7 @@ const styles = StyleSheet.create({
     elevation: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
   },
 });

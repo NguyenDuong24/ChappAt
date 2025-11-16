@@ -15,7 +15,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const CustomImage = ({ source, style, type = 'normal' }) => {
+const CustomImage = ({ source, style, type = 'normal', onLongPress }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const containerRef = useRef(null);
   const [containerHeight, setContainerHeight] = useState(screenHeight * 0.7);
@@ -132,7 +132,7 @@ const CustomImage = ({ source, style, type = 'normal' }) => {
 
   return (
     <View>
-      <TouchableOpacity onPress={handleOpenModal}>
+      <TouchableOpacity onPress={handleOpenModal} onLongPress={onLongPress}>
         <Image source={imageSource} style={style} />
       </TouchableOpacity>
 

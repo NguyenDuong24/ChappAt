@@ -26,7 +26,8 @@ const FriendSelectionList = ({
   onSelectionChange,
   disabled = false,
 }: FriendSelectionListProps) => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   
   const [friends, setFriends] = useState<any[]>([]);

@@ -3,11 +3,11 @@ import { Tabs, useRouter } from 'expo-router';
 import { Entypo, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
 import { ThemeContext } from '../../context/ThemeContext'; // Đảm bảo đường dẫn chính xác
 import { Colors } from '../../constants/Colors'; // Đảm bảo đã khai báo màu sắc cho theme
-import { View, StyleSheet, StatusBar } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 
 
 export default function TabsLayout() {
-  const { theme } = useContext(ThemeContext); // Lấy theme từ ThemeContext
+  const theme = useContext(ThemeContext)?.theme || 'light'; // Lấy theme từ ThemeContext
   const router = useRouter(); // Add router hook
 
   // Chọn màu sắc cho tab bar icons và nền dựa trên theme
@@ -15,11 +15,6 @@ export default function TabsLayout() {
 
   return (
     <>
-      <StatusBar
-        barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
-        backgroundColor="transparent"
-        translucent={true}
-      />
     <Tabs
       listeners={{
           tabPress: (e) => {

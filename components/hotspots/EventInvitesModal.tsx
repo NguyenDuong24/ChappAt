@@ -33,13 +33,16 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
   onInviteAccepted
 }) => {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const [invites, setInvites] = useState<(EventInvite & { inviterProfile?: UserProfile, eventTitle?: string })[]>([]);
+  const [sentInvites, setSentInvites] = useState<(EventInvite & { inviteeProfile?: UserProfile, eventTitle?: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const [respondingTo, setRespondingTo] = useState<{[key: string]: boolean}>({});
 
   useEffect(() => {
     if (visible && user?.uid) {
       loadInvites();
+      loadSentInvites();
     }
   }, [visible, user?.uid]);
 
@@ -71,6 +74,39 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       Alert.alert('Lỗi', 'Không thể tải danh sách lời mời');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSentInvites = async () => {
+    try {
+      if (!user?.uid) return;
+      const sent = await eventInviteService.getSentInvitesPending(user.uid);
+      const enriched = await Promise.all(
+        sent.map(async (inv) => {
+          try {
+            const [inviteeProfile, eventDetails] = await Promise.all([
+              fetchUserProfile(inv.inviteeId),
+              fetchEventDetails(inv.eventId),
+            ]);
+            return { ...inv, inviteeProfile, eventTitle: eventDetails?.title || 'Sự kiện' } as any;
+          } catch {
+            return inv as any;
+          }
+        })
+      );
+      setSentInvites(enriched);
+    } catch (e) {
+      console.error('Error loading sent invites:', e);
+    }
+  };
+
+  const handleCancelInvite = async (inviteId: string) => {
+    try {
+      await eventInviteService.cancelInvite(inviteId, user!.uid);
+      Alert.alert('Đã thu hồi', 'Bạn đã thu hồi lời mời.');
+      await loadSentInvites();
+    } catch (e: any) {
+      Alert.alert('Lỗi', e.message || 'Không thể thu hồi');
     }
   };
 
@@ -126,32 +162,11 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       const chatRoomId = await eventInviteService.respondToInvite(inviteId, response);
       
       if (response === 'accepted' && chatRoomId) {
-        Alert.alert(
-          '🎉 Tuyệt vời!',
-          'Bạn đã chấp nhận lời mời! Giờ hai bạn có thể chat và lên kèo đi cùng nhau.',
-          [
-            {
-              text: 'Đi tới chat',
-              onPress: () => {
-                // Pass event details to parent for navigation
-                if (invite) {
-                  onInviteAccepted?.(chatRoomId, invite.eventId, invite.eventTitle);
-                } else {
-                  onInviteAccepted?.(chatRoomId);
-                }
-                onClose();
-              }
-            },
-            {
-              text: 'Để sau',
-              style: 'cancel',
-              onPress: () => {
-                // Keep modal open and refresh list so the accepted invite moves out of pending
-                loadInvites();
-              }
-            }
-          ]
-        );
+        if (invite) {
+          onInviteAccepted?.(chatRoomId, invite.eventId, invite.eventTitle);
+        } else {
+          onInviteAccepted?.(chatRoomId);
+        }
       } else if (response === 'declined') {
         Alert.alert(
           'Đã từ chối',
@@ -234,6 +249,40 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
     );
   };
 
+  const renderInviteCardSent = ({ item }: { item: EventInvite & { inviteeProfile?: UserProfile, eventTitle?: string } }) => {
+    const createdAtDate = getCreatedAtDate((item as any).createdAt);
+    return (
+      <View style={styles.inviteCard}>
+        <View style={styles.cardHeader}>
+          <View style={styles.avatarContainer}>
+            {item.inviteeProfile?.avatar ? (
+              <Image source={{ uri: item.inviteeProfile.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <Text style={styles.avatarText}>
+                  {item.inviteeProfile?.name?.charAt(0).toUpperCase() || '?'}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.inviteInfo}>
+            <Text style={styles.inviterName}>Bạn đã mời {item.inviteeProfile?.name || 'người dùng'}</Text>
+            <Text style={styles.eventTitle}>{item.eventTitle}</Text>
+            <Text style={styles.inviteTime}>
+              {createdAtDate.toLocaleDateString('vi-VN')} lúc {createdAtDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => handleCancelInvite(item.id!)}>
+            <MaterialIcons name="delete-outline" size={18} color="#666" />
+            <Text style={styles.declineButtonText}>Thu hồi</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <Modal
       visible={visible}
@@ -243,51 +292,57 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
     >
       <View style={styles.container}>
         {/* Header */}
-        <View style={styles.header}>
-          <LinearGradient
-            colors={['#10B981', '#059669']}
-            style={StyleSheet.absoluteFill}
-          />
-          
-          <View style={styles.headerContent}>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <MaterialIcons name="close" size={24} color="white" />
-            </TouchableOpacity>
-            
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Lời mời đi cùng 💌</Text>
-              <Text style={styles.headerSubtitle}>
-                {invites.length} lời mời đang chờ
-              </Text>
-            </View>
-            
-            <View style={styles.headerSpacer} />
-          </View>
+        <View style={styles.headerTabs}>
+          <TouchableOpacity onPress={() => setActiveTab('received')} style={[styles.tabBtn, activeTab === 'received' && styles.tabActive]}>
+            <Text style={[styles.tabText, activeTab === 'received' && styles.tabTextActive]}>Nhận</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setActiveTab('sent')} style={[styles.tabBtn, activeTab === 'sent' && styles.tabActive]}>
+            <Text style={[styles.tabText, activeTab === 'sent' && styles.tabTextActive]}>Đã gửi</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerClose} onPress={onClose}>
+            <MaterialIcons name="close" size={22} color="#333" />
+          </TouchableOpacity>
         </View>
 
         {/* Content */}
         <View style={styles.content}>
-          {loading ? (
+          {loading && activeTab === 'received' ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#10B981" />
+              <ActivityIndicator size="large" color="#EC4899" />
               <Text style={styles.loadingText}>Đang tải...</Text>
             </View>
-          ) : invites.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <MaterialIcons name="mail-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyTitle}>Không có lời mời nào</Text>
-              <Text style={styles.emptySubtitle}>
-                Khi có ai đó mời bạn đi cùng sự kiện, nó sẽ xuất hiện ở đây!
-              </Text>
-            </View>
+          ) : activeTab === 'received' ? (
+            invites.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="mail-outline" size={64} color="#ccc" />
+                <Text style={styles.emptyTitle}>Chưa có lời mời</Text>
+                <Text style={styles.emptySubtitle}>Khi ai đó rủ bạn, lời mời sẽ hiển thị ở đây.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={invites}
+                renderItem={renderInviteCard}
+                keyExtractor={item => item.id!}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+              />
+            )
           ) : (
-            <FlatList
-              data={invites}
-              renderItem={renderInviteCard}
-              keyExtractor={item => item.id}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-            />
+            sentInvites.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <MaterialIcons name="send" size={64} color="#ccc" />
+                <Text style={styles.emptyTitle}>Chưa gửi lời mời nào</Text>
+                <Text style={styles.emptySubtitle}>Hãy mở danh sách người quan tâm để rủ ai đó đi cùng.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={sentInvites}
+                renderItem={renderInviteCardSent}
+                keyExtractor={item => item.id!}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+              />
+            )
           )}
         </View>
       </View>
@@ -300,45 +355,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8f9fa',
   },
-  header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    overflow: 'hidden',
-  },
-  headerContent: {
+  headerTabs: {
+    paddingTop: 16,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#fff'
   },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
+  tabBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    marginHorizontal: 6,
+    backgroundColor: '#f3f4f6'
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'white',
-    textAlign: 'center',
+  tabActive: {
+    backgroundColor: '#e9d5ff'
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-    textAlign: 'center',
+  tabText: {
+    fontWeight: '600',
+    color: '#6b7280'
   },
-  headerSpacer: {
-    width: 40,
+  tabTextActive: {
+    color: '#6d28d9'
+  },
+  headerClose: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 6
   },
   content: {
     flex: 1,

@@ -31,6 +31,7 @@ import PostHeader from '../common/PostHeader';
 import { removeHashtagStats } from '@/utils/hashtagUtils';
 import { updatePostPrivacy, PrivacyLevel } from '@/utils/postPrivacyUtils';
 import contentModerationService from '@/services/contentModerationService';
+import optimizedSocialService from '@/services/optimizedSocialService';
 
 interface PostImagesProps {
   images: string[];
@@ -119,6 +120,7 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
         <CustomImage
           source={images[0]}
           style={[styles.singleImage, { height: singleImageHeight }]}
+          onLongPress={() => {}}
         />
       </View>
     );
@@ -129,7 +131,9 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
       <View style={[styles.imageContainer, styles.multiImageContainer]}>
         <View style={styles.twoImagesRow}>
           {images.map((img, idx) => (
-            <CustomImage key={idx} source={img} style={styles.twoImage} />
+            <TouchableOpacity key={idx} onPress={() => {}}>
+              <CustomImage key={idx} source={img} style={styles.twoImage} onLongPress={() => {}} />
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -139,10 +143,10 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
   if (images.length === 3) {
     return (
       <View style={[styles.imageContainer, styles.multiImageContainer]}>
-        <CustomImage source={images[0]} style={styles.threeImageLarge} />
+        <CustomImage source={images[0]} style={styles.threeImageLarge} onLongPress={() => {}} />
         <View style={styles.threeImagesBottom}>
           {images.slice(1).map((img, idx) => (
-            <CustomImage key={idx} source={img} style={styles.threeImageSmall} />
+            <CustomImage key={idx} source={img} style={styles.threeImageSmall} onLongPress={() => {}} />
           ))}
         </View>
       </View>
@@ -156,7 +160,7 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
       <View style={styles.fourImagesGrid}>
         {displayImages.map((img, idx) => (
           <View key={idx} style={styles.fourImageWrapper}>
-            <CustomImage source={img} style={styles.fourImage} />
+            <CustomImage source={img} style={styles.fourImage} onLongPress={() => {}} />
             {idx === 3 && images.length > 4 && (
               <View style={styles.overlay}>
                 <Text style={styles.overlayText}>+{images.length - 4}</Text>
@@ -276,15 +280,12 @@ const PostCard: React.FC<PostCardProps> = ({
       replies: [],
     };
 
-    await addComment(post.id, newComment);
-  };
-
-  const handleLikeComment = (commentId: string) => {
-    // Implement like logic here
-  };
-
-  const handleReplyComment = (commentId: string, replyText: string) => {
-    // Implement reply logic here
+    // await addComment(post.id, newComment);
+    try {
+      await optimizedSocialService.addComment(post.id, newComment);
+    } catch (e) {
+      console.warn('⚠️ Failed to add comment with push:', e);
+    }
   };
 
   const handleLikeWithNotification = async () => {
@@ -397,8 +398,6 @@ const PostCard: React.FC<PostCardProps> = ({
           <CommentSection
             comments={post.comments || []}
             onAddComment={handleCommentWithNotification}
-            onLikeComment={handleLikeComment}
-            onReplyComment={handleReplyComment}
             currentUserId={currentUserId || ''}
             currentUserAvatar={authUser?.profileUrl}
           />

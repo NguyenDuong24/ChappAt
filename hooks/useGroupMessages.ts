@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   collection, 
   doc, 
@@ -7,11 +7,18 @@ import {
   onSnapshot, 
   addDoc, 
   serverTimestamp,
-  Unsubscribe 
+  Unsubscribe,
+  limit,
+  startAfter,
+  getDocs
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { Alert } from 'react-native';
 import contentModerationService from '../services/contentModerationService';
+
+// ✅ Message cache to reduce Firebase reads
+const messageCache = new Map<string, { messages: GroupMessage[]; timestamp: number }>();
+const CACHE_TTL = 60000; // 60 seconds
 
 export interface GroupMessage {
   id: string;

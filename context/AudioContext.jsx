@@ -17,16 +17,42 @@ export const AudioProvider = ({ children }) => {
   const soundsRef = useRef({});
   const [soundsLoaded, setSoundsLoaded] = useState(false);
 
-  // Temporary disable sound loading to prevent errors
-  const ENABLE_SOUNDS = false;
+  // Enable sound system
+  const ENABLE_SOUNDS = true;
 
-  // Simple sound notification system without actual audio files
-  const soundAssets = {};
+  // Sound assets mapping
+  const soundAssets = {
+    incomingCall: require('../assets/sounds/incoming.mp3'),
+    outgoingCall: require('../assets/sounds/outcoming.mp3'),
+    messageReceived: require('../assets/sounds/notification.mp3'),
+    messageSent: require('../assets/sounds/join.mp3'),
+    notification: require('../assets/sounds/notification.mp3'),
+    callEnd: require('../assets/sounds/join.mp3'),
+    callAccepted: require('../assets/sounds/join.mp3'),
+    typing: require('../assets/sounds/join.mp3'),
+    success: require('../assets/sounds/join.mp3'),
+    error: require('../assets/sounds/calling.mp3'),
+  };
 
   // Khởi tạo Audio
   const initializeAudio = async () => {
+    if (Platform.OS === 'android') {
+      // Disable audio on Android to prevent ExoPlayer thread access crash
+      console.log('🔇 Audio disabled on Android to prevent ExoPlayer issues');
+      setIsInitialized(true);
+      setSoundsLoaded(true);
+      return;
+    }
     try {
-      console.log('🔇 Audio system disabled - no sounds will be loaded');
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+      console.log('� Audio system initialized successfully');
+      await preloadSounds();
       setIsInitialized(true);
       setSoundsLoaded(true);
     } catch (error) {
@@ -38,28 +64,34 @@ export const AudioProvider = ({ children }) => {
 
   // Preload âm thanh
   const preloadSounds = async () => {
+    if (Platform.OS === 'android') return; // Skip on Android
+    
     if (!ENABLE_SOUNDS) return;
     
+    console.log('🔊 Starting to preload sounds...');
     try {
       for (const [key, source] of Object.entries(soundAssets)) {
         try {
+          console.log(`🔊 Loading sound: ${key}`);
           const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: false });
           soundsRef.current[key] = sound;
+          console.log(`✅ Loaded sound: ${key}`);
         } catch (error) {
-          // Silently handle missing sound files
+          console.error(`❌ Failed to load sound ${key}:`, error);
           soundsRef.current[key] = null;
         }
       }
+      console.log('🔊 Preload complete!');
     } catch (error) {
-      // Silently handle preload errors
+      console.error('❌ Error in preloadSounds:', error);
     }
   };
 
   // Phát âm thanh
   const playSound = async (soundName, options = {}) => {
+    if (Platform.OS === 'android') return; // Skip on Android
+    
     if (!ENABLE_SOUNDS) {
-      // Disable console log to prevent spam and lag
-      // console.log(`🔊 Would play sound: ${soundName}`);
       return;
     }
 
@@ -81,15 +113,20 @@ export const AudioProvider = ({ children }) => {
         }
 
         await sound.playAsync();
+        console.log(`🔊 Playing sound: ${soundName}`);
         return sound;
+      } else {
+        console.warn(`Sound not loaded: ${soundName}`);
       }
     } catch (error) {
-      // Silently handle play errors
+      console.error(`Error playing sound ${soundName}:`, error);
     }
   };
 
   // Dừng âm thanh
   const stopSound = async (soundName) => {
+    if (Platform.OS === 'android') return; // Skip on Android
+    
     if (!ENABLE_SOUNDS) return;
     
     try {
@@ -104,6 +141,8 @@ export const AudioProvider = ({ children }) => {
 
   // Dừng tất cả âm thanh
   const stopAllSounds = async () => {
+    if (Platform.OS === 'android') return; // Skip on Android
+    
     if (!ENABLE_SOUNDS) return;
     
     try {
@@ -119,6 +158,8 @@ export const AudioProvider = ({ children }) => {
 
   // Cleanup
   const cleanup = async () => {
+    if (Platform.OS === 'android') return; // Skip on Android
+    
     if (!ENABLE_SOUNDS) return;
     
     try {

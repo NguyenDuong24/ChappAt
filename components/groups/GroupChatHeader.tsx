@@ -77,12 +77,8 @@ const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
     );
   };
 
-  const handleVideoCall = () => {
-    Alert.alert('Video Call', 'Tính năng video call sẽ được phát triển sớm!');
-  };
-
-  const handleVoiceCall = () => {
-    Alert.alert('Voice Call', 'Tính năng gọi điện sẽ được phát triển sớm!');
+  const handleJoinVoiceChat = () => {
+    router.push({ pathname: '/GroupVoiceRoom', params: { groupId: group.id } });
   };
 
   return (
@@ -125,15 +121,14 @@ const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
         </View>
         
         <View style={styles.rightSection}>
-          
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.actionButton}
-            onPress={handleGroupInfo}
+            onPress={handleJoinVoiceChat}
           >
             <MaterialCommunityIcons
-              name="cog"
-              size={22}
-              color={currentThemeColors.text}
+              name="phone"
+              size={24}
+              color={currentThemeColors.tint}
             />
           </TouchableOpacity>
         </View>

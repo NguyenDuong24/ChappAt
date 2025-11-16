@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,7 +9,8 @@ import {
   Dimensions,
   TextInput,
   Share,
-  Animated
+  Animated,
+  Text as RNText
 } from 'react-native';
 import { Menu, Provider, Button } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -24,12 +25,8 @@ import { Colors } from '@/constants/Colors';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import socialNotificationService from '@/services/socialNotificationService';
-import CustomImage from '../common/CustomImage';
+import optimizedSocialService from '@/services/optimizedSocialService';
 import SimpleImage from '../common/SimpleImage';
-import HashtagText from '../common/HashtagText';
-import HashtagDisplay from '../common/HashtagDisplay';
-import PrivacySelector from '../common/PrivacySelector';
-import { CommentSection } from '../common/CommentSection';
 import ImageViewerModal from '../common/ImageViewerModal';
 
 import PostHeader from '../common/PostHeader';
@@ -44,7 +41,7 @@ interface Comment {
   userId: string;
   timestamp: any;
   likes?: string[];
-  replies?: any[];
+  replies?: Comment[];
 }
 
 interface Post {
@@ -61,7 +58,6 @@ interface Post {
   userAvatar?: string;
   address?: string;
   privacy?: 'public' | 'friends' | 'private';
-  // Allow unknown extra fields from Firestore
   [key: string]: any;
 }
 
@@ -97,19 +93,46 @@ const PostCardStandard: React.FC<PostCardProps> = ({
   const { user } = useAuth();
   const viewerShowOnline = user?.showOnlineStatus !== false;
   
-  const [showComments, setShowComments] = useState(false);
+  // Helper: ensure each comment/reply has an id and sane defaults
+  const normalizeComments = (comments: Comment[] = [], path: string[] = []): Comment[] => {
+    return (comments || []).map((c, idx) => {
+      const baseTs = c?.timestamp?.seconds ?? c?.timestamp?._seconds ?? (c?.timestamp?.toDate ? c.timestamp.toDate().getTime() : (typeof c?.timestamp === 'number' ? c.timestamp : Date.now()));
+      const safeId = c.id || `${c.userId || 'u'}_${baseTs || Date.now()}_${idx}_${path.join('-')}`;
+      return {
+        ...c,
+        id: safeId,
+        likes: Array.isArray(c.likes) ? c.likes : [],
+        replies: c.replies && c.replies.length > 0 ? normalizeComments(c.replies, [...path, String(idx)]) : [],
+      };
+    });
+  };
+
+  // Prevent backend resync from overriding optimistic updates
+  const ignoreNextCommentsSync = useRef(false);
+
   const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState<Comment[]>(post.comments || []);
+  const [showComments, setShowComments] = useState(false);
   const [showFullContent, setShowFullContent] = useState(false);
   const [likeAnimation] = useState(new Animated.Value(1));
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showImageViewer, setShowImageViewer] = useState(false);
+  const [localComments, setLocalComments] = useState<Comment[]>(normalizeComments(post.comments || []));
   
   const isLiked = post.likes.includes(currentUserId);
   const contentPreview = post.content.length > 150 
     ? post.content.substring(0, 150) + '...' 
     : post.content;
 
-  // Format timestamp locally
+  useEffect(() => {
+    if (ignoreNextCommentsSync.current) {
+      // Skip one sync cycle just after optimistic local update
+      ignoreNextCommentsSync.current = false;
+      return;
+    }
+    setLocalComments(normalizeComments(post.comments || []));
+  }, [post.comments]);
+
   const formatTimestamp = (timestamp: any) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -122,7 +145,6 @@ const PostCardStandard: React.FC<PostCardProps> = ({
     return `${Math.floor(diff / 86400)} ngày trước`;
   };
 
-  // Handle delete
   const handleDelete = () => {
     Alert.alert(
       'Xóa bài viết',
@@ -146,9 +168,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
     );
   };
 
-  // Handle like with animation
   const handleLike = () => {
-    // Animate like button
     Animated.sequence([
       Animated.timing(likeAnimation, {
         toValue: 1.3,
@@ -165,15 +185,31 @@ const PostCardStandard: React.FC<PostCardProps> = ({
     onLike(post.id, currentUserId, isLiked);
   };
 
-  // Handle comment
-  const handleComment = () => {
-    if (commentText.trim()) {
-      onComment(post.id, commentText.trim());
-      setCommentText('');
+  const handleCommentSubmit = async () => {
+    if (!commentText.trim())
+      return;
+
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      userId: currentUserId,
+      username: 'You',      userAvatar: currentUserAvatar,
+      text: commentText.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    const updatedComments = [...comments, newComment];
+    setComments(updatedComments);
+    setCommentText('');
+    // onComment(post.id, commentText.trim());
+
+    // NEW: dùng optimizedSocialService để vừa thêm comment vừa gửi push cho chủ post
+    try {
+      await optimizedSocialService.addComment(post.id, newComment);
+    } catch (e) {
+      console.warn('⚠️ Failed to add comment with push:', e);
     }
   };
 
-  // Handle share
   const handleShare = async () => {
     try {
       await Share.share({
@@ -186,21 +222,80 @@ const PostCardStandard: React.FC<PostCardProps> = ({
     }
   };
 
-  // Handle image press
   const handleImagePress = (index: number) => {
     setSelectedImageIndex(index);
     setShowImageViewer(true);
   };
 
-  // Handle hashtag press
   const handleHashtagPress = (hashtag: string) => {
     const cleanHashtag = hashtag.replace('#', '');
     router.push(`/HashtagScreen?hashtag=${cleanHashtag}` as any);
   };
-  console.log(12345, post);
+
+  // Resolve avatar URL from multiple possible fields to improve compatibility
+  const resolveCommentAvatar = (c: any): string | undefined => {
+    return (
+      c?.userAvatar ||
+      c?.avatar ||
+      c?.photoURL ||
+      c?.profileImage ||
+      c?.user?.photoURL ||
+      c?.user?.avatar ||
+      undefined
+    );
+  };
+
+  const CommentItem: React.FC<{ comment: Comment; level?: number }> = ({ comment, level = 0 }) => {
+    const isCommentLiked = comment.likes?.includes(currentUserId) || false;
+    
+    // Debug log to check comment data
+    console.log('Comment data:', {
+      id: comment.id,
+      username: comment.username,
+      userAvatar: (comment as any)?.userAvatar,
+      resolvedAvatar: resolveCommentAvatar(comment),
+      text: comment.text,
+      likes: comment.likes,
+      hasReplies: comment.replies?.length || 0
+    });
+
+    const [avatarError, setAvatarError] = useState(false);
+    const avatarUri = !avatarError ? resolveCommentAvatar(comment) : undefined;
+
+    return (
+      <View>
+        <View style={[styles.comment, { marginLeft: level * 16 }]}>
+          {avatarUri ? (
+            <Image 
+              source={{ uri: avatarUri }}
+              style={styles.commentAvatar}
+              onError={() => setAvatarError(true)}
+            />
+          ) : (
+            <View style={[styles.commentAvatar, { backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' }]}>
+              <Ionicons name="person" size={14} color={Colors.primary} />
+            </View>
+          )}
+          <View style={[styles.commentContent, { backgroundColor: colors.commentBackground }]}>
+            <Text style={[styles.commentUser, { color: colors.text }]}>
+              {comment.username}
+            </Text>
+            <Text style={[styles.commentText, { color: colors.text }]}>
+              {comment.text}
+            </Text>
+            <View style={styles.commentMeta}>
+              <Text style={[styles.commentTime, { color: colors.subtleText }]}>
+                {formatTimestamp(comment.timestamp)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.userInfo}
@@ -226,7 +321,6 @@ const PostCardStandard: React.FC<PostCardProps> = ({
               <Text style={[styles.timestamp, { color: colors.subtleText || '#999' }]}>
                 {formatTimestamp(post.timestamp)}
               </Text>
-              {/* Đã di chuyển phần địa chỉ xuống dưới ảnh */}
             </View>
           </View>
         </TouchableOpacity>
@@ -250,14 +344,10 @@ const PostCardStandard: React.FC<PostCardProps> = ({
         </View>
       </View>
 
-      {/* Content */}
       <View style={styles.contentContainer}>
-        <HashtagText
-          text={showFullContent ? post.content : contentPreview}
-          onHashtagPress={handleHashtagPress}
-          textStyle={[styles.content, { color: colors.text }]}
-          hashtagStyle={styles.hashtagStyle}
-        />
+        <Text style={[styles.content, { color: colors.text }]}>
+          {showFullContent ? post.content : contentPreview}
+        </Text>
         {post.content.length > 150 && (
           <TouchableOpacity 
             onPress={() => setShowFullContent(!showFullContent)}
@@ -270,19 +360,23 @@ const PostCardStandard: React.FC<PostCardProps> = ({
         )}
       </View>
 
-      {/* Hashtags */}
       {post.hashtags && post.hashtags.length > 0 && (
         <View style={styles.hashtagsContainer}>
-          <HashtagDisplay
-            hashtags={post.hashtags}
-            maxDisplay={5}
-            size="small"
-            onHashtagPress={handleHashtagPress}
-          />
+          {post.hashtags.slice(0, 5).map((hashtag, idx) => (
+            <TouchableOpacity
+              key={idx}
+              onPress={() => handleHashtagPress(hashtag)}
+              style={styles.hashtagChip}
+            >
+              <Text style={styles.hashtagStyle}>{hashtag}</Text>
+            </TouchableOpacity>
+          ))}
+          {post.hashtags.length > 5 && (
+            <Text style={styles.moreHashtags}>+{post.hashtags.length - 5}</Text>
+          )}
         </View>
       )}
 
-      {/* Images */}
       {post.images && post.images.length > 0 && (
         <View style={styles.imagesContainer}>
           {post.images.length === 1 ? (
@@ -304,34 +398,32 @@ const PostCardStandard: React.FC<PostCardProps> = ({
               ))}
             </View>
           ) : (
-            <>
-              <View style={styles.imagesRow}>
-                <TouchableOpacity onPress={() => handleImagePress(0)}>
-                  <SimpleImage 
-                    source={post.images[0]} 
-                    style={styles.multipleImages}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={{ position: 'relative' }} 
-                  onPress={() => handleImagePress(1)}
-                >
-                  <SimpleImage 
-                    source={post.images[1]} 
-                    style={styles.multipleImages}
-                  />
-                  {post.images.length > 2 && (
-                    <View style={styles.moreImagesOverlay}>
-                      <Text style={styles.moreImagesText}>+{post.images.length - 2}</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </>
+            <View style={styles.imagesRow}>
+              <TouchableOpacity onPress={() => handleImagePress(0)}>
+                <SimpleImage 
+                  source={post.images[0]} 
+                  style={styles.multipleImages}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ position: 'relative' }} 
+                onPress={() => handleImagePress(1)}
+              >
+                <SimpleImage 
+                  source={post.images[1]} 
+                  style={styles.multipleImages}
+                />
+                {post.images.length > 2 && (
+                  <View style={styles.moreImagesOverlay}>
+                    <Text style={styles.moreImagesText}>+{post.images.length - 2}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       )}
-      {/* Location (address) below images */}
+
       {post.address && (
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
           <Ionicons name="location-outline" size={14} color={colors.subtleText || '#999'} style={{ marginRight: 4 }} />
@@ -345,7 +437,6 @@ const PostCardStandard: React.FC<PostCardProps> = ({
         </View>
       )}
 
-      {/* Actions */}
       <View style={styles.actions}>
         <Animated.View style={{ transform: [{ scale: likeAnimation }] }}>
           <TouchableOpacity 
@@ -379,7 +470,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
             color={showComments ? Colors.primary : colors.icon || '#666'} 
           />
           <Text style={[styles.actionText, { color: colors.text }]}>
-            {post.comments?.length || 0}
+            {localComments.length}
           </Text>
         </TouchableOpacity>
 
@@ -398,78 +489,49 @@ const PostCardStandard: React.FC<PostCardProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* Comments Section */}
       {showComments && (
-        <View style={styles.commentsSection}>
-          {/* Comment Input */}
-          <View style={styles.commentInputContainer}>
-            <Image 
-              source={{ uri: currentUserAvatar || 'https://via.placeholder.com/32' }}
-              style={styles.commentAvatar}
-            />
+        <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
+          <View style={[styles.commentInputContainer, { backgroundColor: colors.commentBackground }]}>
+            {currentUserAvatar ? (
+              <Image 
+                source={{ uri: currentUserAvatar }}
+                style={styles.commentAvatar}
+                onError={(e) => console.log('User avatar load error:', e.nativeEvent.error)}
+              />
+            ) : (
+              <View style={[styles.commentAvatar, { backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' }]}>
+                <Ionicons name="person" size={14} color={Colors.primary} />
+              </View>
+            )}
             <TextInput
               style={[styles.commentInput, { color: colors.text }]}
-              placeholder="Viết bình luận..."
-              placeholderTextColor={colors.subtleText || '#999'}
+              placeholder={"Viết bình luận..."}
+              placeholderTextColor={colors.placeholderText || colors.subtleText}
               value={commentText}
               onChangeText={setCommentText}
               multiline
             />
             <TouchableOpacity 
-              style={styles.sendButton}
-              onPress={handleComment}
+              style={[styles.sendButton, !commentText.trim() && { opacity: 0.5 }]}
+              onPress={handleCommentSubmit}
               disabled={!commentText.trim()}
             >
-              <Ionicons 
-                name="send" 
-                size={16} 
-                color="white" 
-              />
+              <Ionicons name="send" size={16} color="white" />
             </TouchableOpacity>
           </View>
 
-          {/* Comments List */}
           <View style={styles.commentsList}>
-            {post.comments && post.comments.length > 0 ? (
-              post.comments.map((comment, idx) => (
-                <View key={idx} style={styles.comment}>
-                  <Image 
-                    source={{ uri: comment.userAvatar || 'https://via.placeholder.com/32' }}
-                    style={styles.commentAvatar}
-                  />
-                  <View style={styles.commentContent}>
-                    <Text style={[styles.commentUser, { color: colors.text }]}>
-                      {comment.username}
-                    </Text>
-                    <Text style={[styles.commentText, { color: colors.text }]}>
-                      {comment.text}
-                    </Text>
-                    <View style={styles.commentMeta}>
-                      <Text style={styles.commentTime}>
-                        {formatTimestamp(comment.timestamp)}
-                      </Text>
-                      <TouchableOpacity style={styles.commentLike}>
-                        <Ionicons 
-                          name="heart-outline" 
-                          size={12} 
-                          color="#999" 
-                        />
-                        <Text style={styles.commentTime}>
-                          {comment.likes?.length || 0}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
+            {localComments && localComments.length > 0 ? (
+              localComments.map((comment, idx) => (
+                <CommentItem key={comment.id || idx} comment={comment} level={0} />
               ))
             ) : (
-              <Text style={styles.noComments}>Chưa có bình luận nào</Text>
+              <Text style={[styles.noComments, { color: colors.subtleText }]}>Chưa có bình luận nào</Text>
             )}
           </View>
         </View>
       )}
 
-      {/* Image Viewer Modal */}
       <ImageViewerModal
         images={post.images || []}
         visible={showImageViewer}
@@ -549,9 +611,6 @@ const styles = StyleSheet.create({
   timestamp: {
     fontSize: 12,
     fontWeight: '500',
-  },
-  separator: {
-    fontSize: 12,
   },
   location: {
     fontSize: 12,
@@ -649,22 +708,20 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
   },
   commentInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 25,
-    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
   },
   commentInput: {
     flex: 1,
     fontSize: 14,
-    paddingVertical: 0,
+    paddingVertical: 4,
   },
   sendButton: {
     width: 32,
@@ -674,13 +731,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  cancelButton: {
+    padding: 4,
+  },
   commentsList: {
     gap: 12,
   },
   comment: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: 8,
   },
   commentAvatar: {
     width: 32,
@@ -690,32 +750,27 @@ const styles = StyleSheet.create({
   commentContent: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 12,
+    padding: 10,
   },
   commentUser: {
     fontSize: 13,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   commentText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
   },
   commentMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    gap: 16,
+    marginTop: 6,
+    gap: 12,
   },
   commentTime: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#999',
-  },
-  commentLike: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
   },
   noComments: {
     fontSize: 14,
@@ -734,7 +789,20 @@ const styles = StyleSheet.create({
     marginTop: 0,
     gap: 8,
   },
-
+  hashtagChip: {
+    backgroundColor: Colors.primary + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  moreHashtags: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: '600',
+    alignSelf: 'center',
+  },
 });
 
 export default PostCardStandard;

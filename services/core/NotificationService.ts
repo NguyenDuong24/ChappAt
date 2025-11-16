@@ -15,7 +15,6 @@ import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 // Configure notification handler
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    console.log('📱 Handling notification:', notification.request.content.title);
     return {
       shouldShowAlert: true,
       shouldPlaySound: true,
@@ -26,7 +25,7 @@ Notifications.setNotificationHandler({
 
 // Notification data interface
 export interface NotificationData {
-  type: 'post' | 'comment' | 'like' | 'follow' | 'message' | 'group' | 'mention' | 'call' | 'friend_request' | 'hot_spot' | 'event_pass' | 'system';
+  type: 'post' | 'comment' | 'like' | 'follow' | 'message' | 'group' | 'mention' | 'call' | 'friend_request' | 'hot_spot' | 'event_pass' | 'system' | 'accepted_invite';
   userId?: string;
   postId?: string;
   commentId?: string;
@@ -62,7 +61,6 @@ class CoreNotificationService {
     if (this.isInitialized) return;
 
     try {
-      console.log('🔄 Initializing Core Notification Service...');
 
       // Register for push notifications
       await this.registerForPushNotifications();
@@ -73,7 +71,6 @@ class CoreNotificationService {
       }
 
       this.isInitialized = true;
-      console.log('✅ Core Notification Service initialized');
     } catch (error) {
       console.error('❌ Failed to initialize notification service:', error);
       throw error;
@@ -114,7 +111,6 @@ class CoreNotificationService {
       const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
       this.pushToken = tokenData.data;
 
-      console.log('✅ Push token obtained:', this.pushToken);
 
       // Save token to user profile
       await this.savePushTokenToUser(this.pushToken);
@@ -207,7 +203,6 @@ class CoreNotificationService {
         lastTokenUpdate: new Date(),
       });
 
-      console.log('✅ Push token saved to user profile');
     } catch (error) {
       console.error('❌ Failed to save push token:', error);
     }
@@ -230,7 +225,6 @@ class CoreNotificationService {
         trigger: delay > 0 ? { seconds: delay } as any : null,
       });
 
-      console.log('✅ Local notification scheduled:', identifier);
       return identifier;
     } catch (error) {
       console.error('❌ Failed to schedule notification:', error);
@@ -244,7 +238,6 @@ class CoreNotificationService {
   async cancelNotification(identifier: string): Promise<void> {
     try {
       await Notifications.cancelScheduledNotificationAsync(identifier);
-      console.log('✅ Notification cancelled:', identifier);
     } catch (error) {
       console.error('❌ Failed to cancel notification:', error);
     }

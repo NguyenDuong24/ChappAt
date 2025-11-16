@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
   Alert,
   Easing,
 } from 'react-native';
-import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -27,94 +27,36 @@ import useHotSpotsData, { UIHotSpot } from '@/hooks/useHotSpotsData';
 import InterestedUsersModal from '@/components/hotspots/InterestedUsersModal';
 import EventInvitesModal from '@/components/hotspots/EventInvitesModal';
 import { eventInviteService } from '@/services/eventInviteService';
-import { EventMatch } from '@/types/eventInvites';
 
-const { width, height } = Dimensions.get('window');
-const CARD_WIDTH = width - 32;
+const { width } = Dimensions.get('window');
 
-// Enhanced Shimmer with pulse effect
-const Shimmer: React.FC<{ style?: any }> = ({ style }) => {
-  const translate = useRef(new Animated.Value(-1)).current;
-  const opacity = useRef(new Animated.Value(0.3)).current;
+// ==================== TYPES ====================
+interface Category {
+  key: string;
+  label: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  gradient: readonly [string, string];
+}
 
-  useEffect(() => {
-    const shimmer = Animated.loop(
-      Animated.timing(translate, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      })
-    );
-    
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 0.6, duration: 1000, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.3, duration: 1000, useNativeDriver: true }),
-      ])
-    );
+type TimeFilter = 'all' | 'today' | 'upcoming';
+type ViewMode = 'card' | 'list';
 
-    shimmer.start();
-    pulse.start();
-    return () => {
-      shimmer.stop();
-      pulse.stop();
-    };
-  }, []);
+// ==================== CONSTANTS ====================
+const CATEGORIES: Category[] = [
+  { key: 'all', label: 'Tất cả', icon: 'apps', gradient: ['#8B5CF6', '#EC4899'] },
+  { key: 'event', label: 'Sự kiện', icon: 'event', gradient: ['#F59E0B', '#EF4444'] },
+  { key: 'place', label: 'Địa điểm', icon: 'place', gradient: ['#10B981', '#059669'] },
+  { key: 'food', label: 'Ẩm thực', icon: 'restaurant', gradient: ['#F97316', '#DC2626'] },
+  { key: 'entertainment', label: 'Giải trí', icon: 'celebration', gradient: ['#06B6D4', '#3B82F6'] },
+];
 
-  const translateX = translate.interpolate({ 
-    inputRange: [-1, 1], 
-    outputRange: [-width, width] 
-  });
+const TIME_FILTERS = [
+  { key: 'all' as const, label: '✨ Tất cả' },
+  { key: 'today' as const, label: '📅 Hôm nay' },
+  { key: 'upcoming' as const, label: '🔮 Sắp tới' }
+];
 
-  return (
-    <Animated.View style={[{ overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.06)' }, style, { opacity }]}>
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
-        <LinearGradient
-          colors={['transparent', 'rgba(255,255,255,0.25)', 'transparent']}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={{ width: width * 0.7, height: '100%' }}
-        />
-      </Animated.View>
-    </Animated.View>
-  );
-};
-
-// Enhanced skeleton with more details
-const SkeletonCard: React.FC = () => {
-  return (
-    <View style={{
-      backgroundColor: 'rgba(255,255,255,0.05)',
-      borderRadius: 20,
-      marginBottom: 20,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.1)'
-    }}>
-      <Shimmer style={{ height: 240 }} />
-      <View style={{ padding: 20 }}>
-        <Shimmer style={{ height: 24, borderRadius: 12, marginBottom: 12, width: '85%' }} />
-        <Shimmer style={{ height: 16, borderRadius: 8, marginBottom: 8, width: '65%' }} />
-        <Shimmer style={{ height: 16, borderRadius: 8, marginBottom: 20, width: '50%' }} />
-        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-          <Shimmer style={{ height: 44, flex: 1, borderRadius: 12 }} />
-          <Shimmer style={{ height: 44, flex: 1, borderRadius: 12 }} />
-          <Shimmer style={{ height: 44, flex: 1, borderRadius: 12 }} />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View style={{ flexDirection: 'row', gap: -8 }}>
-            {[1,2,3].map(i => (
-              <Shimmer key={i} style={{ width: 36, height: 36, borderRadius: 18 }} />
-            ))}
-          </View>
-          <Shimmer style={{ height: 20, width: 80, borderRadius: 10 }} />
-        </View>
-      </View>
-    </View>
-  );
-};
-
+// ==================== MAIN COMPONENT ====================
 const HotSpotsScreen = () => {
   const router = useRouter();
   const { user } = useAuth();
@@ -123,18 +65,30 @@ const HotSpotsScreen = () => {
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
-  const safeText = (value: any, fallback: string = ''): string => {
-    if (value === null || value === undefined) return fallback;
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number') return value.toString();
-    if (typeof value === 'boolean') return value.toString();
-    if (typeof value === 'object') {
-      console.warn('Attempting to render object as text:', value);
-      return fallback;
-    }
-    return fallback;
-  };
+  // ==================== STATE ====================
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('card');
+  const [showFeatured, setShowFeatured] = useState(true);
   
+  // Modal states
+  const [showInterestedModal, setShowInterestedModal] = useState(false);
+  const [showInvitesModal, setShowInvitesModal] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState('');
+  const [selectedEventTitle, setSelectedEventTitle] = useState('');
+  
+  // Action loading states
+  const [actionLoading, setActionLoading] = useState<{[key: string]: boolean}>({});
+  const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // ==================== HOOKS ====================
   const {
     hotSpots,
     featuredSpots,
@@ -151,34 +105,9 @@ const HotSpotsScreen = () => {
     checkIn,
     toggleFavorite
   } = useHotSpotsData();
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSearch, setShowSearch] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [showFeatured, setShowFeatured] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'upcoming'>('all');
-  const [actionLoading, setActionLoading] = useState<{[key: string]: boolean}>({});
-  const [showInterestedModal, setShowInterestedModal] = useState(false);
-  const [showInvitesModal, setShowInvitesModal] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState<string>('');
-  const [selectedEventTitle, setSelectedEventTitle] = useState<string>('');
-  const [userMatches, setUserMatches] = useState<{[eventId: string]: EventMatch}>({});
-  const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
-  
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const scrollY = useRef(new Animated.Value(0)).current;
-  
-  const categories = [
-    { key: 'all', label: 'Tất cả', icon: 'apps' as const, gradient: ['#8B5CF6', '#EC4899'] as const },
-    { key: 'event', label: 'Sự kiện', icon: 'event' as const, gradient: ['#F59E0B', '#EF4444'] as const },
-    { key: 'place', label: 'Địa điểm', icon: 'place' as const, gradient: ['#10B981', '#059669'] as const },
-    { key: 'food', label: 'Ẩm thực', icon: 'restaurant' as const, gradient: ['#F97316', '#DC2626'] as const },
-    { key: 'entertainment', label: 'Giải trí', icon: 'celebration' as const, gradient: ['#06B6D4', '#3B82F6'] as const },
-  ];
 
-  const THEME = {
+  // ==================== THEME ====================
+  const THEME = useMemo(() => ({
     colors: {
       primary: Colors.primary,
       secondary: Colors.secondary,
@@ -192,9 +121,6 @@ const HotSpotsScreen = () => {
       error: Colors.error,
       success: Colors.success,
       warning: Colors.warning,
-      info: Colors.info,
-      hotSpotsPrimary: currentThemeColors.hotSpotsPrimary || Colors.warning,
-      hotSpotsSecondary: currentThemeColors.hotSpotsSecondary || Colors.secondary,
       border: currentThemeColors.border,
       cardBg: currentThemeColors.cardBackground,
       gradients: {
@@ -223,8 +149,29 @@ const HotSpotsScreen = () => {
       lg: 20,
       xl: 24,
     },
-  };
+  }), [theme, currentThemeColors]);
 
+  // ==================== EFFECTS ====================
+  
+  // Initial animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Update filters when category or search changes
   useEffect(() => {
     const filters = {
       category: selectedCategory === 'all' ? undefined : selectedCategory,
@@ -234,27 +181,15 @@ const HotSpotsScreen = () => {
     updateFilters(filters);
   }, [selectedCategory, searchQuery, updateFilters]);
 
+  // Load pending invites
   useEffect(() => {
     if (user?.uid) {
-      loadUserMatches();
       loadPendingInvites();
     }
   }, [user?.uid]);
 
-  const loadUserMatches = async () => {
-    if (!user?.uid) return;
-    try {
-      const matches: {[eventId: string]: EventMatch} = {};
-      for (const event of hotSpots) {
-        const match = await eventInviteService.getUserEventMatch(event.id, user.uid);
-        if (match) matches[event.id] = match;
-      }
-      setUserMatches(matches);
-    } catch (error) {
-      console.error('Error loading user matches:', error);
-    }
-  };
-
+  // ==================== HANDLERS ====================
+  
   const loadPendingInvites = async () => {
     if (!user?.uid) return;
     try {
@@ -274,13 +209,14 @@ const HotSpotsScreen = () => {
 
   const handleCheckIn = async (spotId: string) => {
     if (actionLoading[spotId]) return;
+    
     setActionLoading(prev => ({ ...prev, [spotId]: true }));
     try {
       await checkIn(spotId);
-      await refresh(); // Refresh data to update UI
-      Alert.alert('Thành công', 'Đã check-in thành công!');
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể check-in.');
+      await refresh();
+      Alert.alert('Thành công! ✅', 'Đã check-in thành công!');
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể check-in. Vui lòng thử lại.');
     } finally {
       setActionLoading(prev => ({ ...prev, [spotId]: false }));
     }
@@ -288,19 +224,20 @@ const HotSpotsScreen = () => {
 
   const handleInterested = async (spotId: string) => {
     if (actionLoading[spotId]) return;
+    
     setActionLoading(prev => ({ ...prev, [spotId]: true }));
     try {
       const spot = hotSpots.find(s => s.id === spotId);
       if (spot?.isInterested) {
-        await eventInviteService.removeInterest(spotId, user?.uid || '');
-        Alert.alert('Thành công', 'Đã bỏ quan tâm');
+        await removeInterested(spotId);
+        Alert.alert('Đã bỏ quan tâm', 'Bạn đã bỏ quan tâm sự kiện này.');
       } else {
-        await eventInviteService.markInterested(spotId, user?.uid || '');
-        Alert.alert('Thành công', 'Đã đánh dấu quan tâm! 💜');
+        await markInterested(spotId);
+        Alert.alert('Thành công! 💜', 'Đã đánh dấu quan tâm!');
       }
-      await refresh(); // Refresh data to update UI
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể cập nhật.');
+      await refresh();
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể cập nhật. Vui lòng thử lại.');
     } finally {
       setActionLoading(prev => ({ ...prev, [spotId]: false }));
     }
@@ -308,13 +245,14 @@ const HotSpotsScreen = () => {
 
   const handleGoTogether = async (spotId: string) => {
     if (actionLoading[spotId]) return;
+    
     setActionLoading(prev => ({ ...prev, [spotId]: true }));
     try {
       await joinHotSpot(spotId);
-      await refresh(); // Refresh data to update UI
-      Alert.alert('Thành công', 'Đã tham gia!');
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể tham gia.');
+      await refresh();
+      Alert.alert('Tham gia thành công! 🎉', 'Bạn đã tham gia sự kiện này!');
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể tham gia. Vui lòng thử lại.');
     } finally {
       setActionLoading(prev => ({ ...prev, [spotId]: false }));
     }
@@ -322,12 +260,13 @@ const HotSpotsScreen = () => {
 
   const handleFavorite = async (spotId: string) => {
     if (actionLoading[spotId]) return;
+    
     setActionLoading(prev => ({ ...prev, [spotId]: true }));
     try {
       await toggleFavorite(spotId);
-      await refresh(); // Refresh data to update UI
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể cập nhật yêu thích.');
+      await refresh();
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể cập nhật yêu thích.');
     } finally {
       setActionLoading(prev => ({ ...prev, [spotId]: false }));
     }
@@ -344,7 +283,6 @@ const HotSpotsScreen = () => {
   };
 
   const handleInviteAccepted = (chatRoomId: string, eventId?: string, eventTitle?: string) => {
-    // Navigate to HotSpot-specific chat screen
     router.push({
       pathname: '/HotSpotChatScreen',
       params: {
@@ -355,22 +293,27 @@ const HotSpotsScreen = () => {
     });
   };
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+  // ==================== COMPUTED VALUES ====================
+  
+  const visibleHotSpots = useMemo(() => {
+    if (!Array.isArray(hotSpots)) return [];
+    if (timeFilter === 'all') return hotSpots;
+    
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    return hotSpots.filter((spot) => {
+      if (!spot?.startTime) return false;
+      const spotTime = new Date(spot.startTime);
+      
+      if (timeFilter === 'today') {
+        return spotTime >= startOfToday && spotTime <= endOfToday;
+      } else { // upcoming
+        return spotTime > endOfToday;
+      }
+    });
+  }, [hotSpots, timeFilter]);
 
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 100],
@@ -378,556 +321,18 @@ const HotSpotsScreen = () => {
     extrapolate: 'clamp',
   });
 
-  const headerScale = scrollY.interpolate({
-    inputRange: [-50, 0],
-    outputRange: [1.1, 1],
-    extrapolate: 'clamp',
-  });
+  // ==================== HELPER FUNCTIONS ====================
+  
+  const safeText = (value: any, fallback: string = ''): string => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return value.toString();
+    if (typeof value === 'boolean') return value.toString();
+    return fallback;
+  };
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: THEME.colors.background,
-    },
-    header: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      zIndex: 1000,
-      paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 20) + 10,
-      paddingHorizontal: THEME.spacing.md,
-      paddingBottom: THEME.spacing.xl,
-      borderBottomLeftRadius: THEME.borderRadius.xl,
-      borderBottomRightRadius: THEME.borderRadius.xl,
-      overflow: 'hidden',
-    },
-    headerContent: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: THEME.spacing.lg,
-    },
-    iconButton: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.3)',
-      shadowOpacity: 0.15,
-    },
-    headerTitleContainer: {
-      flex: 1,
-      alignItems: 'center',
-    },
-    headerTitle: {
-      fontSize: 28,
-      fontWeight: '900',
-      color: 'white',
-      textShadowColor: 'rgba(0,0,0,0.4)',
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 4,
-      letterSpacing: 0.5,
-    },
-    headerSubtitle: {
-      fontSize: 14,
-      color: 'rgba(255,255,255,0.9)',
-      marginTop: 4,
-      fontWeight: '600',
-      textShadowColor: 'rgba(0,0,0,0.3)',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
-    actionsRow: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    searchContainer: {
-      marginBottom: THEME.spacing.md,
-      borderRadius: THEME.borderRadius.lg,
-      overflow: 'hidden',
-    },
-    searchGradient: {
-      borderRadius: THEME.borderRadius.lg,
-      padding: 2,
-    },
-    searchInner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.25)',
-      borderRadius: THEME.borderRadius.lg - 2,
-      paddingHorizontal: THEME.spacing.lg,
-      height: 52,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.4)',
-    },
-    searchInput: {
-      flex: 1,
-      color: 'white',
-      fontSize: 16,
-      fontWeight: '500',
-      paddingHorizontal: THEME.spacing.md,
-    },
-    clearButton: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: 'rgba(255,255,255,0.3)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    categoriesScroll: {
-      paddingHorizontal: THEME.spacing.sm,
-      paddingBottom: THEME.spacing.md,
-    },
-    categoryChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: THEME.spacing.md,
-      paddingVertical: THEME.spacing.sm,
-      marginRight: THEME.spacing.md,
-      borderRadius: THEME.borderRadius.xl,
-      minHeight: 36,
-      gap: THEME.spacing.sm,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 3,
-    },
-    categoryChipInactive: {
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.25)',
-    },
-    categoryText: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: 'white',
-    },
-    categoryTextInactive: {
-      color: 'rgba(255,255,255,0.85)',
-    },
-    timeFilters: {
-      flexDirection: 'row',
-      paddingHorizontal: THEME.spacing.md,
-      paddingBottom: THEME.spacing.md,
-      gap: THEME.spacing.md,
-    },
-    timeChip: {
-      paddingHorizontal: THEME.spacing.md,
-      paddingVertical: THEME.spacing.sm,
-      borderRadius: THEME.borderRadius.lg,
-      borderWidth: 1.5,
-      borderColor: 'rgba(255,255,255,0.25)',
-      backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    timeChipActive: {
-      backgroundColor: 'white',
-      borderColor: 'white',
-    },
-    timeText: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: 'rgba(255,255,255,0.9)',
-    },
-    timeTextActive: {
-      color: '#8B5CF6',
-    },
-    statsBar: {
-      flexDirection: 'row',
-      paddingHorizontal: THEME.spacing.md,
-      paddingVertical: THEME.spacing.md,
-      gap: THEME.spacing.md,
-    },
-    statCard: {
-      flex: 1,
-      padding: THEME.spacing.md,
-      borderRadius: THEME.borderRadius.md,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.2)',
-    },
-    statValue: {
-      fontSize: 24,
-      fontWeight: '900',
-      color: 'white',
-      marginBottom: 4,
-    },
-    statLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      color: 'rgba(255,255,255,0.75)',
-    },
-    listContent: {
-      paddingHorizontal: THEME.spacing.md,
-      paddingBottom: THEME.spacing.xl * 2,
-      paddingTop: THEME.spacing.md,
-    },
-    card: {
-      backgroundColor: THEME.colors.cardBg,
-      borderRadius: THEME.borderRadius.lg,
-      marginBottom: THEME.spacing.lg,
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: theme === 'dark' ? 0.3 : 0.15,
-      shadowRadius: 16,
-      elevation: 8,
-      borderWidth: 1,
-      borderColor: THEME.colors.border,
-    },
-    imageContainer: {
-      height: 260,
-      position: 'relative',
-    },
-    cardImage: {
-      width: '100%',
-      height: '100%',
-    },
-    imageOverlay: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    badgeRow: {
-      position: 'absolute',
-      top: THEME.spacing.lg,
-      left: THEME.spacing.lg,
-      right: THEME.spacing.lg,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-    },
-    badgeGroup: {
-      flexDirection: 'row',
-      gap: THEME.spacing.sm,
-    },
-    badge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: THEME.spacing.md,
-      paddingVertical: THEME.spacing.sm,
-      borderRadius: THEME.borderRadius.xl,
-      gap: THEME.spacing.xs,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.4,
-      shadowRadius: 6,
-      elevation: 6,
-    },
-    badgeText: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: 'white',
-      textShadowColor: 'rgba(0,0,0,0.3)',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 2,
-    },
-    favoriteButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 3 },
-      shadowOpacity: 0.4,
-      shadowRadius: 6,
-      elevation: 6,
-    },
-    cardContent: {
-      padding: THEME.spacing.lg,
-    },
-    cardTitle: {
-      fontSize: 22,
-      fontWeight: '800',
-      color: THEME.colors.text,
-      marginBottom: THEME.spacing.md,
-      lineHeight: 28,
-    },
-    infoSection: {
-      marginBottom: THEME.spacing.lg,
-      gap: THEME.spacing.sm,
-    },
-    infoRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: THEME.spacing.sm,
-    },
-    infoText: {
-      flex: 1,
-      fontSize: 15,
-      color: THEME.colors.textSecondary,
-      fontWeight: '500',
-    },
-    matchedBanner: {
-      alignItems: 'center',
-      marginBottom: THEME.spacing.lg,
-    },
-    matchedBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: THEME.spacing.xl,
-      paddingVertical: THEME.spacing.md,
-      borderRadius: THEME.borderRadius.xl,
-      gap: THEME.spacing.sm,
-      shadowColor: '#10B981',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 6,
-    },
-    matchedText: {
-      fontSize: 15,
-      fontWeight: '700',
-      color: 'white',
-    },
-    actionsGrid: {
-      flexDirection: 'row',
-      gap: THEME.spacing.sm,
-      marginBottom: THEME.spacing.lg,
-    },
-    actionButton: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: THEME.spacing.sm,
-      paddingHorizontal: THEME.spacing.xs,
-      borderRadius: THEME.borderRadius.md,
-      gap: THEME.spacing.xs,
-      borderWidth: 1.5,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.08,
-      shadowRadius: 4,
-      elevation: 2,
-    },
-    actionButtonInactive: {
-      backgroundColor: THEME.colors.surfaceLight,
-      borderColor: THEME.colors.border,
-    },
-    actionButtonActive: {
-      borderColor: 'transparent',
-    },
-    actionText: {
-      fontSize: 12,
-      fontWeight: '700',
-    },
-    actionTextInactive: {
-      color: THEME.colors.textSecondary,
-    },
-    actionTextActive: {
-      color: 'white',
-    },
-    participantsSection: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingTop: THEME.spacing.md,
-      borderTopWidth: 1,
-      borderTopColor: THEME.colors.border,
-    },
-    avatarStack: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    avatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: THEME.colors.surface,
-      borderWidth: 3,
-      borderColor: THEME.colors.cardBg,
-      overflow: 'hidden',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    avatarText: {
-      fontSize: 13,
-      fontWeight: '700',
-      color: THEME.colors.primary,
-    },
-    viewMoreIndicator: {
-      marginLeft: THEME.spacing.sm,
-      backgroundColor: THEME.colors.surfaceLight,
-      paddingHorizontal: THEME.spacing.sm,
-      paddingVertical: 4,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: THEME.colors.border,
-    },
-    statsGroup: {
-      alignItems: 'flex-end',
-    },
-    participantCount: {
-      fontSize: 24,
-      fontWeight: '900',
-      color: THEME.colors.text,
-      marginBottom: 4,
-    },
-    statsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: THEME.spacing.md,
-    },
-    rating: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-    },
-    ratingText: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: THEME.colors.textSecondary,
-    },
-    price: {
-      fontSize: 14,
-      fontWeight: '800',
-      color: THEME.colors.primary,
-    },
-    notificationBadge: {
-      position: 'absolute',
-      top: -4,
-      right: -4,
-      backgroundColor: '#EF4444',
-      borderRadius: 12,
-      minWidth: 24,
-      height: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 3,
-      borderColor: 'white',
-      shadowColor: '#EF4444',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.5,
-      shadowRadius: 4,
-      elevation: 6,
-    },
-    notificationText: {
-      fontSize: 11,
-      fontWeight: '900',
-      color: 'white',
-    },
-    emptyState: {
-      alignItems: 'center',
-      paddingVertical: THEME.spacing.xl * 3,
-      paddingHorizontal: THEME.spacing.xl,
-    },
-    emptyIcon: {
-      marginBottom: THEME.spacing.lg,
-    },
-    emptyTitle: {
-      fontSize: 22,
-      fontWeight: '700',
-      color: THEME.colors.text,
-      marginBottom: THEME.spacing.sm,
-      textAlign: 'center',
-    },
-    emptySubtitle: {
-      fontSize: 16,
-      color: THEME.colors.textSecondary,
-      textAlign: 'center',
-      lineHeight: 24,
-    },
-    featuredSection: {
-      marginBottom: THEME.spacing.lg,
-    },
-    sectionHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: THEME.spacing.md,
-      marginBottom: THEME.spacing.md,
-    },
-    sectionTitle: {
-      fontSize: 24,
-      fontWeight: '800',
-      color: THEME.colors.text,
-    },
-    toggleButton: {
-      padding: THEME.spacing.sm,
-    },
-    featuredList: {
-      paddingLeft: THEME.spacing.md,
-    },
-    featuredCard: {
-      width: width * 0.75,
-      height: 180,
-      marginRight: THEME.spacing.md,
-      borderRadius: THEME.borderRadius.lg,
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.25,
-      shadowRadius: 16,
-      elevation: 10,
-    },
-    featuredImage: {
-      width: '100%',
-      height: '100%',
-    },
-    featuredOverlay: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    featuredContent: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      padding: THEME.spacing.lg,
-    },
-    featuredTitle: {
-      fontSize: 22,
-      fontWeight: '800',
-      color: 'white',
-      marginBottom: 6,
-      textShadowColor: 'rgba(0,0,0,0.6)',
-      textShadowOffset: { width: 0, height: 2 },
-      textShadowRadius: 4,
-    },
-    featuredSubtitle: {
-      fontSize: 15,
-      fontWeight: '600',
-      color: 'rgba(255,255,255,0.95)',
-      textShadowColor: 'rgba(0,0,0,0.4)',
-      textShadowOffset: { width: 0, height: 1 },
-      textShadowRadius: 3,
-    },
-    viewModeToggle: {
-      flexDirection: 'row',
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      borderRadius: THEME.borderRadius.md,
-      padding: 2,
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.25)',
-    },
-    viewModeButton: {
-      paddingHorizontal: THEME.spacing.md,
-      paddingVertical: THEME.spacing.sm,
-      borderRadius: THEME.borderRadius.md - 2,
-    },
-    viewModeActive: {
-      backgroundColor: 'white',
-    },
-  });
-
-  const visibleHotSpots = useMemo(() => {
-    if (!Array.isArray(hotSpots)) return [];
-    if (timeFilter === 'all') return hotSpots;
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-    return hotSpots.filter((s: any) => {
-      if (!s?.startTime) return false;
-      const t = new Date(s.startTime);
-      return timeFilter === 'today' ? (t >= startOfToday && t <= endOfToday) : (t > endOfToday);
-    });
-  }, [hotSpots, timeFilter]);
-
+  // ==================== RENDER FUNCTIONS ====================
+  
   const renderHeader = () => (
     <View style={styles.header}>
       <LinearGradient
@@ -936,8 +341,8 @@ const HotSpotsScreen = () => {
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
+      {/* Header Content */}
       <View style={styles.headerContent}>
         <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="white" />
@@ -950,7 +355,7 @@ const HotSpotsScreen = () => {
         
         <View style={styles.actionsRow}>
           <TouchableOpacity 
-            style={[styles.iconButton, pendingInvitesCount > 0 && { position: 'relative' }]}
+            style={styles.iconButton}
             onPress={handleShowInvites}
           >
             <Ionicons name="mail-outline" size={22} color="white" />
@@ -970,6 +375,7 @@ const HotSpotsScreen = () => {
         </View>
       </View>
 
+      {/* Search Bar */}
       {showSearch && (
         <View style={styles.searchContainer}>
           <LinearGradient
@@ -999,12 +405,13 @@ const HotSpotsScreen = () => {
         </View>
       )}
 
+      {/* Category Filters */}
       <ScrollView 
         horizontal 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoriesScroll}
       >
-        {categories.map(cat => {
+        {CATEGORIES.map(cat => {
           const isActive = selectedCategory === cat.key;
           return (
             <TouchableOpacity
@@ -1013,7 +420,7 @@ const HotSpotsScreen = () => {
             >
               {isActive ? (
                 <LinearGradient
-                  colors={cat.gradient}
+                  colors={cat.gradient as any}
                   style={styles.categoryChip}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -1032,18 +439,15 @@ const HotSpotsScreen = () => {
         })}
       </ScrollView>
 
+      {/* Time Filters */}
       <View style={styles.timeFilters}>
-        {[
-          { key: 'all', label: '✨ Tất cả', icon: 'apps' },
-          { key: 'today', label: '📅 Hôm nay', icon: 'today' },
-          { key: 'upcoming', label: '🔮 Sắp tới', icon: 'event' }
-        ].map(filter => {
+        {TIME_FILTERS.map(filter => {
           const isActive = timeFilter === filter.key;
           return (
             <TouchableOpacity
               key={filter.key}
               style={[styles.timeChip, isActive && styles.timeChipActive]}
-              onPress={() => setTimeFilter(filter.key as any)}
+              onPress={() => setTimeFilter(filter.key)}
             >
               <Text style={[styles.timeText, isActive && styles.timeTextActive]}>
                 {filter.label}
@@ -1080,122 +484,106 @@ const HotSpotsScreen = () => {
     </TouchableOpacity>
   );
 
-  const renderHotSpotCard = ({ item }: { item: UIHotSpot }) => {
-    const hasMatch = !!userMatches[item.id];
-    
-    return (
-      <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-        <TouchableOpacity 
-          style={styles.card}
-          onPress={() => handleSpotPress(item)}
-          activeOpacity={0.95}
-        >
-          <View style={styles.imageContainer}>
-            <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
-            <LinearGradient
-              colors={THEME.colors.gradients.overlay}
-              style={styles.imageOverlay}
-            />
-            
-            <View style={styles.badgeRow}>
-              <View style={styles.badgeGroup}>
-                {item.isPopular && (
-                  <LinearGradient 
-                    colors={THEME.colors.gradients.warning}
-                    style={styles.badge}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                  >
-                    <Ionicons name="flame" size={14} color="white" />
-                    <Text style={styles.badgeText}>HOT</Text>
-                  </LinearGradient>
-                )}
-                {item.isNew && (
-                  <LinearGradient 
-                    colors={THEME.colors.gradients.success}
-                    style={styles.badge}
-                  >
-                    <Ionicons name="sparkles" size={14} color="white" />
-                    <Text style={styles.badgeText}>MỚI</Text>
-                  </LinearGradient>
-                )}
-              </View>
-
-              <TouchableOpacity 
-                style={styles.favoriteButton}
-                onPress={() => handleFavorite(item.id)}
-              >
-                <Ionicons 
-                  name={item.isFavorited ? "heart" : "heart-outline"} 
-                  size={24} 
-                  color={item.isFavorited ? "#EF4444" : "white"} 
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.cardContent}>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {safeText(item.title, 'Hot Spot')}
-            </Text>
-            
-            <View style={styles.infoSection}>
-              <View style={styles.infoRow}>
-                <Ionicons name="location" size={18} color={THEME.colors.hotSpotsPrimary} />
-                <Text style={styles.infoText} numberOfLines={1}>
-                  {safeText(item.location, 'Chưa rõ')}
-                </Text>
-              </View>
-              
-              {item.startTime && (
-                <View style={styles.infoRow}>
-                  <Ionicons name="time" size={18} color={THEME.colors.secondary} />
-                  <Text style={styles.infoText}>
-                    {new Date(item.startTime).toLocaleDateString('vi-VN', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </Text>
-                </View>
+  const renderHotSpotCard = ({ item }: { item: UIHotSpot }) => (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <TouchableOpacity 
+        style={styles.card}
+        onPress={() => handleSpotPress(item)}
+        activeOpacity={0.95}
+      >
+        {/* Image Section */}
+        <View style={styles.imageContainer}>
+          <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
+          <LinearGradient
+            colors={THEME.colors.gradients.overlay}
+            style={styles.imageOverlay}
+          />
+          
+          {/* Badges */}
+          <View style={styles.badgeRow}>
+            <View style={styles.badgeGroup}>
+              {item.isNew && (
+                <LinearGradient colors={['#10B981', '#059669']} style={styles.badge}>
+                  <Ionicons name="sparkles" size={12} color="white" />
+                  <Text style={styles.badgeText}>MỚI</Text>
+                </LinearGradient>
+              )}
+              {item.isPopular && (
+                <LinearGradient colors={['#F59E0B', '#EF4444']} style={styles.badge}>
+                  <Ionicons name="flame" size={12} color="white" />
+                  <Text style={styles.badgeText}>HOT</Text>
+                </LinearGradient>
               )}
             </View>
+            
+            <TouchableOpacity 
+              style={styles.favoriteButton}
+              onPress={() => handleFavorite(item.id)}
+            >
+              <Ionicons 
+                name={item.isFavorited ? "heart" : "heart-outline"} 
+                size={22} 
+                color={item.isFavorited ? "#EF4444" : "white"} 
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
 
-            {hasMatch ? (
-              <View style={styles.matchedBanner}>
+        {/* Content Section */}
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {safeText(item.title, 'Hot Spot')}
+          </Text>
+          
+          {/* Info Section */}
+          <View style={styles.infoSection}>
+            <View style={styles.infoRow}>
+              <Ionicons name="location" size={16} color={THEME.colors.textSecondary} />
+              <Text style={styles.infoText} numberOfLines={1}>
+                {safeText(item.location, 'Chưa rõ')}
+              </Text>
+            </View>
+            
+            {item.startTime && (
+              <View style={styles.infoRow}>
+                <Ionicons name="time" size={16} color={THEME.colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  {new Date(item.startTime).toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionsGrid}>
+            <TouchableOpacity 
+              style={[
+                styles.actionButton,
+                item.hasCheckedIn ? styles.actionButtonActive : styles.actionButtonInactive
+              ]}
+              onPress={() => handleCheckIn(item.id)}
+              disabled={actionLoading[item.id]}
+            >
+              {item.hasCheckedIn && (
                 <LinearGradient
                   colors={THEME.colors.gradients.success}
-                  style={styles.matchedBadge}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Ionicons name="heart" size={18} color="white" />
-                  <Text style={styles.matchedText}>💜 Đã có cặp ghép</Text>
-                  <Ionicons name="checkmark-circle" size={18} color="white" />
-                </LinearGradient>
-              </View>
-            ) : (
-              <View style={styles.actionsGrid}>
-                <TouchableOpacity 
-                  style={[
-                    styles.actionButton,
-                    item.hasCheckedIn 
-                      ? { ...styles.actionButtonActive }
-                      : styles.actionButtonInactive,
-                    { opacity: 0.6 }
-                  ]}
-                  disabled
-                >
-                  <LinearGradient
-                    colors={item.hasCheckedIn ? THEME.colors.gradients.warning : ['transparent', 'transparent']}
-                    style={StyleSheet.absoluteFill}
-                  />
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+              {actionLoading[item.id] ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
                   <Ionicons 
-                    name={item.hasCheckedIn ? "location" : "location-outline"} 
+                    name={item.hasCheckedIn ? "checkmark-circle" : "location-outline"} 
                     size={18} 
-                    color={item.hasCheckedIn ? "white" : THEME.colors.hotSpotsPrimary} 
+                    color={item.hasCheckedIn ? "white" : THEME.colors.primary} 
                   />
                   <Text style={[
                     styles.actionText,
@@ -1203,57 +591,61 @@ const HotSpotsScreen = () => {
                   ]}>
                     {item.hasCheckedIn ? "Đã in" : "Check"}
                   </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.actionButton,
-                    item.isInterested 
-                      ? { ...styles.actionButtonActive }
-                      : styles.actionButtonInactive
-                  ]}
-                  onPress={() => handleInterested(item.id)}
-                  disabled={actionLoading[item.id]}
-                >
-                  {item.isInterested && (
-                    <LinearGradient
-                      colors={['#EC4899', '#BE185D']}
-                      style={StyleSheet.absoluteFill}
-                    />
-                  )}
-                  {actionLoading[item.id] ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <>
-                      <Ionicons 
-                        name={item.isInterested ? "heart" : "heart-outline"} 
-                        size={18} 
-                        color={item.isInterested ? "white" : THEME.colors.secondary} 
-                      />
-                      <Text style={[
-                        styles.actionText,
-                        item.isInterested ? styles.actionTextActive : styles.actionTextInactive
-                      ]}>
-                        {item.isInterested ? "Thích" : "Quan tâm"}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[
-                    styles.actionButton,
-                    item.isJoined 
-                      ? { ...styles.actionButtonActive }
-                      : styles.actionButtonInactive,
-                    { opacity: 0.6 }
-                  ]}
-                  disabled
-                >
-                  <LinearGradient
-                    colors={item.isJoined ? THEME.colors.gradients.success : ['transparent', 'transparent']}
-                    style={StyleSheet.absoluteFill}
+                </>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.actionButton,
+                item.isInterested ? styles.actionButtonActive : styles.actionButtonInactive
+              ]}
+              onPress={() => handleInterested(item.id)}
+              disabled={actionLoading[item.id]}
+            >
+              {item.isInterested && (
+                <LinearGradient
+                  colors={['#EC4899', '#BE185D']}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+              {actionLoading[item.id] ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
+                  <Ionicons 
+                    name={item.isInterested ? "heart" : "heart-outline"} 
+                    size={18} 
+                    color={item.isInterested ? "white" : THEME.colors.secondary} 
                   />
+                  <Text style={[
+                    styles.actionText,
+                    item.isInterested ? styles.actionTextActive : styles.actionTextInactive
+                  ]}>
+                    {item.isInterested ? "Thích" : "Quan tâm"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.actionButton,
+                item.isJoined ? styles.actionButtonActive : styles.actionButtonInactive
+              ]}
+              onPress={() => handleGoTogether(item.id)}
+              disabled={actionLoading[item.id]}
+            >
+              {item.isJoined && (
+                <LinearGradient
+                  colors={THEME.colors.gradients.success}
+                  style={StyleSheet.absoluteFill}
+                />
+              )}
+              {actionLoading[item.id] ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <>
                   <Ionicons 
                     name={item.isJoined ? "people" : "people-outline"} 
                     size={18} 
@@ -1265,56 +657,82 @@ const HotSpotsScreen = () => {
                   ]}>
                     {item.isJoined ? "Tham gia" : "Đi cùng"}
                   </Text>
-                </TouchableOpacity>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Participants Section */}
+          <View style={styles.participantsSection}>
+            <TouchableOpacity 
+              style={styles.avatarStack}
+              onPress={() => handleShowInterestedUsers(item.id, safeText(item.title, 'Hot Spot'))}
+            >
+              {[1, 2, 3].map(i => (
+                <View key={i} style={[styles.avatar, { marginLeft: i > 1 ? -12 : 0, zIndex: 4 - i }]}>
+                  <LinearGradient
+                    colors={THEME.colors.gradients.primary}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  <Text style={styles.avatarText}>U{i}</Text>
+                </View>
+              ))}
+              {(item.interestedCount ?? 0) > 3 && (
+                <View style={[styles.avatar, { marginLeft: -12, backgroundColor: THEME.colors.surfaceLight, zIndex: 0 }]}>
+                  <Text style={[styles.avatarText, { fontSize: 11, color: THEME.colors.primary }]}>
+                    +{(item.interestedCount ?? 0) - 3}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.viewMoreIndicator}>
+                <Ionicons name="chevron-forward" size={14} color={THEME.colors.primary} />
               </View>
-            )}
+            </TouchableOpacity>
 
-            <View style={styles.participantsSection}>
-              <TouchableOpacity 
-                style={styles.avatarStack}
-                onPress={() => handleShowInterestedUsers(item.id, safeText(item.title, 'Hot Spot'))}
-              >
-                {[1, 2, 3].map(i => (
-                  <View key={i} style={[styles.avatar, { marginLeft: i > 1 ? -12 : 0, zIndex: 4 - i }]}>
-                    <LinearGradient
-                      colors={THEME.colors.gradients.primary}
-                      style={StyleSheet.absoluteFill}
-                    />
-                    <Text style={styles.avatarText}>U{i}</Text>
-                  </View>
-                ))}
-                {(item.interestedCount ?? 0) > 3 && (
-                  <View style={[styles.avatar, { marginLeft: -12, backgroundColor: THEME.colors.surfaceLight, zIndex: 0 }]}>
-                    <Text style={[styles.avatarText, { fontSize: 11 }]}>+{(item.interestedCount ?? 0) - 3}</Text>
-                  </View>
+            <View style={styles.statsGroup}>
+              <Text style={styles.participantCount}>{item.interestedCount ?? 0}</Text>
+              <Text style={[styles.ratingText, { fontSize: 11, marginBottom: 4 }]}>Quan tâm</Text>
+              <View style={styles.statsRow}>
+                <View style={styles.rating}>
+                  <Ionicons name="star" size={16} color="#FBBF24" />
+                  <Text style={styles.ratingText}>{item.rating}</Text>
+                </View>
+                {item.price && (
+                  <Text style={styles.price}>
+                    {item.price.toLocaleString('vi-VN')}đ
+                  </Text>
                 )}
-                <View style={styles.viewMoreIndicator}>
-                  <Ionicons name="chevron-forward" size={14} color={THEME.colors.primary} />
-                </View>
-              </TouchableOpacity>
-
-              <View style={styles.statsGroup}>
-                <Text style={styles.participantCount}>{item.interestedCount ?? 0}</Text>
-                <Text style={[styles.ratingText, { fontSize: 11, marginBottom: 4 }]}>Quan tâm</Text>
-                <View style={styles.statsRow}>
-                  <View style={styles.rating}>
-                    <Ionicons name="star" size={16} color="#FBBF24" />
-                    <Text style={styles.ratingText}>{item.rating}</Text>
-                  </View>
-                  {item.price && (
-                    <Text style={styles.price}>
-                      {item.price.toLocaleString('vi-VN')}đ
-                    </Text>
-                  )}
-                </View>
               </View>
             </View>
           </View>
-        </TouchableOpacity>
-      </Animated.View>
-    );
-  };
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
 
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="search-outline" size={64} color={THEME.colors.textTertiary} />
+      <Text style={styles.emptyTitle}>Không tìm thấy kết quả</Text>
+      <Text style={styles.emptySubtitle}>
+        Thử thay đổi bộ lọc hoặc tìm kiếm với từ khóa khác
+      </Text>
+    </View>
+  );
+
+  const renderLoadingSkeleton = () => (
+    <View style={styles.skeletonCard}>
+      <View style={styles.skeletonImage} />
+      <View style={styles.skeletonContent}>
+        <View style={[styles.skeletonLine, { width: '80%' }]} />
+        <View style={[styles.skeletonLine, { width: '60%', marginTop: 8 }]} />
+        <View style={[styles.skeletonLine, { width: '40%', marginTop: 8 }]} />
+      </View>
+    </View>
+  );
+
+  // ==================== MAIN RENDER ====================
+  
   if (loading) {
     return (
       <View style={styles.container}>
@@ -1324,10 +742,10 @@ const HotSpotsScreen = () => {
         />
         {renderHeader()}
         <FlatList
-          data={[1,2,3,4]}
-          keyExtractor={(i) => `skeleton-${i}`}
-          renderItem={() => <SkeletonCard />}
-          contentContainerStyle={styles.listContent}
+          data={[1, 2, 3, 4]}
+          keyExtractor={(item) => `skeleton-${item}`}
+          renderItem={renderLoadingSkeleton}
+          contentContainerStyle={[styles.listContent, { paddingTop: Platform.OS === 'ios' ? 280 : 260 }]}
           showsVerticalScrollIndicator={false}
         />
       </View>
@@ -1345,6 +763,7 @@ const HotSpotsScreen = () => {
       {/* Fixed Header */}
       {renderHeader()}
       
+      {/* Main Content */}
       <Animated.ScrollView
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -1363,7 +782,7 @@ const HotSpotsScreen = () => {
           />
         }
       >
-        
+        {/* Featured Section */}
         {featuredSpots.length > 0 && (
           <View style={styles.featuredSection}>
             <View style={styles.sectionHeader}>
@@ -1394,6 +813,7 @@ const HotSpotsScreen = () => {
           </View>
         )}
 
+        {/* Hot Spots List */}
         <View style={styles.listContent}>
           {visibleHotSpots.length > 0 ? (
             visibleHotSpots.map(item => (
@@ -1402,19 +822,12 @@ const HotSpotsScreen = () => {
               </View>
             ))
           ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <Ionicons name="search-outline" size={64} color={THEME.colors.textTertiary} />
-              </View>
-              <Text style={styles.emptyTitle}>Không tìm thấy kết quả</Text>
-              <Text style={styles.emptySubtitle}>
-                Thử thay đổi bộ lọc hoặc tìm kiếm với từ khóa khác
-              </Text>
-            </View>
+            renderEmptyState()
           )}
         </View>
       </Animated.ScrollView>
 
+      {/* Modals */}
       <InterestedUsersModal
         visible={showInterestedModal}
         onClose={() => setShowInterestedModal(false)}
@@ -1426,7 +839,6 @@ const HotSpotsScreen = () => {
         visible={showInvitesModal}
         onClose={() => {
           setShowInvitesModal(false);
-          setShowInvitesModal(false);
           loadPendingInvites();
         }}
         onInviteAccepted={handleInviteAccepted}
@@ -1434,5 +846,447 @@ const HotSpotsScreen = () => {
     </View>
   );
 };
+
+// ==================== STYLES ====================
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    paddingTop: Platform.OS === 'ios' ? 40 : (StatusBar.currentHeight || 20) + 5,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  iconButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: 'white',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    letterSpacing: 0.5,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.9)',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#EF4444',
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+  },
+  notificationText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: 'white',
+  },
+  searchContainer: {
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  searchGradient: {
+    borderRadius: 20,
+    padding: 2,
+  },
+  searchInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 18,
+    paddingHorizontal: 24,
+    height: 52,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  searchInput: {
+    flex: 1,
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+    paddingHorizontal: 16,
+  },
+  clearButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoriesScroll: {
+    paddingHorizontal: 8,
+    paddingBottom: 16,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 16,
+    borderRadius: 24,
+    minHeight: 36,
+    gap: 8,
+  },
+  categoryChipInactive: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+  },
+  categoryTextInactive: {
+    color: 'rgba(255,255,255,0.85)',
+  },
+  timeFilters: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 16,
+  },
+  timeChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  timeChipActive: {
+    backgroundColor: 'white',
+    borderColor: 'white',
+  },
+  timeText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.9)',
+  },
+  timeTextActive: {
+    color: '#8B5CF6',
+  },
+  featuredSection: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#333',
+  },
+  toggleButton: {
+    padding: 8,
+  },
+  featuredList: {
+    paddingLeft: 16,
+  },
+  featuredCard: {
+    width: width * 0.75,
+    height: 180,
+    marginRight: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  featuredImage: {
+    width: '100%',
+    height: '100%',
+  },
+  featuredOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  featuredContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 24,
+  },
+  featuredTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: 'white',
+    marginBottom: 6,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  featuredSubtitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 80,
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    marginBottom: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  imageContainer: {
+    height: 260,
+    position: 'relative',
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  badgeRow: {
+    position: 'absolute',
+    top: 24,
+    left: 24,
+    right: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  badgeGroup: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 24,
+    gap: 4,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'white',
+  },
+  favoriteButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardContent: {
+    padding: 24,
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#333',
+    marginBottom: 16,
+    lineHeight: 28,
+  },
+  infoSection: {
+    marginBottom: 24,
+    gap: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#666',
+    fontWeight: '500',
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 24,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 16,
+    gap: 4,
+    borderWidth: 1.5,
+    minHeight: 44,
+  },
+  actionButtonInactive: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
+  },
+  actionButtonActive: {
+    borderColor: 'transparent',
+  },
+  actionText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  actionTextInactive: {
+    color: '#666',
+  },
+  actionTextActive: {
+    color: 'white',
+  },
+  participantsSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  avatarStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 3,
+    borderColor: 'white',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'white',
+  },
+  viewMoreIndicator: {
+    marginLeft: 8,
+    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  statsGroup: {
+    alignItems: 'flex-end',
+  },
+  participantCount: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#333',
+    marginBottom: 4,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  rating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#666',
+  },
+  price: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#8B5CF6',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 96,
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333',
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  skeletonCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  skeletonImage: {
+    height: 260,
+    backgroundColor: '#e0e0e0',
+  },
+  skeletonContent: {
+    padding: 24,
+  },
+  skeletonLine: {
+    height: 16,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 8,
+  },
+});
 
 export default HotSpotsScreen;

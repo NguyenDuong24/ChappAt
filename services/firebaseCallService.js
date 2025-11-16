@@ -8,10 +8,14 @@ import {
   where, 
   orderBy,
   serverTimestamp,
-  deleteDoc 
+  deleteDoc,
+  getDoc
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { createMeeting, token } from '../api';
+import ExpoPushNotificationService from './expoPushNotificationService';
+import callTimeoutService from './callTimeoutService.js';
+import * as Notifications from 'expo-notifications';
 
 export const CALL_STATUS = {
   RINGING: 'ringing',
@@ -24,6 +28,23 @@ export const CALL_STATUS = {
 export const CALL_TYPE = {
   AUDIO: 'audio',
   VIDEO: 'video'
+};
+
+// Helper function to clear call notification
+const clearCallNotification = async (callId) => {
+  try {
+    // Dismiss all notifications with call data
+    const notifications = await Notifications.getPresentedNotificationsAsync();
+    for (const notification of notifications) {
+      const data = notification.request.content.data;
+      if (data && data.type === 'call' && data.callId === callId) {
+        await Notifications.dismissNotificationAsync(notification.request.identifier);
+        console.log('🧹 Cleared call notification for call:', callId);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error clearing call notification:', error);
+  }
 };
 
 // Tạo cuộc gọi mới với VideoSDK meetingId
@@ -48,6 +69,66 @@ export const createCall = async (callerId, receiverId, callType = CALL_TYPE.VIDE
     
     const callRef = await addDoc(collection(db, 'calls'), callData);
     console.log('✅ Firebase call created:', callRef.id);
+
+    // GỬI PUSH NOTIFICATION CHO RECEIVER NGAY LẬP TỨC (giống chat)
+    try {
+      // Lấy thông tin caller
+      const callerDoc = await getDoc(doc(db, 'users', callerId));
+      const callerInfo = callerDoc.exists() ? callerDoc.data() : {};
+      
+      // Lấy thông tin receiver để có expoPushToken
+      const receiverDoc = await getDoc(doc(db, 'users', receiverId));
+      if (receiverDoc.exists()) {
+        const receiverData = receiverDoc.data();
+        const expoPushToken = receiverData.expoPushToken;
+        
+        if (expoPushToken) {
+          console.log('📤 Sending REAL push notification for incoming call to receiver:', receiverId);
+          
+          const callTypeText = callType === CALL_TYPE.VIDEO ? 'Video call' : 'Voice call';
+          
+          // Gửi push notification với âm thanh incoming call
+          const success = await ExpoPushNotificationService.sendRealPushNotification(expoPushToken, {
+            title: callerInfo.username || 'Unknown',
+            body: 'Incoming call',
+            data: {
+              type: 'call',
+              callId: callRef.id,
+              callerId: callerId,
+              meetingId: meetingId,
+              callType: callType,
+              senderId: callerId,
+              senderName: callerInfo.username,
+              senderAvatar: callerInfo.profileUrl,
+            },
+            priority: 'high',
+            sound: 'incoming.mp3',
+            badge: 1,
+            channelId: 'calls',
+            ongoing: true,
+            sticky: true,
+            android: {
+              fullScreenIntent: true
+            }
+          });
+          
+          if (success) {
+            console.log('✅ Push notification sent successfully for incoming call');
+            
+            // BẮT ĐẦU TIMEOUT CHO CUỘC GỌI (30 giây)
+            callTimeoutService.startCallTimeout(callRef.id, 30000);
+            
+          } else {
+            console.log('❌ Failed to send push notification for incoming call');
+          }
+        } else {
+          console.log('⚠️ No expoPushToken found for receiver:', receiverId);
+        }
+      }
+    } catch (notifError) {
+      console.error('❌ Error sending call notification:', notifError);
+      // Không throw error để không ảnh hưởng đến việc tạo call
+    }
     
     return {
       id: callRef.id,
@@ -79,9 +160,16 @@ export const updateCallStatus = async (callId, status, additionalData = {}) => {
 // Accept cuộc gọi
 export const acceptCall = async (callId) => {
   try {
+    // DỪNG TIMEOUT TRƯỚC KHI ACCEPT
+    callTimeoutService.stopCallTimeout(callId);
+    
     await updateCallStatus(callId, CALL_STATUS.ACCEPTED, {
       acceptedAt: serverTimestamp()
     });
+    
+    // Clear call notification
+    await clearCallNotification(callId);
+    
     console.log('✅ Call accepted');
   } catch (error) {
     console.error('❌ Error accepting call:', error);
@@ -92,9 +180,16 @@ export const acceptCall = async (callId) => {
 // Decline cuộc gọi
 export const declineCall = async (callId) => {
   try {
+    // DỪNG TIMEOUT TRƯỚC KHI DECLINE
+    callTimeoutService.stopCallTimeout(callId);
+    
     await updateCallStatus(callId, CALL_STATUS.DECLINED, {
       declinedAt: serverTimestamp()
     });
+    
+    // Clear call notification
+    await clearCallNotification(callId);
+    
     console.log('✅ Call declined');
   } catch (error) {
     console.error('❌ Error declining call:', error);
@@ -105,10 +200,24 @@ export const declineCall = async (callId) => {
 // Cancel cuộc gọi
 export const cancelCall = async (callId) => {
   try {
+    // DỪNG TIMEOUT TRƯỚC KHI CANCEL
+    callTimeoutService.stopCallTimeout(callId);
+    
     await updateCallStatus(callId, CALL_STATUS.CANCELLED, {
       cancelledAt: serverTimestamp()
     });
     console.log('✅ Call cancelled');
+
+    // XÓA NOTIFICATION CUỘC GỌI ĐẾN KHI BỊ HỦY
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      console.log('✅ Cleared all scheduled call notifications');
+    } catch (notifError) {
+      console.error('❌ Error clearing call notifications:', notifError);
+    }
+
+    // XÓA NOTIFICATION HIỆN TẠI NẾU CÓ
+    clearCallNotification(callId);
   } catch (error) {
     console.error('❌ Error cancelling call:', error);
     throw error;

@@ -6,7 +6,7 @@ import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 const ActiveFilters = ({ filters, onClearFilter, onClearAll }) => {
-  const { theme } = useContext(ThemeContext);
+  const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   const hasActiveFilters = filters?.gender || filters?.minAge || filters?.maxAge;

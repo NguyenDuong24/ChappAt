@@ -24,7 +24,8 @@ const FollowUser = () => {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { location } = useContext(LocationContext);
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const currentUser = auth.currentUser;
 

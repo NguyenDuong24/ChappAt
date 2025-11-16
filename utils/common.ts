@@ -15,6 +15,42 @@ export const formatTime = (timestamp: any) => {
   return date.toLocaleDateString('vi-VN');
 };
 
+// NEW: detailed time formatter (parity with utils/common.js)
+export const formatDetailedTime = (timestamp: any): string => {
+  if (!timestamp) return '';
+  let date: Date;
+  try {
+    if (timestamp.toDate) {
+      date = timestamp.toDate();
+    } else if (typeof timestamp.seconds === 'number') {
+      date = new Date(timestamp.seconds * 1000 + (timestamp.nanoseconds || 0) / 1_000_000);
+    } else {
+      date = new Date(timestamp);
+    }
+  } catch {
+    date = new Date(timestamp);
+  }
+
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const daysDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  const hh = date.getHours().toString().padStart(2, '0');
+  const mm = date.getMinutes().toString().padStart(2, '0');
+  const timeStr = `${hh}:${mm}`;
+
+  if (daysDiff === 0) return `Hôm nay ${timeStr}`;
+  if (daysDiff === 1) return `Hôm qua ${timeStr}`;
+  if (daysDiff < 7) {
+    const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+    return `${days[date.getDay()]} ${timeStr}`;
+  }
+  const dd = date.getDate().toString().padStart(2, '0');
+  const mm2 = (date.getMonth() + 1).toString().padStart(2, '0');
+  const yyyy = date.getFullYear();
+  return `${dd}/${mm2}/${yyyy} ${timeStr}`;
+};
+
 export const truncateText = (text: string, maxLength: number) => {
   if (!text) return '';
   if (text.length <= maxLength) return text;

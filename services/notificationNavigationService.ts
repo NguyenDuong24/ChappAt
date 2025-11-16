@@ -90,6 +90,10 @@ class NotificationNavigationService {
           this.navigateToFriendRequests();
           break;
         
+        case 'call':
+          this.navigateToCall(data);
+          break;
+        
         default:
           console.log('❓ Unknown notification type:', data.type);
           this.navigateToNotifications();
@@ -300,18 +304,29 @@ class NotificationNavigationService {
     }
   }
 
-  private navigateToNotifications() {
-    console.log('🧭 Navigating to notifications screen');
+  private navigateToCall(data: NotificationData) {
+    console.log('🧭 Navigating to call:', data);
+    
     try {
-      router.push('/NotificationsScreen' as any);
+      // Build query parameters from notification data
+      const params = new URLSearchParams();
+      
+      if (data.callId) params.append('callId', data.callId);
+      if (data.callerId) params.append('callerId', data.callerId);
+      if (data.meetingId) params.append('meetingId', data.meetingId);
+      if (data.callType) params.append('callType', data.callType);
+      if (data.senderId) params.append('senderId', data.senderId);
+      if (data.senderName) params.append('senderName', data.senderName);
+      if (data.senderAvatar) params.append('senderAvatar', data.senderAvatar);
+      
+      const queryString = params.toString();
+      const path = queryString ? `/IncomingCallScreen?${queryString}` : '/IncomingCallScreen';
+      
+      router.push(path as any);
+      console.log('✅ Navigation to call successful:', path);
     } catch (error) {
-      console.log('❌ Even notifications screen navigation failed:', error);
-      // Last resort - try to go to app root
-      try {
-        router.push('/' as any);
-      } catch (rootError) {
-        console.log('❌ Complete navigation failure');
-      }
+      console.log('❌ Call navigation failed:', error);
+      this.navigateToNotifications();
     }
   }
 
@@ -378,6 +393,11 @@ class NotificationNavigationService {
         case 'friend_request':
           this.navigateToFriendRequests();
           break;
+        
+        case 'call':
+          this.navigateToCall(data);
+          break;
+        
         default:
           console.log('⚠️ Unknown notification type:', data.type);
           this.navigateToNotifications();

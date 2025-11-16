@@ -1,5 +1,5 @@
 // components/MessageList.tsx
-import React, { useContext, useMemo } from 'react';
+import React, { useContext, useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -14,6 +14,8 @@ interface MessageListProps {
   onReply?: (message: any) => void;
   onMessageLayout?: (messageId: string, y: number) => void;
   highlightedMessageId?: string;
+  onReport?: (message: any) => void;
+  backgroundColor?: string;
 }
 
 function getDateFromCreatedAt(createdAt: any): Date | null {
@@ -84,9 +86,22 @@ function DaySeparator({ title, themeColors }: { title: string; themeColors: any 
   );
 }
 
-export default function MessageList({ messages, currentUser, otherUser, scrollViewRef, onReply, onMessageLayout, highlightedMessageId }: MessageListProps) {
-  const { theme } = useContext(ThemeContext);
+export default function MessageList({ messages, currentUser, otherUser, scrollViewRef, onReply, onMessageLayout, highlightedMessageId, onReport, backgroundColor }: MessageListProps) {
+  const themeCtx = useContext(ThemeContext);
+  const theme = themeCtx?.theme || 'light';
   const currentThemeColors: any = theme === 'dark' ? { ...Colors.dark, mode: 'dark' } : { ...Colors.light, mode: 'light' };
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      const timeout = isInitialLoad ? 0 : 100;
+      setTimeout(() => {
+        scrollViewRef?.current?.scrollToEnd({ animated: !isInitialLoad });
+      }, timeout);
+      if (isInitialLoad) setIsInitialLoad(false);
+    }
+  }, [messages.length, isInitialLoad, scrollViewRef]);
 
   const content = useMemo(() => {
     if (!messages || messages.length === 0) return null;
@@ -113,11 +128,12 @@ export default function MessageList({ messages, currentUser, otherUser, scrollVi
             onReply={onReply}
             onMessageLayout={onMessageLayout}
             isHighlighted={highlightedMessageId === message?.id}
+            onReport={onReport}
           />
         </React.Fragment>
       );
     });
-  }, [messages, currentUser, otherUser, onReply, onMessageLayout, currentThemeColors, highlightedMessageId]);
+  }, [messages, currentUser, otherUser, onReply, onMessageLayout, currentThemeColors, highlightedMessageId, onReport]);
 
   if (!messages || messages.length === 0) {
     return (
@@ -138,9 +154,9 @@ export default function MessageList({ messages, currentUser, otherUser, scrollVi
   return (
     <ScrollView
       ref={scrollViewRef}
+      style={{ backgroundColor: backgroundColor || currentThemeColors?.background }}
       contentContainerStyle={[
         styles.contentContainer,
-        { backgroundColor: currentThemeColors?.background },
       ]}
       showsVerticalScrollIndicator={false}
     >

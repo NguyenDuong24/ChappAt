@@ -12,7 +12,7 @@ Notifications.setNotificationHandler({
     console.log('📱 Handling notification:', notification.request.content.title);
     return {
       shouldShowAlert: true,
-      shouldPlaySound: true,
+      shouldPlaySound: false, // Temporarily disable sound to avoid ExoPlayer thread issue
       shouldSetBadge: true,
       // Quan trọng: Luôn hiển thị notification
       shouldActivateApp: true,

@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { View, StatusBar, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import ListUser from '@/components/home/ListUser';
 import { useAuth } from '@/context/authContext';
@@ -12,21 +12,14 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 export default function Home() {
   const { user } = useAuth();
   const { getUsers, users, loading, refreshing, handleRefresh, error } = useHome();
-  const { theme } = useContext(ThemeContext);
+  const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      <StatusBar 
-        barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} 
-        backgroundColor="transparent"
-        translucent
-      />
-      
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>      
       {error && (
-        <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.surface }]}
-        >
+        <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.surface }]}>
           <MaterialIcons name="error-outline" size={24} color="#ff4757" />
           <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
             {error}
@@ -119,86 +112,50 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+    marginHorizontal: 4,
     backgroundColor: '#667eea',
-    marginHorizontal: 3,
   },
-  dot1: {
-    animationDelay: '0s',
-  },
-  dot2: {
-    animationDelay: '0.1s',
-  },
-  dot3: {
-    animationDelay: '0.2s',
-  },
+  dot1: { opacity: 0.6 },
+  dot2: { opacity: 0.8 },
+  dot3: { opacity: 1 },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
   },
   emptyTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginTop: 16,
-    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 12,
   },
   emptySubtitle: {
     fontSize: 14,
+    marginTop: 6,
     textAlign: 'center',
-    marginTop: 8,
   },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 12,
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 8,
+    margin: 12,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#ff4757',
-    backgroundColor: 'rgba(255, 71, 87, 0.1)',
   },
   errorText: {
     flex: 1,
-    fontSize: 14,
-    marginLeft: 8,
+    marginHorizontal: 12,
   },
   retryButton: {
+    backgroundColor: '#ff4757',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#667eea',
-    borderRadius: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   retryText: {
     color: 'white',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  demoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  socialDemoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  demoButtonText: {
-    color: '#fff',
-    fontSize: 16,
     fontWeight: '600',
   },
 });

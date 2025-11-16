@@ -229,3 +229,81 @@ export const useNotifications = () => {
     clearNotification,
   };
 };
+
+/**
+ * Hook để sử dụng Expo Push Notifications với Realtime Listeners
+ * 
+ * @param userId - ID của user hiện tại (null nếu chưa login)
+ * @returns Object chứa trạng thái initialization
+ * 
+ * @example
+ * ```typescript
+ * function MyComponent() {
+ *   const { user } = useAuth();
+ *   const { isInitialized, expoPushToken, error } = useExpoPushNotifications(user?.uid);
+ *   
+ *   if (error) {
+ *     console.error('Notification error:', error);
+ *   }
+ *   
+ *   return <View>...</View>;
+ * }
+ * ```
+ */
+export function useExpoPushNotifications(userId: string | null | undefined) {
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeNotifications = async () => {
+      if (!userId) {
+        setIsInitialized(false);
+        setExpoPushToken(null);
+        return;
+      }
+
+      try {
+        console.log('🚀 Initializing Expo Push Notifications for user:', userId);
+        
+        const ExpoPushNotificationService = (await import('@/services/expoPushNotificationService')).default;
+        await ExpoPushNotificationService.initializeWithRealtimeListeners(userId);
+        
+        if (mounted) {
+          const token = ExpoPushNotificationService.getExpoPushToken();
+          setExpoPushToken(token);
+          setIsInitialized(true);
+          setError(null);
+          console.log('✅ Expo Push Notifications initialized successfully');
+        }
+      } catch (err) {
+        if (mounted) {
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          setError(errorMessage);
+          setIsInitialized(false);
+          console.error('❌ Failed to initialize Expo Push Notifications:', errorMessage);
+        }
+      }
+    };
+
+    initializeNotifications();
+
+    return () => {
+      mounted = false;
+      if (userId) {
+        console.log('🧹 Cleaning up Expo Push Notifications');
+        import('@/services/expoPushNotificationService').then(module => {
+          module.default.cleanup();
+        });
+      }
+    };
+  }, [userId]);
+
+  return {
+    isInitialized,
+    expoPushToken,
+    error,
+  };
+}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import MessageService, { ReplyData } from '../services/messageService';
+import HotSpotMessageService from '@/services/hotSpotMessageService';
 
 export interface UseMessageActionsResult {
   isLoading: boolean;
@@ -38,34 +39,30 @@ export const useMessageActions = (): UseMessageActionsResult => {
     }
   };
 
-  // Helper to determine if it's a group or room
   const isGroupContext = (roomId: string): boolean => {
-    console.log('🔍 Checking isGroupContext for roomId:', roomId);
-    // More robust group detection:
-    // 1. Contains 'group' in ID
-    // 2. Starts with known group prefixes
-    // 3. Regular chat rooms have underscore format "uid1_uid2" or contain "-" (Firebase auto-generated room IDs)
-    // 4. Group IDs are usually clean alphanumeric without "-" or "_"
     const isGroup = (
       roomId.includes('group') ||
       roomId.startsWith('grp_') ||
       roomId.startsWith('GROUP_') ||
-      // A group ID should NOT contain "-" (which indicates it's a room ID)
-      // and should NOT contain "_" (which indicates it's a "uid1_uid2" format)
-      (!roomId.includes('-') && !roomId.includes('_') && roomId.length > 15)
+      (!roomId.includes('-') && !roomId.includes('_') && roomId.length > 15 && !roomId.startsWith('hotSpot:'))
     );
-    console.log('🔍 isGroupContext result:', isGroup, 'for roomId:', roomId);
     return isGroup;
   };
 
+  const isHotSpotContext = (roomId: string): boolean => {
+    return roomId.startsWith('hotSpot:') || roomId.startsWith('HS_') || roomId.startsWith('hotspot_');
+  };
+
+  const stripHotSpotPrefix = (roomId: string): string => roomId.replace(/^hotSpot:/, '');
+
   const toggleReaction = async (roomId: string, messageId: string, emoji: string, userId: string) => {
-    console.log('🎯 toggleReaction called with:', { roomId, messageId, emoji, userId });
     await handleAction(async () => {
-      if (isGroupContext(roomId)) {
-        console.log('📱 Using group reaction method');
+      if (isHotSpotContext(roomId)) {
+        const hsId = stripHotSpotPrefix(roomId);
+        await HotSpotMessageService.toggleReaction(hsId, messageId, emoji, userId);
+      } else if (isGroupContext(roomId)) {
         await MessageService.toggleGroupReaction(roomId, messageId, emoji, userId);
       } else {
-        console.log('💬 Using regular chat reaction method');
         await MessageService.toggleReaction(messageId, emoji, userId, roomId);
       }
     }, undefined, 'Không thể thả cảm xúc');
@@ -73,7 +70,10 @@ export const useMessageActions = (): UseMessageActionsResult => {
 
   const pinMessage = async (roomId: string, messageId: string, isPinned: boolean) => {
     await handleAction(async () => {
-      if (isGroupContext(roomId)) {
+      if (isHotSpotContext(roomId)) {
+        const hsId = stripHotSpotPrefix(roomId);
+        await HotSpotMessageService.pinMessage(hsId, messageId, isPinned);
+      } else if (isGroupContext(roomId)) {
         await MessageService.pinGroupMessage(roomId, messageId, isPinned);
       } else {
         await MessageService.pinMessage(messageId, isPinned, roomId);
@@ -83,7 +83,10 @@ export const useMessageActions = (): UseMessageActionsResult => {
 
   const deleteMessage = async (roomId: string, messageId: string, isCurrentUser: boolean) => {
     await handleAction(async () => {
-      if (isGroupContext(roomId)) {
+      if (isHotSpotContext(roomId)) {
+        const hsId = stripHotSpotPrefix(roomId);
+        await HotSpotMessageService.deleteMessage(hsId, messageId, isCurrentUser);
+      } else if (isGroupContext(roomId)) {
         await MessageService.deleteGroupMessage(roomId, messageId, isCurrentUser);
       } else {
         await MessageService.deleteMessage(messageId, isCurrentUser, roomId);
@@ -93,7 +96,10 @@ export const useMessageActions = (): UseMessageActionsResult => {
 
   const editMessage = async (roomId: string, messageId: string, newText: string) => {
     await handleAction(async () => {
-      if (isGroupContext(roomId)) {
+      if (isHotSpotContext(roomId)) {
+        const hsId = stripHotSpotPrefix(roomId);
+        await HotSpotMessageService.editMessage(hsId, messageId, newText);
+      } else if (isGroupContext(roomId)) {
         await MessageService.editGroupMessage(roomId, messageId, newText);
       } else {
         await MessageService.editMessage(messageId, newText, roomId);
@@ -103,7 +109,10 @@ export const useMessageActions = (): UseMessageActionsResult => {
 
   const addReply = async (roomId: string, messageId: string, replyData: ReplyData) => {
     await handleAction(async () => {
-      if (isGroupContext(roomId)) {
+      if (isHotSpotContext(roomId)) {
+        const hsId = stripHotSpotPrefix(roomId);
+        await HotSpotMessageService.addReply(hsId, messageId, replyData as any);
+      } else if (isGroupContext(roomId)) {
         await MessageService.addGroupReply(roomId, messageId, replyData);
       } else {
         await MessageService.addReply(messageId, replyData, roomId);
@@ -116,7 +125,6 @@ export const useMessageActions = (): UseMessageActionsResult => {
       await Clipboard.setStringAsync(text);
       Alert.alert('Đã sao chép', 'Tin nhắn đã được sao chép vào clipboard');
     } catch (error) {
-      console.error('Error copying to clipboard:', error);
       Alert.alert('Lỗi', 'Không thể sao chép tin nhắn');
     }
   };
@@ -128,15 +136,8 @@ export const useMessageActions = (): UseMessageActionsResult => {
         ? 'Bạn có muốn thu hồi tin nhắn này không? Tin nhắn sẽ bị xóa khỏi cuộc trò chuyện.'
         : 'Bạn có muốn xóa tin nhắn này khỏi thiết bị của mình không?',
       [
-        {
-          text: 'Hủy',
-          style: 'cancel',
-        },
-        {
-          text: isCurrentUser ? 'Thu hồi' : 'Xóa',
-          style: 'destructive',
-          onPress: onConfirm,
-        },
+        { text: 'Hủy', style: 'cancel' },
+        { text: isCurrentUser ? 'Thu hồi' : 'Xóa', style: 'destructive', onPress: onConfirm },
       ]
     );
   };

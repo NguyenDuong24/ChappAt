@@ -1,14 +1,16 @@
-import React, { useContext, useRef } from 'react';
-import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated } from 'react-native';
+import React, { useContext, useRef, useState } from 'react';
+import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated, Platform } from 'react-native';
 import useExplore from '../../explore/useExplore'; 
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/Colors';  // Import modern Colors
 import { useExploreHeader } from '@/context/ExploreHeaderContext';
 
+const HEADER_HEIGHT = Platform.OS === 'ios' ? 280 : 260;
+
 const Tab1Screen = () => {
-  // Safe hook usage with error boundary
+  // Safe hook usage
   let hookData;
   try {
     hookData = useExplore();
@@ -21,30 +23,29 @@ const Tab1Screen = () => {
       deletePost: () => {},
       toggleLike: () => {},
       addComment: () => {},
-      fetchPosts: () => Promise.resolve()
+      fetchPosts: () => Promise.resolve(),
+      loadMore: () => {},
+      hasMore: false,
+      loadingMore: false,
     };
   }
 
   const { latestPosts, loading, error, deletePost, toggleLike, addComment, fetchPosts, loadMore, hasMore, loadingMore } = hookData;
   const { user } = useAuth();
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // header scroll binding - use safe hook
+  // Header scroll binding
   const headerContext = useExploreHeader();
   const { scrollY, handleScroll, effectiveHeaderHeight } = headerContext || {};
   
-  // Create default scroll handler if context is not available
   const defaultScrollY = useRef(new Animated.Value(0)).current;
-  const defaultEffectiveHeaderHeight = useRef(new Animated.Value(300)).current; // Default to approximate HEADER_HEIGHT
+  const defaultEffectiveHeaderHeight = useRef(new Animated.Value(HEADER_HEIGHT)).current;
   const onScroll = handleScroll || Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY || defaultScrollY } } }], 
-    { 
-      useNativeDriver: false, // Must be false for layout animations (paddingTop)
-      listener: () => {}, // Optional scroll listener
-    }
+    { useNativeDriver: false }
   );
 
-  // Safe context usage with fallback
+  // Theme
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -68,13 +69,11 @@ const Tab1Screen = () => {
   };
 
   const handleLike = async (postId, userId, isLiked) => {
-    // Delegate to hook which already performs optimistic updates
     await toggleLike(postId, userId, isLiked);
   };
 
   const renderFooter = () => {
     if (!loadingMore) return null;
-    // Render 3 skeleton placeholders
     return (
       <View style={{ paddingVertical: 12 }}>
         {[0,1,2].map(i => (
@@ -86,7 +85,7 @@ const Tab1Screen = () => {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: currentThemeColors.background }}>
         <ActivityIndicator size="large" color={currentThemeColors.primary} />
       </View>
     );
@@ -94,14 +93,14 @@ const Tab1Screen = () => {
 
   if (error) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: currentThemeColors.background }}>
         <Text style={{ color: currentThemeColors.text }}>Error: {error}</Text>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+    <View style={{ flex: 1, backgroundColor: currentThemeColors.background }}>
       <Animated.FlatList
         data={latestPosts}
         keyExtractor={(item) => item.id}
@@ -120,9 +119,9 @@ const Tab1Screen = () => {
         contentContainerStyle={{ 
           paddingTop: effectiveHeaderHeight || defaultEffectiveHeaderHeight,
           paddingBottom: 120,
-          backgroundColor: 'transparent',
+          backgroundColor: currentThemeColors.background,
         }}
-        style={{ backgroundColor: 'transparent' }}
+        style={{ backgroundColor: currentThemeColors.background }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         onScroll={onScroll}
         scrollEventThrottle={16}

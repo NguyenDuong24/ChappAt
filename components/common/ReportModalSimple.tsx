@@ -167,7 +167,8 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
         reason: selectedReason,
         description: description.trim(),
         reporterId: currentUser?.uid || 'anonymous',
-        images: selectedImages.length > 0 ? selectedImages : undefined,
+        // Ensure images is never undefined to avoid Firestore errors
+        images: selectedImages.length > 0 ? selectedImages : [],
       };
 
       console.log('📋 Final report data:', reportData);

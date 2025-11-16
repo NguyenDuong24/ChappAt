@@ -12,10 +12,12 @@ import { LocationContext } from '@/context/LocationContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { useAuth } from '@/context/authContext';
 import VibeAvatar from '@/components/vibe/VibeAvatar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ListUser({ users, onRefresh, refreshing }: any) {
   const router = useRouter();
   const { location } = React.useContext(LocationContext);
+  const insets = useSafeAreaInsets();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -34,7 +36,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
 
   const renderUserItem = ({ item, index }: any) => {
     const ageColor = item.gender === 'male' ? Colors.secondary : item.gender === 'female' ? Colors.primary : currentThemeColors.subtleText;
-    const genderIconColor = item.gender === 'male' ? Colors.secondary : item.gender === 'female' ? Colors.primary : currentThemeColors.subtleText;
+    const genderIconColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : currentThemeColors.subtleText;
     const gradientColors: [string, string] = item.gender === 'male' 
       ? ['#667eea', '#764ba2'] 
       : item.gender === 'female' 
@@ -89,7 +91,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                     <View style={[styles.avatarBorder, { borderColor: vibe ? vibe.color : 'white' }]}> 
                       <VibeAvatar
                         avatarUrl={item.profileUrl}
-                        size={60}
+                        size={50}
                         currentVibe={item.currentVibe || null}
                         showAddButton={false}
                         storyUser={{ id: item.id, username: item.username, profileUrl: item.profileUrl }}
@@ -132,7 +134,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
 
                     
                     {/* Bio */}
-                    <Text style={[styles.bio, { color: currentThemeColors.subtleText }]} numberOfLines={2}>
+                    <Text style={[styles.bio, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
                       {item.bio || "Chưa có thông tin giới thiệu"}
                     </Text>
 
@@ -199,7 +201,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                       end={{ x: 1, y: 1 }}
                       style={styles.actionGradient}
                     >
-                      <MaterialIcons name="chat" size={20} color="white" />
+                      <MaterialIcons name="chat" size={18} color="white" />
                     </LinearGradient>
                   </TouchableOpacity>
                 </View>
@@ -213,12 +215,12 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
 
   return (
     <FlatList
-      data={users}
+      data={users.filter((user: any) => user.username && user.profileUrl && user.age !== null && user.age !== undefined && user.gender)}
       renderItem={renderUserItem}
       keyExtractor={(item) => item.id || item.uid}
       contentContainerStyle={[
-        styles.listContainer, 
-        { backgroundColor: currentThemeColors.background, flexGrow: 1 }
+        styles.listContainer,
+        { backgroundColor: currentThemeColors.background, flexGrow: 1, paddingTop: insets.top + 80 }
       ]}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -234,7 +236,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
 const styles = StyleSheet.create({
   userCard: {
     marginHorizontal: 16,
-    marginVertical: 8,
+    marginVertical: 4,
     borderRadius: 16,
     elevation: 3,
     shadowColor: '#000',
@@ -254,12 +256,12 @@ const styles = StyleSheet.create({
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    paddingBottom: 12, // giảm từ 16 xuống 12 để tiết kiệm không gian dọc
+    padding: 10,
+    paddingBottom: 8,
     borderRadius: 14,
   },
   avatarSection: {
-    width: 72,
+    width: 62,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -267,9 +269,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   avatarBorder: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
   vibeEmojiBadgeText: { fontSize: 12 },
   userInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 8,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -325,7 +327,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start', // thay đổi từ space-between thành flex-start
-    marginBottom: 2, // giảm từ 4 xuống 2 vì chỉ có tên
+    marginBottom: 1,
   },
   nameRowLeft: {
     flexDirection: 'row',
@@ -333,50 +335,47 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   userName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginRight: 8,
+    marginRight: 6,
     maxWidth: '95%', // tăng từ 85% lên 95% vì distance đã xuống dưới
   },
   vibeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4, // giảm từ 6 xuống 4
+    gap: 6,
+    marginBottom: 2,
   },
   vibePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 14,
-    minHeight: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    minHeight: 20,
   },
-  vibePillEmoji: { fontSize: 14, marginRight: 6, color: 'white' },
-  vibePillText: { fontSize: 12, fontWeight: '700', color: 'white', maxWidth: 120 },
-  vibeMessage: { fontSize: 12, fontStyle: 'italic', flexShrink: 1 },
-  bio: { fontSize: 14, marginBottom: 6, lineHeight: 20 },
-  tagsContainer: { flexDirection: 'row', flexWrap: 'wrap' },
+  vibePillEmoji: { fontSize: 12, marginRight: 4, color: 'white' },
+  vibePillText: { fontSize: 10, fontWeight: '700', color: 'white', maxWidth: 100 },
+  vibeMessage: { fontSize: 10, fontStyle: 'italic', flexShrink: 1 },
+  bio: { fontSize: 12, marginBottom: 4, lineHeight: 18 },
+  tagsContainer: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 2 },
   ageChip: {
     // remove fixed height to prevent clipping
     borderRadius: 20,
-    marginRight: 6,
-    paddingVertical: 2,
+    marginRight: 4,
     alignSelf: 'flex-start',
-    marginBottom: 4,
   },
   distanceChipSmall: {
     // remove fixed height to prevent clipping
     borderRadius: 20,
-    paddingVertical: 2,
     alignSelf: 'flex-start',
   },
   chipText: { fontSize: 12, fontWeight: '500' },
-  actionButton: { marginLeft: 12 },
+  actionButton: { marginLeft: 8 },
   actionGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },

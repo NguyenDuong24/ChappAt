@@ -578,6 +578,68 @@ class EventInviteService {
       return [];
     }
   }
+
+  // Helper: check if there is an existing invite between users for an event
+  async checkExistingInvite(eventId: string, inviterId: string, inviteeId: string): Promise<EventInvite | null> {
+    try {
+      // Query by inviteeId and eventId to avoid composite index, filter inviterId/status in code
+      const existingQuery = query(
+        collection(db, 'eventInvites'),
+        where('inviteeId', '==', inviteeId),
+        where('eventId', '==', eventId)
+      );
+      const existingDocs = await getDocs(existingQuery);
+      const validStatuses = ['pending', 'accepted', 'confirmed'];
+      const found = existingDocs.docs.find(d => {
+        const data: any = d.data();
+        return data.inviterId === inviterId && validStatuses.includes(data.status);
+      });
+      return found ? ({ id: found.id, ...(found.data() as any) } as EventInvite) : null;
+    } catch (e) {
+      console.error('Error checking existing invite:', e);
+      return null;
+    }
+  }
+
+  // Get pending invites that the user sent
+  async getSentInvitesPending(userId: string): Promise<EventInvite[]> {
+    try {
+      const q = query(
+        collection(db, 'eventInvites'),
+        where('inviterId', '==', userId),
+        where('status', '==', 'pending')
+      );
+      const snapshot = await getDocs(q);
+      const invites = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as EventInvite[];
+      return invites.sort((a: any, b: any) => {
+        const aTime = (a.createdAt as any)?.toMillis?.() || (a.createdAt as any)?.getTime?.() || 0;
+        const bTime = (b.createdAt as any)?.toMillis?.() || (b.createdAt as any)?.getTime?.() || 0;
+        return bTime - aTime;
+      });
+    } catch (e) {
+      console.error('Error getting sent pending invites:', e);
+      return [];
+    }
+  }
+
+  // Cancel an invite (only inviter allowed) 
+  async cancelInvite(inviteId: string, requesterId: string): Promise<void> {
+    try {
+      const ref = doc(db, 'eventInvites', inviteId);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) throw new Error('Lời mời không tồn tại');
+      const data = snap.data() as any;
+      if (data.inviterId !== requesterId) throw new Error('Bạn không có quyền thu hồi');
+      if (data.status !== 'pending') throw new Error('Chỉ có thể thu hồi khi đang chờ');
+      await updateDoc(ref, {
+        status: 'cancelled',
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error('Error canceling invite:', e);
+      throw e;
+    }
+  }
 }
 
 export const eventInviteService = new EventInviteService();

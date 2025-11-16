@@ -35,40 +35,27 @@ interface Reply {
 
 interface CommentItemProps {
   comment: Comment;
-  onReply: (commentId: string, replyText: string) => void;
-  onLike: (commentId: string) => void;
   currentUserId: string;
-  isLiked?: boolean;
 }
 
 interface CommentSectionProps {
   comments: Comment[];
   onAddComment: (text: string) => void;
-  onLikeComment: (commentId: string) => void;
-  onReplyComment: (commentId: string, replyText: string) => void;
   currentUserId: string;
   currentUserAvatar?: string;
 }
 
-const CommentItem: React.FC<CommentItemProps> = ({ comment, onReply, onLike, currentUserId, isLiked = false }) => {
-  const { theme } = useContext(ThemeContext);
+const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => {
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const [showReplyInput, setShowReplyInput] = useState(false);
-  const [replyText, setReplyText] = useState('');
-
-  const handleReply = () => {
-    if (replyText.trim()) {
-      onReply(comment.id || '', replyText);
-      setReplyText('');
-      setShowReplyInput(false);
-    }
-  };
 
   return (
     <View style={styles.commentContainer}>
       <CustomImage
         source={comment.avatar || 'https://via.placeholder.com/150'}
         style={styles.commentAvatar}
+        onLongPress={() => {}}
       />
       <View style={styles.commentContent}>
         <View style={[styles.commentBubble, { backgroundColor: currentThemeColors.commentBackground }]}>
@@ -84,100 +71,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onReply, onLike, cur
           <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>
             {formatTime(comment.timestamp)}
           </Text>
-          
-          <TouchableOpacity 
-            onPress={() => onLike(comment.id || '')} 
-            style={styles.commentActionButton}
-          >
-            <Text style={[
-              styles.commentActionText, 
-              { color: isLiked ? currentThemeColors.tint : currentThemeColors.subtleText }
-            ]}>
-              Like
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={() => setShowReplyInput(!showReplyInput)}
-            style={styles.commentActionButton}
-          >
-            <Text style={[styles.commentActionText, { color: currentThemeColors.subtleText }]}>
-              Reply
-            </Text>
-          </TouchableOpacity>
-          
-          {comment.likes && comment.likes.length > 0 && (
-            <View style={styles.commentLikes}>
-              <Ionicons name="heart" size={12} color={currentThemeColors.tint} />
-              <Text style={[styles.commentLikesText, { color: currentThemeColors.subtleText }]}>
-                {comment.likes.length}
-              </Text>
-            </View>
-          )}
         </View>
-
-        {showReplyInput && (
-          <View style={styles.replyContainer}>
-            <CustomImage
-              source={'https://via.placeholder.com/150'} // Current user avatar
-              style={styles.replyAvatar}
-            />
-            <View style={styles.replyInputContainer}>
-              <TextInput
-                style={[
-                  styles.replyInput,
-                  { 
-                    backgroundColor: currentThemeColors.commentBackground,
-                    color: currentThemeColors.text,
-                    borderColor: currentThemeColors.border
-                  }
-                ]}
-                placeholder="Write a reply..."
-                placeholderTextColor={currentThemeColors.placeholderText}
-                value={replyText}
-                onChangeText={setReplyText}
-                multiline
-              />
-              <TouchableOpacity 
-                onPress={handleReply}
-                disabled={!replyText.trim()}
-                style={[
-                  styles.replySendButton,
-                  { backgroundColor: replyText.trim() ? currentThemeColors.tint : currentThemeColors.border }
-                ]}
-              >
-                <Ionicons 
-                  name="send" 
-                  size={16} 
-                  color={replyText.trim() ? 'white' : currentThemeColors.subtleText} 
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Render replies */}
-        {comment.replies && comment.replies.map((reply: Reply, index: number) => (
-          <View key={index} style={styles.replyItem}>
-            <CustomImage
-              source={reply.avatar || 'https://via.placeholder.com/150'}
-              style={styles.replyAvatar}
-            />
-            <View style={styles.replyContent}>
-              <View style={[styles.commentBubble, { backgroundColor: currentThemeColors.commentBackground }]}>
-                <Text style={[styles.commentUsername, { color: currentThemeColors.text }]}>
-                  {reply.username}
-                </Text>
-                <Text style={[styles.commentText, { color: currentThemeColors.text }]}>
-                  {reply.text}
-                </Text>
-              </View>
-              <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>
-                {formatTime(reply.timestamp)}
-              </Text>
-            </View>
-          </View>
-        ))}
       </View>
     </View>
   );
@@ -186,8 +80,6 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, onReply, onLike, cur
 const CommentSection: React.FC<CommentSectionProps> = ({ 
   comments = [], 
   onAddComment, 
-  onLikeComment, 
-  onReplyComment, 
   currentUserId,
   currentUserAvatar 
 }) => {
@@ -213,10 +105,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         <CommentItem
           key={comment.id || index}
           comment={comment}
-          onReply={onReplyComment}
-          onLike={onLikeComment}
           currentUserId={currentUserId}
-          isLiked={comment.likes?.includes(currentUserId)}
         />
       ))}
 
@@ -240,6 +129,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         <CustomImage
           source={currentUserAvatar || 'https://via.placeholder.com/150'}
           style={styles.commentAvatar}
+          onLongPress={() => {}}
         />
         <View style={styles.commentInputContainer}>
           <TextInput

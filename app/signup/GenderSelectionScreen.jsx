@@ -13,7 +13,7 @@ const GenderSelectionScreen = () => {
   const logoUrl = useLogoState();
   const [selectedGender, setSelectedGender] = useState(null);
 
-  const { theme } = useContext(ThemeContext);
+  const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = Colors.dark;
 
   const handleSelectGender = (gender) => {

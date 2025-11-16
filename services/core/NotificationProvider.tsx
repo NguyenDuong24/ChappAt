@@ -55,6 +55,18 @@ interface NotificationProviderProps {
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
   const { user } = useAuth();
   
+  // Early init navigation service so taps work even before auth resolves (cold start/background)
+  React.useEffect(() => {
+    try {
+      NotificationNavigationService.initialize();
+    } catch (e) {
+      console.warn('NotificationNavigationService early init failed', e);
+    }
+    return () => {
+      try { NotificationNavigationService.cleanup(); } catch {}
+    };
+  }, []);
+
   // State
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -83,9 +95,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         // Initialize social service
         await SocialNotificationService.initialize();
 
-        // Initialize navigation service
-        NotificationNavigationService.initialize();
-
         // Setup foreground notification listener
         setupForegroundListener();
 
@@ -104,7 +113,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     return () => {
       CoreNotificationService.cleanup();
       SocialNotificationService.cleanup();
-      NotificationNavigationService.cleanup();
     };
   }, [user]);
 

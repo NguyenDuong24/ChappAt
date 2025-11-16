@@ -11,6 +11,7 @@ import {
   Dimensions,
   StatusBar,
   Animated,
+  Platform,
 } from 'react-native';
 import {
   PanGestureHandler,
@@ -30,6 +31,34 @@ import { createMeeting, token } from '../api';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import DebugMonitor from '../components/call/DebugMonitor';
+
+// Add error boundary for video components
+class VideoErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: any): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error('Video component error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>Video temporarily unavailable</Text>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -107,7 +136,7 @@ function DraggableLocalVideo({ localParticipant, callType }: {
           },
         ]}
       >
-        {webcamOn && webcamStream ? (
+        {webcamOn && webcamStream && Platform.OS !== 'android' ? (
           <RTCView
             streamURL={new MediaStream([webcamStream.track]).toURL()}
             objectFit="cover"
@@ -119,6 +148,9 @@ function DraggableLocalVideo({ localParticipant, callType }: {
             style={styles.localVideoPlaceholder}
           >
             <Ionicons name="person-circle" size={30} color="#FFFFFF" />
+            <Text style={styles.placeholderText}>
+              {Platform.OS === 'android' ? 'Video disabled on Android' : 'Camera off'}
+            </Text>
           </LinearGradient>
         )}
         
@@ -145,7 +177,7 @@ function useRemoteAudio(micStream: any, micOn: boolean, participantId: string) {
   useEffect(() => {
     let isMounted = true;
     async function playAudio() {
-      if (micOn && micStream && micStream.track) {
+      if (micOn && micStream && micStream.track && Platform.OS !== 'android') { // Disable on Android to avoid ExoPlayer thread issue
         try {
           // Create a new sound object for the remote stream
           const sound = new Audio.Sound();
@@ -200,10 +232,10 @@ function RemoteVideoView({ participantId, callType }: {
   useEffect(() => {
     let isMounted = true;
     async function playRemoteMic() {
-      if (micOn && micStream) {
+      if (micOn && micStream && Platform.OS !== 'android') { // Temporarily disable on Android to avoid ExoPlayer thread issue
         try {
           // Try to get a valid URI from micStream
-          const streamUri = micStream.url || micStream.uri || undefined;
+          const streamUri = (micStream as any).url || (micStream as any).uri || undefined;
           if (streamUri) {
             const sound = new Audio.Sound();
             await sound.loadAsync({ uri: streamUri }, { shouldPlay: true, isLooping: true });
@@ -231,7 +263,7 @@ function RemoteVideoView({ participantId, callType }: {
 
   return (
     <View style={styles.remoteVideoContainer}>
-      {webcamOn && webcamStream && callType === 'video' ? (
+      {webcamOn && webcamStream && callType === 'video' && Platform.OS !== 'android' ? (
         <RTCView
           streamURL={new MediaStream([webcamStream.track]).toURL()}
           objectFit="cover"
@@ -239,22 +271,23 @@ function RemoteVideoView({ participantId, callType }: {
         />
       ) : (
         <LinearGradient
-          colors={['#1a1a2e', '#16213e', '#0f3460']}
+          colors={['#667eea', '#764ba2']}
           style={styles.remoteVideoPlaceholder}
         >
-          <View style={styles.remoteAvatarContainer}>
-            <Ionicons 
-              name="person-circle" 
-              size={callType === 'audio' ? 120 : 100} 
-              color="#FFFFFF" 
-            />
-            <Text style={styles.remoteParticipantName}>
-              {displayName || "Remote User"}
-            </Text>
-            {callType === 'audio' && (
-              <Text style={styles.audioCallLabel}>Audio Call</Text>
-            )}
-          </View>
+          <Ionicons 
+            name="person-circle" 
+            size={callType === 'audio' ? 120 : 100} 
+            color="#FFFFFF" 
+          />
+          <Text style={styles.remoteParticipantName}>
+            {displayName || "Remote User"}
+          </Text>
+          {callType === 'audio' && (
+            <Text style={styles.audioCallLabel}>Audio Call</Text>
+          )}
+          {Platform.OS === 'android' && callType === 'video' && (
+            <Text style={styles.placeholderText}>Video disabled on Android</Text>
+          )}
         </LinearGradient>
       )}
       
@@ -286,18 +319,10 @@ class AudioService {
 
   static async loadSounds() {
     try {
-      // Load calling sound
-      const { sound: calling } = await Audio.Sound.createAsync(
-        require('../assets/sounds/calling.mp3'),
-        { isLooping: true }
-      );
-      this.callingSound = calling;
-
-      // Load join sound
-      const { sound: join } = await Audio.Sound.createAsync(
-        require('../assets/sounds/join.mp3')
-      );
-      this.joinSound = join;
+      if (Platform.OS !== 'android') { // Temporarily disable sounds on Android
+        this.callingSound = new Audio.Sound();
+        await this.callingSound.loadAsync(require('../assets/sounds/calling.mp3'));
+      }
     } catch (error) {
       console.log('Error loading sounds:', error);
     }
@@ -305,7 +330,7 @@ class AudioService {
 
   static async playCallingSound() {
     try {
-      if (this.callingSound) {
+      if (Platform.OS !== 'android' && this.callingSound) {
         await this.callingSound.replayAsync();
       }
     } catch (error) {
@@ -315,7 +340,7 @@ class AudioService {
 
   static async stopCallingSound() {
     try {
-      if (this.callingSound) {
+      if (Platform.OS !== 'android' && this.callingSound) {
         await this.callingSound.stopAsync();
       }
     } catch (error) {
@@ -1204,6 +1229,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: '#FFFFFF',
+  },
+  placeholderText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });
 

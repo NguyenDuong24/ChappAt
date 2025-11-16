@@ -278,7 +278,7 @@ const Tab3Screen = () => {
       paddingHorizontal: 32 
     }}>
       <Text style={{ 
-        color: currentThemeColors.textMuted, 
+        color: currentThemeColors.headerText, 
         fontSize: 16,
         textAlign: 'center',
         marginBottom: 8
@@ -286,7 +286,7 @@ const Tab3Screen = () => {
         Chưa có bài viết
       </Text>
       <Text style={{ 
-        color: currentThemeColors.textMuted, 
+        color: currentThemeColors.headerText, 
         fontSize: 14,
         textAlign: 'center'
       }}>
@@ -297,7 +297,7 @@ const Tab3Screen = () => {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: currentThemeColors.background }}>
         <ActivityIndicator size="large" color={currentThemeColors.primary} />
       </View>
     );
@@ -305,14 +305,14 @@ const Tab3Screen = () => {
 
   if (error) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent', paddingHorizontal: 32 }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: currentThemeColors.background, paddingHorizontal: 32 }}>
         <Text style={{ color: currentThemeColors.text, textAlign: 'center' }}>Lỗi: {error}</Text>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+    <View style={{ flex: 1, backgroundColor: currentThemeColors.background }}>
       <Animated.FlatList
         data={posts}
         keyExtractor={(item) => item.id}
@@ -331,10 +331,10 @@ const Tab3Screen = () => {
         contentContainerStyle={{ 
           paddingTop: effectiveHeaderHeight || defaultEffectiveHeaderHeight,
           paddingBottom: 120,
-          backgroundColor: 'transparent',
+          backgroundColor: currentThemeColors.background,
           flexGrow: 1,
         }}
-        style={{ backgroundColor: 'transparent' }}
+        style={{ backgroundColor: currentThemeColors.background }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         onScroll={onScroll}
         scrollEventThrottle={16}

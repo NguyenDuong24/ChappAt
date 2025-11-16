@@ -1,6 +1,6 @@
-import { db, functions as fbFunctions } from '../firebaseConfig';
+import { db } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+import { coinServerApi } from '../src/services/coinServerApi';
 
 export type CoinTransactionType = 'topup' | 'spend' | 'purchase' | 'adjustment';
 
@@ -25,22 +25,22 @@ async function getBalance(uid: string): Promise<number> {
 async function topup(uid: string, amount: number, metadata: Record<string, any> = {}) {
   if (!uid) throw new Error('Missing uid');
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Amount must be > 0');
-  const fn = httpsCallable(fbFunctions, 'walletTopup');
-  await fn({ amount, metadata });
+  // Use coin server instead of Cloud Functions
+  await coinServerApi.topup(amount, metadata);
 }
 
 async function spend(uid: string, amount: number, metadata: Record<string, any> = {}) {
   if (!uid) throw new Error('Missing uid');
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Amount must be > 0');
-  const fn = httpsCallable(fbFunctions, 'walletSpend');
-  await fn({ amount, metadata });
+  // Use coin server instead of Cloud Functions
+  await coinServerApi.spend(amount, metadata);
 }
 
 async function purchaseItem(uid: string, itemId: string) {
   if (!uid) throw new Error('Missing uid');
   if (!itemId) throw new Error('Missing itemId');
-  const fn = httpsCallable(fbFunctions, 'walletPurchase');
-  await fn({ itemId });
+  // Use coin server instead of Cloud Functions
+  await coinServerApi.purchaseItem(itemId);
 }
 
 export const walletService = {

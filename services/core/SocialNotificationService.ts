@@ -26,7 +26,6 @@ class SocialNotificationService {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    console.log('🔄 Initializing Social Notification Service...');
     
     // Ensure core service is initialized
     if (!CoreNotificationService.isReady()) {
@@ -34,7 +33,6 @@ class SocialNotificationService {
     }
 
     this.isInitialized = true;
-    console.log('✅ Social Notification Service initialized');
   }
 
   /**
@@ -63,7 +61,6 @@ class SocialNotificationService {
       await this.saveNotificationToFirestore(notificationData);
       await this.sendPushNotification(targetUserId, notificationData);
 
-      console.log('✅ Like notification sent');
     } catch (error) {
       console.error('❌ Failed to send like notification:', error);
     }
@@ -99,7 +96,6 @@ class SocialNotificationService {
       await this.saveNotificationToFirestore(notificationData);
       await this.sendPushNotification(targetUserId, notificationData);
 
-      console.log('✅ Comment notification sent');
     } catch (error) {
       console.error('❌ Failed to send comment notification:', error);
     }
@@ -131,7 +127,6 @@ class SocialNotificationService {
       await this.saveNotificationToFirestore(notificationData);
       await this.sendPushNotification(targetUserId, notificationData);
 
-      console.log('✅ Follow notification sent');
     } catch (error) {
       console.error('❌ Failed to send follow notification:', error);
     }
@@ -167,7 +162,6 @@ class SocialNotificationService {
       await this.saveNotificationToFirestore(notificationData);
       await this.sendPushNotification(targetUserId, notificationData);
 
-      console.log('✅ Mention notification sent');
     } catch (error) {
       console.error('❌ Failed to send mention notification:', error);
     }
@@ -202,7 +196,6 @@ class SocialNotificationService {
         createdAt: serverTimestamp(),
       });
 
-      console.log('✅ Notification saved to Firestore');
     } catch (error) {
       console.error('❌ Failed to save notification to Firestore:', error);
     }
@@ -225,9 +218,6 @@ class SocialNotificationService {
         return;
       }
 
-      // Send via Expo Push API (this would typically go through your backend)
-      console.log('📤 Would send push notification to:', pushToken);
-      console.log('📤 Notification data:', notificationData);
 
       // For local testing, schedule a local notification
       await CoreNotificationService.scheduleLocalNotification({
@@ -284,7 +274,6 @@ class SocialNotificationService {
       const notificationRef = doc(db, 'notifications', notificationId);
       await getDoc(notificationRef); // Just to update timestamp, actual read logic would go here
       
-      console.log('✅ Notification marked as read:', notificationId);
     } catch (error) {
       console.error('❌ Failed to mark notification as read:', error);
     }
@@ -302,7 +291,6 @@ class SocialNotificationService {
    */
   cleanup(): void {
     this.isInitialized = false;
-    console.log('✅ Social Notification Service cleaned up');
   }
 }
 

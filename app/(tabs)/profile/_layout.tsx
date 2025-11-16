@@ -6,7 +6,8 @@ import { ThemeContext } from '../../../context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 
 const StackLayout = () => {
-  const { theme } = useContext(ThemeContext);
+  const themeCtx = useContext(ThemeContext);
+  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
 
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 

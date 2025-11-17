@@ -1,9 +1,7 @@
 import { getAuth } from 'firebase/auth';
 
 // Cấu hình URL server
-const API_BASE_URL = __DEV__ 
-  ? 'http://192.168.100.9:3000/api'  // Development - use machine IP for device/emulator access
-  : 'https://your-production-server.com/api';  // Production - thay đổi sau khi deploy
+const API_BASE_URL = 'https://saigondating-server.onrender.com/api';  // Use Render production URL
 
 /**
  * Get Firebase ID Token for authentication
@@ -162,6 +160,19 @@ export const coinServerApi = {
     });
   },
 
+  /**
+   * Reward user with coins for watching an ad
+   * @param {string} adId - Ad ID for verification
+   * @param {object} metadata - Optional metadata
+   * @returns {Promise<{success: boolean, amount: number, newBalance: number, transactionId: string}>}
+   */
+  async reward(adId, metadata = {}) {
+    return await apiRequest('/wallet/reward', {
+      method: 'POST',
+      body: JSON.stringify({ adId, metadata }),
+    });
+  },
+
   // ============== GIFTS ==============
 
   /**
@@ -221,6 +232,16 @@ export const coinServerApi = {
     if (status) params.append('status', status);
     
     return await apiRequest(`/gifts/received?${params.toString()}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get gift catalog
+   * @returns {Promise<{success: boolean, gifts: Array, count: number}>}
+   */
+  async getGiftCatalog() {
+    return await apiRequest('/gifts/catalog', {
       method: 'GET',
     });
   },

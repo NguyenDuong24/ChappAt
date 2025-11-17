@@ -129,10 +129,54 @@ export default function CoinWalletScreen() {
     );
   };
 
+  const handleReward = async () => {
+    Alert.alert(
+      'Xem quảng cáo',
+      'Bạn có muốn xem quảng cáo để nhận 10 coin miễn phí?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xem',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              // Simulate ad watching (in real app, integrate AdMob or similar)
+              Alert.alert('Đang tải quảng cáo...', 'Vui lòng chờ...');
+              
+              // Call reward API
+              const result = await coinServerApi.reward('ad_' + Date.now(), {
+                source: 'rewarded_ad'
+              });
+
+              setBalance(result.newBalance);
+              Alert.alert('Thành công', `Đã nhận ${result.amount} coin từ quảng cáo!`);
+              loadTransactions();
+            } catch (error) {
+              Alert.alert('Lỗi', getErrorMessage(error as any));
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([loadBalance(), loadTransactions()]);
     setRefreshing(false);
+  };
+
+  const getTransactionTypeText = (type: string) => {
+    switch (type) {
+      case 'topup': return '➕ Nạp';
+      case 'spend': return '💸 Tiêu';
+      case 'purchase': return '🛍️ Mua';
+      case 'redeem': return '🎁 Đổi quà';
+      case 'reward': return '📺 Quảng cáo';
+      default: return type;
+    }
   };
 
   return (
@@ -187,10 +231,7 @@ export default function CoinWalletScreen() {
             <View key={tx.id} style={styles.transactionItem}>
               <View style={styles.transactionLeft}>
                 <Text style={styles.transactionType}>
-                  {tx.type === 'topup' ? '➕ Nạp' : 
-                   tx.type === 'spend' ? '💸 Tiêu' :
-                   tx.type === 'purchase' ? '🛍️ Mua' :
-                   tx.type === 'redeem' ? '🎁 Đổi quà' : tx.type}
+                  {getTransactionTypeText(tx.type)}
                 </Text>
                 <Text style={styles.transactionDate}>
                   {tx.createdAt ? new Date(tx.createdAt).toLocaleString('vi-VN') : 'N/A'}
@@ -204,8 +245,26 @@ export default function CoinWalletScreen() {
               </Text>
             </View>
           ))
-        )}
+        }
       </View>
+
+      <TouchableOpacity 
+        style={[styles.button, styles.rewardButton]} 
+        onPress={handleReward}
+        disabled={loading}
+      >
+        <Text style={styles.buttonText}>📺 Xem QC nhận 10 coin</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={[styles.button, styles.refreshButton]} 
+        onPress={handleRefresh}
+        disabled={refreshing}
+      >
+        <Text style={styles.buttonText}>
+          {refreshing ? '⏳ Đang tải...' : '🔄 Làm mới'}
+        </Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -261,6 +320,11 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     backgroundColor: '#2196F3',
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+  rewardButton: {
+    backgroundColor: '#FF5722',
     marginHorizontal: 16,
     marginTop: 12,
   },

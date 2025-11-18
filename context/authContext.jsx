@@ -196,8 +196,7 @@ export const AuthContextProvider = ({ children }) => {
             const data = snap.data();
             const completed = isProfileCompletedData(data);
 
-            // Sync wallet coins
-            setCoins(Number(data?.coins || 0));
+            // Wallet coins are now synced via separate listener
 
             // update cached fields cautiously
             if (completed) {
@@ -237,6 +236,24 @@ export const AuthContextProvider = ({ children }) => {
         };
     }, [user?.uid]);
 
+    // Listen to wallet balance changes
+    useEffect(() => {
+        if (!user?.uid) return;
+        const balanceRef = doc(db, 'users', user.uid, 'wallet', 'balance');
+        const unsub = onSnapshot(balanceRef, (snap) => {
+            if (!snap.exists()) {
+                // If no balance document exists, set to 0
+                setCoins(0);
+                return;
+            }
+            const data = snap.data();
+            setCoins(Number(data?.coins || 0));
+        });
+        return () => {
+            try { unsub(); } catch (_e) {}
+        };
+    }, [user?.uid]);
+
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, async (userFB) => {
             try {
@@ -253,11 +270,25 @@ export const AuthContextProvider = ({ children }) => {
                         const snap = await getDoc(docRef);
                         const data = snap.exists() ? snap.data() : {};
                         
-                        // If user has no coins field, grant initial 1000 Bánh mì once
+                        // Check and initialize wallet balance
+                        const balanceRef = doc(db, 'users', userFB.uid, 'wallet', 'balance');
+                        const balanceSnap = await getDoc(balanceRef);
+                        if (!balanceSnap.exists()) {
+                            // Initialize wallet with 1000 coins if it doesn't exist
+                            try {
+                                await setDoc(balanceRef, { coins: 1000 });
+                                setCoins(1000);
+                            } catch (_e) {
+                                setCoins(0);
+                            }
+                        } else {
+                            setCoins(Number(balanceSnap.data()?.coins || 0));
+                        }
+                        
+                        // If user has no coins field in main doc, grant initial 1000 Bánh mì once (legacy)
                         if (data.coins === undefined) {
                             try {
                                 await updateDoc(docRef, { coins: 1000 });
-                                data.coins = 1000;
                             } catch (_e) {}
                         }
                         
@@ -266,9 +297,6 @@ export const AuthContextProvider = ({ children }) => {
                             ...userFB,
                             ...data,
                         });
-                        
-                        // Set initial coins
-                        setCoins(Number(data?.coins || 0));
                         
                         const requiredFilled = !!(data.username && data.gender && data.age && (data.profileUrl || data.photoURL));
                         const completedFlag = data.profileCompleted === true;
@@ -374,7 +402,7 @@ export const AuthContextProvider = ({ children }) => {
                 const data = docSnap.data();
                 console.log("User data updated:", uid, data);
                 
-                // Update user state safely - merge with existing user data
+                // Update user state safely - merge with existing Firebase auth + Firestore data
                 setUser((prevUser) => {
                     if (!prevUser) return prevUser;
                     return {
@@ -385,9 +413,6 @@ export const AuthContextProvider = ({ children }) => {
                         email: prevUser.email || data.email,
                     };
                 });
-                
-                // Update wallet coins
-                setCoins(Number(data?.coins || 0));
                 
                 // Update individual fields
                 if (!isOnboarding) {

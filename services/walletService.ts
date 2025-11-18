@@ -1,5 +1,3 @@
-import { db } from '../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
 import { coinServerApi } from '../src/services/coinServerApi';
 
 export type CoinTransactionType = 'topup' | 'spend' | 'purchase' | 'adjustment';
@@ -13,13 +11,13 @@ export interface CoinTransaction {
   metadata?: Record<string, any>;
 }
 
-const USER_COLLECTION = 'users';
-
-async function getBalance(uid: string): Promise<number> {
-  const userRef = doc(db, USER_COLLECTION, uid);
-  const snap = await getDoc(userRef);
-  const data = snap.exists() ? (snap.data() as any) : {};
-  return Number(data.coins || 0);
+async function getBalance(): Promise<number> {
+  const response = await coinServerApi.getBalance();
+  if (response.success) {
+    return response.coins;
+  } else {
+    throw new Error('Failed to get balance');
+  }
 }
 
 async function topup(uid: string, amount: number, metadata: Record<string, any> = {}) {

@@ -3,6 +3,7 @@ import { useAuth } from '@/context/authContext';
 import { getDocs, query, where, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { userRef } from '@/firebaseConfig';
 import { useStateCommon } from '../../../context/stateCommon';
+import { normalizeInterestsArray } from '@/utils/interests';
 
 const PAGE_SIZE = 20;
 
@@ -26,7 +27,8 @@ const useHome = () => {
       maxAge: stateCommon.filter?.maxAge || '',
       job: stateCommon.filter?.job || '',
       educationLevel: stateCommon.filter?.educationLevel || '',
-      university: stateCommon.filter?.university || ''
+      university: stateCommon.filter?.university || '',
+      interests: normalizeInterestsArray(Array.isArray(stateCommon.filter?.interests) ? stateCommon.filter.interests : (stateCommon.filter?.interests ? [stateCommon.filter.interests] : [])),
     };
     console.log('[DEBUG] Creating filterMemo:', filter);
     return filter;
@@ -69,6 +71,16 @@ const useHome = () => {
 
       if (filterMemo.university && filterMemo.educationLevel === 'Cao đẳng/Đại học') {
         constraints.push(where('university', '==', filterMemo.university));
+      }
+
+      // Interests filtering: use array-contains or array-contains-any for multi-selection
+      if (Array.isArray(filterMemo.interests) && filterMemo.interests.length > 0) {
+        if (filterMemo.interests.length === 1) {
+          constraints.push(where('interests', 'array-contains', filterMemo.interests[0]));
+        } else {
+          // Firestore supports up to 10 values for array-contains-any
+          constraints.push(where('interests', 'array-contains-any', filterMemo.interests.slice(0, 10)));
+        }
       }
 
       const hasMin = !!filterMemo.minAge;
@@ -158,7 +170,7 @@ const useHome = () => {
   useEffect(() => {
     if (!user?.uid) return;
 
-    const key = `${user.uid}|${filterMemo.gender}|${filterMemo.minAge}|${filterMemo.maxAge}|${filterMemo.job}|${filterMemo.educationLevel}|${filterMemo.university}`;
+    const key = `${user.uid}|${filterMemo.gender}|${filterMemo.minAge}|${filterMemo.maxAge}|${filterMemo.job}|${filterMemo.educationLevel}|${filterMemo.university}|${(filterMemo.interests || []).join(',')}`;
     if (lastTriggerKeyRef.current === key) return; // prevent duplicate triggers
     lastTriggerKeyRef.current = key;
 
@@ -168,7 +180,7 @@ const useHome = () => {
     }, 300);
 
     return () => clearTimeout(t);
-  }, [user?.uid, filterMemo.gender, filterMemo.minAge, filterMemo.maxAge, filterMemo.job, filterMemo.educationLevel, filterMemo.university]);
+  }, [user?.uid, filterMemo.gender, filterMemo.minAge, filterMemo.maxAge, filterMemo.job, filterMemo.educationLevel, filterMemo.university, (filterMemo.interests || []).join(',')]);
 
   return {
     getUsers,

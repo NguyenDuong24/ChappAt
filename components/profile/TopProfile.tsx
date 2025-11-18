@@ -7,8 +7,10 @@ import {
   Alert,
   Text,
   Platform,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
-import { Divider } from 'react-native-paper';
+import { Chip } from 'react-native-paper';
 import { AntDesign } from '@expo/vector-icons';
 import { db } from '@/firebaseConfig';
 import {
@@ -29,10 +31,15 @@ import CustomImage from '../common/CustomImage';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import VibeSection from './VibeSection';
 import VibeAvatar from '../vibe/VibeAvatar';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
+import { giftService } from '@/services/giftService';
+import { useStateCommon } from '@/context/stateCommon';
+import { BlurView } from 'expo-blur';
+import { getLabelForInterest, getIdForInterest } from '@/utils/interests';
+
+const { width } = Dimensions.get('window');
 
 const extractHashtags = (text: string) => {
   const regex = /#[a-zA-Z0-9_]+/g;
@@ -52,22 +59,8 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const { stateCommon, setStateCommon } = useStateCommon();
   
-  console.log('👤 TopProfile currentVibe:', currentVibe);
-
-  useEffect(() => {
-    if (user) {
-      console.log('🔍 TopProfile DEBUG - User object:', {
-        uid: user.uid,
-        username: user.username,
-        displayName: user.displayName,
-        name: user.name,
-        email: user.email,
-        allKeys: Object.keys(user)
-      });
-    }
-  }, [user]);
-
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
@@ -115,13 +108,22 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
 
   useEffect(() => {
     if (!user?.uid) return;
-    try {
-      setGiftStats({
-        count: Number(user?.giftReceivedCount || 0),
-        value: Number(user?.giftReceivedValue || 0),
-      });
-    } catch {}
-  }, [user?.giftReceivedCount, user?.giftReceivedValue, user?.uid]);
+    const fetchGiftStats = async () => {
+      try {
+        const { items: gifts } = await giftService.listReceivedGifts(user.uid, { pageSize: 1000 });
+        const count = gifts.length;
+        const value = gifts.reduce((sum: number, gift) => sum + (gift.gift?.price || 0), 0);
+        setGiftStats({ count, value });
+      } catch (error) {
+        console.error('Error fetching gift stats:', error);
+        setGiftStats({
+          count: Number(user?.giftReceivedCount || 0),
+          value: Number(user?.giftReceivedValue || 0),
+        });
+      }
+    };
+    fetchGiftStats();
+  }, [user?.uid]);
 
   const handleSaveBio = async () => {
     try {
@@ -158,314 +160,499 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   };
 
   const handleCopyUID = async () => {
-    if (__DEV__) {
-      console.log('User UID:', user?.uid);
-    }
     if (user?.uid) {
       try {
         await Clipboard.setStringAsync(user.uid);
-        Alert.alert('Đã sao chép', 'UID đã được sao chép vào clipboard');
+        Alert.alert('✅ Copied!', 'UID copied to clipboard');
       } catch (error) {
         console.error('Error copying UID:', error);
-        Alert.alert('Lỗi', 'Không thể sao chép UID');
       }
-    } else {
-      Alert.alert('Lỗi', 'Không tìm thấy UID');
     }
+  };
+
+  const handleInterestFilterPress = (interest: string) => {
+    const currentInterests = Array.isArray(stateCommon?.filter?.interests) ? stateCommon.filter.interests : (stateCommon?.filter?.interests ? [stateCommon?.filter?.interests] : []);
+    const alreadySelected = currentInterests.includes(interest);
+    const newInterests = alreadySelected ? [] : [interest];
+
+    setStateCommon({ filter: { ...stateCommon?.filter, interests: newInterests } });
+
+    try { router.push('/(tabs)/home'); } catch (_e) {}
   };
 
   if (!user) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={{ fontSize: 16, color: '#666' }}>Loading user profile...</Text>
+        <Text style={{ fontSize: 16, color: '#666' }}>Loading...</Text>
       </View>
     );
   }
 
-  if (__DEV__) {
-    console.log('Rendering TopProfile with user:', user.uid);
-  }
-
   return (
-    <View style={styles.container}>
-      <View>
-        <View style={styles.coverPhotoContainer}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: currentThemeColors.background }]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header with Cover */}
+      <View style={styles.headerSection}>
+        <View style={styles.coverContainer}>
           <CustomImage
             type="cover"
             source={user?.coverImage}
-            style={styles.coverPhoto}
+            style={styles.coverImage}
+            onLongPress={() => {}}
           />
           <LinearGradient
-            colors={["transparent", currentThemeColors.background + "cc"]}
-            style={styles.coverOverlay}
+            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            style={styles.coverGradient}
           />
-          <TouchableOpacity
-            onPress={() => router.push('/profile/settings')}
-            style={styles.settingsButton}
-            activeOpacity={0.7}
-          >
-            <Feather name="settings" size={22} color={currentThemeColors.icon} />
-          </TouchableOpacity>
-        </View>
+          
+          {/* Floating Actions */}
+          <View style={styles.floatingActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/profile/settings')}
+              style={[styles.floatingButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
+            >
+              <Feather name="settings" size={18} color="#fff" />
+            </TouchableOpacity>
+          </View>
 
-        <View style={styles.header}>
-          <View style={[styles.avatarWrapper, { borderColor: currentThemeColors.text }]}> 
-            <VibeAvatar
-              avatarUrl={user?.profileUrl}
-              size={80}
-              currentVibe={currentVibe}
-              showAddButton={true}
-              storyUser={{ id: user?.uid || '', username: user?.username || user?.displayName, profileUrl: user?.profileUrl }}
-            />
-          </View>
-          <View style={styles.vibeOverlay}>
-            <VibeSection />
-          </View>
-          <View style={styles.nameUidContainer}>
-            <Text style={[styles.name, { color: currentThemeColors.text }]}> 
-              {user?.username || user?.displayName || user?.name || user?.email?.split('@')[0] || 'Unknown User'}
-            </Text>
-            <View style={styles.uidContainer}>
-              <Text style={[styles.uidLabel, { color: currentThemeColors.subtleText }]}>UID:</Text>
-              <Text style={[styles.uidText, { color: currentThemeColors.text }]}> 
-                {user?.uid?.slice(0, 6) + '...'}
-              </Text>
-              <TouchableOpacity onPress={handleCopyUID} style={styles.copyButton}>
-                <Feather name="copy" size={14} color={currentThemeColors.icon} />
-              </TouchableOpacity>
+          {/* Avatar Positioned on Cover */}
+          <View style={styles.avatarContainer}>
+            <View style={[styles.avatarBorder, { borderColor: currentThemeColors.background }]}>
+              <VibeAvatar
+                avatarUrl={user?.profileUrl}
+                size={110}
+                currentVibe={currentVibe}
+                showAddButton={true}
+                storyUser={{ 
+                  id: user?.uid || '', 
+                  username: user?.username || user?.displayName, 
+                  profileUrl: user?.profileUrl 
+                }}
+              />
             </View>
           </View>
         </View>
 
-        <View style={[styles.bioContainer, { backgroundColor: currentThemeColors.cardBackground }]}> 
+      </View>
+
+      {/* Profile Info */}
+      <View style={styles.profileInfo}>
+        <View style={styles.nameRow}>
+          <Text style={[styles.username, { color: currentThemeColors.text }]} numberOfLines={1}>
+            {user?.username || user?.displayName || 'User'}
+          </Text>
+        </View>
+        
+        <TouchableOpacity onPress={handleCopyUID} style={styles.uidBadge} activeOpacity={0.7}>
+          <Text style={styles.uidText}>ID: {user?.uid?.slice(0, 8)}</Text>
+          <Feather name="copy" size={10} color="#999" />
+        </TouchableOpacity>
+
+        {/* Bio inline */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {isEditingBio ? (
             <TextInput
-              style={[styles.bioInput, { color: currentThemeColors.text, borderColor: currentThemeColors.border }]
-              }
+              style={[styles.bioInputSmall, { 
+                color: currentThemeColors.text, 
+                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
+                borderColor: currentThemeColors.border 
+              }]}
               value={bio}
               onChangeText={setBio}
               autoFocus
-              placeholder="Write your bio..."
+              placeholder="Tell us about yourself..."
               placeholderTextColor={currentThemeColors.placeholderText}
               multiline
-              numberOfLines={3}
               maxLength={160}
             />
           ) : (
-            <Text style={[styles.bio, { color: currentThemeColors.text }]}> 
-              {bio || 'Tap to add a bio'}
+            <Text style={[styles.bioTextSmall, { color: currentThemeColors.subtleText }]} numberOfLines={3}>
+              {bio || '✨ Tap edit to add a bio'}
             </Text>
           )}
           <TouchableOpacity
             onPress={() => (isEditingBio ? handleSaveBio() : setIsEditingBio(true))}
-            style={styles.editButton}
+            style={[styles.editBioButtonSmall, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
             activeOpacity={0.7}
           >
-            <AntDesign name={isEditingBio ? 'checkcircle' : 'edit'} size={20} color={currentThemeColors.icon} />
+            <Feather 
+              name={isEditingBio ? 'check' : 'edit-3'} 
+              size={12} 
+              color={currentThemeColors.text} 
+            />
           </TouchableOpacity>
         </View>
-
-        <View style={styles.statsRow}>
-          <TouchableOpacity style={[styles.statCard, { backgroundColor: currentThemeColors.cardBackground }]} activeOpacity={0.7}>
-            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{postsCount}</Text>
-            <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Posts</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.statCard, { backgroundColor: currentThemeColors.cardBackground }]} activeOpacity={0.7}>
-            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{followersCount}</Text>
-            <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Followers</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.statCard, { backgroundColor: currentThemeColors.cardBackground }]} activeOpacity={0.7}>
-            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{followingCount}</Text>
-            <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Following</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.pillsRow}>
-          <View style={[styles.pill, { backgroundColor: currentThemeColors.cardBackground, borderColor: currentThemeColors.border }]}> 
-            <Text style={styles.emoji}>🥖</Text>
-            <Text style={[styles.pillText, { color: currentThemeColors.text }]}> 
-              {Number(coins || 0)}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={[styles.pill, { backgroundColor: currentThemeColors.cardBackground, borderColor: currentThemeColors.border }]} 
-            onPress={() => router.push('/gifts/Inbox')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.emoji}>🎁</Text>
-            <Text style={[styles.pillText, { color: currentThemeColors.text }]}> 
-              {giftStats.count}
-            </Text>
-          </TouchableOpacity>
-          <View style={[styles.pill, { backgroundColor: currentThemeColors.cardBackground, borderColor: currentThemeColors.border }]}> 
-            <Text style={styles.emoji}>💰</Text>
-            <Text style={[styles.pillText, { color: currentThemeColors.text }]}> 
-              {giftStats.value}
-            </Text>
-          </View>
-        </View>
-
-        <Divider style={[styles.divider, { backgroundColor: currentThemeColors.border }]} />
       </View>
-    </View>
+
+      {/* Stats Row */}
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, { color: currentThemeColors.text }]}>{postsCount}</Text>
+          <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Posts</Text>
+        </View>
+        <View style={[styles.statDivider, { backgroundColor: currentThemeColors.border }]} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, { color: currentThemeColors.text }]}>{followersCount}</Text>
+          <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Followers</Text>
+        </View>
+        <View style={[styles.statDivider, { backgroundColor: currentThemeColors.border }]} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statNumber, { color: currentThemeColors.text }]}>{followingCount}</Text>
+          <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Following</Text>
+        </View>
+      </View>
+
+      {/* Interests */}
+      {Array.isArray(user.interests) && user.interests.length > 0 && (
+        <View style={styles.interestsSection}>
+          <View style={styles.interestsHeader}>
+            <View style={[styles.interestsIconContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+              <Feather name="heart" size={18} color={currentThemeColors.text} />
+            </View>
+            <Text style={[styles.interestsTitle, { color: currentThemeColors.text }]}>
+              My Interests
+            </Text>
+            <View style={[styles.interestsBadge, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+              <Text style={[styles.interestsBadgeText, { color: currentThemeColors.text }]}>
+                {user.interests.length}
+              </Text>
+            </View>
+          </View>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.interestsScroll}
+          >
+            {(user.interests as string[]).map((interest: string, index: number) => (
+              <TouchableOpacity
+                key={`${interest}-${index}`}
+                onPress={() => handleInterestFilterPress(getIdForInterest(interest))}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={theme === 'dark' 
+                    ? ['rgba(139, 92, 246, 0.2)', 'rgba(59, 130, 246, 0.2)']
+                    : ['rgba(139, 92, 246, 0.1)', 'rgba(59, 130, 246, 0.1)']
+                  }
+                  style={styles.interestChip}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={[styles.interestText, { color: currentThemeColors.text }]}>
+                    {getLabelForInterest(interest)}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Rewards Section */}
+      <View style={styles.rewardsSection}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.rewardsScroll}
+        >
+          <TouchableOpacity 
+            style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}
+            onPress={() => router.push('/CoinWalletScreen')}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#FFD700', '#FFA500']}
+              style={styles.rewardIcon}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.rewardEmoji}>🥖</Text>
+            </LinearGradient>
+            <View style={styles.rewardInfo}>
+              <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
+                {Number(coins || 0).toLocaleString()}
+              </Text>
+              <Text style={[styles.rewardLabel, { color: currentThemeColors.subtleText }]}>
+                Coins
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}
+            onPress={() => router.push('/gifts/Inbox')}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#FF69B4', '#FF1493']}
+              style={styles.rewardIcon}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.rewardEmoji}>🎁</Text>
+            </LinearGradient>
+            <View style={styles.rewardInfo}>
+              <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
+                {giftStats.count}
+              </Text>
+              <Text style={[styles.rewardLabel, { color: currentThemeColors.subtleText }]}>
+                Gifts
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}>
+            <LinearGradient
+              colors={['#9370DB', '#8A2BE2']}
+              style={styles.rewardIcon}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.rewardEmoji}>💎</Text>
+            </LinearGradient>
+            <View style={styles.rewardInfo}>
+              <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
+                {giftStats.value.toLocaleString()}
+              </Text>
+              <Text style={[styles.rewardLabel, { color: currentThemeColors.subtleText }]}>
+                Value
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'transparent',
+    flex: 1,
   },
-  backgroundGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
   },
-  coverPhotoContainer: {
-    height: 200,
-    overflow: 'hidden',
+  headerSection: {
     position: 'relative',
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
   },
-  coverPhoto: {
+  coverContainer: {
+    height: 200,
+    position: 'relative',
+  },
+  coverImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
-  coverOverlay: {
+  coverGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 120,
+    height: 100,
   },
-  settingsButton: {
+  floatingActions: {
     position: 'absolute',
-    top: 48,
+    top: 50,
     right: 16,
-  },
-  header: {
-    paddingHorizontal: 16,
-    marginTop: -48,
-  },
-  avatarNameContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginBottom: 16,
+    gap: 8,
+  },
+  floatingButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    backdropFilter: 'blur(10px)',
   },
   avatarContainer: {
-    marginRight: 16,
-    position: 'relative', // To allow overlay
+    position: 'absolute',
+    bottom: -55,
+    left: 20,
   },
-  avatarWrapper: {
-    marginLeft: -10,
-    flexDirection: 'row',
+  avatarBorder: {
+    borderWidth: 5,
+    borderRadius: 60,
+    padding: 2,
   },
-  avatar: {
-    height: 100,
-    width: 100,
-    borderRadius: 50,
+  vibeContainer: {
+    position: 'absolute',
+    top: 150,
+    right: 20,
   },
-  name: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  uidContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  uidLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginRight: 4,
-  },
-  uidText: {
-    fontSize: 13,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-  },
-  copyButton: {
-    marginLeft: 8,
-    padding: 4,
-  },
-  bioContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 12,
-    borderRadius: 16,
+  profileInfo: {
+    marginTop: 65,
+    paddingHorizontal: 20,
     marginBottom: 16,
   },
-  bio: {
-    flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
   },
-  bioInput: {
+  username: {
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: 0.3,
     flex: 1,
-    fontSize: 15,
-    lineHeight: 22,
+  },
+  editBioButtonSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  uidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(150,150,150,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+  },
+  uidText: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: '#999',
+    fontWeight: '600',
+  },
+  bioTextSmall: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  bioInputSmall: {
+    fontSize: 13,
+    lineHeight: 18,
     borderWidth: 1,
     borderRadius: 12,
-    padding: 8,
-  },
-  editButton: {
-    marginLeft: 12,
-    padding: 6,
+    padding: 10,
+    marginTop: 4,
+    minHeight: 60,
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'space-around',
+    paddingVertical: 20,
+    marginHorizontal: 20,
+    borderRadius: 20,
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  pillsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
+  statDivider: {
+    width: 1,
+    height: 30,
+    opacity: 0.2,
   },
-  pill: {
+  interestsSection: {
+    marginBottom: 20,
+  },
+  interestsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 20,
+    marginBottom: 14,
+  },
+  interestsIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  interestsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
+  interestsBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  interestsBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  interestsScroll: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  interestChip: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    shadowOpacity: 0.05,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
   },
-  emoji: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  pillText: {
+  interestText: {
     fontSize: 14,
     fontWeight: '600',
   },
-  divider: {
-    marginVertical: 16,
-    height: 1,
+  rewardsSection: {
+    marginBottom: 20,
   },
-  loadingContainer: {
-    padding: 20,
+  rewardsScroll: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  rewardCard: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 20,
+    width: 110,
+  },
+  rewardIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 10,
+  },
+  rewardEmoji: {
+    fontSize: 26,
+  },
+  rewardInfo: {
+    alignItems: 'center',
+  },
+  rewardValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  rewardLabel: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });
 

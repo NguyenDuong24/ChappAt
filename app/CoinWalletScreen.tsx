@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import { coinServerApi, getErrorMessage } from '../src/services/coinServerApi';
 
+export const options = {
+  headerShown: false,
+};
+
 interface Transaction {
   id: string;
   type: string;
@@ -162,21 +166,44 @@ export default function CoinWalletScreen() {
     );
   };
 
+  const handleRewardGift = async () => {
+    Alert.alert(
+      'Nhận quà miễn phí',
+      'Bạn có muốn xem quảng cáo để nhận quà miễn phí?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Nhận quà',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              // Simulate ad watching for gift (in real app, integrate AdMob or similar)
+              Alert.alert('Đang tải quảng cáo quà tặng...', 'Vui lòng chờ...');
+              
+              // Call reward API for gift
+              const result = await coinServerApi.rewardGift('gift_ad_' + Date.now(), {
+                source: 'rewarded_ad_gift'
+              });
+
+              // Here you can handle the gift, e.g., show a modal, update balance, etc.
+              Alert.alert('Thành công', result.message || `Đã nhận quà từ quảng cáo!`);
+              
+              loadTransactions();
+            } catch (error) {
+              Alert.alert('Lỗi', getErrorMessage(error as any));
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([loadBalance(), loadTransactions()]);
     setRefreshing(false);
-  };
-
-  const getTransactionTypeText = (type: string) => {
-    switch (type) {
-      case 'topup': return '➕ Nạp';
-      case 'spend': return '💸 Tiêu';
-      case 'purchase': return '🛍️ Mua';
-      case 'redeem': return '🎁 Đổi quà';
-      case 'reward': return '📺 Quảng cáo';
-      default: return type;
-    }
   };
 
   return (
@@ -208,6 +235,22 @@ export default function CoinWalletScreen() {
         >
           <Text style={styles.buttonText}>💸 Tiêu Coin</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.button, styles.rewardButton]} 
+          onPress={handleReward}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>📺 Xem QC nhận coin</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.button, styles.rewardGiftButton]} 
+          onPress={handleRewardGift}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>🎁 Xem QC nhận quà</Text>
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity 
@@ -231,7 +274,11 @@ export default function CoinWalletScreen() {
             <View key={tx.id} style={styles.transactionItem}>
               <View style={styles.transactionLeft}>
                 <Text style={styles.transactionType}>
-                  {getTransactionTypeText(tx.type)}
+                  {tx.type === 'topup' ? '➕ Nạp' :
+                   tx.type === 'spend' ? '💸 Tiêu' :
+                   tx.type === 'purchase' ? '🛍️ Mua' :
+                   tx.type === 'redeem' ? '🎁 Đổi quà' :
+                   tx.type === 'reward' ? '📺 Quảng cáo' : tx.type}
                 </Text>
                 <Text style={styles.transactionDate}>
                   {tx.createdAt ? new Date(tx.createdAt).toLocaleString('vi-VN') : 'N/A'}
@@ -245,26 +292,8 @@ export default function CoinWalletScreen() {
               </Text>
             </View>
           ))
-        }
+        )}
       </View>
-
-      <TouchableOpacity 
-        style={[styles.button, styles.rewardButton]} 
-        onPress={handleReward}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>📺 Xem QC nhận 10 coin</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={[styles.button, styles.refreshButton]} 
-        onPress={handleRefresh}
-        disabled={refreshing}
-      >
-        <Text style={styles.buttonText}>
-          {refreshing ? '⏳ Đang tải...' : '🔄 Làm mới'}
-        </Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -325,6 +354,11 @@ const styles = StyleSheet.create({
   },
   rewardButton: {
     backgroundColor: '#FF5722',
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+  rewardGiftButton: {
+    backgroundColor: '#673AB7',
     marginHorizontal: 16,
     marginTop: 12,
   },

@@ -9,6 +9,10 @@ import { cancelCall, acceptCall, CALL_STATUS } from '@/services/firebaseCallServ
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
 import { useAudio } from '@/context/AudioContext';
 
+export const options = {
+  headerShown: false,
+};
+
 export default function IncomingCallScreen() {
     const { callId, meetingId, callerId, receiverId, callType, status, senderName, senderAvatar } = useLocalSearchParams();
     const [callerInfo, setCallerInfo] = useState<any>(null);

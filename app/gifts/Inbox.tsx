@@ -23,12 +23,8 @@ export default function GiftsInboxScreen() {
 
   useEffect(() => {
     if (!user?.uid) return;
-    const unsub = giftService.subscribeReceivedGifts(user.uid, (list) => {
-      setItems(list);
-    });
-    return () => {
-      try { unsub(); } catch {}
-    };
+    // Load initial data
+    onRefresh();
   }, [user?.uid]);
 
   const onRefresh = async () => {
@@ -71,6 +67,8 @@ export default function GiftsInboxScreen() {
               setRedeemingId(item.id);
               const res = await giftService.redeemGiftReceipt(user.uid!, item.id);
               Alert.alert('Thành công', `Bạn đã nhận được 🥖 ${res.redeemValue}`);
+              // Update local state to mark as redeemed
+              setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, redeemed: true, redeemValue: res.redeemValue } : i)));
             } catch (e: any) {
               const msg = e?.message || 'Có lỗi xảy ra, vui lòng thử lại';
               Alert.alert('Không thể đổi quà', msg);

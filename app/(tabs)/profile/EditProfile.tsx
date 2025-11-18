@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, StyleSheet, ScrollView, ImageBackground, TouchableOpacity } from 'react-native';
-import { TextInput, Button, RadioButton, Text, Card, Avatar } from 'react-native-paper';
+import { TextInput, Button, RadioButton, Text, Card, Avatar, Chip } from 'react-native-paper';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/authContext';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,17 @@ import { db } from '@/firebaseConfig';
 import { Colors } from '@/constants/Colors';
 import { ThemeContext } from '@/context/ThemeContext';
 import VibeAvatar from '@/components/vibe/VibeAvatar';
+import { getInterestsArray, getLabelForInterest, getIdForInterest } from '@/utils/interests';
+
+interface ProfileForm {
+    name: string;
+    email: string;
+    age: string;
+    gender: string;
+    bio: string;
+    icon: string | null;
+    interests: string[];
+}
 
 const EditProfile = () => {
     const { user, setName, setEmail, setAge, setGender, setBio, setIcon, icon, refreshUser } = useAuth();
@@ -20,14 +31,18 @@ const EditProfile = () => {
 
     const { currentVibe } = useAuth();
 
-    const [profile, setProfile] = useState({
+    const [profile, setProfile] = useState<ProfileForm>({
         name: '',
         email: '',
         age: '',
         gender: 'male',
         bio: '',
         icon: '',
+        interests: [],
     });
+
+    // Interest items as { id, label }
+    const interestItems = getInterestsArray();
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -41,6 +56,7 @@ const EditProfile = () => {
                 gender: user.gender || 'male',
                 bio: user.bio || '',
                 icon: icon || null,
+                interests: Array.isArray(user.interests) ? user.interests : [],
             });
         }
     }, [user, icon]);
@@ -50,6 +66,10 @@ const EditProfile = () => {
             ...prev,
             [field]: value,
         }));
+    };
+
+    const toggleArrayItem = (array: string[], item: string): string[] => {
+        return array.includes(item) ? array.filter((i: string) => i !== item) : [...array, item];
     };
 
     const handleSave = async () => {
@@ -69,6 +89,7 @@ const EditProfile = () => {
                 gender: profile.gender,
                 bio: profile.bio,
                 profileUrl: profile.icon,
+                interests: profile.interests || [],
             });
             setName(profile.name);
             setEmail(profile.email);
@@ -169,7 +190,7 @@ const EditProfile = () => {
                             <Text style={[styles.radioTitle, { color: currentThemeColors.text }]}>Vibe hiện tại</Text>
                             <View style={styles.vibeAvatarContainer}>
                                 <VibeAvatar
-                                    avatarUrl={profile.icon}
+                                    avatarUrl={profile.icon || undefined}
                                     size={80}
                                     currentVibe={currentVibe}
                                     showAddButton={true}
@@ -186,6 +207,23 @@ const EditProfile = () => {
                                         )}
                                     </View>
                                 )}
+                            </View>
+                        </View>
+
+                        <View style={styles.filterSection}>
+                            <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Sở thích</Text>
+                            <View style={styles.tagsContainer}> 
+                                {interestItems.map((item: any) => (
+                                     <Chip
+                                       key={item}
+                                       selected={profile.interests.includes(item.id)}
+                                       onPress={() => setProfile(prev => ({ ...prev, interests: toggleArrayItem(prev.interests || [], item.id) }))}
+                                       style={[styles.interestChip, { borderColor: currentThemeColors.text }, profile.interests.includes(item) && styles.selectedChip]}
+                                       textStyle={{ color: profile.interests.includes(item.id) ? 'white' : currentThemeColors.text }}
+                                     >
+                                      {item.label}
+                                     </Chip>
+                                 ))}
                             </View>
                         </View>
 
@@ -315,6 +353,28 @@ const styles = StyleSheet.create({
         fontSize: 12,
         marginTop: 4,
         textAlign: 'center',
+    },
+    filterSection: {
+        marginBottom: 20,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        marginBottom: 10,
+    },
+    tagsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    interestChip: {
+        borderRadius: 20,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+    },
+    selectedChip: {
+        backgroundColor: Colors.primary,
     },
 });
 

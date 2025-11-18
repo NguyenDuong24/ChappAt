@@ -151,11 +151,10 @@ export const coinServerApi = {
   /**
    * Get transaction history
    * @param {number} limit - Number of transactions to fetch
-   * @param {number} offset - Offset for pagination
    * @returns {Promise<{success: boolean, transactions: Array, count: number}>}
    */
-  async getTransactions(limit = 50, offset = 0) {
-    return await apiRequest(`/wallet/transactions?limit=${limit}&offset=${offset}`, {
+  async getTransactions(limit = 50) {
+    return await apiRequest(`/wallet/transactions?limit=${limit}`, {
       method: 'GET',
     });
   },
@@ -244,6 +243,34 @@ export const coinServerApi = {
     return await apiRequest('/gifts/catalog', {
       method: 'GET',
     });
+  },
+
+  /**
+   * Reward user with a free gift for watching an ad
+   * @param {string} adId - Ad identifier
+   * @param {object} metadata - Additional metadata
+   * @returns {Promise<{success: boolean, gift: object, message: string}>}
+   */
+  async rewardGift(adId, metadata = {}) {
+    console.log('🎁 [REWARD GIFT] Called with params:', {
+      adId,
+      metadata,
+    });
+    
+    const requestBody = { adId, ...metadata };
+    console.log('📦 Request body:', requestBody);
+    
+    try {
+      const result = await apiRequest('/gifts/reward', {
+        method: 'POST',
+        body: JSON.stringify(requestBody),
+      });
+      console.log('✅ [REWARD GIFT] Success:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ [REWARD GIFT] Failed:', error);
+      throw error;
+    }
   },
 
   // ============== SHOP ==============

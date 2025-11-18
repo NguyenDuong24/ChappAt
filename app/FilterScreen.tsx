@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useStateCommon } from '@/context/stateCommon';
+import { DEFAULT_FILTER } from '@/utils/filterStorage';
+import interestsData from '@/assets/data/interests.json';
+import { getInterestsArray, getIdForInterest, getLabelForInterest, normalizeInterestsArray } from '@/utils/interests';
 
 const { width } = Dimensions.get('window');
 
@@ -28,7 +32,9 @@ interface FilterSettings {
 
 const FilterScreen = () => {
   const router = useRouter();
-  const [filters, setFilters] = useState<FilterSettings>({
+  const { stateCommon, setStateCommon } = useStateCommon();
+
+  const defaultFilter = {
     ageRange: { min: 18, max: 35 },
     distance: 50,
     showOnlineOnly: false,
@@ -37,12 +43,38 @@ const FilterScreen = () => {
     occupation: [],
     height: { min: 150, max: 200 },
     lookingFor: [],
-  });
+  };
 
-  const availableInterests = [
-    'Travel', 'Coffee', 'Photography', 'Music', 'Sports', 'Reading',
-    'Movies', 'Art', 'Cooking', 'Dancing', 'Gaming', 'Fitness'
-  ];
+  const initialFilter = stateCommon?.filter ? {
+    ageRange: { min: stateCommon.filter.minAge ? Number(stateCommon.filter.minAge) : 18, max: stateCommon.filter.maxAge ? Number(stateCommon.filter.maxAge) : 35 },
+    distance: stateCommon.filter.distance || 50,
+    showOnlineOnly: stateCommon.filter.showOnlineOnly || false,
+    interests: normalizeInterestsArray(Array.isArray(stateCommon.filter.interests) ? stateCommon.filter.interests : (stateCommon.filter.interests ? [stateCommon.filter.interests] : [])),
+    education: stateCommon.filter.education ? (Array.isArray(stateCommon.filter.education) ? stateCommon.filter.education : [stateCommon.filter.education]) : [],
+    occupation: stateCommon.filter.occupation ? (Array.isArray(stateCommon.filter.occupation) ? stateCommon.filter.occupation : [stateCommon.filter.occupation]) : [],
+    height: stateCommon.filter.height || { min: 150, max: 200 },
+    lookingFor: stateCommon.filter.lookingFor || [],
+  } : defaultFilter;
+
+  const [filters, setFilters] = useState<FilterSettings>(initialFilter);
+
+  useEffect(() => {
+    // Keep local filters in sync when global state changes
+    if (stateCommon?.filter) {
+      setFilters({
+        ageRange: { min: stateCommon.filter.minAge ? Number(stateCommon.filter.minAge) : 18, max: stateCommon.filter.maxAge ? Number(stateCommon.filter.maxAge) : 35 },
+        distance: stateCommon.filter.distance || 50,
+        showOnlineOnly: stateCommon.filter.showOnlineOnly || false,
+        interests: normalizeInterestsArray(Array.isArray(stateCommon.filter.interests) ? stateCommon.filter.interests : (stateCommon.filter.interests ? [stateCommon.filter.interests] : [])),
+        education: stateCommon.filter.education ? (Array.isArray(stateCommon.filter.education) ? stateCommon.filter.education : [stateCommon.filter.education]) : [],
+        occupation: stateCommon.filter.occupation ? (Array.isArray(stateCommon.filter.occupation) ? stateCommon.filter.occupation : [stateCommon.filter.occupation]) : [],
+        height: stateCommon.filter.height || { min: 150, max: 200 },
+        lookingFor: stateCommon.filter.lookingFor || [],
+      });
+    }
+  }, [stateCommon?.filter]);
+
+  const interestItems = useMemo(() => getInterestsArray(), []);
 
   const educationLevels = [
     'High School', 'Bachelor\'s', 'Master\'s', 'PhD', 'Other'
@@ -58,60 +90,72 @@ const FilterScreen = () => {
   ];
 
   const toggleArrayItem = (array: string[], item: string) => {
-    return array.includes(item)
-      ? array.filter(i => i !== item)
-      : [...array, item];
+    return array.includes(item) ? array.filter(i => i !== item) : [...array, item];
   };
 
   const resetFilters = () => {
-    setFilters({
-      ageRange: { min: 18, max: 35 },
-      distance: 50,
-      showOnlineOnly: false,
-      interests: [],
-      education: [],
-      occupation: [],
-      height: { min: 150, max: 200 },
-      lookingFor: [],
-    });
+    setFilters(defaultFilter);
+    setStateCommon({ filter: { ...DEFAULT_FILTER, interests: [] } });
   };
 
   const applyFilters = () => {
-    // Logic to apply filters and navigate back
+    // Persist filters to global state so Home reloads
+    setStateCommon({ filter: {
+      ...stateCommon?.filter,
+      minAge: filters.ageRange.min?.toString?.() || '',
+      maxAge: filters.ageRange.max?.toString?.() || '',
+      distance: filters.distance,
+      showOnlineOnly: filters.showOnlineOnly,
+      interests: filters.interests,
+      education: filters.education,
+      occupation: filters.occupation,
+      height: filters.height,
+      lookingFor: filters.lookingFor,
+    }});
+
+    // Go back
     router.back();
   };
 
   const renderToggleSection = (
     title: string,
-    items: string[],
+    items: any[],
     selectedItems: string[],
     onToggle: (item: string) => void
-  ) => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.tagsContainer}>
-        {items.map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[
-              styles.tagItem,
-              selectedItems.includes(item) && styles.tagItemSelected,
-            ]}
-            onPress={() => onToggle(item)}
-          >
-            <Text
-              style={[
-                styles.tagText,
-                selectedItems.includes(item) && styles.tagTextSelected,
-              ]}
-            >
-              {item}
-            </Text>
-          </TouchableOpacity>
-        ))}
+  ) => {
+    const isObjectList = items && items.length > 0 && typeof items[0] === 'object' && items[0].id;
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+        <View style={styles.tagsContainer}>
+          {items.map((item) => {
+            const id = isObjectList ? item.id : String(item);
+            const label = isObjectList ? item.label : getLabelForInterest(String(item));
+            const selected = selectedItems.includes(id);
+            return (
+              <TouchableOpacity
+                key={id}
+                style={[
+                  styles.tagItem,
+                  selected && styles.tagItemSelected,
+                ]}
+                onPress={() => onToggle(id)}
+              >
+                <Text
+                  style={[
+                    styles.tagText,
+                    selected && styles.tagTextSelected,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -189,7 +233,7 @@ const FilterScreen = () => {
         {/* Interests */}
         {renderToggleSection(
           'Interests',
-          availableInterests,
+          interestItems,
           filters.interests,
           (item) =>
             setFilters({

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import interestsData from '../assets/data/interests.json';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, auth } from '../firebaseConfig';
+import { useAuth } from '@/context/authContext';
+import { getInterestsArray, getIdForInterest, getLabelForInterest, normalizeInterestsArray } from '../utils/interests';
 
 const { width } = Dimensions.get('window');
 
@@ -31,6 +36,7 @@ interface UserProfile {
 
 const ProfileEditScreen = () => {
   const router = useRouter();
+  const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile>({
     name: 'Alex',
     age: 25,
@@ -41,7 +47,13 @@ const ProfileEditScreen = () => {
       'https://picsum.photos/400/600?random=12',
     ],
     location: 'Ho Chi Minh City',
-    interests: ['Travel', 'Coffee', 'Photography', 'Music'],
+    // Default interests (example) using ids/labels
+    interests: [
+      getIdForInterest('travel'),
+      getIdForInterest('coffee'),
+      getIdForInterest('photography'),
+      getIdForInterest('music'),
+    ],
     occupation: 'Software Developer',
     education: 'University of Technology',
     height: '175 cm',
@@ -51,20 +63,49 @@ const ProfileEditScreen = () => {
   const [editingBio, setEditingBio] = useState(false);
   const [tempBio, setTempBio] = useState(profile.bio);
 
+  // Ensure we have an array for interests to use
+  const interestItems = getInterestsArray();
+
   const saveBio = () => {
     setProfile({ ...profile, bio: tempBio });
     setEditingBio(false);
   };
 
-  const addInterest = () => {
-    // Logic to add new interest
+  const addInterest = async () => {
+    // Present a quick action sheet-style add modal — but here keep a simple prompt
+    // For simplicity, toggle first non-selected interest
+    const nextInterest = interestItems.map(i => i.id).find(i => !profile.interests.includes(i));
+    if (!nextInterest) return;
+
+    const newInterests = [...profile.interests, nextInterest];
+    setProfile({ ...profile, interests: newInterests });
+
+    // Persist to Firestore if user is logged in
+    try {
+      const uid = user?.uid || null;
+      if (uid) {
+        const userRef = doc(db, 'users', uid);
+        await updateDoc(userRef, { interests: newInterests });
+      }
+    } catch (error) {
+      console.warn('Failed to save user interests to Firestore', error);
+    }
   };
 
-  const removeInterest = (interest: string) => {
-    setProfile({
-      ...profile,
-      interests: profile.interests.filter(i => i !== interest),
-    });
+  const removeInterest = async (interest: string) => {
+    const newInterests = profile.interests.filter(i => i !== interest);
+    setProfile({ ...profile, interests: newInterests });
+
+    // Persist
+    try {
+      const uid = user?.uid || null;
+      if (uid) {
+        const userRef = doc(db, 'users', uid);
+        await updateDoc(userRef, { interests: newInterests });
+      }
+    } catch (error) {
+      console.warn('Failed to update user interests in Firestore', error);
+    }
   };
 
   return (
@@ -175,7 +216,7 @@ const ProfileEditScreen = () => {
           <View style={styles.interestsContainer}>
             {profile.interests.map((interest, index) => (
               <View key={index} style={styles.interestChip}>
-                <Text style={styles.interestText}>{interest}</Text>
+                <Text style={styles.interestText}>{getLabelForInterest(interest)}</Text>
                 <TouchableOpacity
                   onPress={() => removeInterest(interest)}
                   style={styles.removeInterestButton}

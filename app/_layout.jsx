@@ -1,7 +1,7 @@
 import '../polyfills';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Slot, Stack, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useState, useContext, useCallback } from 'react';
 import 'react-native-reanimated';
@@ -21,7 +21,7 @@ import contentModerationService from '@/services/contentModerationService';
 import Constants from 'expo-constants';
 import { VideoCallProvider } from '../context/VideoCallContext';
 import { Colors } from '../constants/Colors';
-import { register, VideoSDKProvider } from "@videosdk.live/react-native-sdk";
+import { register } from "@videosdk.live/react-native-sdk";
 import ThemedStatusBar from '@/components/common/ThemedStatusBar';
 
 // Import Firebase call services
@@ -98,49 +98,60 @@ const MainLayout = () => {
 
   // Handle incoming call và call status changes
   const handleCallUpdate = useCallback(async (callData) => {
+    if (!fontsLoaded) {
+      console.log('Layout not ready, skipping call update');
+      return;
+    }
+
     if (!callData || !user?.uid) {
       return;
     }
 
     const userRole = getUserRole(callData);
 
-    // Xử lý theo role và status
+    // Xử lý theo role và status, với check currentScreen để tránh navigate loop
     if (userRole === 'receiver') {
       // TÔI LÀ NGƯỜI NHẬN CUỘC GỌI
       switch (callData.status) {
         case CALL_STATUS.RINGING:
-          // Có cuộc gọi đến → hiển thị IncomingCallScreen để accept/decline
-          navigateToIncomingCallScreen(callData);
-          
-          // DỪNG TIMEOUT vì user đã thấy notification và vào màn hình
-          callTimeoutService.stopCallTimeout(callData.id);
-          
-          // Chỉ phát âm thanh nếu app đang foreground (push notification đã được gửi từ firebaseCallService)
-          try {
-            await playIncomingCallSound();
-            console.log('🔔 Playing incoming call sound');
-          } catch (error) {
-            console.error('❌ Error playing call sound:', error);
+          if (currentScreen !== 'incoming') {
+            // Có cuộc gọi đến → hiển thị IncomingCallScreen để accept/decline
+            navigateToIncomingCallScreen(callData);
+            
+            // DỪNG TIMEOUT vì user đã thấy notification và vào màn hình
+            callTimeoutService.stopCallTimeout(callData.id);
+            
+            // Chỉ phát âm thanh nếu app đang foreground (push notification đã được gửi từ firebaseCallService)
+            try {
+              await playIncomingCallSound();
+              console.log('🔔 Playing incoming call sound');
+            } catch (error) {
+              console.error('❌ Error playing call sound:', error);
+            }
           }
           break;
           
         case CALL_STATUS.ACCEPTED:
-          // Tôi đã accept call → vào CallScreen
-          navigateToCallScreen(callData);
+          if (currentScreen !== 'call') {
+            // Tôi đã accept call → vào CallScreen
+            navigateToCallScreen(callData);
+          }
           break;
           
         case CALL_STATUS.DECLINED:
         case CALL_STATUS.CANCELLED:
         case CALL_STATUS.ENDED:
-          // Call kết thúc → navigate back và dừng âm thanh
-          navigateBack();
-          
-          // Dừng âm thanh cuộc gọi nếu đang phát
-          try {
-            await stopCallSounds();
-            console.log('🔇 Stopped call sounds for ended call');
-          } catch (error) {
-            console.error('❌ Error stopping call sounds:', error);
+          if (currentScreen !== 'home') {
+            // Call kết thúc → navigate back và dừng âm thanh
+            navigateBack();
+            
+            // Dừng âm thanh cuộc gọi nếu đang phát
+            try {
+              await stopCallSounds();
+              console.log('🔇 Stopped call sounds for ended call');
+            } catch (error) {
+              console.error('❌ Error stopping call sounds:', error);
+            }
           }
           break;
       }
@@ -148,37 +159,42 @@ const MainLayout = () => {
       // TÔI LÀ NGƯỜI GỌI
       switch (callData.status) {
         case CALL_STATUS.RINGING:
-          // Tôi đã gọi và đang chờ → hiển thị ListenCallAcceptedScreen
-          navigateToListenCallScreen(callData);
-          
-          // DỪNG TIMEOUT vì caller đã thấy trạng thái chờ
-          callTimeoutService.stopCallTimeout(callData.id);
-          
+          if (currentScreen !== 'listen') {
+            // Tôi đã gọi và đang chờ → hiển thị ListenCallAcceptedScreen
+            navigateToListenCallScreen(callData);
+            
+            // DỪNG TIMEOUT vì caller đã thấy trạng thái chờ
+            callTimeoutService.stopCallTimeout(callData.id);
+          }
           break;
           
         case CALL_STATUS.ACCEPTED:
-          // Người kia accept → cả 2 vào CallScreen
-          navigateToCallScreen(callData);
+          if (currentScreen !== 'call') {
+            // Người kia accept → cả 2 vào CallScreen
+            navigateToCallScreen(callData);
+          }
           break;
           
         case CALL_STATUS.DECLINED:
         case CALL_STATUS.CANCELLED:
         case CALL_STATUS.ENDED:
-          // Call bị từ chối hoặc kết thúc → navigate back và dừng âm thanh
-          navigateBack();
-          
-          // Dừng âm thanh cuộc gọi nếu đang phát
-          try {
-            await stopCallSounds();
-            console.log('🔇 Stopped call sounds for ended call (caller)');
-          } catch (error) {
-            console.error('❌ Error stopping call sounds:', error);
+          if (currentScreen !== 'home') {
+            // Call bị từ chối hoặc kết thúc → navigate back và dừng âm thanh
+            navigateBack();
+            
+            // Dừng âm thanh cuộc gọi nếu đang phát
+            try {
+              await stopCallSounds();
+              console.log('🔇 Stopped call sounds for ended call (caller)');
+            } catch (error) {
+              console.error('❌ Error stopping call sounds:', error);
+            }
           }
           break;
       }
     } else {
     }
-  }, [getUserRole, navigateToIncomingCallScreen, navigateToListenCallScreen, navigateToCallScreen, navigateBack, user?.uid, playIncomingCallSound, stopCallSounds]);
+  }, [getUserRole, navigateToIncomingCallScreen, navigateToListenCallScreen, navigateToCallScreen, navigateBack, user?.uid, playIncomingCallSound, stopCallSounds, currentScreen]);
 
   // Setup Firebase call listener với unified handler
   useFirebaseCallListener(handleCallUpdate, handleCallUpdate);
@@ -189,49 +205,7 @@ const MainLayout = () => {
   return (
     <>
       <ThemedStatusBar translucent />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="TestScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="signin" options={{ headerShown: false }} />
-        <Stack.Screen name="signup" options={{ headerShown: false }} />
-        <Stack.Screen name="chat/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="groups/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="explore/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="ButtonToChat" options={{ headerShown: false }} />
-        <Stack.Screen name="IncomingCallScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="ListenCallAcceptedScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="CallScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="NavigationTestScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="NotificationsScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="NotificationDebugScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="QuickNotificationTest" options={{ headerShown: false }} />
-        <Stack.Screen name="TokenTestScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="NotificationNavigationTest" options={{ headerShown: false }} />
-        <Stack.Screen name="UserDebugScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="HotSpotsScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="HashtagScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="AdminHashtagScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="HashtagPostsScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="DeviceScan" options={{ headerShown: false }} />
-        <Stack.Screen name="AddFriend" options={{ headerShown: false }} />
-        <Stack.Screen name="GroupManagementScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="SearchMessageScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="PostDetailScreen"  options={{ headerShown: false }} />
-        <Stack.Screen name="HotSpotDetailScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="HotSpotChatScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="VibeScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="GroupVoiceRoom" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="UserProfileScreen"
-          options={{
-            headerShown: true,
-            headerStyle: { backgroundColor: currentThemeColors.backgroundHeader },
-            headerTintColor: currentThemeColors.text,
-            headerTitleStyle: { fontWeight: 'bold' },
-            title: 'Hồ Sơ',
-          }}
-        />
-      </Stack>
+      <Slot />
     </>
   );
 };
@@ -279,11 +253,7 @@ export default function RootLayout() {
                   <LogoStateProvider>
                     <LocationProvider>
                       <PaperProvider>
-                        <VideoCallProvider>
-                          <UserProvider>
-                            <MainLayout />
-                          </UserProvider>
-                        </VideoCallProvider>
+                        <MainLayout />
                       </PaperProvider>
                     </LocationProvider>
                   </LogoStateProvider>

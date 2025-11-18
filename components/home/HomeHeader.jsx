@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef, useEffect } from 'react';
+import React, { useState, useContext, useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, Text, ScrollView, StatusBar, Platform, Modal } from 'react-native';
 import { Appbar, Avatar, Button, TextInput, Chip } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
@@ -12,6 +12,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { saveFilterPreferences, loadFilterPreferences, getActiveFiltersCount as getActiveFiltersCountFromStorage } from '@/utils/filterStorage';
 import schoolsData from '../../assets/model/schools_hcm.json';
 import educationData from '@/assets/data/educationData.json';
+import interestsData from '@/assets/data/interests.json';
+import { getInterestsArray, getLabelForInterest, getIdForInterest, normalizeInterestsArray } from '@/utils/interests';
 
 const educationLevels = educationData.educationLevels;
 const jobs = educationData.jobs;
@@ -29,6 +31,7 @@ const HomeHeader = () => {
   const [selectedUniversity, setSelectedUniversity] = useState('');
   const [universitiesList, setUniversitiesList] = useState([]);
   const [universitySearch, setUniversitySearch] = useState('');
+  const [selectedInterests, setSelectedInterests] = useState([]);
 
   const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -41,8 +44,11 @@ const HomeHeader = () => {
   const { width, height } = Dimensions.get('window');
 
   // Storage constants
-  const DEFAULT_FILTER = { gender: '', minAge: '', maxAge: '' };
+  const DEFAULT_FILTER = { gender: '', minAge: '', maxAge: '', interests: [] };
 
+  // Interest items as { id, label }
+  const interestItems = useMemo(() => getInterestsArray(), []);
+  
   // Helper functions
   const getFilterSummary = (filter) => {
     const parts = [];
@@ -69,6 +75,11 @@ const HomeHeader = () => {
     if (filter.university) {
       parts.push(`Trường: ${filter.university}`);
     }
+
+    if (filter.interests && Array.isArray(filter.interests) && filter.interests.length > 0) {
+      const labels = filter.interests.slice(0,3).map(getLabelForInterest);
+      parts.push(`Sở thích: ${labels.join(', ')}${filter.interests.length > 3 ? '...' : ''}`);
+    }
     
     return parts.length > 0 ? parts.join(' • ') : 'Chưa chọn bộ lọc nào';
   };
@@ -81,19 +92,22 @@ const HomeHeader = () => {
     if (filter.job) count++;
     if (filter.educationLevel) count++;
     if (filter.university) count++;
+    if (filter.interests && Array.isArray(filter.interests) && filter.interests.length > 0) count++;
     return count;
   };
 
   // Load filter from global state when component mounts
   useEffect(() => {
     if (stateCommon?.filter) {
-      const { gender, minAge, maxAge, job, educationLevel, university } = stateCommon.filter;
+      const { gender, minAge, maxAge, job, educationLevel, university, interests } = stateCommon.filter;
       setSelectedGender(gender || '');
       setMinAge(minAge || '');
       setMaxAge(maxAge || '');
       setSelectedJob(job || '');
       setSelectedEducationLevel(educationLevel || '');
       setSelectedUniversity(university || '');
+      // Normalize to IDs in case stored values were labels or mixed
+      setSelectedInterests(Array.isArray(interests) ? normalizeInterestsArray(interests) : (interests ? [getIdForInterest(interests)] : []));
     }
   }, [stateCommon?.filter]);
 
@@ -128,7 +142,8 @@ const HomeHeader = () => {
       maxAge: maxAge,
       job: selectedJob,
       educationLevel: selectedEducationLevel,
-      university: selectedUniversity
+      university: selectedUniversity,
+      interests: selectedInterests,
     });
   };
 
@@ -140,8 +155,9 @@ const HomeHeader = () => {
     setSelectedEducationLevel('');
     setSelectedUniversity('');
     setUniversitySearch('');
+    setSelectedInterests([]);
     
-    const cleared = { gender: '', minAge: '', maxAge: '', job: '', educationLevel: '', university: '' };
+    const cleared = { gender: '', minAge: '', maxAge: '', job: '', educationLevel: '', university: '', interests: [] };
     setStateCommon({
       filter: { ...cleared }
     });
@@ -159,19 +175,16 @@ const HomeHeader = () => {
       job: selectedJob,
       educationLevel: selectedEducationLevel,
       university: selectedUniversity,
+      interests: selectedInterests,
     };
 
-    setStateCommon({
-      filter: { ...newFilter }
-    });
-    // persist
+    setStateCommon({ filter: { ...newFilter } });
     saveFilterPreferences(newFilter);
-    
     setFilterVisible(false);
   };
 
-  const handleGenderSelect = (gender) => {
-    setSelectedGender(selectedGender === gender ? '' : gender);
+  const toggleArrayItem = (array, item) => {
+    return array.includes(item) ? array.filter(i => i !== item) : [...array, item];
   };
 
   useEffect(() => {
@@ -501,6 +514,23 @@ const HomeHeader = () => {
                 </View>
               </View>
 
+              <View style={styles.filterSection}>
+                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Sở thích</Text>
+                <View style={styles.interestsChips}>
+                  {interestItems.map((it) => (
+                    <Chip
+                      key={it.id}
+                      selected={selectedInterests.includes(it.id)}
+                      onPress={() => setSelectedInterests(toggleArrayItem(selectedInterests, it.id))}
+                      style={[styles.interestChip, selectedInterests.includes(it.id) && styles.selectedChip]}
+                      textStyle={{ color: selectedInterests.includes(it.id) ? 'white' : currentThemeColors.text }}
+                    >
+                      {it.label}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+
               <View style={styles.filterActions}>
                 <Button 
                   mode="outlined" 
@@ -531,7 +561,8 @@ const HomeHeader = () => {
                     maxAge: maxAge,
                     job: selectedJob,
                     educationLevel: selectedEducationLevel,
-                    university: selectedUniversity
+                    university: selectedUniversity,
+                    interests: selectedInterests,
                   })}
                 </Text>
               </View>
@@ -820,19 +851,21 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     borderRadius: 30, // Softer rounded corners
   },
-  universityChips: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  universityChip: {
+  interestChip: {
     backgroundColor: 'rgba(0,0,0,0.06)',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.15,
     shadowRadius: 2,
-    borderRadius: 30, // Softer rounded corners
+    borderRadius: 30,
+    marginRight: 12,
+    marginBottom: 12,
+  },
+  interestsChips: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
   },
   searchInput: {
     backgroundColor: 'transparent',

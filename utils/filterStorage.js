@@ -8,6 +8,7 @@ export const DEFAULT_FILTER = {
   gender: '',
   minAge: '',
   maxAge: '',
+  interests: [],
 };
 
 /**
@@ -72,6 +73,22 @@ export const getFilterSummary = (filter) => {
     const ageText = `Tuổi: ${filter.minAge || 'Không giới hạn'} - ${filter.maxAge || 'Không giới hạn'}`;
     parts.push(ageText);
   }
+
+  if (filter.job) {
+    parts.push(`Nghề nghiệp: ${filter.job}`);
+  }
+
+  if (filter.educationLevel) {
+    parts.push(`Trình độ: ${filter.educationLevel}`);
+  }
+
+  if (filter.university) {
+    parts.push(`Trường: ${filter.university}`);
+  }
+
+  if (Array.isArray(filter.interests) && filter.interests.length > 0) {
+    parts.push(`Sở thích: ${filter.interests.join(', ')}`);
+  }
   
   return parts.length > 0 ? parts.join(' • ') : 'Chưa chọn bộ lọc nào';
 };
@@ -82,7 +99,7 @@ export const getFilterSummary = (filter) => {
  * @returns {boolean} True if filter has active values
  */
 export const hasActiveFilters = (filter) => {
-  return !!(filter.gender || filter.minAge || filter.maxAge);
+  return !!(filter.gender || filter.minAge || filter.maxAge || (Array.isArray(filter.interests) && filter.interests.length > 0));
 };
 
 /**
@@ -95,5 +112,9 @@ export const getActiveFiltersCount = (filter) => {
   if (filter.gender && filter.gender !== 'all') count++;
   if (filter.minAge) count++;
   if (filter.maxAge) count++;
+  if (filter.job) count++;
+  if (filter.educationLevel) count++;
+  if (filter.university) count++;
+  if (Array.isArray(filter.interests) && filter.interests.length > 0) count++;
   return count;
 };

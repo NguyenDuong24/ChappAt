@@ -9,6 +9,10 @@ import { acceptCall, declineCall, cancelCall, CALL_STATUS } from '@/services/fir
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
 import { useAudio } from '@/context/AudioContext';
 
+export const options = {
+  headerShown: false,
+};
+
 const ListenCallAcceptedScreen = () => {
   const { callId, meetingId, callerId, receiverId, callType, status } = useLocalSearchParams();
   const [callStatus, setCallStatus] = useState(status);

@@ -5,6 +5,7 @@ const resolveFrom = require("resolve-from");
 const config = getDefaultConfig(__dirname);
 
 // Add .bin to assetExts so Metro can bundle NSFW model weights
+config.resolver.assetExts = config.resolver.assetExts || [];
 config.resolver.assetExts.push("bin");
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {

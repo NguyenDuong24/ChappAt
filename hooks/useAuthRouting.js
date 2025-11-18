@@ -44,6 +44,7 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('HotSpotChatScreen') ||
       segments.includes('ProximityRadar') ||
       segments.includes('GroupVoiceRoom') ||
+      segments.includes('CoinWalletScreen') ||
       segments.includes('HotSpotDetailScreen');
 
     console.log('🔐 Auth routing check:', { isAuthenticated, segments });

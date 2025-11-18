@@ -1,17 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   TouchableOpacity,
   Text,
   TextInput,
   View,
-  FlatList,
   Alert,
   StyleSheet,
   Dimensions,
   StatusBar,
   Animated,
-  Platform,
 } from 'react-native';
 import {
   PanGestureHandler,
@@ -28,82 +26,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createMeeting, token } from '../api';
-import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import DebugMonitor from '../components/call/DebugMonitor';
-
-// Add error boundary for video components
-class VideoErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(error: any): { hasError: boolean } {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: any, errorInfo: any) {
-    console.error('Video component error:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text>Video temporarily unavailable</Text>
-        </View>
-      );
-    }
-
-    return this.props.children;
-  }
-}
 
 const { width, height } = Dimensions.get('window');
 
-// Draggable Local Video Component cho sender
+// Draggable Local Video Component cho sender - tạm thời bỏ animation để fix lỗi Animated
 function DraggableLocalVideo({ localParticipant, callType }: { 
   localParticipant: any; 
   callType: string; 
 }) {
-  const translateX = useRef(new Animated.Value(width - 140)).current; // Start from right
-  const translateY = useRef(new Animated.Value(100)).current; // Start from top
-  const [isDragging, setIsDragging] = useState(false);
-
-  const onGestureEvent = Animated.event(
-    [{ nativeEvent: { translationX: translateX, translationY: translateY } }],
-    { useNativeDriver: false }
-  );
-
-  const onHandlerStateChange = (event: any) => {
-    if (event.nativeEvent.oldState === State.ACTIVE) {
-      setIsDragging(false);
-      
-      // Snap to edges
-      const { translationX, translationY } = event.nativeEvent;
-      const screenWidth = width - 120; // Account for video width
-      const screenHeight = height - 160; // Account for video height and controls
-      
-      // Snap to nearest edge
-      const finalX = translationX > screenWidth / 2 ? screenWidth : 20;
-      const finalY = Math.max(60, Math.min(screenHeight, translationY));
-      
-      Animated.parallel([
-        Animated.spring(translateX, {
-          toValue: finalX,
-          useNativeDriver: false,
-        }),
-        Animated.spring(translateY, {
-          toValue: finalY,
-          useNativeDriver: false,
-        }),
-      ]).start();
-    } else if (event.nativeEvent.state === State.BEGAN) {
-      setIsDragging(true);
-    }
-  };
-
   const {
     webcamStream,
     webcamOn,
@@ -119,93 +50,35 @@ function DraggableLocalVideo({ localParticipant, callType }: {
   if (callType === 'audio') return null;
 
   return (
-    <PanGestureHandler
-      onGestureEvent={onGestureEvent}
-      onHandlerStateChange={onHandlerStateChange}
-    >
-      <Animated.View
-        style={[
-          styles.localVideoContainer,
-          {
-            transform: [
-              { translateX: translateX },
-              { translateY: translateY },
-            ],
-            opacity: isDragging ? 0.8 : 1,
-            elevation: isDragging ? 10 : 5,
-          },
-        ]}
-      >
-        {webcamOn && webcamStream && Platform.OS !== 'android' ? (
-          <RTCView
-            streamURL={new MediaStream([webcamStream.track]).toURL()}
-            objectFit="cover"
-            style={styles.localVideoStream}
-          />
-        ) : (
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            style={styles.localVideoPlaceholder}
-          >
-            <Ionicons name="person-circle" size={30} color="#FFFFFF" />
-            <Text style={styles.placeholderText}>
-              {Platform.OS === 'android' ? 'Video disabled on Android' : 'Camera off'}
-            </Text>
-          </LinearGradient>
-        )}
-        
-        {/* Local video status indicators */}
-        <View style={styles.localVideoStatus}>
-          <View style={[styles.localStatusIndicator, { backgroundColor: micOn ? '#4CAF50' : '#F44336' }]}>
-            <Ionicons name={micOn ? "mic" : "mic-off"} size={10} color="#FFFFFF" />
-          </View>
-          <View style={[styles.localStatusIndicator, { backgroundColor: webcamOn ? '#4CAF50' : '#F44336' }]}>
-            <Ionicons name={webcamOn ? "videocam" : "videocam-off"} size={10} color="#FFFFFF" />
-          </View>
+    <View style={styles.localVideoContainer}>
+      {webcamOn && webcamStream && webcamStream.track ? (
+        <RTCView
+          streamURL={new MediaStream([webcamStream.track]).toURL()}
+          objectFit="cover"
+          style={styles.localVideoStream}
+        />
+      ) : (
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          style={styles.localVideoPlaceholder}
+        >
+          <Ionicons name="person-circle" size={30} color="#FFFFFF" />
+        </LinearGradient>
+      )}
+      
+      {/* Local video status indicators */}
+      <View style={styles.localVideoStatus}>
+        <View style={[styles.localStatusIndicator, { backgroundColor: micOn ? '#4CAF50' : '#F44336' }]}>
+          <Ionicons name={micOn ? "mic" : "mic-off"} size={10} color="#FFFFFF" />
         </View>
-        
-        <Text style={styles.localVideoName}>You</Text>
-      </Animated.View>
-    </PanGestureHandler>
+        <View style={[styles.localStatusIndicator, { backgroundColor: webcamOn ? '#4CAF50' : '#F44336' }]}>
+          <Ionicons name={webcamOn ? "videocam" : "videocam-off"} size={10} color="#FFFFFF" />
+        </View>
+      </View>
+      
+      <Text style={styles.localVideoName}>You</Text>
+    </View>
   );
-}
-
-// Hook to play remote mic stream
-function useRemoteAudio(micStream: any, micOn: boolean, participantId: string) {
-  const soundRef = useRef<Audio.Sound | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function playAudio() {
-      if (micOn && micStream && micStream.track && Platform.OS !== 'android') { // Disable on Android to avoid ExoPlayer thread issue
-        try {
-          // Create a new sound object for the remote stream
-          const sound = new Audio.Sound();
-          // VideoSDK micStream.track provides a MediaStreamTrack, but Expo Audio expects a file or URI
-          // If VideoSDK provides a stream URL, use it. Otherwise, this may need a native module or workaround.
-          // For now, try to use toURL if available
-          const streamUrl = micStream.toURL ? micStream.toURL() : undefined;
-          if (streamUrl) {
-            await sound.loadAsync({ uri: streamUrl });
-            await sound.playAsync();
-            soundRef.current = sound;
-          } else {
-            console.warn('No stream URL for remote audio:', participantId);
-          }
-        } catch (error) {
-          console.error('Error playing remote audio:', error);
-        }
-      }
-    }
-    playAudio();
-    return () => {
-      isMounted = false;
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-    };
-  }, [micStream, micOn, participantId]);
 }
 
 // Remote Video Component cho receiver (lớn)
@@ -226,44 +99,9 @@ function RemoteVideoView({ participantId, callType }: {
     },
   });
 
-  // --- Remote mic playback logic ---
-  const [remoteAudio, setRemoteAudio] = useState<Audio.Sound | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function playRemoteMic() {
-      if (micOn && micStream && Platform.OS !== 'android') { // Temporarily disable on Android to avoid ExoPlayer thread issue
-        try {
-          // Try to get a valid URI from micStream
-          const streamUri = (micStream as any).url || (micStream as any).uri || undefined;
-          if (streamUri) {
-            const sound = new Audio.Sound();
-            await sound.loadAsync({ uri: streamUri }, { shouldPlay: true, isLooping: true });
-            if (isMounted) setRemoteAudio(sound);
-          } else {
-            console.warn('Remote micStream does not have a valid URI property. Cannot play remote audio.');
-          }
-        } catch (err) {
-          console.log('Error playing remote mic:', err);
-        }
-      }
-    }
-    playRemoteMic();
-    return () => {
-      isMounted = false;
-      if (remoteAudio) {
-        remoteAudio.unloadAsync();
-      }
-    };
-  }, [micOn, micStream]);
-  // --- End remote mic playback logic ---
-
-  // Play remote audio if available
-  useRemoteAudio(micStream, micOn, participantId);
-
   return (
     <View style={styles.remoteVideoContainer}>
-      {webcamOn && webcamStream && callType === 'video' && Platform.OS !== 'android' ? (
+      {webcamOn && webcamStream && webcamStream.track && callType === 'video' ? (
         <RTCView
           streamURL={new MediaStream([webcamStream.track]).toURL()}
           objectFit="cover"
@@ -271,23 +109,22 @@ function RemoteVideoView({ participantId, callType }: {
         />
       ) : (
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={['#1a1a2e', '#16213e', '#0f3460']}
           style={styles.remoteVideoPlaceholder}
         >
-          <Ionicons 
-            name="person-circle" 
-            size={callType === 'audio' ? 120 : 100} 
-            color="#FFFFFF" 
-          />
-          <Text style={styles.remoteParticipantName}>
-            {displayName || "Remote User"}
-          </Text>
-          {callType === 'audio' && (
-            <Text style={styles.audioCallLabel}>Audio Call</Text>
-          )}
-          {Platform.OS === 'android' && callType === 'video' && (
-            <Text style={styles.placeholderText}>Video disabled on Android</Text>
-          )}
+          <View style={styles.remoteAvatarContainer}>
+            <Ionicons 
+              name="person-circle" 
+              size={callType === 'audio' ? 120 : 100} 
+              color="#FFFFFF" 
+            />
+            <Text style={styles.remoteParticipantName}>
+              {displayName || "Remote User"}
+            </Text>
+            {callType === 'audio' && (
+              <Text style={styles.audioCallLabel}>Audio Call</Text>
+            )}
+          </View>
         </LinearGradient>
       )}
       
@@ -312,65 +149,6 @@ function RemoteVideoView({ participantId, callType }: {
   );
 }
 
-// Audio service for call sounds
-class AudioService {
-  private static callingSound: Audio.Sound | null = null;
-  private static joinSound: Audio.Sound | null = null;
-
-  static async loadSounds() {
-    try {
-      if (Platform.OS !== 'android') { // Temporarily disable sounds on Android
-        this.callingSound = new Audio.Sound();
-        await this.callingSound.loadAsync(require('../assets/sounds/calling.mp3'));
-      }
-    } catch (error) {
-      console.log('Error loading sounds:', error);
-    }
-  }
-
-  static async playCallingSound() {
-    try {
-      if (Platform.OS !== 'android' && this.callingSound) {
-        await this.callingSound.replayAsync();
-      }
-    } catch (error) {
-      console.log('Error playing calling sound:', error);
-    }
-  }
-
-  static async stopCallingSound() {
-    try {
-      if (Platform.OS !== 'android' && this.callingSound) {
-        await this.callingSound.stopAsync();
-      }
-    } catch (error) {
-      console.log('Error stopping calling sound:', error);
-    }
-  }
-
-  static async playJoinSound() {
-    try {
-      if (this.joinSound) {
-        await this.joinSound.replayAsync();
-      }
-    } catch (error) {
-      console.log('Error playing join sound:', error);
-    }
-  }
-
-  static async cleanup() {
-    try {
-      if (this.callingSound) {
-        await this.callingSound.unloadAsync();
-      }
-      if (this.joinSound) {
-        await this.joinSound.unloadAsync();
-      }
-    } catch (error) {
-      console.log('Error cleaning up sounds:', error);
-    }
-  }
-}
 // JoinScreen Component - với UI đẹp hơn
 function JoinScreen({ getMeetingId }: { getMeetingId: (id: string | null) => void }) {
   const [meetingVal, setMeetingVal] = useState("");
@@ -449,14 +227,14 @@ function JoinScreen({ getMeetingId }: { getMeetingId: (id: string | null) => voi
 
 // ControlsContainer Component - Enhanced with manual fallback
 function ControlsContainer({ 
-  end,
+  leave,
   toggleWebcam, 
   toggleMic, 
   callType, 
   micEnabled, 
   webcamEnabled 
 }: {
-  end: () => void;
+  leave: () => void;
   toggleWebcam: () => void;
   toggleMic: () => void;
   callType: string;
@@ -516,7 +294,13 @@ function ControlsContainer({
         )}
 
         <TouchableOpacity
-          onPress={end}
+          onPress={() => {
+            try {
+              leave();
+            } catch (error) {
+              console.error('Error leaving call:', error);
+            }
+          }}
           style={[styles.controlButton, styles.endButton]}
         >
           <Ionicons name="call-outline" size={24} color="#FFFFFF" />
@@ -543,12 +327,9 @@ function ParticipantView({ participantId, callType }: { participantId: string; c
     },
   });
 
-  // Play remote audio if available
-  useRemoteAudio(micStream, micOn, participantId);
-
   return (
     <View style={styles.participantContainer}>
-      {webcamOn && webcamStream ? (
+      {webcamOn && webcamStream && webcamStream.track ? (
         <RTCView
           streamURL={new MediaStream([webcamStream.track]).toURL()}
           objectFit={"cover"}
@@ -595,7 +376,15 @@ function ParticipantList({ participants, callType, localParticipantId }: {
   callType: string;
   localParticipantId?: string;
 }) {
-  const remoteParticipants = participants.filter(id => id !== localParticipantId);
+  console.log('🎥 ParticipantList called with:', { participants, callType, localParticipantId });
+  
+  // Ensure participants is always an array
+  const safeParticipants = Array.isArray(participants) ? participants : [];
+  console.log('🔧 Safe participants:', safeParticipants);
+  
+  const remoteParticipants = safeParticipants.filter(id => id !== localParticipantId);
+  console.log('👥 Remote participants:', remoteParticipants);
+  
   const firstRemoteParticipant = remoteParticipants[0];
 
   return (
@@ -646,7 +435,6 @@ function MeetingView({ callType }: { callType: string }) {
   const { 
     join, 
     leave, 
-    end,
     toggleWebcam, 
     toggleMic,
     participants, 
@@ -657,13 +445,14 @@ function MeetingView({ callType }: { callType: string }) {
   } = useMeeting({
     onMeetingJoined: async () => {
       setIsConnecting(false);
-      await AudioService.stopCallingSound();
-      await AudioService.playJoinSound();
     },
     onMeetingLeft: async () => {
-      await AudioService.stopCallingSound();
-      await AudioService.cleanup();
-      router.replace('/(tabs)/home');
+      try {
+        router.replace('/(tabs)/home');
+      } catch (error) {
+        console.error('Error during meeting left cleanup:', error);
+        router.replace('/(tabs)/home');
+      }
     },
     onParticipantJoined: (participant) => {
     },
@@ -679,17 +468,22 @@ function MeetingView({ callType }: { callType: string }) {
   });
 
   // Get participants từ useMeeting Hook
-  const participantsArrId = [...participants.keys()];
+  const participantsArrId = participants ? Array.from(participants.keys()) : [];
+  
+  // Debug logging for participants
+  useEffect(() => {
+    console.log('📊 Participants updated:', {
+      participantsType: typeof participants,
+      participantsIsMap: participants instanceof Map,
+      participantsSize: participants?.size || 0,
+      participantsArrId,
+      localParticipantId: localParticipant?.id
+    });
+  }, [participants, participantsArrId, localParticipant]);
 
-  // Auto join meeting và play calling sound
+  // Auto join meeting
   useEffect(() => {
     const initializeCall = async () => {
-      
-      // Load sounds
-      await AudioService.loadSounds();
-      
-      // Play calling sound
-      await AudioService.playCallingSound();
       
       // Join meeting
       join();
@@ -699,8 +493,13 @@ function MeetingView({ callType }: { callType: string }) {
 
     // Cleanup on unmount - Proper leave call
     return () => {
-      leave(); // Properly leave meeting on unmount
-      AudioService.cleanup();
+      try {
+        if (leave) {
+          leave(); // Properly leave meeting on unmount
+        }
+      } catch (error) {
+        console.error('Error leaving meeting:', error);
+      }
     };
   }, []);
 
@@ -727,14 +526,16 @@ function MeetingView({ callType }: { callType: string }) {
         </View>
       )}
       
-      <ParticipantList 
-        participants={participantsArrId} 
-        callType={callType}
-        localParticipantId={localParticipant?.id}
-      />
+      <VideoErrorBoundary>
+        <ParticipantList 
+          participants={participantsArrId || []} 
+          callType={callType || 'video'}
+          localParticipantId={localParticipant?.id}
+        />
+      </VideoErrorBoundary>
       
       <ControlsContainer
-        end={end}
+        leave={leave}
         toggleWebcam={toggleWebcam}
         toggleMic={toggleMic}
         callType={callType}
@@ -743,6 +544,74 @@ function MeetingView({ callType }: { callType: string }) {
       />
     </LinearGradient>
   );
+}
+
+// VideoErrorBoundary để catch lỗi video rendering
+class VideoErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('VideoErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Video Error: {this.state.error?.message || 'Unknown error'}</Text>
+          <TouchableOpacity onPress={() => this.setState({ hasError: false, error: null })}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// General ErrorBoundary để catch tất cả lỗi trong call
+class CallErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('CallErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Call Error: {this.state.error?.message || 'Unknown error'}</Text>
+          <TouchableOpacity onPress={() => this.setState({ hasError: false, error: null })}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 // Main CallScreen Component - theo VideoSDK guide
@@ -757,6 +626,8 @@ export default function CallScreen() {
     callType: paramCallType = 'video',
     createNew 
   } = params;
+
+  console.log('📞 CallScreen params:', { paramMeetingId, paramCallType, createNew });
 
   const getMeetingId = async (id: string | null) => {
     try {
@@ -777,6 +648,8 @@ export default function CallScreen() {
     }
   }, [createNew, paramMeetingId]);
 
+  console.log('📞 CallScreen state:', { meetingId, paramCallType });
+
   return meetingId ? (
     <SafeAreaView style={styles.container}>
       <MeetingProvider
@@ -785,10 +658,13 @@ export default function CallScreen() {
           micEnabled: true,
           webcamEnabled: (paramCallType as string) !== 'audio',
           name: "User", // Có thể customize
+          multiStream: true, // Enable multi-stream for better performance
         }}
         token={token}
       >
-        <MeetingView callType={paramCallType as string} />
+        <CallErrorBoundary>
+          <MeetingView callType={paramCallType as string} />
+        </CallErrorBoundary>
       </MeetingProvider>
     </SafeAreaView>
   ) : (
@@ -985,10 +861,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
+  waitingGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   waitingText: {
-    fontSize: 20,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
   },
 
   // Audio Call Styles
@@ -1200,42 +1081,37 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     color: '#FFFFFF',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
     textAlign: 'center',
   },
-
-  // Waiting State
-  waitingGradient: {
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    backgroundColor: 'rgba(0,0,0,0.8)',
   },
-
-  // Multiple participants indicator
+  errorText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryText: {
+    color: '#FFA500',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   multipleParticipantsIndicator: {
     position: 'absolute',
     top: 20,
     right: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 20,
   },
   participantCountText: {
-    fontSize: 12,
-    fontWeight: '500',
     color: '#FFFFFF',
-  },
-  placeholderText: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
-

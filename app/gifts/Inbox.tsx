@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, ActivityIndicator, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { Colors } from '@/constants/Colors';
@@ -8,6 +10,7 @@ import { useContext } from 'react';
 import { giftService } from '@/services/giftService';
 import type { GiftReceiptDoc } from '@/services/giftService';
 import { formatDetailedTime } from '@/utils/common';
+import CoinHeader from '@/components/common/CoinHeader';
 
 export default function GiftsInboxScreen() {
   const { user } = useAuth();
@@ -142,18 +145,43 @@ export default function GiftsInboxScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      <Stack.Screen
-        options={{
-          title: 'Quà đã nhận',
-          headerRight: () => (
-            <TouchableOpacity onPress={markAllRead} disabled={loadingAllRead} style={{ paddingHorizontal: 12 }}>
-              <Text style={{ color: loadingAllRead ? currentThemeColors.subtleText : currentThemeColors.tint }}>
-                Đọc hết
-              </Text>
-            </TouchableOpacity>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ headerShown: false }} />
+
+      {/* Custom Header */}
+      <LinearGradient
+        colors={['#FF69B4', '#FF1493']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+
+          <View style={styles.headerTitle}>
+            <Text style={styles.headerEmoji}>🎁</Text>
+            <Text style={styles.headerTitleText}>Hộp Quà</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.actionButton, loadingAllRead && { opacity: 0.7 }]}
+            onPress={markAllRead}
+            disabled={loadingAllRead}
+          >
+            {loadingAllRead ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="checkmark-done-circle-outline" size={24} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.headerStats}>
+          <Text style={styles.headerStatsLabel}>Tổng quà đã nhận</Text>
+          <Text style={styles.headerStatsValue}>{items.length}</Text>
+        </View>
+      </LinearGradient>
 
       <FlatList
         data={items}
@@ -200,4 +228,70 @@ const styles = StyleSheet.create({
   },
   redeemBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
   redeemedLabel: { fontSize: 12, marginTop: 6, fontWeight: '600' },
+  // Header Styles
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    marginBottom: 10,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerEmoji: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  headerTitleText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  actionButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerStats: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 12,
+    padding: 10,
+    marginHorizontal: 20,
+  },
+  headerStatsLabel: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  headerStatsValue: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
 });

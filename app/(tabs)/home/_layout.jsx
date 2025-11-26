@@ -5,16 +5,36 @@ import HomeHeader from '@/components/home/HomeHeader';
 
 const StackLayout = () => {
   return (
-    <Stack>
-        <Stack.Screen
-         name="index"
-         options={{
-            headerShown: true,
-            header: () => <HomeHeader/>,
-            headerTransparent: true,
-            headerTitle: "",
-         }}
-        />
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen
+        name="index"
+        options={{
+          headerShown: true,
+          header: () => <HomeHeader />,
+          headerTransparent: true,
+          headerTitle: "",
+        }}
+      />
+      <Stack.Screen
+        name="UserProfileScreen"
+        options={{
+          headerShown: false,
+          presentation: 'card',
+          animation: 'slide_from_right',
+        }}
+      />
+      <Stack.Screen
+        name="chat/[id]"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   )
 }

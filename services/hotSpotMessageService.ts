@@ -33,7 +33,7 @@ class HotSpotMessageService {
   }
 
   // Delete or recall message
-  async deleteMessage(chatRoomId: string, messageId: string, isCurrentUser: boolean): Promise<void> {
+  async deleteMessage(chatRoomId: string, messageId: string, isCurrentUser: boolean, currentUserId?: string): Promise<void> {
     const messageRef = doc(db, 'hotSpotChats', chatRoomId, 'messages', messageId);
     if (isCurrentUser) {
       await updateDoc(messageRef, {
@@ -44,7 +44,8 @@ class HotSpotMessageService {
         updatedAt: serverTimestamp(),
       });
     } else {
-      await updateDoc(messageRef, { deletedFor: serverTimestamp(), updatedAt: serverTimestamp() });
+      // For receiver: mark as deleted for this user only (soft delete)
+      await updateDoc(messageRef, { deletedFor: arrayUnion(currentUserId || 'unknown'), updatedAt: serverTimestamp() });
     }
   }
 

@@ -1,6 +1,6 @@
 import { db } from '@/firebaseConfig';
 import { formatTime, getRoomId } from '@/utils/common';
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import { collection, doc, DocumentData, onSnapshot, orderBy, query, limit, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
@@ -16,6 +16,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
+  const segments = useSegments();
   const [internalLastMessage, setInternalLastMessage] = useState<DocumentData | null>(null);
   const [internalUnreadCount, setInternalUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -256,10 +257,13 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
         });
       } else {
         // Navigate to regular chat
-        router.push({
-          pathname: '/chat/[id]',
-          params: { id: item.id },
-        });
+        try {
+          const activeTab = Array.isArray(segments) ? (segments[0] === '(tabs)' ? segments[1] : segments[0]) : segments[0] || '';
+          const dest = activeTab === 'home' ? `/(tabs)/home/chat/${item.id}` : activeTab === 'chat' ? `/(tabs)/chat/${item.id}` : `/chat/${item.id}`;
+          router.push(dest as any);
+        } catch (e) {
+          router.push({ pathname: `/chat/${item.id}` as any });
+        }
       }
     } catch (error) {
       console.error('Error navigating to chat:', error);

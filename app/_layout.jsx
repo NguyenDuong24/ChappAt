@@ -1,7 +1,7 @@
 import '../polyfills';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter, useSegments, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useState, useContext, useCallback } from 'react';
 import 'react-native-reanimated';
@@ -73,9 +73,9 @@ const MainLayout = () => {
   if (!fontsLoaded) {
     return null;
   }
-  
+
   // Call navigation hooks
-  const { 
+  const {
     navigateToListenCallScreen,
     navigateToIncomingCallScreen,
     navigateToCallScreen,
@@ -86,13 +86,13 @@ const MainLayout = () => {
   // Xác định user role dựa trên callerId và receiverId
   const getUserRole = useCallback((callData) => {
     if (!user?.uid || !callData) return null;
-    
+
     if (callData.callerId === user.uid) {
       return 'caller'; // Tôi là người GỌI
     } else if (callData.receiverId === user.uid) {
       return 'receiver'; // Tôi là người NHẬN
     }
-    
+
     return null;
   }, [user?.uid]);
 
@@ -117,10 +117,10 @@ const MainLayout = () => {
           if (currentScreen !== 'incoming') {
             // Có cuộc gọi đến → hiển thị IncomingCallScreen để accept/decline
             navigateToIncomingCallScreen(callData);
-            
+
             // DỪNG TIMEOUT vì user đã thấy notification và vào màn hình
             callTimeoutService.stopCallTimeout(callData.id);
-            
+
             // Chỉ phát âm thanh nếu app đang foreground (push notification đã được gửi từ firebaseCallService)
             try {
               await playIncomingCallSound();
@@ -130,21 +130,21 @@ const MainLayout = () => {
             }
           }
           break;
-          
+
         case CALL_STATUS.ACCEPTED:
           if (currentScreen !== 'call') {
             // Tôi đã accept call → vào CallScreen
             navigateToCallScreen(callData);
           }
           break;
-          
+
         case CALL_STATUS.DECLINED:
         case CALL_STATUS.CANCELLED:
         case CALL_STATUS.ENDED:
           if (currentScreen !== 'home') {
             // Call kết thúc → navigate back và dừng âm thanh
             navigateBack();
-            
+
             // Dừng âm thanh cuộc gọi nếu đang phát
             try {
               await stopCallSounds();
@@ -162,26 +162,26 @@ const MainLayout = () => {
           if (currentScreen !== 'listen') {
             // Tôi đã gọi và đang chờ → hiển thị ListenCallAcceptedScreen
             navigateToListenCallScreen(callData);
-            
+
             // DỪNG TIMEOUT vì caller đã thấy trạng thái chờ
             callTimeoutService.stopCallTimeout(callData.id);
           }
           break;
-          
+
         case CALL_STATUS.ACCEPTED:
           if (currentScreen !== 'call') {
             // Người kia accept → cả 2 vào CallScreen
             navigateToCallScreen(callData);
           }
           break;
-          
+
         case CALL_STATUS.DECLINED:
         case CALL_STATUS.CANCELLED:
         case CALL_STATUS.ENDED:
           if (currentScreen !== 'home') {
             // Call bị từ chối hoặc kết thúc → navigate back và dừng âm thanh
             navigateBack();
-            
+
             // Dừng âm thanh cuộc gọi nếu đang phát
             try {
               await stopCallSounds();
@@ -205,7 +205,10 @@ const MainLayout = () => {
   return (
     <>
       <ThemedStatusBar translucent />
-      <Slot />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="UserProfileScreen" options={{ headerShown: false }} />
+      </Stack>
     </>
   );
 };
@@ -243,26 +246,30 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
-      <AuthContextProvider>
-        <AudioProvider>
-          <NotificationProvider>
-            <StateCommonProvider>
-              <ThemeProvider>
-                <AppStateProvider>
-                  <LogoStateProvider>
-                    <LocationProvider>
-                      <PaperProvider>
-                        <MainLayout />
-                      </PaperProvider>
-                    </LocationProvider>
-                  </LogoStateProvider>
-                </AppStateProvider>
-              </ThemeProvider>
-            </StateCommonProvider>
-          </NotificationProvider>
-        </AudioProvider>
-      </AuthContextProvider>
+      <UserProvider>
+        {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
+        <AuthContextProvider>
+          <AudioProvider>
+            <VideoCallProvider>
+              <NotificationProvider>
+                <StateCommonProvider>
+                  <ThemeProvider>
+                    <AppStateProvider>
+                      <LogoStateProvider>
+                        <LocationProvider>
+                          <PaperProvider>
+                            <MainLayout />
+                          </PaperProvider>
+                        </LocationProvider>
+                      </LogoStateProvider>
+                    </AppStateProvider>
+                  </ThemeProvider>
+                </StateCommonProvider>
+              </NotificationProvider>
+            </VideoCallProvider>
+          </AudioProvider>
+        </AuthContextProvider>
+      </UserProvider>
     </GestureHandlerRootView>
   );
 }

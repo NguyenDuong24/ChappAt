@@ -15,8 +15,8 @@ export default function TabsLayout() {
 
   return (
     <>
-    <Tabs
-      listeners={{
+      <Tabs
+        listeners={{
           tabPress: (e) => {
             // Nếu đang ở tab profile, reset về màn hình gốc
             if (e.target?.includes('profile')) {
@@ -24,94 +24,98 @@ export default function TabsLayout() {
             }
           },
         }}
-      screenOptions={{
-        tabBarShowLabel: false, // Loại bỏ văn bản dưới biểu tượng
-        tabBarStyle: {
-          backgroundColor: currentThemeColors.background, // Đổi màu nền cho tab bar
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="home"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <View style={styles.iconContainer}>
-              <Ionicons
-                name="home"
-                size={focused ? 22 : 20}
-                color={focused ? Colors.primary : currentThemeColors.text}
-              />
-              {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
-            </View>
-          ),
-          headerShown: false,
+        screenOptions={{
+          tabBarShowLabel: false, // Loại bỏ văn bản dưới biểu tượng
+          tabBarStyle: {
+            backgroundColor: currentThemeColors.background, // Đổi màu nền cho tab bar
+          },
         }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <View style={styles.iconContainer}>
-              <Feather
-                name="globe"
-                size={focused ? 22 : 20}
-                color={focused ? Colors.primary : currentThemeColors.text}
-              />
-               {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{
-          headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <View style={styles.iconContainer}>
-              <Entypo
-                name="chat"
-                size={focused ? 22 : 20}
-                color={focused ? Colors.primary : currentThemeColors.text}
-              />
-               {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="groups"
-        options={{
-          headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <View style={styles.iconContainer}>
-              <Ionicons
-                name="people"
-                size={focused ? 22 : 20}
-                color={focused ? Colors.primary : currentThemeColors.text}
-              />
-               {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <View style={styles.iconContainer}>
-              <FontAwesome
-                name="user-circle-o"
-                size={focused ? 22 : 20}
-                color={focused ? Colors.primary : currentThemeColors.text}
-              />
-               {focused && <View style={[styles.indicator, {backgroundColor: Colors.primary}]} />}
-            </View>
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <Tabs.Screen
+          name="home"
+          options={{
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <Ionicons
+                  name="home"
+                  size={focused ? 22 : 20}
+                  color={focused ? Colors.primary : currentThemeColors.text}
+                />
+                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+              </View>
+            ),
+            headerShown: false,
+            unmountOnBlur: false, // keep home mounted so list state isn't reset when navigating away
+          }}
+        />
+        <Tabs.Screen
+          name="explore"
+          options={{
+            headerShown: false,
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <Feather
+                  name="globe"
+                  size={focused ? 22 : 20}
+                  color={focused ? Colors.primary : currentThemeColors.text}
+                />
+                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+              </View>
+            ),
+            unmountOnBlur: false, // keep explore mounted so state isn't reset when navigating away
+          }}
+        />
+        <Tabs.Screen
+          name="chat"
+          options={{
+            headerShown: false,
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <Entypo
+                  name="chat"
+                  size={focused ? 22 : 20}
+                  color={focused ? Colors.primary : currentThemeColors.text}
+                />
+                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+              </View>
+            ),
+            unmountOnBlur: false, // keep chat list mounted so it returns to same state
+          }}
+        />
+        <Tabs.Screen
+          name="groups"
+          options={{
+            headerShown: false,
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <Ionicons
+                  name="people"
+                  size={focused ? 22 : 20}
+                  color={focused ? Colors.primary : currentThemeColors.text}
+                />
+                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+              </View>
+            ),
+            unmountOnBlur: false, // keep groups mounted so state isn't reset when navigating away
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            headerShown: false,
+            tabBarIcon: ({ focused }) => (
+              <View style={styles.iconContainer}>
+                <FontAwesome
+                  name="user-circle-o"
+                  size={focused ? 22 : 20}
+                  color={focused ? Colors.primary : currentThemeColors.text}
+                />
+                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+              </View>
+            ),
+          }}
+        />
+      </Tabs>
     </>
   );
 }

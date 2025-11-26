@@ -26,16 +26,11 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
 
-  if (!user) return null;
-
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
-  const displayName = user.username || user.displayName || user.name || 'Unknown User';
-  const profileImage = user.profileUrl || user.photoURL || user.avatar;
   const uid = user?.uid || user?.id || 'No UID';
-  const currentVibe = user?.currentVibe || user?.vibe || user?.vibeStatus || null;
 
   useEffect(() => {
     Animated.parallel([
@@ -148,11 +143,17 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
     }
   };
 
+  if (!user) return null;
+
+  const displayName = user.username || user.displayName || user.name || 'Unknown User';
+  const profileImage = user.profileUrl || user.photoURL || user.avatar;
+  const currentVibe = user?.currentVibe || user?.vibe || user?.vibeStatus || null;
+
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       {/* Cover Section with Blur Gradient */}
       <View style={styles.coverWrapper}>
-        <CustomImage type="cover" source={user?.coverImage} style={styles.coverImage} />
+        <CustomImage type="cover" source={user?.coverImage} style={styles.coverImage} onLongPress={() => {}} />
         <LinearGradient
           colors={[
             'transparent',

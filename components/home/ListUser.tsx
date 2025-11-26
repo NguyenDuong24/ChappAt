@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useRouter, useSegments } from 'expo-router';
 import React, { useContext } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, Text, RefreshControl, Animated } from 'react-native';
 import { Avatar, Card, Chip } from 'react-native-paper';
@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ListUser({ users, onRefresh, refreshing }: any) {
   const router = useRouter();
+  const segments = useSegments();
   const { location } = React.useContext(LocationContext);
   const insets = useSafeAreaInsets();
   const themeContext = useContext(ThemeContext);
@@ -23,6 +24,9 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const { user: viewer } = useAuth();
   const viewerShowOnline = viewer?.showOnlineStatus !== false;
+
+  // Derive activeTab from segments
+  const activeTab = Array.isArray(segments) ? (segments[0] === '(tabs)' ? segments[1] : segments[0]) : segments[0];
 
   // Per-item scale refs stored in a map (avoid hooks inside renderItem)
   const scaleMapRef = React.useRef<Record<string, Animated.Value>>({});
@@ -37,11 +41,11 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
   const renderUserItem = ({ item, index }: any) => {
     const ageColor = item.gender === 'male' ? Colors.secondary : item.gender === 'female' ? Colors.primary : currentThemeColors.subtleText;
     const genderIconColor = item.gender === 'male' ? Colors.primary : item.gender === 'female' ? Colors.secondary : currentThemeColors.subtleText;
-    const gradientColors: [string, string] = item.gender === 'male' 
-      ? ['#667eea', '#764ba2'] 
-      : item.gender === 'female' 
-      ? ['#f093fb', '#f5576c'] 
-      : ['#4facfe', '#00f2fe'];
+    const gradientColors: [string, string] = item.gender === 'male'
+      ? ['#667eea', '#764ba2']
+      : item.gender === 'female'
+        ? ['#f093fb', '#f5576c']
+        : ['#4facfe', '#00f2fe'];
 
     let distance = 0;
     if (location) {
@@ -64,13 +68,21 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
 
     return (
       <Card style={[styles.userCard, { backgroundColor: currentThemeColors.surface || currentThemeColors.background }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.userContainer}
           onPress={() => {
-            router.push({
-              pathname: "/UserProfileScreen",
-              params: { userId: item.id }
-            });
+            // Navigate to UserProfileScreen within the current tab's stack
+            if (activeTab === 'home') {
+              router.push({
+                pathname: "/(tabs)/home/UserProfileScreen",
+                params: { userId: item.id }
+              });
+            } else {
+              router.push({
+                pathname: "/UserProfileScreen",
+                params: { userId: item.id }
+              });
+            }
           }}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
@@ -88,7 +100,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                 {/* Avatar Section */}
                 <View style={styles.avatarSection}>
                   <View style={styles.avatarContainer}>
-                    <View style={[styles.avatarBorder, { borderColor: vibe ? vibe.color : 'white' }]}> 
+                    <View style={[styles.avatarBorder, { borderColor: vibe ? vibe.color : 'white' }]}>
                       <VibeAvatar
                         avatarUrl={item.profileUrl}
                         size={50}
@@ -100,7 +112,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                     {/* Online Status Indicator */}
                     {viewerShowOnline && (
                       <View style={[
-                        styles.statusIndicator, 
+                        styles.statusIndicator,
                         item.isOnline ? styles.online : styles.offline
                       ]}>
                         <View style={[styles.statusDot, item.isOnline ? styles.onlineDot : styles.offlineDot]} />
@@ -108,7 +120,7 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                     )}
                     {/* Vibe emoji badge on avatar */}
                     {vibe && (
-                      <View style={[styles.vibeEmojiBadge, { backgroundColor: vibe.color }]}> 
+                      <View style={[styles.vibeEmojiBadge, { backgroundColor: vibe.color }]}>
                         <Text style={styles.vibeEmojiBadgeText}>{vibe.emoji}</Text>
                       </View>
                     )}
@@ -124,21 +136,21 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                         <Text style={[styles.userName, { color: currentThemeColors.text }]} numberOfLines={1}>
                           {item.username}
                         </Text>
-                        <MaterialCommunityIcons 
-                          name={item.gender === 'male' ? "gender-male" : item.gender === 'female' ? "gender-female" : "account"} 
-                          size={16} 
-                          color={genderIconColor} 
+                        <MaterialCommunityIcons
+                          name={item.gender === 'male' ? "gender-male" : item.gender === 'female' ? "gender-female" : "account"}
+                          size={16}
+                          color={genderIconColor}
                         />
                       </View>
                     </View>
 
-                    
+
                     {/* Bio */}
                     <Text style={[styles.bio, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
                       {item.bio || "Chưa có thông tin giới thiệu"}
                     </Text>
 
-                    
+
                     {/* Vibe row (if user has a current vibe) */}
                     {vibe && (
                       <View style={styles.vibeRow}>
@@ -161,11 +173,11 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                         ) : null}
                       </View>
                     )}
-                    
+
                     {/* Tags Section (age and distance) */}
                     <View style={styles.tagsContainer}>
-                      <Chip 
-                        compact 
+                      <Chip
+                        compact
                         style={[styles.ageChip, { backgroundColor: ageColor + '15' }]}
                         textStyle={[styles.chipText, { color: ageColor }]}
                         icon="calendar"
@@ -173,8 +185,8 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                         {typeof item.age === 'number' ? `${item.age} tuổi` : 'N/A'}
                       </Chip>
                       {distance !== null && !isNaN(distance) && (
-                        <Chip 
-                          compact 
+                        <Chip
+                          compact
                           style={[styles.distanceChipSmall, { backgroundColor: currentThemeColors.tint + '15' }]}
                           textStyle={[styles.chipText, { color: currentThemeColors.tint }]}
                           icon="map-marker"
@@ -184,15 +196,17 @@ export default function ListUser({ users, onRefresh, refreshing }: any) {
                       )}
                     </View>
                   </View>
-                  
+
                   {/* Action Button */}
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => {
-                      router.push({
-                        pathname: "/chat/[id]",
-                        params: { id: item.id }
-                      });
+                      const dest = activeTab === 'chat'
+                        ? `/(tabs)/chat/${item.id}`
+                        : activeTab === 'home'
+                          ? `/(tabs)/home/chat/${item.id}`
+                          : `/chat/${item.id}`;
+                      router.push(dest as any);
                     }}
                   >
                     <LinearGradient

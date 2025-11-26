@@ -784,7 +784,7 @@ function ChatRoomInner() {
       <KeyboardAvoidingView style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.container, { backgroundColor: currentThemeColors.background, justifyContent: 'center', alignItems: 'center' }]}>
-          <ChatRoomHeader router={router} user={userInfo} userId={peerId} chatTheme={currentTheme}/>
+          <ChatRoomHeader router={router} user={userInfo} userId={peerId} onThemePress={() => {}} chatTheme={currentTheme}/>
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#6366F1" />
             <Text style={{ color: currentThemeColors.text, marginTop: 12 }}>
@@ -806,7 +806,7 @@ function ChatRoomInner() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.container, { backgroundColor: currentTheme?.backgroundColor || currentThemeColors.background }]}>
-        <ChatRoomHeader router={router} user={userInfo} userId={peerId} onThemePress={() => setShowThemePicker(true)} chatTheme={currentTheme}/>
+        <ChatRoomHeader router={router} user={userInfo} userId={peerId} onThemePress={() => {}} chatTheme={currentTheme}/>
 
         {/* Gift picker modal */}
         <Modal
@@ -945,19 +945,19 @@ function ChatRoomInner() {
               <Text style={{ fontSize: 18 }}>🥖</Text>
             </TouchableOpacity>
               <TextInput
-                value={newMessage}
-                onChangeText={setNewMessage}
-                placeholder="Type a message"
-                mode="flat"
-                style={[styles.textInput]}
-                underlineColor="transparent"
-                theme={{ colors: { primary: 'transparent', underlineColor: 'transparent' } }}
-                placeholderTextColor={currentTheme?.textColor ? `${currentTheme.textColor}80` : currentThemeColors.placeholderText}
-                textColor={currentTheme?.textColor || currentThemeColors.text}
-                onSubmitEditing={handleSend}
-                blurOnSubmit
-                returnKeyType="send"
-              />
+                 value={newMessage}
+                 onChangeText={setNewMessage}
+                 placeholder="Type a message"
+                 mode="flat"
+                 style={[styles.textInput]}
+                 underlineColor="transparent"
+                theme={{ colors: { primary: 'transparent' } as any }}
+                 placeholderTextColor={currentTheme?.textColor ? `${currentTheme.textColor}80` : currentThemeColors.placeholderText}
+                 textColor={currentTheme?.textColor || currentThemeColors.text}
+                 onSubmitEditing={handleSend}
+                 blurOnSubmit
+                 returnKeyType="send"
+               />
             </View>
 
             {/* Send button */}
@@ -1141,3 +1141,6 @@ export default function ChatRoom() {
     </ChatThemeProvider>
   );
 }
+
+// Also export the inner component so nested routes can reuse it
+export { ChatRoomInner };

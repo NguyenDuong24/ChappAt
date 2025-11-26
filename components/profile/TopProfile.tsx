@@ -37,7 +37,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { giftService } from '@/services/giftService';
 import { useStateCommon } from '@/context/stateCommon';
 import { BlurView } from 'expo-blur';
-import { getLabelForInterest, getIdForInterest } from '@/utils/interests';
+import { getLabelForInterest } from '@/utils/interests';
 
 const { width } = Dimensions.get('window');
 
@@ -60,7 +60,7 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const { stateCommon, setStateCommon } = useStateCommon();
-  
+
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
@@ -140,7 +140,7 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
 
   const updateBioHashtags = async (newBio: string) => {
     if (!user?.uid) return;
-    
+
     const hashtags = extractHashtags(newBio);
     for (const tagItem of hashtags) {
       const tagDocRef = doc(collection(db, 'hashtags'), tagItem);
@@ -170,14 +170,12 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
     }
   };
 
-  const handleInterestFilterPress = (interest: string) => {
-    const currentInterests = Array.isArray(stateCommon?.filter?.interests) ? stateCommon.filter.interests : (stateCommon?.filter?.interests ? [stateCommon?.filter?.interests] : []);
-    const alreadySelected = currentInterests.includes(interest);
-    const newInterests = alreadySelected ? [] : [interest];
-
-    setStateCommon({ filter: { ...stateCommon?.filter, interests: newInterests } });
-
-    try { router.push('/(tabs)/home'); } catch (_e) {}
+  const openWallet = () => {
+    // Vì TopProfile nằm trong tab Profile, ta mặc định from='profile'
+    router.push({
+      pathname: '/CoinWalletScreen',
+      params: { from: 'profile' }
+    });
   };
 
   if (!user) {
@@ -189,7 +187,7 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={[styles.container, { backgroundColor: currentThemeColors.background }]}
       showsVerticalScrollIndicator={false}
     >
@@ -200,15 +198,21 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
             type="cover"
             source={user?.coverImage}
             style={styles.coverImage}
-            onLongPress={() => {}}
+            onLongPress={() => { }}
           />
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.7)']}
             style={styles.coverGradient}
           />
-          
+
           {/* Floating Actions */}
           <View style={styles.floatingActions}>
+            <TouchableOpacity
+              onPress={() => router.push('/admin/dashboard')}
+              style={[styles.floatingButton, { backgroundColor: 'rgba(255,255,255,0.2)', marginRight: 8 }]}
+            >
+              <Feather name="shield" size={18} color="#fff" />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push('/profile/settings')}
               style={[styles.floatingButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
@@ -225,10 +229,10 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
                 size={110}
                 currentVibe={currentVibe}
                 showAddButton={true}
-                storyUser={{ 
-                  id: user?.uid || '', 
-                  username: user?.username || user?.displayName, 
-                  profileUrl: user?.profileUrl 
+                storyUser={{
+                  id: user?.uid || '',
+                  username: user?.username || user?.displayName,
+                  profileUrl: user?.profileUrl
                 }}
               />
             </View>
@@ -244,7 +248,7 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
             {user?.username || user?.displayName || 'User'}
           </Text>
         </View>
-        
+
         <TouchableOpacity onPress={handleCopyUID} style={styles.uidBadge} activeOpacity={0.7}>
           <Text style={styles.uidText}>ID: {user?.uid?.slice(0, 8)}</Text>
           <Feather name="copy" size={10} color="#999" />
@@ -254,10 +258,10 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {isEditingBio ? (
             <TextInput
-              style={[styles.bioInputSmall, { 
-                color: currentThemeColors.text, 
+              style={[styles.bioInputSmall, {
+                color: currentThemeColors.text,
                 backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
-                borderColor: currentThemeColors.border 
+                borderColor: currentThemeColors.border
               }]}
               value={bio}
               onChangeText={setBio}
@@ -277,10 +281,10 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
             style={[styles.editBioButtonSmall, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
             activeOpacity={0.7}
           >
-            <Feather 
-              name={isEditingBio ? 'check' : 'edit-3'} 
-              size={12} 
-              color={currentThemeColors.text} 
+            <Feather
+              name={isEditingBio ? 'check' : 'edit-3'}
+              size={12}
+              color={currentThemeColors.text}
             />
           </TouchableOpacity>
         </View>
@@ -320,19 +324,18 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
               </Text>
             </View>
           </View>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.interestsScroll}
           >
             {(user.interests as string[]).map((interest: string, index: number) => (
               <TouchableOpacity
                 key={`${interest}-${index}`}
-                onPress={() => handleInterestFilterPress(getIdForInterest(interest))}
                 activeOpacity={0.7}
               >
                 <LinearGradient
-                  colors={theme === 'dark' 
+                  colors={theme === 'dark'
                     ? ['rgba(139, 92, 246, 0.2)', 'rgba(59, 130, 246, 0.2)']
                     : ['rgba(139, 92, 246, 0.1)', 'rgba(59, 130, 246, 0.1)']
                   }
@@ -352,73 +355,107 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
 
       {/* Rewards Section */}
       <View style={styles.rewardsSection}>
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.rewardsScroll}
         >
-          <TouchableOpacity 
-            style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}
-            onPress={() => router.push('/CoinWalletScreen')}
+          <TouchableOpacity
+            style={[styles.rewardCardCoin, { backgroundColor: currentThemeColors.cardBackground }]}
+            onPress={openWallet}
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={['#FFD700', '#FFA500']}
-              style={styles.rewardIcon}
+              colors={['#FFD700', '#FFA500', '#FF8C00']}
+              style={styles.rewardIconCoin}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.rewardEmoji}>🥖</Text>
+              {/* Shine effect overlay */}
+              <LinearGradient
+                colors={['rgba(255,255,255,0.8)', 'transparent', 'rgba(255,255,255,0.5)']}
+                style={styles.shineOverlay}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <Text style={styles.rewardEmojiLarge}>💰</Text>
             </LinearGradient>
-            <View style={styles.rewardInfo}>
-              <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
-                {Number(coins || 0).toLocaleString()}
-              </Text>
-              <Text style={[styles.rewardLabel, { color: currentThemeColors.subtleText }]}>
-                Coins
-              </Text>
+            <View style={styles.rewardInfoCoin}>
+              <View style={styles.coinValueRow}>
+                <Text style={styles.coinIcon}>🪙</Text>
+                <Text style={[styles.rewardValueLarge, { color: currentThemeColors.text }]}>
+                  {Number(coins || 0).toLocaleString()}
+                </Text>
+              </View>
+              <View style={styles.coinLabelRow}>
+                <Text style={[styles.rewardLabelCoin, { color: currentThemeColors.subtleText }]}>
+                  My Coins
+                </Text>
+                <Feather name="chevron-right" size={14} color={currentThemeColors.subtleText} />
+              </View>
             </View>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}
+          <TouchableOpacity
+            style={[styles.rewardCardGift, { backgroundColor: currentThemeColors.cardBackground }]}
             onPress={() => router.push('/gifts/Inbox')}
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={['#FF69B4', '#FF1493']}
-              style={styles.rewardIcon}
+              colors={['#FF69B4', '#FF1493', '#C71585']}
+              style={styles.rewardIconGift}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.rewardEmoji}>🎁</Text>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.8)', 'transparent', 'rgba(255,255,255,0.5)']}
+                style={styles.shineOverlay}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <Text style={styles.rewardEmojiLarge}>🎁</Text>
             </LinearGradient>
-            <View style={styles.rewardInfo}>
-              <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
-                {giftStats.count}
-              </Text>
-              <Text style={[styles.rewardLabel, { color: currentThemeColors.subtleText }]}>
-                Gifts
-              </Text>
+            <View style={styles.rewardInfoGift}>
+              <View style={styles.coinValueRow}>
+                <Text style={[styles.rewardValueLarge, { color: currentThemeColors.text }]}>
+                  {giftStats.count}
+                </Text>
+              </View>
+              <View style={styles.coinLabelRow}>
+                <Text style={[styles.rewardLabelGift, { color: currentThemeColors.subtleText }]}>
+                  Gifts
+                </Text>
+                <Feather name="chevron-right" size={14} color={currentThemeColors.subtleText} />
+              </View>
             </View>
           </TouchableOpacity>
 
-          <View style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}>
+          <View style={[styles.rewardCardValue, { backgroundColor: currentThemeColors.cardBackground }]}>
             <LinearGradient
-              colors={['#9370DB', '#8A2BE2']}
-              style={styles.rewardIcon}
+              colors={['#9370DB', '#8A2BE2', '#4B0082']}
+              style={styles.rewardIconValue}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <Text style={styles.rewardEmoji}>💎</Text>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.8)', 'transparent', 'rgba(255,255,255,0.5)']}
+                style={styles.shineOverlay}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+              <Text style={styles.rewardEmojiLarge}>💎</Text>
             </LinearGradient>
-            <View style={styles.rewardInfo}>
-              <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
-                {giftStats.value.toLocaleString()}
-              </Text>
-              <Text style={[styles.rewardLabel, { color: currentThemeColors.subtleText }]}>
-                Value
-              </Text>
+            <View style={styles.rewardInfoValue}>
+              <View style={styles.coinValueRow}>
+                <Text style={[styles.rewardValueLarge, { color: currentThemeColors.text }]}>
+                  {giftStats.value.toLocaleString()}
+                </Text>
+              </View>
+              <View style={styles.coinLabelRow}>
+                <Text style={[styles.rewardLabelValue, { color: currentThemeColors.subtleText }]}>
+                  Value
+                </Text>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -653,6 +690,155 @@ const styles = StyleSheet.create({
   rewardLabel: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  // New styles for Coin Card
+  rewardCardCoin: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 0,
+    borderRadius: 24,
+    width: 160,
+    height: 180,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  rewardIconCoin: {
+    width: '100%',
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  shineOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.3,
+    transform: [{ rotate: '45deg' }, { scale: 1.5 }],
+  },
+  rewardEmojiLarge: {
+    fontSize: 48,
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  rewardInfoCoin: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  coinValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  coinIcon: {
+    fontSize: 16,
+  },
+  rewardValueLarge: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  coinLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    opacity: 0.8,
+  },
+  rewardLabelCoin: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  // Gift Card Styles
+  rewardCardGift: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 0,
+    borderRadius: 24,
+    width: 160,
+    height: 180,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 105, 180, 0.3)',
+    shadowColor: "#FF69B4",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  rewardIconGift: {
+    width: '100%',
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  rewardInfoGift: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  rewardLabelGift: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  // Value Card Styles
+  rewardCardValue: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: 0,
+    borderRadius: 24,
+    width: 160,
+    height: 180,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 112, 219, 0.3)',
+    shadowColor: "#9370DB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  rewardIconValue: {
+    width: '100%',
+    height: 110,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  rewardInfoValue: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingBottom: 6,
+  },
+  rewardLabelValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });
 

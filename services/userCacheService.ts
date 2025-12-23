@@ -69,7 +69,7 @@ class UserCacheService {
     // Batch fetch uncached users
     if (uncachedIds.length > 0) {
       const fetchedUsers = await this.batchFetchUsers(uncachedIds);
-      
+
       fetchedUsers.forEach((userData, userId) => {
         this.setCache(userId, userData);
         result.set(userId, userData);
@@ -82,7 +82,7 @@ class UserCacheService {
   // Preload users for better performance
   async preloadUsers(userIds: string[]): Promise<void> {
     const uncachedIds = userIds.filter(id => !this.cache.has(id));
-    
+
     if (uncachedIds.length > 0) {
       await this.batchFetchUsers(uncachedIds);
     }
@@ -91,7 +91,7 @@ class UserCacheService {
   private async fetchUser(userId: string): Promise<UserData | null> {
     try {
       const userDoc = await getDoc(doc(db, 'users', userId));
-      
+
       if (userDoc.exists()) {
         return {
           uid: userDoc.id,
@@ -99,7 +99,7 @@ class UserCacheService {
           _cachedAt: Date.now()
         } as UserData;
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error fetching user:', userId, error);
@@ -109,32 +109,32 @@ class UserCacheService {
 
   private async batchFetchUsers(userIds: string[]): Promise<Map<string, UserData>> {
     const result = new Map<string, UserData>();
-    
+
     if (userIds.length === 0) return result;
 
     try {
       // Firestore 'in' query limit is 10, so we need to batch
       const batches = this.chunkArray(userIds, 10);
-      
+
       const promises = batches.map(async (batch) => {
         const usersRef = collection(db, 'users');
         const q = query(usersRef, where('__name__', 'in', batch.map(id => doc(db, 'users', id))));
-        
+
         const snapshot = await getDocs(q);
-        
+
         snapshot.docs.forEach(docSnapshot => {
           const userData = {
             uid: docSnapshot.id,
             ...docSnapshot.data(),
             _cachedAt: Date.now()
           } as UserData;
-          
+
           result.set(docSnapshot.id, userData);
         });
       });
 
       await Promise.all(promises);
-      
+
       console.log('✅ Batch fetched', result.size, 'users');
     } catch (error) {
       console.error('❌ Error batch fetching users:', error);
@@ -169,12 +169,12 @@ class UserCacheService {
     });
 
     expiredKeys.forEach(key => this.cache.delete(key));
-    
+
     // If still too large, remove oldest entries
     if (this.cache.size >= this.MAX_CACHE_SIZE) {
       const entries = Array.from(this.cache.entries());
       entries.sort((a, b) => (a[1]._cachedAt || 0) - (b[1]._cachedAt || 0));
-      
+
       const toRemove = entries.slice(0, Math.floor(this.MAX_CACHE_SIZE * 0.3));
       toRemove.forEach(([key]) => this.cache.delete(key));
     }

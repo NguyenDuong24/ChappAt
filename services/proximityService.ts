@@ -13,6 +13,8 @@ import {
 import { db } from '../firebaseConfig';
 import { getDistance, getGreatCircleBearing } from 'geolib';
 import { safeReverseGeocodeAsync } from '../utils/geocodingUtils';
+import { ref as storageRef, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebaseConfig';
 
 export interface NearbyUser {
   id: string;
@@ -134,25 +136,19 @@ class ProximityService {
       const q = query(usersRef, where('location', '!=', null));
 
       const querySnapshot = await getDocs(q);
-      const nearbyUsers: NearbyUser[] = [];
-
-      const currentTime = Date.now();
-
-      querySnapshot.forEach((docSnap) => {
-        if (docSnap.id === userId) return; // Skip self
+      const nearbyUsersPromises = querySnapshot.docs.map(async (docSnap) => {
+        if (docSnap.id === userId) return null; // Skip self
 
         const userData = docSnap.data();
-        if (!userData.location) return;
+        if (!userData.location) return null;
 
         // Check if location data is recent enough
         if (!includeOffline && userData.lastLocationUpdate) {
-          const lastUpdate = userData.lastLocationUpdate.toMillis
-            ? userData.lastLocationUpdate.toMillis()
-            : new Date(userData.lastLocationUpdate).getTime();
+          const lastUpdate = this.convertTimestampToMillis(userData.lastLocationUpdate);
 
-          if (currentTime - lastUpdate > maxAge) {
+          if (lastUpdate && Date.now() - lastUpdate > maxAge) {
             console.log(`⏱️ User ${docSnap.id} location is too old, skipping`);
-            return;
+            return null;
           }
         }
 
@@ -177,28 +173,33 @@ class ProximityService {
             userLon
           );
 
-          nearbyUsers.push({
+          const photoURL = await this.resolvePhotoUrl(userData);
+
+          return {
             id: docSnap.id,
             name: userData.name || userData.username || 'Unknown',
-            photoURL: userData.photoURL || userData.profileImage || 'https://via.placeholder.com/150',
+            photoURL,
             distance: Math.round(distance),
             bearing,
             location: {
               latitude: userLat,
               longitude: userLon,
             },
-            bio: userData.bio,
-            age: userData.age,
-            lastLocationUpdate: userData.lastLocationUpdate?.toDate?.()?.toISOString?.() || userData.lastLocationUpdate,
-          });
+            bio: typeof userData?.bio === 'string' ? userData.bio : undefined,
+            age: typeof userData?.age === 'number' ? userData.age : undefined,
+            lastLocationUpdate: this.convertTimestampToString(userData.lastLocationUpdate),
+          } as NearbyUser;
         }
+        return null;
       });
 
-      // Sort by distance
-      nearbyUsers.sort((a, b) => a.distance - b.distance);
+      const nearbyUsersResolved = (await Promise.all(nearbyUsersPromises)).filter(Boolean) as NearbyUser[];
 
-      console.log(`✅ Found ${nearbyUsers.length} nearby users within ${radius}m`);
-      return nearbyUsers;
+      // Sort by distance
+      nearbyUsersResolved.sort((a, b) => a.distance - b.distance);
+
+      console.log(`✅ Found ${nearbyUsersResolved.length} nearby users within ${radius}m`);
+      return nearbyUsersResolved;
     } catch (error) {
       console.error('Error finding nearby users:', error);
       throw error;
@@ -266,23 +267,25 @@ class ProximityService {
   ): () => void {
     const userDocRef = doc(db, 'users', userId);
 
-    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+    const unsubscribe = onSnapshot(userDocRef, async (docSnap) => {
       if (docSnap.exists()) {
         const userData = docSnap.data();
         if (userData.location) {
+          const photoUrl = await this.resolvePhotoUrl(userData);
+
           onUpdate({
             id: docSnap.id,
             name: userData.name || userData.username || 'Unknown',
-            photoURL: userData.photoURL || userData.profileImage || 'https://via.placeholder.com/150',
+            photoURL: photoUrl,
             distance: 0, // Will be calculated by caller
             bearing: 0, // Will be calculated by caller
             location: {
               latitude: userData.location.latitude,
               longitude: userData.location.longitude,
             },
-            bio: userData.bio,
-            age: userData.age,
-            lastLocationUpdate: userData.lastLocationUpdate?.toDate?.()?.toISOString?.() || userData.lastLocationUpdate,
+            bio: typeof userData.bio === 'string' ? userData.bio : undefined,
+            age: typeof userData.age === 'number' ? userData.age : undefined,
+            lastLocationUpdate: this.convertTimestampToString(userData.lastLocationUpdate),
           });
         } else {
           onUpdate(null);
@@ -362,30 +365,145 @@ class ProximityService {
   }
 
   /**
-   * Get address from coordinates (safe version)
+   * Get address from coordinates (safe version with fallback)
    */
   async getAddressFromCoordinates(
     latitude: number,
     longitude: number
-  ): Promise<string | null> {
+  ): Promise<string> {
+    // Return coordinate string as fallback
+    const coordString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    
     try {
       const addresses = await safeReverseGeocodeAsync({ latitude, longitude });
       if (addresses && addresses.length > 0) {
         const address = addresses[0];
         const parts = [
           address.street,
+          address.district,
           address.city,
           address.region,
-          address.country
         ].filter(Boolean);
 
-        return parts.length > 0 ? parts.join(', ') : null;
+        return parts.length > 0 ? parts.join(', ') : coordString;
       }
-      return null;
+      return coordString;
     } catch (error) {
-      console.error('Error getting address from coordinates:', error);
-      return null;
+      // Silent fail - errors already logged in safeReverseGeocodeAsync
+      return coordString;
     }
+  }
+
+  /**
+   * Resolve user photo URL asynchronously, supporting firebase storage refs (gs://) and storage paths
+   */
+  private async resolvePhotoUrl(userData: any): Promise<string> {
+    const fallback = 'https://via.placeholder.com/150';
+    const url = userData?.profileUrl || userData?.photoURL || userData?.profileImage || userData?.avatar || null;
+    if (!url) return fallback;
+
+    if (typeof url !== 'string') return fallback;
+
+    // If already an http(s) URL return as-is
+    if (/^https?:\/\//i.test(url)) return url;
+
+    // If GS path like gs://bucket/path/to/file
+    if (/^gs:\/\//i.test(url)) {
+      const path = url.replace(/^gs:\/\/[\w.-]+\//i, '');
+      try {
+        const ref = storageRef(storage, path);
+        const downloadUrl = await getDownloadURL(ref);
+        return downloadUrl;
+      } catch (error) {
+        console.warn('Failed to get download URL from gs:// path', error);
+        return fallback;
+      }
+    }
+
+    // If path is like '/avatars/user.jpg' or 'avatars/user.jpg'
+    const normalizedPath = url.startsWith('/') ? url.slice(1) : url;
+    try {
+      const ref = storageRef(storage, normalizedPath);
+      const downloadUrl = await getDownloadURL(ref);
+      return downloadUrl;
+    } catch (error) {
+      console.warn('Failed to get download URL for storage path:', normalizedPath, error);
+      return fallback;
+    }
+  }
+
+  /**
+   * Convert Firestore Timestamp to ISO string safely
+   */
+  private convertTimestampToString(timestamp: any): string | undefined {
+    if (!timestamp) return undefined;
+    
+    // If it's already a string, return it
+    if (typeof timestamp === 'string') return timestamp;
+    
+    // If it has toDate method (Firestore Timestamp), use it
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      try {
+        return timestamp.toDate().toISOString();
+      } catch (error) {
+        console.warn('Failed to convert Timestamp to Date:', error);
+      }
+    }
+    
+    // If it has seconds/nanoseconds (Firestore Timestamp object)
+    if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+      try {
+        const date = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+        return date.toISOString();
+      } catch (error) {
+        console.warn('Failed to convert timestamp object to Date:', error);
+      }
+    }
+    
+    // Fallback: try to convert to string
+    try {
+      return new Date(timestamp).toISOString();
+    } catch (error) {
+      console.warn('Failed to convert timestamp to string:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Convert Firestore Timestamp to milliseconds safely
+   */
+  private convertTimestampToMillis(timestamp: any): number | undefined {
+    if (!timestamp) return undefined;
+    
+    // If it has toMillis method (Firestore Timestamp), use it
+    if (timestamp.toMillis && typeof timestamp.toMillis === 'function') {
+      try {
+        return timestamp.toMillis();
+      } catch (error) {
+        console.warn('Failed to get millis from Timestamp:', error);
+      }
+    }
+    
+    // If it has seconds/nanoseconds (Firestore Timestamp object)
+    if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
+      try {
+        return timestamp.seconds * 1000 + Math.floor(timestamp.nanoseconds / 1000000);
+      } catch (error) {
+        console.warn('Failed to convert timestamp object to millis:', error);
+      }
+    }
+    
+    // Try to convert as date
+    try {
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+        return date.getTime();
+      }
+    } catch (error) {
+      console.warn('Failed to convert timestamp to millis:', error);
+    }
+    
+    return undefined;
   }
 }
 

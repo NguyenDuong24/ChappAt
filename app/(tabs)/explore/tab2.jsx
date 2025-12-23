@@ -1,16 +1,59 @@
-import React, { useContext, useRef, useState } from 'react';
-import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated, Platform } from 'react-native';
+import React, { useContext, useRef, useState, useCallback, useMemo, memo } from 'react';
+import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated, Platform, StyleSheet } from 'react-native';
 import useExplore from '../../explore/useExplore';
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';  // Import modern Colors
+import { Colors } from '@/constants/Colors';
 import { useExploreHeader } from '@/context/ExploreHeaderContext';
+import { useTranslation } from 'react-i18next';
 
 const HEADER_HEIGHT = Platform.OS === 'ios' ? 280 : 260;
 
+// Memoized Loading Component
+const LoadingView = memo(({ backgroundColor, primaryColor }) => (
+  <View style={[styles.centerContainer, { backgroundColor }]}>
+    <ActivityIndicator size="large" color={primaryColor} />
+  </View>
+));
+
+// Memoized Error Component
+const ErrorView = memo(({ backgroundColor, textColor, error, t }) => (
+  <View style={[styles.centerContainer, { backgroundColor }]}>
+    <Text style={{ color: textColor }}>{t('common.error')}: {error}</Text>
+  </View>
+));
+
+// Memoized Skeleton Footer
+const SkeletonFooter = memo(({ cardBackground }) => (
+  <View style={styles.footerContainer}>
+    {[0, 1, 2].map(i => (
+      <View
+        key={`sk-${i}`}
+        style={[styles.skeleton, { backgroundColor: cardBackground }]}
+      />
+    ))}
+  </View>
+));
+
+// Memoized Post Card wrapper
+const MemoizedPostCard = memo(PostCard, (prevProps, nextProps) => {
+  return (
+    prevProps.post?.id === nextProps.post?.id &&
+    prevProps.post?.likes?.length === nextProps.post?.likes?.length &&
+    prevProps.post?.comments?.length === nextProps.post?.comments?.length &&
+    prevProps.user?.uid === nextProps.user?.uid
+  );
+});
+
 const Tab2Screen = () => {
-  // Safe hook usage
+  const { t } = useTranslation();
+  // Call hooks at the top level - NOT inside useMemo/useCallback
+  const { user } = useAuth();
+  const themeContext = useContext(ThemeContext);
+  const headerContext = useExploreHeader();
+
+  // Safe hook usage - call hook directly at top level
   let hookData;
   try {
     hookData = useExplore();
@@ -19,123 +62,161 @@ const Tab2Screen = () => {
     hookData = {
       sortedPostsByLike: [],
       loading: false,
-      error: 'Failed to load posts',
-      deletePost: () => {},
-      toggleLike: () => {},
-      addComment: () => {},
+      error: t('common.no_data'),
+      deletePost: () => { },
+      toggleLike: () => { },
+      addComment: () => { },
       fetchPosts: () => Promise.resolve(),
-      loadMore: () => {},
+      loadMore: () => { },
       hasMore: false,
       loadingMore: false,
     };
   }
 
   const { sortedPostsByLike, loading, error, deletePost, toggleLike, addComment, fetchPosts, loadMore, hasMore, loadingMore } = hookData;
-  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   // Header scroll binding
-  const headerContext = useExploreHeader();
   const { scrollY, handleScroll, effectiveHeaderHeight } = headerContext || {};
-  
+
   const defaultScrollY = useRef(new Animated.Value(0)).current;
   const defaultEffectiveHeaderHeight = useRef(new Animated.Value(HEADER_HEIGHT)).current;
-  const onScroll = handleScroll || Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY || defaultScrollY } } }], 
-    { useNativeDriver: false }
+
+  const onScroll = useMemo(() =>
+    handleScroll || Animated.event(
+      [{ nativeEvent: { contentOffset: { y: scrollY || defaultScrollY } } }],
+      { useNativeDriver: false }
+    ),
+    [handleScroll, scrollY, defaultScrollY]
   );
 
   // Theme
-  const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = useMemo(() =>
+    theme === 'dark' ? Colors.dark : Colors.light,
+    [theme]
+  );
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchPosts();
     setRefreshing(false);
-  };
+  }, [fetchPosts]);
 
-  const handleDeletePost = (id) => {
+  const handleDeletePost = useCallback((id) => {
     Alert.alert(
-      'Confirm Delete',
-      'Are you sure you want to delete this post?',
+      t('social.delete_post_title'),
+      t('social.delete_post_message'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'OK', onPress: () => deletePost(id) },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.ok'), onPress: () => deletePost(id) },
       ],
       { cancelable: true }
     );
-  };
+  }, [deletePost, t]);
 
-  const handleLike = async (postId, userId, isLiked) => {
+  const handleLike = useCallback(async (postId, userId, isLiked) => {
     await toggleLike(postId, userId, isLiked);
-  };
+  }, [toggleLike]);
 
-  const renderFooter = () => {
+  const handleComment = useCallback((id) => {
+    console.log(`Commented on post ${id}`);
+  }, []);
+
+  const handleShare = useCallback((id) => {
+    console.log(`Shared post ${id}`);
+  }, []);
+
+  const renderFooter = useCallback(() => {
     if (!loadingMore) return null;
-    return (
-      <View style={{ paddingVertical: 12 }}>
-        {[0,1,2].map(i => (
-          <View key={`sk-${i}`} style={{ height: 180, borderRadius: 12, marginHorizontal: 16, marginBottom: 12, backgroundColor: currentThemeColors.cardBackground, opacity: 0.5 }} />
-        ))}
-      </View>
-    );
-  };
+    return <SkeletonFooter cardBackground={currentThemeColors.cardBackground} />;
+  }, [loadingMore, currentThemeColors.cardBackground]);
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
+  const renderItem = useCallback(({ item }) => (
+    <MemoizedPostCard
+      post={item}
+      currentUserId={user?.uid || ''}
+      currentUserAvatar={user?.profileUrl}
+      onLike={handleLike}
+      onComment={(postId, comment) => addComment(postId, { text: comment })}
+      onShare={handleShare}
+      onDelete={() => handleDeletePost(item.id)}
+      isOwner={user?.uid === item.userID}
+      onUserPress={(userId) => console.log('User pressed:', userId)}
+    />
+  ), [user, handleLike, handleShare, handleDeletePost, addComment]);
+
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !loading) loadMore();
+  }, [hasMore, loading, loadMore]);
+
+  const contentContainerStyle = useMemo(() => ({
+    paddingTop: effectiveHeaderHeight || defaultEffectiveHeaderHeight,
+    paddingBottom: 120,
+    backgroundColor: currentThemeColors.background,
+  }), [effectiveHeaderHeight, defaultEffectiveHeaderHeight, currentThemeColors.background]);
+
+  const refreshControl = useMemo(() => (
+    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+  ), [refreshing, onRefresh]);
 
   if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: currentThemeColors.background }}>
-        <ActivityIndicator size="large" color={currentThemeColors.primary} />
-      </View>
-    );
+    return <LoadingView backgroundColor={currentThemeColors.background} primaryColor={currentThemeColors.primary} />;
   }
 
   if (error) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: currentThemeColors.background }}>
-        <Text style={{ color: currentThemeColors.text }}>Error: {error}</Text>
-      </View>
-    );
+    return <ErrorView backgroundColor={currentThemeColors.background} textColor={currentThemeColors.text} error={error} t={t} />;
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: currentThemeColors.background }}>
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       <Animated.FlatList
         data={sortedPostsByLike}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <PostCard 
-            post={item} 
-            user={user}
-            onLike={handleLike} 
-            onComment={(id) => console.log(`Commented on post ${id}`)} 
-            onShare={(id) => console.log(`Shared post ${id}`)} 
-            onDeletePost={handleDeletePost} 
-            addComment={addComment}
-            themeColors={currentThemeColors}
-          />
-        )}
-        contentContainerStyle={{ 
-          paddingTop: effectiveHeaderHeight || defaultEffectiveHeaderHeight,
-          paddingBottom: 120,
-          backgroundColor: currentThemeColors.background,
-        }}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        contentContainerStyle={contentContainerStyle}
         style={{ backgroundColor: currentThemeColors.background }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={refreshControl}
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         bounces={true}
         bouncesZoom={false}
         onEndReachedThreshold={0.4}
-        onEndReached={() => {
-          if (hasMore && !loading) loadMore();
-        }}
+        onEndReached={handleEndReached}
         ListFooterComponent={renderFooter}
+        // Performance optimizations
+        initialNumToRender={5}
+        maxToRenderPerBatch={3}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={100}
       />
     </View>
   );
 };
 
-export default Tab2Screen;
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  footerContainer: {
+    paddingVertical: 12,
+  },
+  skeleton: {
+    height: 180,
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    opacity: 0.5,
+  },
+});
+
+export default memo(Tab2Screen);

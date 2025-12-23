@@ -56,7 +56,7 @@ class NotificationNavigationService {
     console.log('🧭 Notification tapped:', response);
     this.hasHandledInitialTap = true;
     const data = response.notification.request.content.data as NotificationData;
-    
+
     if (!data || !data.type) {
       console.log('❌ No navigation data in notification');
       this.navigateToFallback();
@@ -158,7 +158,7 @@ class NotificationNavigationService {
       }
 
       console.log('🧭 Navigating to post:', data.postId);
-      router.push(`/PostDetailScreen?postId=${data.postId}`);
+      router.push(`/(screens)/social/PostDetailScreen?postId=${data.postId}`);
       return true;
     } catch (error) {
       console.error('❌ Failed to navigate to post:', error);
@@ -180,7 +180,7 @@ class NotificationNavigationService {
       }
 
       console.log('🧭 Navigating to profile:', userId);
-      router.push(`/UserProfileScreen?userId=${userId}`);
+      router.push(`/(screens)/user/UserProfileScreen?userId=${userId}`);
       return true;
     } catch (error) {
       console.error('❌ Failed to navigate to profile:', error);
@@ -246,12 +246,12 @@ class NotificationNavigationService {
     try {
       if (data.hotSpotId) {
         console.log('🧭 Navigating to hot spot:', data.hotSpotId);
-        router.push(`/HotSpotDetailScreen?hotSpotId=${data.hotSpotId}`);
+        router.push(`/(screens)/hotspots/HotSpotDetailScreen?hotSpotId=${data.hotSpotId}`);
         return true;
       } else {
         // Navigate to hot spots list
         console.log('🧭 Navigating to hot spots list');
-        router.push('/HotSpotsScreen');
+        router.push('/(screens)/hotspots/HotSpotsScreen');
         return true;
       }
     } catch (error) {
@@ -285,7 +285,7 @@ class NotificationNavigationService {
       const userId = auth.currentUser?.uid;
       if (userId) {
         console.log('🧭 Navigating to own profile:', userId);
-        router.push(`/UserProfileScreen?userId=${userId}`);
+        router.push(`/(screens)/user/UserProfileScreen?userId=${userId}`);
         return true;
       } else {
         console.warn('⚠️ No authenticated user');
@@ -305,7 +305,7 @@ class NotificationNavigationService {
   private navigateToFallback(): void {
     try {
       console.log('🧭 Navigating to fallback (notifications)');
-      router.push('/NotificationsScreen');
+      router.push('/(screens)/social/NotificationsScreen');
     } catch (error) {
       console.error('❌ Failed to navigate to fallback:', error);
       // Last resort - navigate to home

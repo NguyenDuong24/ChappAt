@@ -1,118 +1,121 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Feather from '@expo/vector-icons/Feather';
+import React, { useContext } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { ThemeContext } from '@/context/ThemeContext';
+import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next';
 
 interface BlockedChatViewProps {
-  reason?: 'blocked' | 'blockedBy';
-  isDarkMode?: boolean;
+    reason: string;
+    onBack: () => void;
 }
 
-/**
- * Component hiển thị khi không thể chat do bị chặn
- */
-export const BlockedChatView: React.FC<BlockedChatViewProps> = ({
-  reason = 'blocked',
-  isDarkMode = false,
-}) => {
-  const colors = {
-    background: isDarkMode ? '#1E293B' : '#F8FAFC',
-    text: isDarkMode ? '#F8FAFC' : '#0F172A',
-    subtleText: isDarkMode ? '#94A3B8' : '#64748B',
-    border: isDarkMode ? '#374151' : '#E2E8F0',
-    danger: '#EF4444',
-  };
+export const BlockedChatView: React.FC<BlockedChatViewProps> = ({ reason, onBack }) => {
+    const { t } = useTranslation();
+    const themeContext = useContext(ThemeContext);
+    const theme = themeContext?.theme || 'light';
+    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
-  const getMessage = () => {
-    switch (reason) {
-      case 'blocked':
-        return {
-          title: '🚫 Không thể nhắn tin',
-          subtitle: 'Bạn đã chặn người dùng này',
-          suggestion: 'Bỏ chặn để có thể nhắn tin lại',
-        };
-      case 'blockedBy':
-        return {
-          title: '⚠️ Không khả dụng',
-          subtitle: 'Bạn không thể nhắn tin với người dùng này',
-          suggestion: '',
-        };
-      default:
-        return {
-          title: '❌ Không thể nhắn tin',
-          subtitle: 'Đã xảy ra lỗi',
-          suggestion: '',
-        };
-    }
-  };
+    const isBlockedByUser = reason === 'chat.blocked_subtitle';
 
-  const message = getMessage();
+    const title = isBlockedByUser ? t('chat.blocked_title') : t('chat.blocked_by_title');
+    const subtitle = t(reason);
+    const suggestion = isBlockedByUser ? t('chat.blocked_suggestion') : '';
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.content, { 
-        backgroundColor: isDarkMode ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.05)',
-        borderColor: colors.border,
-      }]}>
-        <View style={[styles.iconContainer, { backgroundColor: colors.danger + '20' }]}>
-          <Feather name="slash" size={40} color={colors.danger} />
-        </View>
-        
-        <Text style={[styles.title, { color: colors.text }]}>
-          {message.title}
-        </Text>
-        
-        <Text style={[styles.subtitle, { color: colors.subtleText }]}>
-          {message.subtitle}
-        </Text>
-        
-        {message.suggestion && (
-          <Text style={[styles.suggestion, { color: colors.subtleText }]}>
-            {message.suggestion}
-          </Text>
-        )}
-      </View>
-    </View>
-  );
+    return (
+        <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+            <View style={styles.header}>
+                <TouchableOpacity onPress={onBack} style={styles.backButton}>
+                    <MaterialIcons name="arrow-back" size={24} color={currentThemeColors.text} />
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.content}>
+                <View style={[styles.iconContainer, { backgroundColor: currentThemeColors.surface }]}>
+                    <MaterialIcons name="block" size={64} color={Colors.error} />
+                </View>
+
+                <Text style={[styles.title, { color: currentThemeColors.text }]}>
+                    {title}
+                </Text>
+
+                <Text style={[styles.subtitle, { color: currentThemeColors.subtleText }]}>
+                    {subtitle}
+                </Text>
+
+                {suggestion ? (
+                    <Text style={[styles.suggestion, { color: currentThemeColors.subtleText }]}>
+                        {suggestion}
+                    </Text>
+                ) : null}
+
+                <TouchableOpacity
+                    style={[styles.button, { backgroundColor: currentThemeColors.tint }]}
+                    onPress={onBack}
+                >
+                    <Text style={styles.buttonText}>{t('common.back')}</Text>
+                </TouchableOpacity>
+            </View>
+        </SafeAreaView>
+    );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  content: {
-    alignItems: 'center',
-    padding: 32,
-    borderRadius: 20,
-    borderWidth: 1,
-    maxWidth: 400,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 8,
-    lineHeight: 24,
-  },
-  suggestion: {
-    fontSize: 14,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    opacity: 0.7,
-  },
+    container: {
+        flex: 1,
+    },
+    header: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    backButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    content: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 40,
+        paddingBottom: 100,
+    },
+    iconContainer: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    title: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 12,
+    },
+    subtitle: {
+        fontSize: 16,
+        textAlign: 'center',
+        marginBottom: 8,
+        lineHeight: 22,
+    },
+    suggestion: {
+        fontSize: 14,
+        textAlign: 'center',
+        marginBottom: 32,
+        opacity: 0.8,
+    },
+    button: {
+        paddingHorizontal: 32,
+        paddingVertical: 12,
+        borderRadius: 24,
+        marginTop: 20,
+    },
+    buttonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
 });

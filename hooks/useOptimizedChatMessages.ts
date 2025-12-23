@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  collection, 
-  doc, 
-  query, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  query,
+  orderBy,
   limit,
   startAfter,
-  onSnapshot, 
+  onSnapshot,
   getDocs,
   DocumentSnapshot,
   Unsubscribe,
-  where
+  where,
+  startAt
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 
@@ -30,16 +31,17 @@ interface UseOptimizedChatMessagesProps {
 
 export const useOptimizedChatMessages = ({
   roomId,
-  pageSize = 20,
+  pageSize = 30,
   enableRealtime = true
 }: UseOptimizedChatMessagesProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [lastDoc, setLastDoc] = useState<DocumentSnapshot | null>(null);
-  
+
   const unsubscribeRef = useRef<Unsubscribe | null>(null);
   const isInitialLoad = useRef(true);
+  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
 
   // Load initial messages with pagination
   const loadInitialMessages = useCallback(async () => {
@@ -49,8 +51,8 @@ export const useOptimizedChatMessages = ({
     try {
       const messagesRef = collection(doc(db, 'rooms', roomId), 'messages');
       const q = query(
-        messagesRef, 
-        orderBy('createdAt', 'desc'), 
+        messagesRef,
+        orderBy('createdAt', 'desc'),
         limit(pageSize)
       );
 
@@ -60,19 +62,25 @@ export const useOptimizedChatMessages = ({
         ...doc.data()
       })) as Message[];
 
-      setMessages(messagesList.reverse()); // Reverse to show chronological order
+      // messagesList is [Newest, ..., Oldest]
+      // We need the oldest timestamp for the listener (which is at the END of the array before reverse)
+      const oldestMessage = messagesList.length > 0 ? messagesList[messagesList.length - 1] : null;
+
+      setMessages(messagesList.reverse()); // Reverse to show chronological order [Oldest, ..., Newest]
       setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
       setHasMore(snapshot.docs.length === pageSize);
-      
-      // Setup real-time listener chỉ cho messages mới sau timestamp cuối
-      if (enableRealtime && messagesList.length > 0) {
-        setupRealtimeListener(messagesList[messagesList.length - 1].createdAt);
+
+      // Setup real-time listener
+      if (enableRealtime) {
+        const lastTimestamp = oldestMessage ? oldestMessage.createdAt : null;
+        setupRealtimeListener(lastTimestamp);
       }
     } catch (error) {
       console.error('Error loading initial messages:', error);
     } finally {
       setLoading(false);
       isInitialLoad.current = false;
+      setIsInitialLoadComplete(true);
     }
   }, [roomId, pageSize, enableRealtime]);
 
@@ -110,7 +118,7 @@ export const useOptimizedChatMessages = ({
     }
   }, [roomId, lastDoc, pageSize, loading, hasMore]);
 
-  // Setup real-time listener chỉ cho messages mới
+  // Setup real-time listener
   const setupRealtimeListener = useCallback((afterTimestamp: any) => {
     if (!roomId || !enableRealtime) return;
 
@@ -120,16 +128,32 @@ export const useOptimizedChatMessages = ({
     }
 
     const messagesRef = collection(doc(db, 'rooms', roomId), 'messages');
-    const q = query(
-      messagesRef,
-      orderBy('createdAt', 'asc'),
-      startAfter(afterTimestamp)
-    );
+    let q;
+
+    if (afterTimestamp) {
+      q = query(
+        messagesRef,
+        orderBy('createdAt', 'asc'),
+        startAt(afterTimestamp)
+      );
+    } else {
+      // If no initial messages, listen to all (effectively new ones since it's empty)
+      q = query(
+        messagesRef,
+        orderBy('createdAt', 'asc')
+      );
+    }
+
+    console.log('🎧 [setupRealtimeListener] Setting up listener for roomId:', roomId, 'afterTimestamp:', afterTimestamp);
 
     unsubscribeRef.current = onSnapshot(q, (snapshot) => {
       const newMessages: Message[] = [];
-      
+      const modifiedMessages: Message[] = [];
+
+      console.log('🔥 [setupRealtimeListener] Snapshot received. Changes:', snapshot.docChanges().length);
+
       snapshot.docChanges().forEach((change) => {
+        console.log('👉 Change type:', change.type, 'ID:', change.doc.id);
         if (change.type === 'added') {
           const messageData = {
             id: change.doc.id,
@@ -137,10 +161,29 @@ export const useOptimizedChatMessages = ({
           } as Message;
           newMessages.push(messageData);
         }
+        if (change.type === 'modified') {
+          const messageData = {
+            id: change.doc.id,
+            ...change.doc.data()
+          } as Message;
+          modifiedMessages.push(messageData);
+        }
       });
 
       if (newMessages.length > 0) {
-        setMessages(prev => [...prev, ...newMessages]);
+        setMessages(prev => {
+          // Filter out duplicates just in case
+          const existingIds = new Set(prev.map(m => m.id));
+          const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+          return [...prev, ...uniqueNew];
+        });
+      }
+
+      if (modifiedMessages.length > 0) {
+        setMessages(prev => prev.map(msg => {
+          const updated = modifiedMessages.find(m => m.id === msg.id);
+          return updated ? updated : msg;
+        }));
       }
     });
   }, [roomId, enableRealtime]);
@@ -172,6 +215,8 @@ export const useOptimizedChatMessages = ({
     loading,
     hasMore,
     loadMoreMessages,
-    refreshMessages: loadInitialMessages
+    refreshMessages: loadInitialMessages,
+    isLoadingMore: loading && isInitialLoadComplete,
+    isInitialLoadComplete
   };
 };

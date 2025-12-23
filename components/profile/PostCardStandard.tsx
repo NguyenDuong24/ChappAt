@@ -26,6 +26,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import socialNotificationService from '@/services/socialNotificationService';
 import optimizedSocialService from '@/services/optimizedSocialService';
+import { followService } from '@/services/followService';
 import SimpleImage from '../common/SimpleImage';
 import ImageViewerModal from '../common/ImageViewerModal';
 
@@ -75,16 +76,16 @@ interface PostCardProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const PostCardStandard: React.FC<PostCardProps> = ({ 
-  post, 
+const PostCardStandard: React.FC<PostCardProps> = ({
+  post,
   currentUserId,
   currentUserAvatar,
-  onLike, 
+  onLike,
   onComment,
   onShare,
   onDelete,
   onUserPress,
-  isOwner 
+  isOwner
 }) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
@@ -92,7 +93,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
   const router = useRouter();
   const { user } = useAuth();
   const viewerShowOnline = user?.showOnlineStatus !== false;
-  
+
   // Helper: ensure each comment/reply has an id and sane defaults
   const normalizeComments = (comments: Comment[] = [], path: string[] = []): Comment[] => {
     return (comments || []).map((c, idx) => {
@@ -118,11 +119,48 @@ const PostCardStandard: React.FC<PostCardProps> = ({
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [localComments, setLocalComments] = useState<Comment[]>(normalizeComments(post.comments || []));
-  
+  const [isFollowing, setIsFollowing] = useState(false);
+
   const isLiked = post.likes.includes(currentUserId);
-  const contentPreview = post.content.length > 150 
-    ? post.content.substring(0, 150) + '...' 
+  const contentPreview = post.content.length > 150
+    ? post.content.substring(0, 150) + '...'
     : post.content;
+
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (currentUserId && post.userID && currentUserId !== post.userID) {
+        const following = await followService.isFollowing(currentUserId, post.userID);
+        setIsFollowing(following);
+      }
+    };
+    checkFollowStatus();
+  }, [currentUserId, post.userID]);
+
+  const handleFollow = async () => {
+    if (!currentUserId || !post.userID) return;
+    try {
+      const success = await followService.followUser(currentUserId, post.userID);
+      if (success) {
+        setIsFollowing(true);
+        await socialNotificationService.createFollowNotification(post.userID, currentUserId);
+      }
+    } catch (error) {
+      console.error('Error following user:', error);
+    }
+  };
+
+  const handleUnfollow = async () => {
+    if (!currentUserId || !post.userID) return;
+    try {
+      const success = await followService.unfollowUser(currentUserId, post.userID);
+      if (success) {
+        setIsFollowing(false);
+        // Optionally remove follow notification if implemented
+      }
+    } catch (error) {
+      console.error('Error unfollowing user:', error);
+    }
+  };
 
   useEffect(() => {
     if (ignoreNextCommentsSync.current) {
@@ -138,7 +176,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
     const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (diff < 60) return 'Vừa xong';
     if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
@@ -168,7 +206,8 @@ const PostCardStandard: React.FC<PostCardProps> = ({
     );
   };
 
-  const handleLike = () => {
+  const handleLike = async () => {
+    // Animation
     Animated.sequence([
       Animated.timing(likeAnimation, {
         toValue: 1.3,
@@ -181,32 +220,71 @@ const PostCardStandard: React.FC<PostCardProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-    
+
+    // Call parent handler
     onLike(post.id, currentUserId, isLiked);
+
+    // Send notification to post owner (only when liking, not unliking)
+    if (!isLiked && post.userID !== currentUserId) {
+      try {
+        await socialNotificationService.createLikeNotification(
+          post.id,
+          post.userID,
+          currentUserId,
+          user?.username || user?.displayName || 'Ai đó',
+          user?.profileUrl || currentUserAvatar
+        );
+        console.log('✅ Like notification sent to post owner');
+      } catch (error) {
+        console.warn('⚠️ Failed to send like notification:', error);
+      }
+    } else if (isLiked && post.userID !== currentUserId) {
+      // Remove notification when unliking
+      try {
+        await socialNotificationService.removeLikeNotification(
+          post.id,
+          post.userID,
+          currentUserId
+        );
+        console.log('✅ Like notification removed');
+      } catch (error) {
+        console.warn('⚠️ Failed to remove like notification:', error);
+      }
+    }
   };
 
   const handleCommentSubmit = async () => {
     if (!commentText.trim())
       return;
 
+    const trimmedText = commentText.trim();
     const newComment: Comment = {
       id: Date.now().toString(),
       userId: currentUserId,
-      username: 'You',      userAvatar: currentUserAvatar,
-      text: commentText.trim(),
+      username: user?.username || user?.displayName || 'You',
+      userAvatar: currentUserAvatar,
+      text: trimmedText,
       timestamp: new Date().toISOString(),
     };
 
-    const updatedComments = [...comments, newComment];
+    // Optimistic update - show comment immediately
+    const updatedComments = [...localComments, newComment];
+    ignoreNextCommentsSync.current = true;
+    setLocalComments(updatedComments);
     setComments(updatedComments);
     setCommentText('');
-    // onComment(post.id, commentText.trim());
 
-    // NEW: dùng optimizedSocialService để vừa thêm comment vừa gửi push cho chủ post
     try {
+      // Save comment to Firestore - notification được gửi bên trong addComment
+      // Không cần gọi socialNotificationService riêng nữa
       await optimizedSocialService.addComment(post.id, newComment);
+      console.log('✅ Comment added successfully');
     } catch (e) {
-      console.warn('⚠️ Failed to add comment with push:', e);
+      console.warn('⚠️ Failed to add comment:', e);
+      // Rollback on error
+      setLocalComments(localComments);
+      setComments(comments);
+      Alert.alert('Lỗi', 'Không thể gửi bình luận. Vui lòng thử lại.');
     }
   };
 
@@ -229,7 +307,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
 
   const handleHashtagPress = (hashtag: string) => {
     const cleanHashtag = hashtag.replace('#', '');
-    router.push(`/HashtagScreen?hashtag=${cleanHashtag}` as any);
+    router.push(`/(screens)/social/HashtagScreen?hashtag=${cleanHashtag}` as any);
   };
 
   // Resolve avatar URL from multiple possible fields to improve compatibility
@@ -247,7 +325,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
 
   const CommentItem: React.FC<{ comment: Comment; level?: number }> = ({ comment, level = 0 }) => {
     const isCommentLiked = comment.likes?.includes(currentUserId) || false;
-    
+
     // Debug log to check comment data
     console.log('Comment data:', {
       id: comment.id,
@@ -266,7 +344,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
       <View>
         <View style={[styles.comment, { marginLeft: level * 16 }]}>
           {avatarUri ? (
-            <Image 
+            <Image
               source={{ uri: avatarUri }}
               style={styles.commentAvatar}
               onError={() => setAvatarError(true)}
@@ -297,13 +375,13 @@ const PostCardStandard: React.FC<PostCardProps> = ({
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.userInfo}
           onPress={() => onUserPress?.(post.userID)}
         >
           <View style={styles.avatarContainer}>
-            {currentUserAvatar ? (
-              <Image source={{ uri: currentUserAvatar }} style={styles.avatarImage} />
+            {post.userAvatar ? (
+              <Image source={{ uri: post.userAvatar }} style={styles.avatarImage} />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: Colors.primary + '20' }]}>
                 <Ionicons name="person" size={24} color={Colors.primary} />
@@ -324,15 +402,34 @@ const PostCardStandard: React.FC<PostCardProps> = ({
             </View>
           </View>
         </TouchableOpacity>
-        
+
         <View style={styles.headerActions}>
+          {!isOwner && (
+            <>
+              {isFollowing ? (
+                <TouchableOpacity
+                  style={[styles.followButton, styles.followedButton]}
+                  onPress={handleUnfollow}
+                >
+                  <Text style={[styles.followText, styles.followedText]}>Đã theo dõi</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.followButton}
+                  onPress={handleFollow}
+                >
+                  <Text style={styles.followText}>Theo dõi</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
           {post.privacy && (
             <View style={styles.privacyBadge}>
-              <Ionicons 
-                name={post.privacy === 'private' ? 'lock-closed' : 
-                      post.privacy === 'friends' ? 'people' : 'globe'} 
-                size={12} 
-                color={colors.subtleText || '#999'} 
+              <Ionicons
+                name={post.privacy === 'private' ? 'lock-closed' :
+                  post.privacy === 'friends' ? 'people' : 'globe'}
+                size={12}
+                color={colors.subtleText || '#999'}
               />
             </View>
           )}
@@ -349,7 +446,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
           {showFullContent ? post.content : contentPreview}
         </Text>
         {post.content.length > 150 && (
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setShowFullContent(!showFullContent)}
             style={styles.readMoreButton}
           >
@@ -381,8 +478,8 @@ const PostCardStandard: React.FC<PostCardProps> = ({
         <View style={styles.imagesContainer}>
           {post.images.length === 1 ? (
             <TouchableOpacity onPress={() => handleImagePress(0)}>
-              <SimpleImage 
-                source={post.images[0]} 
+              <SimpleImage
+                source={post.images[0]}
                 style={styles.singleImage}
               />
             </TouchableOpacity>
@@ -390,8 +487,8 @@ const PostCardStandard: React.FC<PostCardProps> = ({
             <View style={styles.imagesRow}>
               {post.images.map((img, idx) => (
                 <TouchableOpacity key={idx} onPress={() => handleImagePress(idx)}>
-                  <SimpleImage 
-                    source={img} 
+                  <SimpleImage
+                    source={img}
                     style={styles.twoImages}
                   />
                 </TouchableOpacity>
@@ -400,17 +497,17 @@ const PostCardStandard: React.FC<PostCardProps> = ({
           ) : (
             <View style={styles.imagesRow}>
               <TouchableOpacity onPress={() => handleImagePress(0)}>
-                <SimpleImage 
-                  source={post.images[0]} 
+                <SimpleImage
+                  source={post.images[0]}
                   style={styles.multipleImages}
                 />
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={{ position: 'relative' }} 
+              <TouchableOpacity
+                style={{ position: 'relative' }}
                 onPress={() => handleImagePress(1)}
               >
-                <SimpleImage 
-                  source={post.images[1]} 
+                <SimpleImage
+                  source={post.images[1]}
                   style={styles.multipleImages}
                 />
                 {post.images.length > 2 && (
@@ -439,17 +536,17 @@ const PostCardStandard: React.FC<PostCardProps> = ({
 
       <View style={styles.actions}>
         <Animated.View style={{ transform: [{ scale: likeAnimation }] }}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.actionButton,
               isLiked && { backgroundColor: Colors.error + '10' }
             ]}
             onPress={handleLike}
           >
-            <Ionicons 
-              name={isLiked ? "heart" : "heart-outline"} 
-              size={22} 
-              color={isLiked ? Colors.error : colors.icon || '#666'} 
+            <Ionicons
+              name={isLiked ? "heart" : "heart-outline"}
+              size={22}
+              color={isLiked ? Colors.error : colors.icon || '#666'}
             />
             <Text style={[styles.actionText, { color: colors.text }]}>
               {post.likes.length}
@@ -457,31 +554,31 @@ const PostCardStandard: React.FC<PostCardProps> = ({
           </TouchableOpacity>
         </Animated.View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.actionButton,
             showComments && { backgroundColor: Colors.primary + '10' }
           ]}
           onPress={() => setShowComments(!showComments)}
         >
-          <Ionicons 
-            name="chatbubble-outline" 
-            size={22} 
-            color={showComments ? Colors.primary : colors.icon || '#666'} 
+          <Ionicons
+            name="chatbubble-outline"
+            size={22}
+            color={showComments ? Colors.primary : colors.icon || '#666'}
           />
           <Text style={[styles.actionText, { color: colors.text }]}>
             {localComments.length}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={handleShare}
         >
-          <Ionicons 
-            name="share-outline" 
-            size={22} 
-            color={colors.icon || '#666'} 
+          <Ionicons
+            name="share-outline"
+            size={22}
+            color={colors.icon || '#666'}
           />
           <Text style={[styles.actionText, { color: colors.text }]}>
             {post.shares || 0}
@@ -493,7 +590,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
         <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
           <View style={[styles.commentInputContainer, { backgroundColor: colors.commentBackground }]}>
             {currentUserAvatar ? (
-              <Image 
+              <Image
                 source={{ uri: currentUserAvatar }}
                 style={styles.commentAvatar}
                 onError={(e) => console.log('User avatar load error:', e.nativeEvent.error)}
@@ -511,7 +608,7 @@ const PostCardStandard: React.FC<PostCardProps> = ({
               onChangeText={setCommentText}
               multiline
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.sendButton, !commentText.trim() && { opacity: 0.5 }]}
               onPress={handleCommentSubmit}
               disabled={!commentText.trim()}
@@ -629,6 +726,26 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 20,
     backgroundColor: '#fff5f5',
+  },
+  followButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    marginRight: 4,
+  },
+  followedButton: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  followText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  followedText: {
+    color: '#fff',
   },
   contentContainer: {
     marginBottom: 16,

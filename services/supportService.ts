@@ -20,6 +20,7 @@ export type ReportData = {
 export async function submitFeedback(feedback: FeedbackData, user?: { uid?: string; email?: string; username?: string }) {
   const payload = {
     ...feedback,
+    contactInfo: feedback.contactInfo || null,
     userId: user?.uid || null,
     userEmail: user?.email || null,
     username: user?.username || null,

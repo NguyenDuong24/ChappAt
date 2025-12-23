@@ -1,12 +1,12 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot, 
-  query, 
-  where, 
+import {
+  collection,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  where,
   orderBy,
   serverTimestamp,
   getDocs
@@ -28,13 +28,13 @@ export interface CallData {
 }
 
 export class CallService {
-  
+
   // Create new call
   static async createCall(receiverId: string, meetingId: string, callType: 'audio' | 'video'): Promise<string> {
     try {
       const callRef = doc(collection(db, 'calls'));
       const callId = callRef.id;
-      
+
       const newCall: Omit<CallData, 'id'> = {
         callerId: 'current-user-id', // Replace with actual user ID
         receiverId,
@@ -43,7 +43,7 @@ export class CallService {
         meetingId,
         timestamp: serverTimestamp(),
       };
-      
+
       await setDoc(callRef, { ...newCall, id: callId });
       console.log('✅ Call created:', callId);
       return callId;
@@ -52,14 +52,14 @@ export class CallService {
       throw error;
     }
   }
-  
+
   // Accept call
   static async acceptCall(callId: string) {
     try {
       const callRef = doc(db, 'calls', callId);
-      await updateDoc(callRef, { 
+      await updateDoc(callRef, {
         status: 'accepted',
-        timestamp: serverTimestamp() 
+        timestamp: serverTimestamp()
       });
       console.log('✅ Call accepted:', callId);
     } catch (error) {
@@ -72,9 +72,9 @@ export class CallService {
   static async rejectCall(callId: string) {
     try {
       const callRef = doc(db, 'calls', callId);
-      await updateDoc(callRef, { 
+      await updateDoc(callRef, {
         status: 'rejected',
-        timestamp: serverTimestamp() 
+        timestamp: serverTimestamp()
       });
       console.log('✅ Call rejected:', callId);
     } catch (error) {
@@ -91,15 +91,15 @@ export class CallService {
         where('meetingId', '==', meetingId),
         where('status', 'in', ['ringing', 'accepted'])
       );
-      
+
       const snapshot = await getDocs(callsQuery);
-      const updatePromises = snapshot.docs.map(docRef => 
-        updateDoc(docRef.ref, { 
+      const updatePromises = snapshot.docs.map(docRef =>
+        updateDoc(docRef.ref, {
           status: 'ended',
-          timestamp: serverTimestamp() 
+          timestamp: serverTimestamp()
         })
       );
-      
+
       await Promise.all(updatePromises);
       console.log('✅ Call ended for meeting:', meetingId);
     } catch (error) {
@@ -130,7 +130,7 @@ export class CallService {
   // Listen to call status changes
   static listenToCallStatus(callId: string, onStatusChange: (status: string) => void) {
     const callRef = doc(db, 'calls', callId);
-    
+
     return onSnapshot(callRef, (doc) => {
       if (doc.exists()) {
         const callData = doc.data() as CallData;
@@ -144,15 +144,15 @@ export class CallService {
     try {
       const oneDayAgo = new Date();
       oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-      
+
       const callsQuery = query(
         collection(db, 'calls'),
         where('timestamp', '<', oneDayAgo)
       );
-      
+
       const snapshot = await getDocs(callsQuery);
       const deletePromises = snapshot.docs.map((docRef) => deleteDoc(docRef.ref));
-      
+
       await Promise.all(deletePromises);
       console.log('✅ Old calls cleaned up');
     } catch (error) {

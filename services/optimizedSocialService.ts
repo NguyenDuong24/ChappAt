@@ -665,14 +665,14 @@ class OptimizedSocialService {
   }
 
   // Add comment to post
-  async addComment(postId: string, commentData: any): Promise<void> {
+  async addComment(postId: string, commentData: any, skipNotification: boolean = false): Promise<void> {
     try {
       const postRef = doc(db, 'posts', postId);
       await updateDoc(postRef, {
         comments: arrayUnion({
           ...commentData,
-          id: Date.now().toString(), // Simple ID generation
-          timestamp: new Date()
+          id: commentData.id || Date.now().toString(),
+          timestamp: commentData.timestamp || new Date()
         })
       });
 
@@ -681,26 +681,36 @@ class OptimizedSocialService {
       
       console.log('✅ Comment added to post:', postId);
 
-      // Notify owner of the post via Expo Push (không dùng Cloud Function)
-      try {
-        const snap = await getDoc(postRef);
-        if (snap.exists()) {
-          const post = snap.data() as any;
-          const ownerId = post.userId || post.userID; // hỗ trợ 2 naming
-          const commenterName = commentData.username || commentData.displayName || 'Ai đó';
-          const body = `${commenterName} đã bình luận: ${commentData.text || ''}`;
+      // Notify owner of the post via Expo Push (nếu không skip)
+      if (!skipNotification) {
+        try {
+          const snap = await getDoc(postRef);
+          if (snap.exists()) {
+            const post = snap.data() as any;
+            const ownerId = post.userId || post.userID;
+            const commenterName = commentData.username || commentData.displayName || 'Ai đó';
+            const commentText = commentData.text || '';
+            const body = `${commenterName}: ${commentText.substring(0, 100)}`;
 
-          if (ownerId && ownerId !== commentData.userId) {
-            const ExpoPushNotificationService = (await import('./expoPushNotificationService')).default;
-            await ExpoPushNotificationService.sendPushToUser(ownerId, {
-              title: '💬 Bình luận mới',
-              body,
-              data: { type: 'comment', postId, userId: commentData.userId },
-            });
+            if (ownerId && ownerId !== commentData.userId) {
+              const ExpoPushNotificationService = (await import('./expoPushNotificationService')).default;
+              await ExpoPushNotificationService.sendPushToUser(ownerId, {
+                title: '💬 Bình luận mới',
+                body,
+                data: { 
+                  type: 'comment', 
+                  postId, 
+                  userId: commentData.userId,
+                  senderId: commentData.userId,
+                  action: 'comment'
+                },
+              });
+              console.log('✅ Comment push notification sent to:', ownerId);
+            }
           }
+        } catch (e) {
+          console.warn('⚠️ Không thể gửi push khi có comment:', e);
         }
-      } catch (e) {
-        console.warn('⚠️ Không thể gửi push khi có comment:', e);
       }
     } catch (error) {
       console.error('❌ Error adding comment:', error);

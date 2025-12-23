@@ -1,45 +1,70 @@
 import { db } from '../firebaseConfig';
-import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp, query, where, getDocs, deleteDoc, limit } from 'firebase/firestore';
 import { CoreNotificationService } from './core';
 import ExpoPushNotificationService from './expoPushNotificationService';
 
+// Cache để tránh fetch user info nhiều lần
+const userInfoCache = new Map<string, { name: string; avatar?: string; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 phút
+
 class SocialNotificationService {
+  // Helper để lấy user info với cache
+  private async getUserInfo(userId: string): Promise<{ name: string; avatar?: string }> {
+    const cached = userInfoCache.get(userId);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return { name: cached.name, avatar: cached.avatar };
+    }
+
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const name = userData.username || userData.displayName || userData.name || 'Người dùng';
+        const avatar = userData.profileUrl || userData.photoURL;
+        
+        // Cache kết quả
+        userInfoCache.set(userId, { name, avatar, timestamp: Date.now() });
+        return { name, avatar };
+      }
+    } catch (error) {
+      console.error('❌ Error fetching user info:', error);
+    }
+    
+    return { name: 'Người dùng' };
+  }
+
   // Tạo notification khi có người like bài viết
   async createLikeNotification(postId: string, postAuthorId: string, likerUserId: string, likerName?: string, likerAvatar?: string) {
     try {
       // Không tạo notification nếu người like chính là tác giả
-      if (postAuthorId === likerUserId) return;
+      if (postAuthorId === likerUserId) {
+        console.log('⏭️ Skip like notification - user liked their own post');
+        return;
+      }
 
       // Lấy thông tin người like nếu chưa có
       let senderName = likerName;
       let senderAvatar = likerAvatar;
       
       if (!senderName) {
-        try {
-          const likerDoc = await getDoc(doc(db, 'users', likerUserId));
-          if (likerDoc.exists()) {
-            const likerData = likerDoc.data();
-            senderName = likerData.username || likerData.displayName || likerData.name || 'Unknown User';
-            senderAvatar = likerData.profileUrl || likerData.photoURL;
-          }
-        } catch (error) {
-          console.error('❌ Error fetching liker info:', error);
-          senderName = 'Unknown User';
-        }
+        const userInfo = await this.getUserInfo(likerUserId);
+        senderName = userInfo.name;
+        senderAvatar = senderAvatar || userInfo.avatar;
       }
 
-      // Kiểm tra xem đã có notification like cho bài viết này từ user này chưa
+      // Kiểm tra xem đã có notification like cho bài viết này từ user này chưa (giới hạn query)
       const existingQuery = query(
         collection(db, 'notifications'),
         where('receiverId', '==', postAuthorId),
         where('senderId', '==', likerUserId),
         where('type', '==', 'like'),
-        where('data.postId', '==', postId)
+        where('data.postId', '==', postId),
+        limit(1)
       );
       
       const existingDocs = await getDocs(existingQuery);
       if (!existingDocs.empty) {
-        console.log('Like notification already exists');
+        console.log('⏭️ Like notification already exists, skipping');
         return;
       }
 
@@ -88,25 +113,24 @@ class SocialNotificationService {
   async createCommentNotification(postId: string, postAuthorId: string, commenterUserId: string, commenterName?: string, commentText: string = '', commenterAvatar?: string) {
     try {
       // Không tạo notification nếu người comment chính là tác giả
-      if (postAuthorId === commenterUserId) return;
+      if (postAuthorId === commenterUserId) {
+        console.log('⏭️ Skip comment notification - user commented on their own post');
+        return;
+      }
 
-      // Lấy thông tin người comment nếu chưa có
+      // Lấy thông tin người comment nếu chưa có (sử dụng cache)
       let senderName = commenterName;
       let senderAvatar = commenterAvatar;
       
       if (!senderName) {
-        try {
-          const commenterDoc = await getDoc(doc(db, 'users', commenterUserId));
-          if (commenterDoc.exists()) {
-            const commenterData = commenterDoc.data();
-            senderName = commenterData.username || commenterData.displayName || commenterData.name || 'Unknown User';
-            senderAvatar = commenterData.profileUrl || commenterData.photoURL;
-          }
-        } catch (error) {
-          console.error('❌ Error fetching commenter info:', error);
-          senderName = 'Unknown User';
-        }
+        const userInfo = await this.getUserInfo(commenterUserId);
+        senderName = userInfo.name;
+        senderAvatar = senderAvatar || userInfo.avatar;
       }
+
+      const truncatedComment = commentText.length > 50 
+        ? `${commentText.substring(0, 50)}...` 
+        : commentText;
 
       const notificationData = {
         receiverId: postAuthorId,
@@ -115,11 +139,11 @@ class SocialNotificationService {
         senderAvatar: senderAvatar || null,
         type: 'comment',
         title: 'Bình luận mới',
-        message: `${senderName} đã bình luận: "${commentText.substring(0, 50)}${commentText.length > 50 ? '...' : ''}"`,
+        message: `${senderName} đã bình luận: "${truncatedComment}"`,
         data: {
           postId,
           actionType: 'comment',
-          commentText
+          commentText: commentText.substring(0, 200) // Giới hạn độ dài lưu trong data
         },
         isRead: false,
         timestamp: serverTimestamp(),

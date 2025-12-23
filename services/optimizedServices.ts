@@ -38,6 +38,7 @@ import {
 // Use optimized chat messages
 const { messages, loading, loadMoreMessages } = useOptimizedChatMessages({
   roomId: 'room123',
+  currentUserId: 'currentUserId', // Replace with actual user ID
   pageSize: 20,
   enableRealtime: true
 });

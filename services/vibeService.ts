@@ -1,27 +1,27 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDocs, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
   getDoc,
   setDoc,
-  query, 
-  where, 
-  orderBy, 
+  query,
+  where,
+  orderBy,
   limit,
   onSnapshot,
   serverTimestamp,
   increment,
   Timestamp
 } from 'firebase/firestore';
-import { db } from '@/firebaseConfig';
+import { auth, db } from '@/firebaseConfig';
 import { Vibe, UserVibe, VibeStats, PREDEFINED_VIBES } from '@/types/vibe';
 
 export class VibeService {
   private static instance: VibeService;
-  
+
   static getInstance(): VibeService {
     if (!VibeService.instance) {
       VibeService.instance = new VibeService();
@@ -33,11 +33,11 @@ export class VibeService {
   async testConnection(): Promise<boolean> {
     try {
       console.log('🧪 VibeService: Testing connection...');
-      
+
       // Try to read from userVibes collection
       const q = query(collection(db, 'userVibes'), limit(1));
       const snapshot = await getDocs(q);
-      
+
       console.log('✅ VibeService: Connection test successful, found', snapshot.size, 'documents');
       return true;
     } catch (error) {
@@ -48,14 +48,14 @@ export class VibeService {
 
   // Set user's current vibe
   async setUserVibe(
-    userId: string, 
-    vibeId: string, 
+    userId: string,
+    vibeId: string,
     customMessage?: string,
     location?: { latitude: number; longitude: number; address?: string }
   ): Promise<string> {
     try {
       console.log('🔧 VibeService: Setting vibe for user:', { userId, vibeId, customMessage });
-      
+
       // Deactivate current active vibe
       await this.deactivateUserVibes(userId);
       console.log('✅ VibeService: Deactivated previous vibes');
@@ -118,34 +118,39 @@ export class VibeService {
       );
 
       const snapshot = await getDocs(q);
-      
+
       if (snapshot.empty) {
         return null;
       }
 
       const nowMs = Date.now();
+      const validVibes: UserVibe[] = [];
 
-      // Sort client-side by createdAt and get the most recent
-      const vibes = snapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }) as UserVibe)
-        // filter out expired locally to avoid showing stale vibes before backend cleanup runs
-        .filter(v => {
-          const exp = (v as any)?.expiresAt as Timestamp | undefined;
-          const expMs = exp?.toMillis?.() ?? Number.POSITIVE_INFINITY;
-          return expMs > nowMs; // keep if not expired yet
-        });
+      for (const doc of snapshot.docs) {
+        const data = { id: doc.id, ...doc.data() } as UserVibe;
+        const exp = (data as any)?.expiresAt as Timestamp | undefined;
+        const expMs = exp?.toMillis?.() ?? Number.POSITIVE_INFINITY;
+
+        if (expMs <= nowMs) {
+          // Only cleanup if it's the current user's vibe
+          if (auth.currentUser && auth.currentUser.uid === userId) {
+            console.log('🗑️ VibeService: Found expired vibe during fetch, cleaning up:', data.id);
+            // Fire and forget cleanup
+            this.removeUserVibe(userId, data.id).catch(e => console.error('Failed to auto-cleanup vibe', e));
+          }
+        } else {
+          validVibes.push(data);
+        }
+      }
 
       // Sort by createdAt descending
-      vibes.sort((a, b) => {
+      validVibes.sort((a, b) => {
         const aTime = a.createdAt?.toMillis?.() || 0;
         const bTime = b.createdAt?.toMillis?.() || 0;
         return bTime - aTime;
       });
 
-      return vibes[0] || null;
+      return validVibes[0] || null;
     } catch (error) {
       console.error('Error getting user current vibe:', error);
       return null;
@@ -177,15 +182,15 @@ export class VibeService {
         if (expMs <= nowMs) return;
 
         // Check if has location and is within radius
-        if (data.location && 
-            data.location.latitude && 
-            data.location.longitude &&
-            this.calculateDistance(
-              userLocation.latitude,
-              userLocation.longitude,
-              data.location.latitude,
-              data.location.longitude
-            ) <= radiusKm) {
+        if (data.location &&
+          data.location.latitude &&
+          data.location.longitude &&
+          this.calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            data.location.latitude,
+            data.location.longitude
+          ) <= radiusKm) {
           vibes.push({
             id: doc.id,
             ...data
@@ -306,7 +311,7 @@ export class VibeService {
   // Listen to user's vibe changes
   subscribeToUserVibe(userId: string, callback: (vibe: UserVibe | null) => void): () => void {
     console.log('🔔 VibeService: Starting subscription for user:', userId);
-    
+
     // Simple subscription - get user's active vibes and handle client-side
     const q = query(
       collection(db, 'userVibes'),
@@ -317,33 +322,41 @@ export class VibeService {
 
     return onSnapshot(q, (snapshot) => {
       console.log('🔔 VibeService: Subscription callback triggered, docs count:', snapshot.size);
-      
+
       if (snapshot.empty) {
         console.log('🔔 VibeService: No active vibes found, calling callback with null');
         callback(null);
       } else {
         // Get all docs and find the most recent
         const nowMs = Date.now();
-        const vibes = snapshot.docs.map(doc => {
-          const data = { id: doc.id, ...doc.data() } as any;
-          console.log('🔔 VibeService: Found vibe doc:', data);
-          return data as UserVibe;
-        })
-        // filter out expired locally
-        .filter(v => {
-          const exp = (v as any)?.expiresAt as Timestamp | undefined;
+        const validVibes: UserVibe[] = [];
+
+        snapshot.docs.forEach(doc => {
+          const data = { id: doc.id, ...doc.data() } as UserVibe;
+          const exp = (data as any)?.expiresAt as Timestamp | undefined;
           const expMs = exp?.toMillis?.() ?? Number.POSITIVE_INFINITY;
-          return expMs > nowMs;
+
+          if (expMs <= nowMs) {
+            // Only cleanup if it's the current user's vibe
+            if (auth.currentUser && auth.currentUser.uid === userId) {
+              console.log('🗑️ VibeService: Found expired vibe during subscription, cleaning up:', data.id);
+              // Fire and forget cleanup
+              this.removeUserVibe(userId, data.id).catch(e => console.error('Failed to auto-cleanup vibe', e));
+            }
+          } else {
+            console.log('🔔 VibeService: Found active vibe:', data);
+            validVibes.push(data);
+          }
         });
 
         // Sort by creation time descending
-        vibes.sort((a, b) => {
+        validVibes.sort((a, b) => {
           const aTime = a.createdAt?.toMillis?.() || 0;
           const bTime = b.createdAt?.toMillis?.() || 0;
           return bTime - aTime;
         });
 
-        const latestVibe = vibes[0] || null;
+        const latestVibe = validVibes[0] || null;
         console.log('🔔 VibeService: Calling callback with latest vibe:', latestVibe);
         callback(latestVibe);
       }
@@ -365,7 +378,7 @@ export class VibeService {
     return onSnapshot(q, (snapshot) => {
       const vibes: UserVibe[] = [];
       const nowMs = Date.now();
-      
+
       snapshot.forEach(doc => {
         const data = doc.data() as any;
 
@@ -374,15 +387,15 @@ export class VibeService {
         const expMs = exp?.toMillis?.() ?? Number.POSITIVE_INFINITY;
         if (expMs <= nowMs) return;
 
-        if (data.location && 
-            data.location.latitude && 
-            data.location.longitude &&
-            this.calculateDistance(
-              userLocation.latitude,
-              userLocation.longitude,
-              data.location.latitude,
-              data.location.longitude
-            ) <= 10) {
+        if (data.location &&
+          data.location.latitude &&
+          data.location.longitude &&
+          this.calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            data.location.latitude,
+            data.location.longitude
+          ) <= 10) {
           vibes.push({
             id: doc.id,
             ...data
@@ -423,13 +436,14 @@ export class VibeService {
         if (expMs <= nowMs) return;
 
         const vibeId = (data as any).vibeId as string;
-        
+
         vibeCount[vibeId] = (vibeCount[vibeId] || 0) + 1;
-        
-        if (recentActivity.length < 10) {        recentActivity.push({
-          ...(data as any),
-          id: doc.id
-        } as UserVibe);
+
+        if (recentActivity.length < 10) {
+          recentActivity.push({
+            ...(data as any),
+            id: doc.id
+          } as UserVibe);
         }
       });
 
@@ -446,7 +460,7 @@ export class VibeService {
       return {
         totalVibes: Object.values(vibeCount).reduce((a, b) => a + b, 0),
         popularVibes,
-        recentActivity: recentActivity.sort((a, b) => 
+        recentActivity: recentActivity.sort((a, b) =>
           (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)
         )
       };
@@ -486,7 +500,7 @@ export class VibeService {
   // Private helper methods
   private async deactivateUserVibes(userId: string): Promise<void> {
     console.log('🔧 VibeService: Deactivating previous vibes for user:', userId);
-    
+
     const q = query(
       collection(db, 'userVibes'),
       where('userId', '==', userId),
@@ -495,7 +509,7 @@ export class VibeService {
 
     const snapshot = await getDocs(q);
     console.log('🔧 VibeService: Found', snapshot.size, 'active vibes to deactivate');
-    
+
     const batch: Promise<void>[] = [];
 
     snapshot.forEach(doc => {

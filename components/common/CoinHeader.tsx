@@ -15,7 +15,7 @@ export default function CoinHeaderRight() {
   return (
     <View style={styles.container}>
       <TouchableOpacity
-        onPress={() => router.push('/CoinWalletScreen')}
+        onPress={() => router.push('/(screens)/wallet/CoinWalletScreen')}
         style={styles.balanceContainer}
         activeOpacity={0.7}
       >

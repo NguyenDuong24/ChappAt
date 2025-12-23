@@ -10,8 +10,10 @@ import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import VibeAvatar from '@/components/vibe/VibeAvatar';
 import { useAuth } from '@/context/authContext';
+import { useTranslation } from 'react-i18next';
 
 const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLastMessage = null, unreadCount: externalUnreadCount, chatType, chatRoomId, hotSpotId }: { item: any, noBorder?: boolean, currenUser: any, lastMessage?: DocumentData | null, unreadCount?: number, chatType?: string, chatRoomId?: string, hotSpotId?: string }) => {
+  const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -45,7 +47,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
     }, (e) => {
       // swallow
     });
-    return () => { try { unsub(); } catch {} };
+    return () => { try { unsub(); } catch { } };
   }, [item?.id, currenUser?.uid]);
 
   // When we know eventId, fetch its end time and auto-expire the badge/card
@@ -82,7 +84,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
         const ts = d?.endAt || d?.eventInfo?.endAt;
         if (ts?.toMillis) return ts.toMillis();
         if (typeof ts?.seconds === 'number') return ts.seconds * 1000;
-      } catch {}
+      } catch { }
       return undefined;
     };
 
@@ -189,20 +191,20 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
   };
 
   const renderLastMessage = () => {
-    if (isLoading) return 'Loading...';
+    if (isLoading) return t('common.loading');
 
     if (lastMessage) {
       try {
-        const prefix = currenUser?.uid === lastMessage?.uid ? 'You: ' : '';
+        const prefix = currenUser?.uid === lastMessage?.uid ? `${t('common.you')}: ` : '';
         const statusIcon = getLastMessageStatusIcon();
-        const text = lastMessage?.text || (lastMessage?.imageUrl ? '📷 Photo' : '');
+        const text = lastMessage?.text || (lastMessage?.imageUrl ? `📷 ${t('chat.image')}` : '');
         return `${prefix}${text} ${statusIcon}`.trim();
       } catch (error) {
         console.error('Error rendering last message:', error);
         return 'Error loading message';
       }
     } else {
-      return 'Say hi 👋';
+      return t('chat.say_hi', { defaultValue: 'Say hi 👋' });
     }
   };
 
@@ -222,12 +224,12 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
   };
 
   const renderUsername = () => {
-    if (!item?.username) return 'Unknown User';
+    if (!item?.username) return t('chat.unknown_user', { defaultValue: 'Unknown User' });
     try {
       return item.username.length > maxLength ? `${item.username.slice(0, maxLength)}...` : item.username;
     } catch (error) {
       console.error('Error rendering username:', error);
-      return 'Unknown User';
+      return t('chat.unknown_user', { defaultValue: 'Unknown User' });
     }
   };
 
@@ -242,28 +244,22 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
       try {
         const roomId = getRoomId(currenUser.uid, item.id);
         const readStatusRef = doc(db, 'rooms', roomId, 'readStatus', currenUser.uid);
-        setDoc(readStatusRef, { lastReadAt: serverTimestamp() }, { merge: true }).catch(() => {});
-      } catch {}
+        setDoc(readStatusRef, { lastReadAt: serverTimestamp() }, { merge: true }).catch(() => { });
+      } catch { }
 
       // Navigate to Hot Spot chat if it's a hot spot conversation
       if (chatType === 'hotspot' && chatRoomId) {
         router.push({
-          pathname: '/HotSpotChatScreen',
-          params: { 
+          pathname: '/(screens)/hotspots/HotSpotChatScreen',
+          params: {
             chatRoomId,
             hotSpotId: hotSpotId || '',
             hotSpotTitle: '',
           },
         });
       } else {
-        // Navigate to regular chat
-        try {
-          const activeTab = Array.isArray(segments) ? (segments[0] === '(tabs)' ? segments[1] : segments[0]) : segments[0] || '';
-          const dest = activeTab === 'home' ? `/(tabs)/home/chat/${item.id}` : activeTab === 'chat' ? `/(tabs)/chat/${item.id}` : `/chat/${item.id}`;
-          router.push(dest as any);
-        } catch (e) {
-          router.push({ pathname: `/chat/${item.id}` as any });
-        }
+        // Navigate to regular chat - always use /chat/[id] path
+        router.push(`/chat/${item.id}` as any);
       }
     } catch (error) {
       console.error('Error navigating to chat:', error);
@@ -275,7 +271,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
       style={[styles.container, { backgroundColor: currentThemeColors.background }]}
       onPress={handlePress}
     >
-      <View style={[styles.chatCard, isHotSpot && styles.hotSpotCard, { backgroundColor: isHotSpot ? currentThemeColors.hotSpotsBackground : currentThemeColors.cardBackground }]}> 
+      <View style={[styles.chatCard, isHotSpot && styles.hotSpotCard, { backgroundColor: isHotSpot ? currentThemeColors.hotSpotsBackground : currentThemeColors.cardBackground }]}>
         {/* Avatar Section */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatarWrapper}>
@@ -291,23 +287,23 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
                 styles.statusIndicator,
                 item.isOnline
                   ? {
-                      backgroundColor: Colors.success,
-                      borderColor: currentThemeColors.cardBackground,
-                      shadowColor: Colors.success,
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.4,
-                      shadowRadius: 4,
-                      elevation: 4,
-                    }
+                    backgroundColor: Colors.success,
+                    borderColor: currentThemeColors.cardBackground,
+                    shadowColor: Colors.success,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 4,
+                    elevation: 4,
+                  }
                   : {
-                      backgroundColor: Colors.warning,
-                      borderColor: currentThemeColors.cardBackground,
-                      shadowColor: Colors.warning,
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.2,
-                      shadowRadius: 2,
-                      elevation: 2,
-                    }
+                    backgroundColor: Colors.warning,
+                    borderColor: currentThemeColors.cardBackground,
+                    shadowColor: Colors.warning,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 2,
+                    elevation: 2,
+                  }
               ]} />
             )}
           </View>
@@ -320,13 +316,13 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
                 {renderUsername()}
               </Text>
               {(isHotSpot || chatType === 'hotspot') && (
-                <View style={[styles.hotSpotBadge, { backgroundColor: currentThemeColors.hotSpotsSurfaceLight, borderColor: currentThemeColors.hotSpotsAccent }] }>
+                <View style={[styles.hotSpotBadge, { backgroundColor: currentThemeColors.hotSpotsSurfaceLight, borderColor: currentThemeColors.hotSpotsAccent }]}>
                   <MaterialCommunityIcons name="fire" size={12} color={currentThemeColors.hotSpotsPrimary} />
                   <Text style={[styles.hotSpotBadgeText, { color: currentThemeColors.hotSpotsPrimary }]}>Hot Spot</Text>
                 </View>
               )}
               {item.gender && (
-                <View style={[styles.genderContainer, { backgroundColor: currentThemeColors.inputBackground }] }>
+                <View style={[styles.genderContainer, { backgroundColor: currentThemeColors.inputBackground }]}>
                   <MaterialCommunityIcons
                     name={item.gender === 'male' ? 'gender-male' : 'gender-female'}
                     size={16}
@@ -363,16 +359,16 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
     borderRadius: 16,
-    padding: 16,
-    elevation: 2,
+    padding: 8,
+    elevation: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,

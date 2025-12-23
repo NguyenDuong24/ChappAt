@@ -6,14 +6,25 @@ import { getStorage, ref, list, getDownloadURL } from 'firebase/storage';
 import { useLogoState } from '@/context/LogoStateContext';
 import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
+import ProgressIndicator from '@/components/signup/ProgressIndicator';
+import { useTranslation } from 'react-i18next';
 
 const PAGE_SIZE = 9;
 
 const IconSelectionScreen = () => {
-  const { setIcon, cancelRegistration } = useAuth();
+  const { t } = useTranslation();
+  const { setIcon, cancelRegistration, signupType } = useAuth();
   const router = useRouter();
   const params = useLocalSearchParams();
   const logoUrl = useLogoState();
+
+  // Dynamic step calculation (this is the final profile step)
+  const stepInfo = useMemo(() => {
+    if (signupType === 'google') {
+      return { current: 4, total: 4 };
+    }
+    return { current: 6, total: 6 };
+  }, [signupType]);
 
   const [icons, setIcons] = useState([]);
   const [selectedIcon, setSelectedIcon] = useState(null);
@@ -39,11 +50,11 @@ const IconSelectionScreen = () => {
       isLoadingRef.current = false;
       if (initialLoading) setInitialLoading(false);
     }
-  }, []); // Empty deps để stable, dùng ref cho loading
+  }, [icons.length, initialLoading]);
 
   useEffect(() => {
     loadIcons();
-  }, []); // Empty deps, chỉ run initial load một lần
+  }, []);
 
   const handleIconSelect = useCallback(
     (icon) => {
@@ -63,11 +74,11 @@ const IconSelectionScreen = () => {
 
   const handleCancel = () => {
     Alert.alert(
-      'Huỷ đăng ký?',
-      'Bạn có chắc muốn huỷ đăng ký và xoá tài khoản tạm thời (nếu có)?',
+      t('signup.cancel_title'),
+      t('signup.cancel_message'),
       [
-        { text: 'Không', style: 'cancel' },
-        { text: 'Huỷ & Xoá', style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) {} } },
+        { text: t('common.no'), style: 'cancel' },
+        { text: t('signup.cancel_confirm'), style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) { } } },
       ]
     );
   };
@@ -112,15 +123,21 @@ const IconSelectionScreen = () => {
       style={styles.background}
       resizeMode="cover"
     >
-      <LinearGradient colors={['rgba(15,23,42,0.85)','rgba(15,23,42,0.65)']} style={styles.backdrop} />
+      <LinearGradient colors={['rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)']} style={styles.backdrop} />
 
       <View style={styles.container}>
+        <ProgressIndicator
+          currentStep={stepInfo.current}
+          totalSteps={stepInfo.total}
+          signupType={signupType || 'email'}
+        />
+
         {logoUrl ? (
           <Image source={{ uri: logoUrl }} style={styles.logo} />
         ) : (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         )}
-        <Text style={styles.title}>Choose an Icon</Text>
+        <Text style={styles.title}>{t('signup.icon_title')}</Text>
         {initialLoading ? (
           <ActivityIndicator size="large" color={Colors.primary} />
         ) : (
@@ -143,16 +160,17 @@ const IconSelectionScreen = () => {
           disabled={!selectedIcon}
           activeOpacity={0.85}
         >
-          <Text style={styles.nextButtonText}>Next</Text>
+          <Text style={styles.nextButtonText}>{t('common.next')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
-          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>Huỷ đăng ký</Text>
+          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>{t('signup.cancel_registration')}</Text>
         </TouchableOpacity>
       </View>
     </ImageBackground>
   );
 };
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
@@ -197,7 +215,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   selectedIcon: {
-    borderColor: Colors.primary, 
+    borderColor: Colors.primary,
     borderWidth: 5,
   },
   nextButton: {

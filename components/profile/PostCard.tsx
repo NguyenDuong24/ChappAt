@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -6,7 +6,10 @@ import {
   TouchableOpacity,
   Alert,
   Image,
-  Dimensions
+  Dimensions,
+  TextInput,
+  Animated,
+  ScrollView
 } from 'react-native';
 import { Menu, Provider, Button } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -25,13 +28,12 @@ import CustomImage from '../common/CustomImage';
 import HashtagText from '../common/HashtagText';
 import HashtagDisplay from '../common/HashtagDisplay';
 import PrivacySelector from '../common/PrivacySelector';
-import { CommentSection } from '../common/CommentSection';
-
 import PostHeader from '../common/PostHeader';
 import { removeHashtagStats } from '@/utils/hashtagUtils';
 import { updatePostPrivacy, PrivacyLevel } from '@/utils/postPrivacyUtils';
 import contentModerationService from '@/services/contentModerationService';
 import optimizedSocialService from '@/services/optimizedSocialService';
+import { followService } from '@/services/followService';
 
 interface PostImagesProps {
   images: string[];
@@ -119,8 +121,10 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
       <View style={styles.imageContainer}>
         <CustomImage
           source={images[0]}
+          images={images}
+          initialIndex={0}
           style={[styles.singleImage, { height: singleImageHeight }]}
-          onLongPress={() => {}}
+          onLongPress={() => { }}
         />
       </View>
     );
@@ -131,9 +135,14 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
       <View style={[styles.imageContainer, styles.multiImageContainer]}>
         <View style={styles.twoImagesRow}>
           {images.map((img, idx) => (
-            <TouchableOpacity key={idx} onPress={() => {}}>
-              <CustomImage key={idx} source={img} style={styles.twoImage} onLongPress={() => {}} />
-            </TouchableOpacity>
+            <CustomImage
+              key={idx}
+              source={img}
+              images={images}
+              initialIndex={idx}
+              style={styles.twoImage}
+              onLongPress={() => { }}
+            />
           ))}
         </View>
       </View>
@@ -143,10 +152,23 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
   if (images.length === 3) {
     return (
       <View style={[styles.imageContainer, styles.multiImageContainer]}>
-        <CustomImage source={images[0]} style={styles.threeImageLarge} onLongPress={() => {}} />
+        <CustomImage
+          source={images[0]}
+          images={images}
+          initialIndex={0}
+          style={styles.threeImageLarge}
+          onLongPress={() => { }}
+        />
         <View style={styles.threeImagesBottom}>
           {images.slice(1).map((img, idx) => (
-            <CustomImage key={idx} source={img} style={styles.threeImageSmall} onLongPress={() => {}} />
+            <CustomImage
+              key={idx}
+              source={img}
+              images={images}
+              initialIndex={idx + 1}
+              style={styles.threeImageSmall}
+              onLongPress={() => { }}
+            />
           ))}
         </View>
       </View>
@@ -160,7 +182,13 @@ const PostImages: React.FC<PostImagesProps> = ({ images }) => {
       <View style={styles.fourImagesGrid}>
         {displayImages.map((img, idx) => (
           <View key={idx} style={styles.fourImageWrapper}>
-            <CustomImage source={img} style={styles.fourImage} onLongPress={() => {}} />
+            <CustomImage
+              source={img}
+              images={images}
+              initialIndex={idx}
+              style={styles.fourImage}
+              onLongPress={() => { }}
+            />
             {idx === 3 && images.length > 4 && (
               <View style={styles.overlay}>
                 <Text style={styles.overlayText}>+{images.length - 4}</Text>
@@ -193,6 +221,157 @@ const PostCard: React.FC<PostCardProps> = ({
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(postUserInfo || null);
   const [showPrivacySelector, setShowPrivacySelector] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+
+  // Comment related state
+  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState<Comment[]>(post.comments || []);
+  const [showComments, setShowComments] = useState(false);
+  const ignoreNextCommentsSync = useRef(false);
+
+  // Helper: ensure each comment/reply has an id and sane defaults
+  const normalizeComments = (comments: Comment[] = [], path: string[] = []): Comment[] => {
+    return (comments || []).map((c, idx) => {
+      let baseTs: number;
+      if (c?.timestamp?.seconds) {
+        baseTs = c.timestamp.seconds * 1000;
+      } else if (c?.timestamp?._seconds) {
+        baseTs = c.timestamp._seconds * 1000;
+      } else if (c?.timestamp?.toDate) {
+        baseTs = c.timestamp.toDate().getTime();
+      } else if (typeof c?.timestamp === 'number') {
+        baseTs = c.timestamp;
+      } else if (typeof c?.timestamp === 'string') {
+        baseTs = new Date(c.timestamp).getTime();
+      } else {
+        baseTs = Date.now();
+      }
+
+      if (isNaN(baseTs)) baseTs = Date.now();
+
+      const safeId = c.id || `${c.userId || 'u'}_${baseTs}_${idx}_${path.join('-')}`;
+      return {
+        ...c,
+        id: safeId,
+        timestamp: baseTs, // Normalize to number
+        likes: Array.isArray(c.likes) ? c.likes : [],
+        replies: c.replies && c.replies.length > 0 ? normalizeComments(c.replies, [...path, String(idx)]) : [],
+      };
+    });
+  };
+
+  const [localComments, setLocalComments] = useState<Comment[]>(
+    normalizeComments(post.comments || []).sort((a, b) => b.timestamp - a.timestamp)
+  );
+
+  useEffect(() => {
+    if (ignoreNextCommentsSync.current) {
+      ignoreNextCommentsSync.current = false;
+      return;
+    }
+    const sortedComments = normalizeComments(post.comments || []).sort((a, b) => b.timestamp - a.timestamp);
+    setLocalComments(sortedComments);
+  }, [post.comments]);
+
+  // Check follow status
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (currentUserId && post.userID && currentUserId !== post.userID) {
+        const following = await followService.isFollowing(currentUserId, post.userID);
+        setIsFollowing(following);
+      }
+    };
+    checkFollowStatus();
+  }, [currentUserId, post.userID]);
+
+  const handleFollow = async () => {
+    if (!currentUserId || !post.userID) return;
+    try {
+      const success = await followService.followUser(currentUserId, post.userID);
+      if (success) {
+        setIsFollowing(true);
+        // Optional: Send notification
+        await socialNotificationService.createFollowNotification(post.userID, currentUserId);
+      }
+    } catch (error) {
+      console.error('Error following user:', error);
+    }
+  };
+
+  // Resolve avatar URL
+  const resolveCommentAvatar = (c: any): string | undefined => {
+    return (
+      c?.userAvatar ||
+      c?.avatar ||
+      c?.photoURL ||
+      c?.profileImage ||
+      c?.user?.photoURL ||
+      c?.user?.avatar ||
+      undefined
+    );
+  };
+
+  const CommentItem: React.FC<{ comment: Comment; level?: number }> = ({ comment, level = 0 }) => {
+    const [avatarError, setAvatarError] = useState(false);
+    const avatarUri = !avatarError ? resolveCommentAvatar(comment) : undefined;
+
+    return (
+      <View>
+        <View style={[styles.comment, { marginLeft: level * 16 }]}>
+          {avatarUri ? (
+            <Image
+              source={{ uri: avatarUri }}
+              style={styles.commentAvatar}
+              onError={() => setAvatarError(true)}
+            />
+          ) : (
+            <View style={[styles.commentAvatar, { backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' }]}>
+              <Ionicons name="person" size={14} color={Colors.primary} />
+            </View>
+          )}
+          <View style={[styles.commentContent, { backgroundColor: currentThemeColors.cardBackground || '#f8f9fa' }]}>
+            <Text style={[styles.commentUser, { color: currentThemeColors.text }]}>
+              {comment.username}
+            </Text>
+            <Text style={[styles.commentText, { color: currentThemeColors.text }]}>
+              {comment.text}
+            </Text>
+            <View style={styles.commentMeta}>
+              <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>
+                {formatTime(comment.timestamp)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const handleCommentSubmit = async () => {
+    if (!commentText.trim()) return;
+
+    const trimmedText = commentText.trim();
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      userId: currentUserId!,
+      username: authUser?.username || authUser?.displayName || 'You',
+      avatar: authUser?.profileUrl,
+      text: trimmedText,
+      timestamp: Date.now(),
+      likes: [],
+      replies: [],
+    };
+
+    // Optimistic update - prepend new comment
+    const updatedComments = [newComment, ...localComments];
+    ignoreNextCommentsSync.current = true;
+    setLocalComments(updatedComments);
+    setComments(updatedComments);
+    setCommentText('');
+
+    // Call existing notification logic
+    await handleCommentWithNotification(trimmedText);
+  };
 
   useEffect(() => {
     const fetchUserInfoAsync = async () => {
@@ -313,7 +492,7 @@ const PostCard: React.FC<PostCardProps> = ({
 
   const handleHashtagPress = (hashtag: string) => {
     const cleanHashtag = hashtag.replace('#', '');
-    router.push(`/HashtagScreen?hashtag=${cleanHashtag}`);
+    router.push(`/(screens)/social/HashtagScreen?hashtag=${cleanHashtag}` as any);
   };
 
   const handlePrivacyChange = async (newPrivacy: PrivacyLevel) => {
@@ -336,9 +515,11 @@ const PostCard: React.FC<PostCardProps> = ({
           userId={post.userID}
           isOwner={owner}
           postPrivacy={post.privacy || 'public'}
-          onUserPress={() => router.push(`/UserProfileScreen?userId=${post.userID}`)}
+          onUserPress={() => router.push(`/(screens)/user/UserProfileScreen?userId=${post.userID}`)}
           onDeletePost={handleDeletePost}
           onPrivacyChange={() => setShowPrivacySelector(true)}
+          isFollowing={isFollowing}
+          onFollowPress={handleFollow}
         />
 
         {post.content && (
@@ -386,21 +567,55 @@ const PostCard: React.FC<PostCardProps> = ({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton} onPress={() => setShowCommentInput(!showCommentInput)}>
-            <Ionicons name="chatbubble-outline" size={24} color={currentThemeColors.icon} />
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowComments(!showComments)}>
+            <Ionicons name="chatbubble-outline" size={24} color={showComments ? Colors.primary : currentThemeColors.icon} />
             <Text style={[styles.actionCount, { color: currentThemeColors.text }]}>
-              {post.comments?.length || 0}
+              {localComments.length}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {showCommentInput && (
-          <CommentSection
-            comments={post.comments || []}
-            onAddComment={handleCommentWithNotification}
-            currentUserId={currentUserId || ''}
-            currentUserAvatar={authUser?.profileUrl}
-          />
+        {showComments && (
+          <View style={[styles.commentsSection, { borderTopColor: currentThemeColors.border }]}>
+            <View style={[styles.commentInputContainer, { backgroundColor: currentThemeColors.cardBackground || '#f8f9fa' }]}>
+              {authUser?.profileUrl ? (
+                <Image
+                  source={{ uri: authUser.profileUrl }}
+                  style={styles.commentAvatar}
+                  onError={(e) => console.log('User avatar load error:', e.nativeEvent.error)}
+                />
+              ) : (
+                <View style={[styles.commentAvatar, { backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' }]}>
+                  <Ionicons name="person" size={14} color={Colors.primary} />
+                </View>
+              )}
+              <TextInput
+                style={[styles.commentInput, { color: currentThemeColors.text }]}
+                placeholder={"Viết bình luận..."}
+                placeholderTextColor={currentThemeColors.placeholderText || currentThemeColors.subtleText}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.sendButton, !commentText.trim() && { opacity: 0.5 }]}
+                onPress={handleCommentSubmit}
+                disabled={!commentText.trim()}
+              >
+                <Ionicons name="send" size={16} color="white" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.commentsList} nestedScrollEnabled={true}>
+              {localComments && localComments.length > 0 ? (
+                localComments.map((comment, idx) => (
+                  <CommentItem key={comment.id || idx} comment={comment} level={0} />
+                ))
+              ) : (
+                <Text style={[styles.noComments, { color: currentThemeColors.subtleText }]}>Chưa có bình luận nào</Text>
+              )}
+            </ScrollView>
+          </View>
         )}
 
         <PrivacySelector
@@ -537,6 +752,77 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontSize: 14,
     fontWeight: '600',
+  },
+  commentsSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
+  },
+  commentInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
+  },
+  sendButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  commentsList: {
+    gap: 12,
+    maxHeight: 300,
+  },
+  comment: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  commentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  commentContent: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 10,
+  },
+  commentUser: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  commentText: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  commentMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 12,
+  },
+  commentTime: {
+    fontSize: 11,
+  },
+  noComments: {
+    fontSize: 14,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 20,
   },
 });
 

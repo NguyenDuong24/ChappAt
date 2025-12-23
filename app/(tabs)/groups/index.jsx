@@ -1,10 +1,10 @@
-import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, InteractionManager } from 'react-native';
 import React, { useEffect, useState, useContext, useRef, useMemo } from 'react';
 import EnhancedGroupList from '@/components/groups/EnhancedGroupList';
 import EnhancedCreateGroupModal from '@/components/groups/EnhancedCreateGroupModal';
 import { useAuth } from '@/context/authContext';
 import { getDocs, query, where, doc, getDoc, updateDoc, serverTimestamp, arrayUnion, onSnapshot } from 'firebase/firestore';
-import { groupsRef } from '@/firebaseConfig';
+import { groupsRef, db } from '@/firebaseConfig';
 import { useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Text, TextInput } from 'react-native-paper';
@@ -36,17 +36,17 @@ export default function Groups() {
     try {
       const q = query(groupsRef, where('members', 'array-contains', user.uid));
       const snapshot = await getDocs(q);
-      
+
       const updatePromises = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(group => !group.type)
-        .map(group => 
-          updateDoc(doc(db, 'groups', group.id), { 
+        .map(group =>
+          updateDoc(doc(db, 'groups', group.id), {
             type: 'private',
-            isSearchable: false 
+            isSearchable: false
           })
         );
-      
+
       if (updatePromises.length > 0) {
         await Promise.all(updatePromises);
         console.log(`Updated ${updatePromises.length} old groups with type: private`);
@@ -66,9 +66,11 @@ export default function Groups() {
   useEffect(() => {
     let unsub = null;
     if (user?.uid) {
-      unsub = getGroups();
-      // Update old groups without type (one-time operation)
-      updateOldGroupsType();
+      InteractionManager.runAfterInteractions(() => {
+        unsub = getGroups();
+        // Update old groups without type (one-time operation)
+        updateOldGroupsType();
+      });
     }
 
     return () => {
@@ -275,7 +277,7 @@ export default function Groups() {
       setGroups(prevGroups => {
         const exists = prevGroups.some(g => g.id === groupId);
         if (exists) {
-          return prevGroups.map(group => 
+          return prevGroups.map(group =>
             group.id === groupId ? { ...group, isJoined: true, members: [...(group.members || []), user.uid] } : group
           );
         }
@@ -299,7 +301,7 @@ export default function Groups() {
           )
         );
       }
-      
+
       console.log('Successfully joined group');
     } catch (error) {
       console.error('Error joining group:', error);
@@ -422,12 +424,12 @@ export default function Groups() {
   }), [theme]);
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.backgroundHeader }]}> 
+    <View style={[styles.container, { backgroundColor: currentThemeColors.backgroundHeader }]}>
       <ThemedStatusBar translucent />
 
       <LinearGradient
-        colors={theme === 'dark' 
-          ? ['#1a1a2e', '#16213e'] 
+        colors={theme === 'dark'
+          ? ['#1a1a2e', '#16213e']
           : ['#4facfe', '#00f2fe']
         }
         start={{ x: 0, y: 0 }}
@@ -436,32 +438,32 @@ export default function Groups() {
       >
         <View style={[styles.headerContent, { paddingTop: insets.top + 12 }]}>
           <View style={styles.titleContainer}>
-            <MaterialCommunityIcons 
-              name="account-group" 
-              size={28} 
+            <MaterialCommunityIcons
+              name="account-group"
+              size={28}
               color="white"
             />
             <Text style={[styles.headerTitle, { color: 'white' }]}>
               Nhóm Chat
             </Text>
           </View>
-          
+
           <View style={styles.rightActions}>
             <View style={styles.groupCount}>
               <Text style={[styles.countText, { color: 'white' }]}>
                 {isSearchMode ? `${searchResults.length} kết quả` : `${groups.length} nhóm`}
               </Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.createButton}
               onPress={() => setShowCreateModal(true)}
             >
               <MaterialCommunityIcons name="plus" size={24} color="white" />
             </TouchableOpacity>
           </View>
-          
+
         </View>
-                {/* Search and actions */}
+        {/* Search and actions */}
         <View style={styles.searchWrapper}>
           <TextInput
             mode="outlined"
@@ -486,7 +488,7 @@ export default function Groups() {
         </View>
       </LinearGradient>
 
-      <View style={[styles.content]}> 
+      <View style={[styles.content]}>
 
         <EnhancedGroupList
           currentUser={user}

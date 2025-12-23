@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useContext } from 'react';
-import { StyleSheet, View, FlatList, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback, useContext, useMemo, useRef, memo } from 'react';
+import { StyleSheet, View, FlatList, RefreshControl, InteractionManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
@@ -12,6 +12,8 @@ import { convertTimestampToDate } from '@/utils/common';
 import { PrivacyLevel } from '@/utils/postPrivacyUtils';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
+import DeferredComponent from '@/components/DeferredComponent';
+import { useTranslation } from 'react-i18next';
 
 // Define a Post shape compatible with PostCard props
 interface Comment {
@@ -37,11 +39,28 @@ interface PostForCard {
   timestamp: any;
   userID: string;
   privacy?: 'public' | 'friends' | 'private';
-  // Allow unknown extra fields from Firestore
   [key: string]: any;
 }
 
-const ProfileScreen = () => {
+// Constants
+const FETCH_INTERVAL = 30000; // 30 seconds minimum between fetches
+const ITEM_HEIGHT = 400; // Approximate height of post card
+
+// Memoized Post Card
+const MemoizedPostCard = memo(PostCardStandard, (prevProps, nextProps) => {
+  return (
+    prevProps.post?.id === nextProps.post?.id &&
+    prevProps.post?.likes?.length === nextProps.post?.likes?.length &&
+    prevProps.post?.comments?.length === nextProps.post?.comments?.length &&
+    prevProps.currentUserId === nextProps.currentUserId
+  );
+});
+
+// Memoized Header Component
+const MemoizedTopProfile = memo(TopProfile);
+
+const ProfileScreen = memo(() => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [posts, setPosts] = useState<PostForCard[]>([]);
   const [isScroll, setIsScroll] = useState(false);
@@ -50,22 +69,38 @@ const ProfileScreen = () => {
 
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = useMemo(() =>
+    theme === 'dark' ? Colors.dark : Colors.light,
+    [theme]
+  );
 
-  const toMillis = (p: Partial<PostForCard>): number => {
+  // Refs for optimization
+  const lastFetchTimeRef = useRef<number>(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const toMillis = useCallback((p: Partial<PostForCard>): number => {
     const iso = convertTimestampToDate(p.timestamp ?? p.createdAt);
     return iso ? new Date(iso).getTime() : 0;
-  };
+  }, []);
 
   const fetchPosts = useCallback(async () => {
-    if (!user) return;
+    if (!user || !isMountedRef.current) return;
+
     try {
       const postsCollection = collection(db, 'posts');
       const userPostsQuery = query(postsCollection, where('userID', '==', user.uid));
       const postsSnapshot = await getDocs(userPostsQuery);
+
       const postsList: PostForCard[] = postsSnapshot.docs.map((docSnap) => {
         const data = docSnap.data() as any;
-        const post: PostForCard = {
+        return {
           id: docSnap.id,
           content: typeof data?.content === 'string' ? data.content : '',
           hashtags: Array.isArray(data?.hashtags) ? data.hashtags : [],
@@ -77,126 +112,191 @@ const ProfileScreen = () => {
           timestamp: data?.timestamp ?? data?.createdAt ?? null,
           userID: data?.userID ?? data?.userId ?? '',
           privacy: data?.privacy ?? 'public',
-          // keep other fields if any
           ...data,
         };
-        
-        // Debug log for hashtags
-        if (__DEV__ && data?.hashtags) {
-          console.log('🔍 PROFILE DEBUG - Post hashtags:', {
-            postId: docSnap.id,
-            rawHashtags: data.hashtags,
-            processedHashtags: post.hashtags,
-            hashtagsType: typeof data.hashtags,
-            isArray: Array.isArray(data.hashtags)
-          });
-        }
-        
-        return post;
       });
 
       const sortedPosts = postsList.sort((a, b) => toMillis(b) - toMillis(a));
-      setPosts(sortedPosts);
+
+      if (isMountedRef.current) {
+        setPosts(sortedPosts);
+        lastFetchTimeRef.current = Date.now();
+      }
     } catch (error) {
       console.error('Error fetching posts:', error);
     }
-  }, [user]);
+  }, [user, toMillis]);
 
+  // Only fetch when tab is focused and data is stale
   useFocusEffect(
     useCallback(() => {
-      fetchPosts();
-    }, [fetchPosts])
+      const now = Date.now();
+      // Only fetch if it's been more than FETCH_INTERVAL since last fetch
+      if (now - lastFetchTimeRef.current < FETCH_INTERVAL && posts.length > 0) {
+        return;
+      }
+
+      const task = InteractionManager.runAfterInteractions(() => {
+        if (isMountedRef.current) {
+          fetchPosts();
+        }
+      });
+
+      return () => task.cancel();
+    }, [fetchPosts, posts.length])
   );
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchPosts();
     setRefreshing(false);
-  };
+  }, [fetchPosts]);
 
-  const handlePrivacyChange = (postId: string, newPrivacy: PrivacyLevel) => {
-    console.log('Privacy changed for post:', postId, 'to:', newPrivacy);
+  const handlePrivacyChange = useCallback((postId: string, newPrivacy: PrivacyLevel) => {
     fetchPosts();
-  };
+  }, [fetchPosts]);
 
-  const handleShared = async () => {
+  const handleShared = useCallback(async () => {
     await fetchPosts();
-  };
+  }, [fetchPosts]);
 
-  const handleLike = async (postId: string, userId: string, isLiked: boolean) => {
+  const handleLike = useCallback(async (postId: string, userId: string, isLiked: boolean) => {
     try {
       const postRef = doc(db, 'posts', postId);
       if (isLiked) {
-        await updateDoc(postRef, {
-          likes: arrayRemove(userId),
-        });
+        await updateDoc(postRef, { likes: arrayRemove(userId) });
       } else {
-        await updateDoc(postRef, {
-          likes: arrayUnion(userId),
-        });
+        await updateDoc(postRef, { likes: arrayUnion(userId) });
       }
-      fetchPosts(); // Refresh posts to reflect changes
+
+      // Optimistic update instead of refetching
+      setPosts(prevPosts =>
+        prevPosts.map(post => {
+          if (post.id === postId) {
+            const newLikes = isLiked
+              ? post.likes.filter(id => id !== userId)
+              : [...post.likes, userId];
+            return { ...post, likes: newLikes };
+          }
+          return post;
+        })
+      );
     } catch (error) {
       console.error('Error updating like status:', error);
+      // Refetch on error to sync state
+      fetchPosts();
     }
-  };
+  }, [fetchPosts]);
 
-  const handleComment = async (postId: string, comment: string) => {
+  const handleComment = useCallback(async (postId: string, comment: string) => {
     try {
       const postRef = doc(db, 'posts', postId);
       const newComment = {
         id: `${Date.now()}`,
         text: comment,
-        username: user?.displayName || user?.username || 'Unknown User',
+        username: user?.displayName || user?.username || t('chat.unknown_user'),
         userAvatar: user?.profileUrl || user?.avatar || '',
         userId: user?.uid || '',
         timestamp: new Date(),
         likes: [],
       };
-      await updateDoc(postRef, {
-        comments: arrayUnion(newComment),
-      });
-      fetchPosts(); // Refresh posts to reflect changes
+      await updateDoc(postRef, { comments: arrayUnion(newComment) });
+
+      // Optimistic update
+      setPosts(prevPosts =>
+        prevPosts.map(post => {
+          if (post.id === postId) {
+            return { ...post, comments: [...(post.comments || []), newComment] };
+          }
+          return post;
+        })
+      );
     } catch (error) {
       console.error('Error adding comment:', error);
+      fetchPosts();
     }
-  };
+  }, [user, fetchPosts, t]);
 
-  const handleShare = async (postId: string) => {
+  const handleShare = useCallback(async (postId: string) => {
     console.log('Share post:', postId);
-  };
+  }, []);
 
-  const renderPost = ({ item }: { item: PostForCard }) => (
-    <PostCardStandard
+  const handleDelete = useCallback(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  const handleUserPress = useCallback((userId: string) => {
+    console.log('Navigate to user:', userId);
+  }, []);
+
+  const handleEditProfile = useCallback(() => {
+    console.log('Edit Profile Pressed');
+  }, []);
+
+  const renderPost = useCallback(({ item }: { item: PostForCard }) => (
+    <MemoizedPostCard
       post={item}
       currentUserId={user?.uid || ''}
       currentUserAvatar={user?.profileUrl || user?.avatar}
       onLike={handleLike}
       onComment={handleComment}
       onShare={handleShare}
-      onDelete={() => { fetchPosts(); }}
-      onUserPress={(userId: string) => console.log('Navigate to user:', userId)}
+      onDelete={handleDelete}
+      onUserPress={handleUserPress}
       isOwner={true}
     />
-  );
+  ), [user?.uid, user?.profileUrl, user?.avatar, handleLike, handleComment, handleShare, handleDelete, handleUserPress]);
+
+  const keyExtractor = useCallback((item: PostForCard) => item.id, []);
+
+  const getItemLayout = useCallback((data: any, index: number) => ({
+    length: ITEM_HEIGHT,
+    offset: ITEM_HEIGHT * index,
+    index,
+  }), []);
+
+  const ListHeader = useMemo(() => (
+    <MemoizedTopProfile onEditProfile={handleEditProfile} />
+  ), [handleEditProfile]);
+
+  const handleScroll = useCallback(() => setIsScroll(true), []);
+  const handleScrollEnd = useCallback(() => setIsScroll(false), []);
+
+  const refreshControl = useMemo(() => (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      tintColor="#667eea"
+      colors={['#667eea']}
+    />
+  ), [refreshing, onRefresh]);
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      <AddPostButton isScroll={isScroll} />
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={<TopProfile onEditProfile={() => console.log('Edit Profile Pressed')} />}
-        contentContainerStyle={[styles.flatListContainer]}
-        onScroll={() => setIsScroll(true)}
-        onMomentumScrollEnd={() => setIsScroll(false)}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
+    <DeferredComponent>
+      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        <AddPostButton isScroll={isScroll} />
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={keyExtractor}
+          ListHeaderComponent={ListHeader}
+          contentContainerStyle={styles.flatListContainer}
+          onScroll={handleScroll}
+          onMomentumScrollEnd={handleScrollEnd}
+          refreshControl={refreshControl}
+          showsVerticalScrollIndicator={false}
+          // Performance optimizations
+          initialNumToRender={3}
+          maxToRenderPerBatch={2}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={100}
+          scrollEventThrottle={16}
+        />
+      </View>
+    </DeferredComponent>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

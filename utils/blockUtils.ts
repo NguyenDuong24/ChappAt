@@ -39,12 +39,12 @@ export const canChatWith = async (
 
   const isBlocked = await followService.isBlocked(currentUserId, targetUserId);
   if (isBlocked) {
-    return { canChat: false, reason: 'Bạn đã chặn người dùng này' };
+    return { canChat: false, reason: 'chat.blocked_subtitle' };
   }
 
   const isBlockedBy = await followService.isBlocked(targetUserId, currentUserId);
   if (isBlockedBy) {
-    return { canChat: false, reason: 'Người dùng này đã chặn bạn' };
+    return { canChat: false, reason: 'chat.blocked_by_subtitle' };
   }
 
   return { canChat: true };

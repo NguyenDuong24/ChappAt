@@ -81,8 +81,8 @@ export default function GroupPreviewScreen() {
           return;
         }
 
-         // Load some members (first 10)
-         if (groupData.members?.length > 0) {
+        // Load some members (first 10)
+        if (groupData.members?.length > 0) {
           const memberUIDs = groupData.members.slice(0, 10);
           const memberDetails: Member[] = [];
 
@@ -114,6 +114,23 @@ export default function GroupPreviewScreen() {
     }
   };
 
+  const [requestStatus, setRequestStatus] = useState<'none' | 'pending'>('none');
+
+  useEffect(() => {
+    if (id && user?.uid) {
+      checkRequestStatus();
+    }
+  }, [id, user]);
+
+  const checkRequestStatus = async () => {
+    if (!id || !user?.uid) return;
+    const { groupRequestService } = await import('@/services/groupRequestService');
+    const result = await groupRequestService.checkRequestStatus(id as string, user.uid);
+    if (result.exists && result.data?.status === 'pending') {
+      setRequestStatus('pending');
+    }
+  };
+
   const handleJoinGroup = async () => {
     if (!user?.uid || !group) return;
 
@@ -126,13 +143,21 @@ export default function GroupPreviewScreen() {
         return;
       }
 
-      // Prevent joining private groups directly
+      // Handle Private Groups: Send Request instead of direct join
       if (group.type === 'private') {
-        Alert.alert('Thông báo', 'Nhóm riêng tư. Bạn không thể tham gia trực tiếp mà không được mời.');
+        const { groupRequestService } = await import('@/services/groupRequestService');
+        const result = await groupRequestService.sendJoinRequest(group.id, user);
+
+        if (result.success) {
+          Alert.alert('Thành công', 'Đã gửi yêu cầu tham gia nhóm. Vui lòng chờ quản trị viên duyệt.');
+          setRequestStatus('pending');
+        } else {
+          Alert.alert('Thông báo', result.message);
+        }
         return;
       }
 
-      // Add user to group
+      // Public Groups: Join directly
       const { updateDoc, arrayUnion, serverTimestamp } = await import('firebase/firestore');
       await updateDoc(doc(db, 'groups', group.id), {
         members: arrayUnion(user.uid),
@@ -267,11 +292,17 @@ export default function GroupPreviewScreen() {
               mode="contained"
               onPress={handleJoinGroup}
               loading={joining}
-              disabled={joining || (group?.type === 'private' && !isMember)}
+              disabled={joining || (group?.type === 'private' && !isMember && requestStatus === 'pending')}
               style={styles.joinButton}
               contentStyle={styles.joinButtonContent}
             >
-              {group?.members?.includes(user?.uid) || isMember ? 'Đã tham gia' : (joining ? 'Đang tham gia...' : (group?.type === 'private' ? 'Riêng tư' : 'Tham gia nhóm'))}
+              {group?.members?.includes(user?.uid) || isMember
+                ? 'Đã tham gia'
+                : (requestStatus === 'pending'
+                  ? 'Đã gửi yêu cầu'
+                  : (joining
+                    ? 'Đang xử lý...'
+                    : (group?.type === 'private' ? 'Xin vào nhóm' : 'Tham gia nhóm')))}
             </Button>
           </View>
 

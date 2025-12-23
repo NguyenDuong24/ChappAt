@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
+import { Colors } from '@/constants/Colors';
 
 type InteractionButtonsProps = {
   isInterested: boolean;
@@ -23,11 +24,22 @@ const InteractionButtons = ({
     <View style={styles.interactionContainer}>
       {/* Chỉ hiển thị nút Quan tâm - user không thể tự check-in hay join */}
       <TouchableOpacity
-        style={[styles.interactionButton, isInterested && styles.interestedButton]}
+        style={[
+          styles.interactionButton,
+          isInterested && styles.interestedButtonActive
+        ]}
         onPress={() => onInteract('interested')}
+        activeOpacity={0.8}
       >
-        <FontAwesome name={isInterested ? 'star' : 'star-o'} size={20} color={isInterested ? '#fff' : '#FFC300'} />
-        <Text style={[styles.interactionText, isInterested && styles.interestedText]}>
+        <FontAwesome
+          name={isInterested ? 'star' : 'star-o'}
+          size={20}
+          color={isInterested ? '#fff' : Colors.text}
+        />
+        <Text style={[
+          styles.interactionText,
+          isInterested && styles.interestedTextActive
+        ]}>
           {isInterested ? 'Đã quan tâm' : 'Quan tâm'}
         </Text>
       </TouchableOpacity>
@@ -35,7 +47,7 @@ const InteractionButtons = ({
       {/* Hiển thị trạng thái check-in nếu đã check-in (chỉ hiển thị, không cho click) */}
       {isCheckedIn && (
         <View style={[styles.interactionButton, styles.checkedInButton]}>
-          <FontAwesome name="check-circle" size={24} color="#fff" />
+          <FontAwesome name="check-circle" size={20} color="#fff" />
           <Text style={[styles.interactionText, styles.checkedInText]}>
             Đã Check-in
           </Text>
@@ -48,45 +60,46 @@ const InteractionButtons = ({
 const styles = StyleSheet.create({
   interactionContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    backgroundColor: '#F9F9F9',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 12,
   },
   interactionButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginHorizontal: 5,
+    paddingVertical: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#eee',
-    backgroundColor: '#fff',
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   interactionText: {
     marginLeft: 8,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
+    color: Colors.text,
   },
-  interestedButton: {
-    backgroundColor: '#FFC300',
-    borderColor: '#FFC300',
+  interestedButtonActive: {
+    backgroundColor: '#FFB703', // Warm yellow/orange
+    borderColor: '#FFB703',
   },
-  interestedText: {
-    color: '#fff',
-  },
-  joinedButton: {
-    backgroundColor: '#4ECDC4',
-    borderColor: '#4ECDC4',
-  },
-  joinedText: {
+  interestedTextActive: {
     color: '#fff',
   },
   checkedInButton: {
-    backgroundColor: '#45B8AC',
-    borderColor: '#45B8AC',
+    backgroundColor: '#10B981', // Emerald green
+    borderColor: '#10B981',
   },
   checkedInText: {
     color: '#fff',

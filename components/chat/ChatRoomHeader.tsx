@@ -14,10 +14,16 @@ import VibeAvatar from '@/components/vibe/VibeAvatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatTheme } from '@/context/ChatThemeContext';
 
-export default function ChatRoomHeader({ user, router, userId, onThemePress, chatTheme }: { user: any, router: any, userId: string, onThemePress: any, chatTheme?: ChatTheme }) {
+export default function ChatRoomHeader({ user, router, userId, onThemePress, chatTheme, onBack }: { user: any, router: any, userId: string, onThemePress: any, chatTheme?: ChatTheme, onBack?: () => void }) {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = (theme === 'dark' ? Colors.dark : Colors.light) || {
+    surface: '#F8FAFC',
+    text: '#0F172A',
+    subtleText: '#64748B',
+    border: '#E2E8F0',
+    backgroundHeader: '#F1F5F9',
+  };
   const { user: userCurrent } = useAuth();
   const viewerShowOnline = userCurrent?.showOnlineStatus !== false;
   const { navigateToListenCallScreen } = useCallNavigation();
@@ -207,7 +213,7 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
         {/* Left section with back button */}
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: chatTheme?.receivedMessageColor || currentThemeColors.surface }]}
-          onPress={() => router.back()}
+          onPress={() => onBack ? onBack() : router?.back()}
         >
           <Ionicons name="arrow-back" size={24} color={chatTheme?.textColor || currentThemeColors.text} />
         </TouchableOpacity>
@@ -233,11 +239,10 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
               />
             )}
           </View>
-          <TouchableOpacity style={styles.userDetails} onPress={() => router.push
-            ({
-              pathname: "/UserProfileScreen",
-              params: { userId: userId }
-            })}>
+          <TouchableOpacity style={styles.userDetails} onPress={() => router.push({
+            pathname: "/(screens)/user/UserProfileScreen",
+            params: { userId: userId }
+          })}>
             <Text style={[styles.userName, { color: chatTheme?.textColor || currentThemeColors.text, fontSize: 16 }]}>{user?.username}</Text>
             <Text style={[styles.userStatus, { color: chatTheme?.textColor || currentThemeColors.subtleText }]}
             >
@@ -287,7 +292,7 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
           >
             <TouchableOpacity
               style={styles.menuItem}
-              onPress={() => { toggleMenu(); onThemePress(); }}
+              onPress={() => { toggleMenu(); setTimeout(() => { if (onThemePress) onThemePress(); }, 220); }}
             >
               <MaterialIcons name="palette" size={20} color={currentThemeColors.text} />
               <Text style={[styles.menuItemText, { color: currentThemeColors.text }]}>Chọn đổi chủ đề</Text>

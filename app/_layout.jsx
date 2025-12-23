@@ -1,9 +1,10 @@
 import '../polyfills';
+import '../src/localization/i18n';
 import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Slot, useRouter, useSegments, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthContextProvider, useAuth } from '../context/authContext';
@@ -23,21 +24,18 @@ import { VideoCallProvider } from '../context/VideoCallContext';
 import { Colors } from '../constants/Colors';
 import { register } from "@videosdk.live/react-native-sdk";
 import ThemedStatusBar from '@/components/common/ThemedStatusBar';
-
-// Import Firebase call services
-import { useFirebaseCallListener } from '../hooks/useFirebaseCallListener';
-import { useCallNavigation } from '../hooks/useNewCallNavigation';
-import { useAuthRouting } from '../hooks/useAuthRouting';
-import { CALL_STATUS } from '../services/firebaseCallService';
-
-// Import sound hook for local sound playback
-import { useSound } from '../hooks/useSound';
+import InterstitialAdManager from '@/components/ads/InterstitialAdManager';
 
 // Import call timeout service
 import callTimeoutService from '../services/callTimeoutService.js';
+import CallLogicHandler from '../components/call/CallLogicHandler';
+
+// Import auth routing hook
+import { useAuthRouting } from '../hooks/useAuthRouting';
+import { useSound } from '../hooks/useSound';
 
 // VideoSDK token - trong production, store trong environment variables
-const VIDEOSDK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlrZXkiOiI5OWY1MWM0YS1mNWVjLTRkMzUtOTZjYy0zZWE1NDNmNWNiMGYiLCJwZXJtaXNzaW9ucyI6WyJhbGxvd19qb2luIl0sImlhdCI6MTczNDQ5MjA2NCwiZXhwIjoxODUwNDA0MDY0fQ.1b9RFFR2c5KWV5DFJ2XH1K6CwRTBBuNPBcWqKnGhSag";
+const VIDEOSDK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlrZXkiOiI5OWY1MWM0YS1mNWVjLTRkMzUtOTZjYy0zZWE1NDNmNWNiMG YiLCJwZXJtaXNzaW9ucyI6WyJhbGxvd19qb2luIl0sImlhdCI6MTczNDQ5MjA2NCwiZXhwIjoxODUwNDA0MDY0fQ.1b9RFFR2c5KWV5DF2XH1K6CwRTBBuNPBcWqKnGhSag";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -74,140 +72,33 @@ const MainLayout = () => {
     return null;
   }
 
-  // Call navigation hooks
-  const {
-    navigateToListenCallScreen,
-    navigateToIncomingCallScreen,
-    navigateToCallScreen,
-    navigateBack,
-    currentScreen
-  } = useCallNavigation();
-
-  // Xác định user role dựa trên callerId và receiverId
-  const getUserRole = useCallback((callData) => {
-    if (!user?.uid || !callData) return null;
-
-    if (callData.callerId === user.uid) {
-      return 'caller'; // Tôi là người GỌI
-    } else if (callData.receiverId === user.uid) {
-      return 'receiver'; // Tôi là người NHẬN
-    }
-
-    return null;
-  }, [user?.uid]);
-
-  // Handle incoming call và call status changes
-  const handleCallUpdate = useCallback(async (callData) => {
-    if (!fontsLoaded) {
-      console.log('Layout not ready, skipping call update');
-      return;
-    }
-
-    if (!callData || !user?.uid) {
-      return;
-    }
-
-    const userRole = getUserRole(callData);
-
-    // Xử lý theo role và status, với check currentScreen để tránh navigate loop
-    if (userRole === 'receiver') {
-      // TÔI LÀ NGƯỜI NHẬN CUỘC GỌI
-      switch (callData.status) {
-        case CALL_STATUS.RINGING:
-          if (currentScreen !== 'incoming') {
-            // Có cuộc gọi đến → hiển thị IncomingCallScreen để accept/decline
-            navigateToIncomingCallScreen(callData);
-
-            // DỪNG TIMEOUT vì user đã thấy notification và vào màn hình
-            callTimeoutService.stopCallTimeout(callData.id);
-
-            // Chỉ phát âm thanh nếu app đang foreground (push notification đã được gửi từ firebaseCallService)
-            try {
-              await playIncomingCallSound();
-              console.log('🔔 Playing incoming call sound');
-            } catch (error) {
-              console.error('❌ Error playing call sound:', error);
-            }
-          }
-          break;
-
-        case CALL_STATUS.ACCEPTED:
-          if (currentScreen !== 'call') {
-            // Tôi đã accept call → vào CallScreen
-            navigateToCallScreen(callData);
-          }
-          break;
-
-        case CALL_STATUS.DECLINED:
-        case CALL_STATUS.CANCELLED:
-        case CALL_STATUS.ENDED:
-          if (currentScreen !== 'home') {
-            // Call kết thúc → navigate back và dừng âm thanh
-            navigateBack();
-
-            // Dừng âm thanh cuộc gọi nếu đang phát
-            try {
-              await stopCallSounds();
-              console.log('🔇 Stopped call sounds for ended call');
-            } catch (error) {
-              console.error('❌ Error stopping call sounds:', error);
-            }
-          }
-          break;
-      }
-    } else if (userRole === 'caller') {
-      // TÔI LÀ NGƯỜI GỌI
-      switch (callData.status) {
-        case CALL_STATUS.RINGING:
-          if (currentScreen !== 'listen') {
-            // Tôi đã gọi và đang chờ → hiển thị ListenCallAcceptedScreen
-            navigateToListenCallScreen(callData);
-
-            // DỪNG TIMEOUT vì caller đã thấy trạng thái chờ
-            callTimeoutService.stopCallTimeout(callData.id);
-          }
-          break;
-
-        case CALL_STATUS.ACCEPTED:
-          if (currentScreen !== 'call') {
-            // Người kia accept → cả 2 vào CallScreen
-            navigateToCallScreen(callData);
-          }
-          break;
-
-        case CALL_STATUS.DECLINED:
-        case CALL_STATUS.CANCELLED:
-        case CALL_STATUS.ENDED:
-          if (currentScreen !== 'home') {
-            // Call bị từ chối hoặc kết thúc → navigate back và dừng âm thanh
-            navigateBack();
-
-            // Dừng âm thanh cuộc gọi nếu đang phát
-            try {
-              await stopCallSounds();
-              console.log('🔇 Stopped call sounds for ended call (caller)');
-            } catch (error) {
-              console.error('❌ Error stopping call sounds:', error);
-            }
-          }
-          break;
-      }
-    } else {
-    }
-  }, [getUserRole, navigateToIncomingCallScreen, navigateToListenCallScreen, navigateToCallScreen, navigateBack, user?.uid, playIncomingCallSound, stopCallSounds, currentScreen]);
-
-  // Setup Firebase call listener với unified handler
-  useFirebaseCallListener(handleCallUpdate, handleCallUpdate);
-
   // Handle authentication routing with call screen protection
   useAuthRouting(isAuthenticated);
 
   return (
     <>
       <ThemedStatusBar translucent />
+      <InterstitialAdManager />
+      <CallLogicHandler />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="UserProfileScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/user/UserProfileScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/user/ProfileEditScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/user/PrivacySettingsScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/user/ChangePasswordScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/call/CallScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/call/IncomingCallScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/call/ListenCallAcceptedScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/social/PostDetailScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/social/HashtagScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/social/NotificationsScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/wallet/CoinWalletScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/hotspots/HotSpotsScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/hotspots/HotSpotDetailScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/hotspots/HotSpotChatScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/groups/GroupManagementScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/groups/GroupVoiceRoom" options={{ headerShown: false }} />
+        <Stack.Screen name="(screens)/store/StoreScreen" options={{ headerShown: false }} />
       </Stack>
     </>
   );
@@ -246,13 +137,13 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <UserProvider>
-        {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
-        <AuthContextProvider>
-          <AudioProvider>
-            <VideoCallProvider>
-              <NotificationProvider>
-                <StateCommonProvider>
+      <StateCommonProvider>
+        <UserProvider>
+          {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
+          <AuthContextProvider>
+            <AudioProvider>
+              <VideoCallProvider>
+                <NotificationProvider>
                   <ThemeProvider>
                     <AppStateProvider>
                       <LogoStateProvider>
@@ -264,12 +155,12 @@ export default function RootLayout() {
                       </LogoStateProvider>
                     </AppStateProvider>
                   </ThemeProvider>
-                </StateCommonProvider>
-              </NotificationProvider>
-            </VideoCallProvider>
-          </AudioProvider>
-        </AuthContextProvider>
-      </UserProvider>
+                </NotificationProvider>
+              </VideoCallProvider>
+            </AudioProvider>
+          </AuthContextProvider>
+        </UserProvider>
+      </StateCommonProvider>
     </GestureHandlerRootView>
   );
 }

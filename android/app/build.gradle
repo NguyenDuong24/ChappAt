@@ -126,16 +126,6 @@ android {
     }
 }
 
-configurations.all {
-    resolutionStrategy {
-        force 'androidx.core:core:1.13.1'
-        force 'androidx.core:core-ktx:1.13.1'
-        force 'androidx.appcompat:appcompat:1.6.1'
-        force 'com.google.android.material:material:1.11.0'
-    }
-    exclude group: 'com.android.support'
-}
-
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
 // Accepts values in comma delimited lists, example:
 // android.packagingOptions.pickFirsts=/LICENSE,**/picasa.ini

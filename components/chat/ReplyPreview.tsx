@@ -16,26 +16,31 @@ interface ReplyPreviewProps {
 const ReplyPreview: React.FC<ReplyPreviewProps> = ({
   replyTo,
   onClearReply,
-  currentThemeColors,
+  currentThemeColors = {
+    surface: '#F8FAFC',
+    tint: '#6366F1',
+    subtleText: '#64748B',
+    text: '#0F172A',
+  },
 }) => {
   if (!replyTo) return null;
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.surface }]}>
-      <View style={styles.replyIndicator} />
+      <View style={[styles.replyBar, { backgroundColor: currentThemeColors.tint || '#2196F3' }]} />
       <View style={styles.content}>
-        <Text style={[styles.senderName, { color: currentThemeColors.primary }]}>
-          {replyTo.senderName}
+        <Text style={[styles.replyTitle, { color: currentThemeColors.tint || '#2196F3' }]}>
+          Đang trả lời {replyTo.senderName}
         </Text>
         <Text
-          style={[styles.messageText, { color: currentThemeColors.text }]}
-          numberOfLines={2}
+          style={[styles.replyText, { color: currentThemeColors.subtleText }]}
+          numberOfLines={1}
         >
           {replyTo.imageUrl ? '📷 Hình ảnh' : replyTo.text}
         </Text>
       </View>
       <TouchableOpacity onPress={onClearReply} style={styles.closeButton}>
-        <MaterialIcons name="close" size={20} color={currentThemeColors.text} />
+        <MaterialIcons name="close" size={22} color={currentThemeColors.text} />
       </TouchableOpacity>
     </View>
   );
@@ -46,28 +51,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: 'rgba(0,0,0,0.1)',
   },
-  replyIndicator: {
+  replyBar: {
     width: 4,
-    height: 40,
-    backgroundColor: '#2196F3',
+    height: 36,
     borderRadius: 2,
     marginRight: 12,
   },
   content: {
     flex: 1,
+    justifyContent: 'center',
   },
-  senderName: {
+  replyTitle: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 2,
   },
-  messageText: {
+  replyText: {
     fontSize: 14,
-    opacity: 0.8,
   },
   closeButton: {
     padding: 4,

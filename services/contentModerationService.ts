@@ -21,7 +21,7 @@ import {
   query,
   orderBy 
 } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ============================================

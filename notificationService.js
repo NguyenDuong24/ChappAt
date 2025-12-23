@@ -65,7 +65,7 @@ class NotificationService {
   async initialize() {
     try {
       console.log('🔄 Initializing notification service...');
-      
+
       // Kiểm tra device compatibility
       if (!Device.isDevice) {
         console.log('❌ Must use physical device for push notifications');
@@ -74,7 +74,7 @@ class NotificationService {
 
       // Setup notification channels for Android
       await this.setupAndroidChannels();
-      
+
       // Request permissions và get token
       const token = await this.registerForPushNotifications();
       if (!token) {
@@ -83,16 +83,16 @@ class NotificationService {
       }
 
       this.expoPushToken = token;
-      
+
       // Clean up old invalid tokens
       await this.cleanupInvalidTokensInFirestore();
-      
+
       // Save token to Firestore
       await this.saveTokenToFirestore(token);
-      
+
       // Setup listeners
       this.setupNotificationListeners();
-      
+
       this.initialized = true;
       console.log('✅ Notification service initialized successfully');
       return true;
@@ -119,9 +119,9 @@ class NotificationService {
       }
 
       // Get Expo push token
-      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? 
-                       Constants.easConfig?.projectId ?? 
-                       Constants.expoConfig?.projectId;
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ??
+        Constants.easConfig?.projectId ??
+        Constants.expoConfig?.projectId;
 
       if (!projectId) {
         console.log('❌ No project ID found');
@@ -130,10 +130,10 @@ class NotificationService {
 
       const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
       const token = tokenResponse.data;
-      
+
       console.log('✅ Got Expo push token:', token);
       await AsyncStorage.setItem('expoPushToken', token);
-      
+
       return token;
     } catch (error) {
       console.error('❌ Error getting push token:', error);
@@ -150,7 +150,7 @@ class NotificationService {
       const safeTokenKey = this.encodeTokenForFirestore(token);
 
       const userRef = doc(db, 'users', user.uid);
-      
+
       // Lưu token với cả safe key và original token
       await updateDoc(userRef, {
         [`expoPushTokens.${safeTokenKey}`]: {
@@ -163,7 +163,7 @@ class NotificationService {
         currentExpoPushToken: token,
         lastTokenUpdate: new Date().toISOString()
       });
-      
+
       console.log('✅ Token saved to Firestore with safe key:', safeTokenKey);
     } catch (error) {
       console.error('❌ Error saving token to Firestore:', error);
@@ -173,7 +173,7 @@ class NotificationService {
   async setupAndroidChannels() {
     if (Platform.OS === 'android') {
       console.log('📱 Setting up Android notification channels...');
-      
+
       // Default channel - HIGH importance for background visibility  
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Thông báo chung',
@@ -266,7 +266,7 @@ class NotificationService {
 
   handleNotificationTap(response) {
     const { data } = response.notification.request.content;
-    
+
     if (data && typeof data === 'object') {
       // Navigate based on notification type
       switch (data.type) {
@@ -300,7 +300,7 @@ class NotificationService {
         },
         trigger: notification.trigger || null,
       });
-      
+
       console.log('✅ Local notification scheduled:', notificationId);
       return notificationId;
     } catch (error) {
@@ -362,11 +362,11 @@ class NotificationService {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const messageData = change.doc.data();
-          
+
           this.scheduleLocalNotification({
             title: 'Tin nhắn mới 📩',
             body: `${messageData.senderName}: ${messageData.text}`,
-            data: { 
+            data: {
               type: 'message',
               chatId: messageData.chatId,
               senderId: messageData.senderId
@@ -374,10 +374,17 @@ class NotificationService {
           });
         }
       });
+    }, (error) => {
+      // Silently ignore permission errors during logout
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error('Message listener error:', error);
+      }
     });
 
     return this.messageUnsubscribe;
   }
+
 
   async cleanupInvalidTokensInFirestore() {
     try {
@@ -386,30 +393,30 @@ class NotificationService {
 
       const userRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userRef);
-      
+
       if (!userDoc.exists()) return;
-      
+
       const userData = userDoc.data();
       const expoPushTokens = userData.expoPushTokens || {};
-      
+
       // Tìm các token có ký tự không hợp lệ
-      const invalidTokenKeys = Object.keys(expoPushTokens).filter(key => 
-        key.includes('[') || 
-        key.includes(']') || 
-        key.includes('~') || 
-        key.includes('*') || 
+      const invalidTokenKeys = Object.keys(expoPushTokens).filter(key =>
+        key.includes('[') ||
+        key.includes(']') ||
+        key.includes('~') ||
+        key.includes('*') ||
         key.includes('/')
       );
-      
+
       if (invalidTokenKeys.length > 0) {
         console.log('🧹 Cleaning up invalid token keys:', invalidTokenKeys);
-        
+
         // Xóa các token không hợp lệ
         const updates = {};
         invalidTokenKeys.forEach(key => {
           updates[`expoPushTokens.${key}`] = deleteField();
         });
-        
+
         await updateDoc(userRef, updates);
         console.log('✅ Cleaned up invalid tokens from Firestore');
       }

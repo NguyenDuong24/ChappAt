@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import { EffectType } from '@/components/chat/ChatBackgroundEffects';
 
 export interface ChatTheme {
   id: string;
@@ -10,6 +11,13 @@ export interface ChatTheme {
   receivedMessageColor: string;
   textColor: string;
   preview?: string;
+}
+
+export interface ChatEffect {
+  id: EffectType;
+  name: string;
+  preview: string;
+  description: string;
 }
 
 export const CHAT_THEMES: ChatTheme[] = [
@@ -105,17 +113,109 @@ export const CHAT_THEMES: ChatTheme[] = [
   }
 ];
 
+export const CHAT_EFFECTS: ChatEffect[] = [
+  {
+    id: 'none',
+    name: 'Không có',
+    preview: '⭕',
+    description: 'Không có hiệu ứng'
+  },
+  {
+    id: 'stars',
+    name: 'Bầu trời sao',
+    preview: '⭐',
+    description: 'Ngôi sao lấp lánh'
+  },
+  {
+    id: 'snow',
+    name: 'Tuyết rơi',
+    preview: '❄️',
+    description: 'Tuyết nhẹ nhàng rơi'
+  },
+  {
+    id: 'hearts',
+    name: 'Trái tim',
+    preview: '❤️',
+    description: 'Trái tim bay lên'
+  },
+  {
+    id: 'confetti',
+    name: 'Pháo giấy',
+    preview: '🎉',
+    description: 'Pháo giấy rơi xuống'
+  },
+  {
+    id: 'bubbles',
+    name: 'Bong bóng',
+    preview: '🫧',
+    description: 'Bong bóng bay lên'
+  },
+  {
+    id: 'fireflies',
+    name: 'Đom đóm',
+    preview: '✨',
+    description: 'Đom đóm bay lượn'
+  },
+  {
+    id: 'sakura',
+    name: 'Hoa anh đào',
+    preview: '🌸',
+    description: 'Cánh hoa rơi nhẹ'
+  },
+  {
+    id: 'sparkles',
+    name: 'Kim tuyến',
+    preview: '💫',
+    description: 'Lấp lánh ánh kim tuyến'
+  },
+  {
+    id: 'rain',
+    name: 'Mưa rơi',
+    preview: '🌧️',
+    description: 'Những giọt mưa lãng mạn'
+  },
+  {
+    id: 'leaves',
+    name: 'Lá mùa thu',
+    preview: '🍂',
+    description: 'Lá vàng bay trong gió'
+  },
+  {
+    id: 'butterflies',
+    name: 'Bướm bay',
+    preview: '🦋',
+    description: 'Bướm bay lượn dịu dàng'
+  },
+  {
+    id: 'neon',
+    name: 'Neon',
+    preview: '💜',
+    description: 'Ánh sáng neon lung linh'
+  },
+  {
+    id: 'galaxy',
+    name: 'Thiên hà',
+    preview: '🌌',
+    description: 'Bầu trời đêm huyền ảo'
+  }
+];
+
 interface ChatThemeContextType {
   currentTheme: ChatTheme;
+  currentEffect: EffectType;
   setTheme: (themeId: string, roomId: string) => Promise<void>;
+  setEffect: (effectId: EffectType, roomId: string) => Promise<void>;
   loadTheme: (roomId: string) => Promise<void>;
+  loadEffect: (roomId: string) => Promise<void>;
   themes: ChatTheme[];
+  effects: ChatEffect[];
 }
 
 const ChatThemeContext = createContext<ChatThemeContextType | undefined>(undefined);
 
 export const ChatThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState<ChatTheme>(CHAT_THEMES[0]);
+  const [currentEffect, setCurrentEffect] = useState<EffectType>('none');
 
   const loadTheme = async (roomId: string) => {
     try {
@@ -138,6 +238,30 @@ export const ChatThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const loadEffect = async (roomId: string) => {
+    try {
+      console.log('🎨 [ChatThemeContext] Loading effect for room:', roomId);
+      const themeDocRef = doc(db, 'roomThemes', roomId);
+      const themeDoc = await getDoc(themeDocRef);
+
+      if (themeDoc.exists()) {
+        const themeData = themeDoc.data();
+        const effectId = themeData.effectId as EffectType;
+        console.log('🎨 [ChatThemeContext] Found effectId in Firebase:', effectId);
+        if (effectId && CHAT_EFFECTS.find(e => e.id === effectId)) {
+          setCurrentEffect(effectId);
+          console.log('🎨 [ChatThemeContext] Set currentEffect to:', effectId);
+        } else {
+          console.log('🎨 [ChatThemeContext] Invalid or no effect, staying with:', currentEffect);
+        }
+      } else {
+        console.log('🎨 [ChatThemeContext] No theme doc, staying with:', currentEffect);
+      }
+    } catch (error) {
+      console.error('❌ [ChatThemeContext] Error loading chat effect:', error);
+    }
+  };
+
   const setTheme = async (themeId: string, roomId: string) => {
     try {
       const theme = CHAT_THEMES.find(t => t.id === themeId);
@@ -157,12 +281,35 @@ export const ChatThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const setEffect = async (effectId: EffectType, roomId: string) => {
+    try {
+      console.log('🎨 [ChatThemeContext] Setting effect:', effectId, 'for room:', roomId);
+      // Save to Firebase
+      const themeDocRef = doc(db, 'roomThemes', roomId);
+      await setDoc(themeDocRef, {
+        effectId,
+        updatedAt: new Date()
+      }, { merge: true });
+      console.log('🎨 [ChatThemeContext] Saved effect to Firebase');
+
+      // Update local state
+      setCurrentEffect(effectId);
+      console.log('🎨 [ChatThemeContext] Updated local state to:', effectId);
+    } catch (error) {
+      console.error('❌ [ChatThemeContext] Error setting chat effect:', error);
+    }
+  };
+
   return (
     <ChatThemeContext.Provider value={{
       currentTheme,
+      currentEffect,
       setTheme,
+      setEffect,
       loadTheme,
-      themes: CHAT_THEMES
+      loadEffect,
+      themes: CHAT_THEMES,
+      effects: CHAT_EFFECTS
     }}>
       {children}
     </ChatThemeContext.Provider>

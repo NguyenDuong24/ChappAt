@@ -18,7 +18,7 @@ import { useAuth } from '@/context/authContext';
 import { useUserContext } from '@/context/UserContext';
 import { Colors } from '@/constants/Colors';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import PostCard from '@/components/profile/PostCard';
+import PostCard from '@/components/profile/PostCardStandard';
 import { db } from '@/firebaseConfig';
 import { collection, query as fsQuery, where, orderBy, limit as fsLimit, startAfter, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
@@ -44,11 +44,11 @@ const HashtagScreen: React.FC = () => {
   const { getUserInfo } = useUserContext();
   const router = useRouter();
   const params = useLocalSearchParams();
-  
+
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userInfoCache, setUserInfoCache] = useState<{[key: string]: any}>({});
+  const [userInfoCache, setUserInfoCache] = useState<{ [key: string]: any }>({});
   const [hasMore, setHasMore] = useState(true);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
@@ -157,36 +157,40 @@ const HashtagScreen: React.FC = () => {
     const userInfo = userInfoCache[post.userID];
     const isOwner = user?.uid === post.userID;
 
-    // Ensure required fields have default values
+    // Ensure required fields have default values and merge user info
     const postWithDefaults = {
       ...post,
       likes: post.likes || [],
       shares: post.shares || 0,
-      comments: post.comments || []
+      comments: post.comments || [],
+      username: userInfo?.username || post.username || 'Unknown User',
+      userAvatar: userInfo?.profileUrl || (post as any).userAvatar,
     };
 
     return (
       <PostCard
         post={postWithDefaults}
-        user={user}
+        currentUserId={user?.uid || ''}
+        currentUserAvatar={user?.profileUrl}
         onLike={handleLike}
-        onDeletePost={handleDeletePost}
-        addComment={addComment}
-        owner={isOwner}
-        postUserInfo={userInfo}
+        onDelete={handleDeletePost}
+        onComment={(postId, comment) => addComment(postId, { text: comment })}
+        onShare={(postId) => console.log('Share post:', postId)}
+        isOwner={isOwner}
+        onUserPress={(userId) => router.push(`/(tabs)/profile/${userId}`)}
       />
     );
   };
 
   const renderHeader = () => (
     <View style={[styles.header, { backgroundColor: currentThemeColors.surface }]}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.backButton, { backgroundColor: currentThemeColors.background + '80' }]}
         onPress={() => router.back()}
       >
         <MaterialIcons name="arrow-back" size={24} color={currentThemeColors.text} />
       </TouchableOpacity>
-      
+
       <View style={styles.headerContent}>
         <Text style={[styles.hashtagTitle, { color: Colors.primary }]}>
           {displayHashtag}
@@ -195,7 +199,7 @@ const HashtagScreen: React.FC = () => {
           {posts.length} bài viết • Mới nhất
         </Text>
       </View>
-      
+
       <View style={styles.headerActions}>
         <Chip
           style={[styles.trendingChip, { backgroundColor: Colors.accent + '20' }]}

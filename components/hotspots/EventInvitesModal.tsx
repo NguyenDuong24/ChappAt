@@ -11,7 +11,7 @@ import {
   Alert,
   Dimensions
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { EventInvite, UserProfile } from '@/types/eventInvites';
 import { eventInviteService } from '@/services/eventInviteService';
@@ -37,7 +37,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
   const [invites, setInvites] = useState<(EventInvite & { inviterProfile?: UserProfile, eventTitle?: string })[]>([]);
   const [sentInvites, setSentInvites] = useState<(EventInvite & { inviteeProfile?: UserProfile, eventTitle?: string })[]>([]);
   const [loading, setLoading] = useState(false);
-  const [respondingTo, setRespondingTo] = useState<{[key: string]: boolean}>({});
+  const [respondingTo, setRespondingTo] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     if (visible && user?.uid) {
@@ -139,7 +139,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
         const d: any = ev.data();
         return { title: d?.title || d?.name || 'Sự kiện' };
       }
-    } catch {}
+    } catch { }
     return { title: 'Sự kiện' };
   };
 
@@ -149,18 +149,18 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       if (typeof ts?.toDate === 'function') return ts.toDate();
       if (typeof ts === 'string' || typeof ts === 'number') return new Date(ts);
       if (typeof ts?.seconds === 'number') return new Date(ts.seconds * 1000);
-    } catch {}
+    } catch { }
     return new Date();
   };
 
   const handleRespondToInvite = async (inviteId: string, response: 'accepted' | 'declined') => {
     setRespondingTo(prev => ({ ...prev, [inviteId]: true }));
-    
+
     try {
       // Find the invite to get event details
       const invite = invites.find(inv => inv.id === inviteId);
       const chatRoomId = await eventInviteService.respondToInvite(inviteId, response);
-      
+
       if (response === 'accepted' && chatRoomId) {
         if (invite) {
           onInviteAccepted?.(chatRoomId, invite.eventId, invite.eventTitle);
@@ -197,7 +197,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
               </View>
             )}
           </View>
-          
+
           <View style={styles.inviteInfo}>
             <Text style={styles.inviterName}>
               {item.inviterProfile?.name || 'Người dùng'} mời bạn đi cùng
@@ -210,35 +210,37 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
         </View>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionButton, styles.declineButton]}
             onPress={() => handleRespondToInvite(item.id, 'declined')}
             disabled={respondingTo[item.id]}
           >
             {respondingTo[item.id] ? (
-              <ActivityIndicator size="small" color="#666" />
+              <ActivityIndicator size="small" color="#EF4444" />
             ) : (
               <>
-                <MaterialIcons name="close" size={18} color="#666" />
+                <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
                 <Text style={styles.declineButtonText}>Từ chối</Text>
               </>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionButton, styles.acceptButton]}
             onPress={() => handleRespondToInvite(item.id, 'accepted')}
             disabled={respondingTo[item.id]}
           >
             <LinearGradient
               colors={['#10B981', '#059669']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
               style={styles.acceptButtonGradient}
             >
               {respondingTo[item.id] ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
-                  <MaterialIcons name="check" size={18} color="white" />
+                  <Ionicons name="checkmark-circle" size={20} color="white" />
                   <Text style={styles.acceptButtonText}>Đồng ý</Text>
                 </>
               )}
@@ -275,7 +277,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
         </View>
         <View style={styles.actionButtons}>
           <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => handleCancelInvite(item.id!)}>
-            <MaterialIcons name="delete-outline" size={18} color="#666" />
+            <Ionicons name="trash-outline" size={20} color="#EF4444" />
             <Text style={styles.declineButtonText}>Thu hồi</Text>
           </TouchableOpacity>
         </View>
@@ -478,6 +480,7 @@ const styles = StyleSheet.create({
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 8,
   },
   actionButton: {
     flex: 1,
@@ -485,34 +488,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 24,
     gap: 6,
+    height: 48,
   },
   declineButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#FEE2E2',
   },
   declineButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#EF4444',
   },
   acceptButton: {
-    borderRadius: 10,
+    paddingVertical: 0, // Reset padding because gradient handles it
+    borderRadius: 24,
     overflow: 'hidden',
+    borderWidth: 0,
   },
   acceptButtonGradient: {
     flex: 1,
+    width: '100%',
+    height: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 6,
+    gap: 8,
   },
   acceptButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: 'white',
   },
 });

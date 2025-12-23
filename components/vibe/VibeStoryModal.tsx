@@ -11,6 +11,7 @@ import { vibeService } from '@/services/vibeService';
 import { db } from '@/firebaseConfig';
 import { addDoc, collection, doc, setDoc, Timestamp } from 'firebase/firestore';
 import { getRoomId } from '@/utils/common';
+import { useVibeExpiration } from '@/hooks/useVibeExpiration';
 
 interface VibeStoryModalProps {
   visible: boolean;
@@ -19,7 +20,7 @@ interface VibeStoryModalProps {
   userVibe?: UserVibe | null;
 }
 
-const QUICK_REACTIONS = ['❤️','😂','😮','😢','🔥'];
+const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🔥'];
 
 const VibeStoryModal: React.FC<VibeStoryModalProps> = ({ visible, onClose, user, userVibe }) => {
   const themeContext = useContext(ThemeContext);
@@ -28,6 +29,7 @@ const VibeStoryModal: React.FC<VibeStoryModalProps> = ({ visible, onClose, user,
   const { user: authUser } = useAuth();
   const [reply, setReply] = useState('');
   const vibe = userVibe?.vibe;
+  const { formattedTimeAgo } = useVibeExpiration(userVibe);
 
   // Storage key to track seen
   const seenKey = useMemo(() => userVibe?.id ? `vibeSeen:${userVibe.id}` : undefined, [userVibe?.id]);
@@ -40,7 +42,7 @@ const VibeStoryModal: React.FC<VibeStoryModalProps> = ({ visible, onClose, user,
       try {
         const v = await AsyncStorage.getItem(seenKey);
         if (mounted) setSeen(!!v);
-      } catch {}
+      } catch { }
     };
     if (visible) checkSeen();
     return () => { mounted = false };
@@ -53,12 +55,12 @@ const VibeStoryModal: React.FC<VibeStoryModalProps> = ({ visible, onClose, user,
         await vibeService.markVibeSeen(userVibe.id, authUser.uid);
       }
       setSeen(true);
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => {
     if (visible) markSeen();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const sendChatMessage = async (toUserId: string, text: string, replyTo?: any) => {
@@ -137,9 +139,12 @@ const VibeStoryModal: React.FC<VibeStoryModalProps> = ({ visible, onClose, user,
               ) : (
                 <View style={[styles.miniAvatar, { backgroundColor: colors.border }]} />
               )}
-              <Text style={[styles.username, { color: 'white' }]} numberOfLines={1}>
-                {user?.username || 'User'}
-              </Text>
+              <View>
+                <Text style={[styles.username, { color: 'white' }]} numberOfLines={1}>
+                  {user?.username || 'User'}
+                </Text>
+                <Text style={styles.timeText}>{formattedTimeAgo}</Text>
+              </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <MaterialIcons name="close" size={26} color="#fff" />
@@ -189,8 +194,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, paddingHorizontal: 16 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
   userRow: { flexDirection: 'row', alignItems: 'center', maxWidth: '80%' },
-  miniAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8, borderWidth: 1, borderColor: '#fff', overflow: 'hidden' },
-  username: { fontSize: 15, fontWeight: '600' },
+  miniAvatar: { width: 36, height: 36, borderRadius: 18, marginRight: 10, borderWidth: 1, borderColor: '#fff', overflow: 'hidden' },
+  username: { fontSize: 15, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  timeText: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   closeBtn: { padding: 6 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emoji: { fontSize: 80, marginBottom: 10 },

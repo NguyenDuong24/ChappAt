@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { Text, Avatar, Button, Surface } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -14,6 +15,7 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import { groupRequestService } from '@/services/groupRequestService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -36,30 +38,77 @@ const GroupPreviewModal = ({
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const [joining, setJoining] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
+
+  useEffect(() => {
+    if (visible && group?.id && currentUser?.uid && group?.type === 'private') {
+      checkRequestStatus();
+    }
+  }, [visible, group, currentUser]);
+
+  const checkRequestStatus = async () => {
+    if (!group?.id || !currentUser?.uid) return;
+    const { exists, data } = await groupRequestService.checkRequestStatus(group.id, currentUser.uid);
+    if (exists && data) {
+      setRequestStatus(data.status);
+    } else {
+      setRequestStatus('none');
+    }
+  };
 
   if (!group) return null;
 
   const getGroupAvatar = () => {
-    return group?.avatarUrl || 'https://via.placeholder.com/80x80/667eea/ffffff?text=G';
+    return group?.avatarUrl || group?.photoURL || 'https://via.placeholder.com/80x80/667eea/ffffff?text=G';
   };
 
   const getMemberCount = () => {
     return group?.members ? group.members.length : 0;
   };
 
+  const isPrivate = group?.type === 'private';
+
   const handleJoin = async () => {
-    if (!onJoinGroup || !group?.id) return;
+    if (!group?.id) return;
 
     setJoining(true);
     try {
-      await onJoinGroup(group.id);
-      onClose(); // Close modal after joining
+      if (isPrivate) {
+        // Send join request
+        const result = await groupRequestService.sendJoinRequest(group.id, currentUser);
+        if (result.success) {
+          setRequestStatus('pending');
+          Alert.alert('Thành công', 'Đã gửi yêu cầu tham gia nhóm. Vui lòng chờ quản trị viên duyệt.');
+        } else {
+          Alert.alert('Thông báo', result.message);
+        }
+      } else {
+        // Join directly
+        if (onJoinGroup) {
+          await onJoinGroup(group.id);
+          onClose();
+        }
+      }
     } catch (error) {
       console.error('Error joining group:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi tham gia nhóm');
     } finally {
       setJoining(false);
     }
   };
+
+  const getButtonLabel = () => {
+    if (joining) return 'Đang xử lý...';
+    if (isPrivate) {
+      if (requestStatus === 'pending') return 'Đang chờ duyệt';
+      if (requestStatus === 'approved') return 'Đã được duyệt'; // Should ideally auto-join or show "Enter Group"
+      if (requestStatus === 'rejected') return 'Yêu cầu bị từ chối';
+      return 'Yêu cầu tham gia';
+    }
+    return 'Tham gia nhóm';
+  };
+
+  const isButtonDisabled = joining || (isPrivate && requestStatus === 'pending');
 
   return (
     <Modal
@@ -122,12 +171,12 @@ const GroupPreviewModal = ({
 
                     <View style={styles.metaItem}>
                       <MaterialCommunityIcons
-                        name="earth"
+                        name={isPrivate ? "lock" : "earth"}
                         size={16}
-                        color="#667EEA"
+                        color={isPrivate ? "#FF9F43" : "#667EEA"}
                       />
-                      <Text style={[styles.metaText, { color: '#667EEA' }]}>
-                        Nhóm công khai
+                      <Text style={[styles.metaText, { color: isPrivate ? "#FF9F43" : "#667EEA" }]}>
+                        {isPrivate ? 'Nhóm riêng tư' : 'Nhóm công khai'}
                       </Text>
                     </View>
                   </View>
@@ -147,19 +196,22 @@ const GroupPreviewModal = ({
               )}
 
               {/* Preview Notice */}
-              <View style={styles.previewNotice}>
+              <View style={[styles.previewNotice, { backgroundColor: isPrivate ? 'rgba(255, 159, 67, 0.1)' : 'rgba(102, 126, 234, 0.1)' }]}>
                 <MaterialCommunityIcons
-                  name="eye"
+                  name={isPrivate ? "lock-alert" : "eye"}
                   size={20}
-                  color="#667EEA"
+                  color={isPrivate ? "#FF9F43" : "#667EEA"}
                 />
                 <Text style={[styles.previewText, { color: currentThemeColors.subtleText }]}>
-                  Bạn đang xem trước nhóm này. Tham gia để có thể chat và xem tin nhắn.
+                  {isPrivate
+                    ? 'Đây là nhóm riêng tư. Bạn cần gửi yêu cầu tham gia và được duyệt để xem nội dung.'
+                    : 'Bạn đang xem trước nhóm này. Tham gia để có thể chat và xem tin nhắn.'
+                  }
                 </Text>
               </View>
 
-              {/* Sample Members (first few) */}
-              {group.members && group.members.length > 0 && (
+              {/* Sample Members (first few) - Hide for private groups unless member */}
+              {!isPrivate && group.members && group.members.length > 0 && (
                 <View style={styles.section}>
                   <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
                     Thành viên ({Math.min(getMemberCount(), 5)})
@@ -177,12 +229,12 @@ const GroupPreviewModal = ({
                 mode="contained"
                 onPress={handleJoin}
                 loading={joining}
-                disabled={joining}
-                style={styles.joinButton}
+                disabled={isButtonDisabled}
+                style={[styles.joinButton, isPrivate && { backgroundColor: '#FF9F43' }]}
                 contentStyle={styles.joinButtonContent}
                 labelStyle={styles.joinButtonLabel}
               >
-                {joining ? 'Đang tham gia...' : 'Tham gia nhóm'}
+                {getButtonLabel()}
               </Button>
             </View>
           </Surface>
@@ -279,7 +331,6 @@ const styles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 24,
     marginVertical: 8,
-    backgroundColor: 'rgba(102, 126, 234, 0.1)',
     borderRadius: 12,
   },
   previewText: {

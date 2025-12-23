@@ -1,7 +1,8 @@
 import { getAuth } from 'firebase/auth';
 
 // Cấu hình URL server
-const API_BASE_URL = 'https://saigondating-server.onrender.com/api';  // Use Render production URL
+// Cấu hình URL server
+const API_BASE_URL = 'https://saigondating-server.onrender.com/api';
 
 /**
  * Get Firebase ID Token for authentication
@@ -10,18 +11,18 @@ async function getAuthToken() {
   console.log('🔐 Getting Firebase auth token...');
   const auth = getAuth();
   const user = auth.currentUser;
-  
+
   if (!user) {
     console.error('❌ No authenticated user found');
     throw new Error('User not authenticated');
   }
-  
+
   console.log('👤 User found:', {
     uid: user.uid,
     email: user.email,
     emailVerified: user.emailVerified,
   });
-  
+
   try {
     const token = await user.getIdToken(false); // false = use cached token if valid
     console.log('✅ Token obtained successfully, length:', token.length);
@@ -47,7 +48,7 @@ async function apiRequest(endpoint, options = {}) {
     console.log('🔑 Getting auth token...');
     const token = await getAuthToken();
     console.log('✅ Auth token received:', token.substring(0, 20) + '...');
-    
+
     const requestUrl = `${API_BASE_URL}${endpoint}`;
     const requestOptions = {
       ...options,
@@ -66,15 +67,34 @@ async function apiRequest(endpoint, options = {}) {
     });
 
     const response = await fetch(requestUrl, requestOptions);
-    
+
     console.log('📥 Response received:', {
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries()),
     });
 
-    const data = await response.json();
+    // Get response as text first
+    const responseText = await response.text();
+
+    // Try to parse as JSON
+    let data;
+    try {
+      data = responseText ? JSON.parse(responseText) : {};
+    } catch (parseError) {
+      console.warn('⚠️ Response is not valid JSON:', responseText.substring(0, 200));
+      // If server returned an error page or plain text
+      if (!response.ok) {
+        throw {
+          status: response.status,
+          message: responseText || response.statusText || 'Server error',
+          code: 'SERVER_ERROR',
+        };
+      }
+      // For successful non-JSON responses, return empty object
+      data = { success: true, rawResponse: responseText };
+    }
+
     console.log('📄 Response data:', data);
 
     if (!response.ok) {
@@ -98,7 +118,7 @@ async function apiRequest(endpoint, options = {}) {
     console.error('❌ [API REQUEST FAILED]', {
       endpoint,
       error: error,
-      errorType: error.constructor.name,
+      errorType: error.constructor?.name,
       message: error.message,
       stack: error.stack?.split('\n')[0],
     });
@@ -106,12 +126,13 @@ async function apiRequest(endpoint, options = {}) {
   }
 }
 
+
 /**
  * Coin Server API Service
  */
 export const coinServerApi = {
   // ============== WALLET ==============
-  
+
   /**
    * Get user's coin balance
    * @returns {Promise<{success: boolean, coins: number, uid: string}>}
@@ -189,11 +210,11 @@ export const coinServerApi = {
       giftId,
       senderName,
     });
-    
+
     const requestBody = { receiverUid, roomId, giftId, senderName };
     console.log('📦 Request body:', requestBody);
     console.log('📦 Request body JSON:', JSON.stringify(requestBody));
-    
+
     try {
       const result = await apiRequest('/gifts/send', {
         method: 'POST',
@@ -229,7 +250,7 @@ export const coinServerApi = {
   async getReceivedGifts(limit = 50, status = undefined) {
     const params = new URLSearchParams({ limit: limit.toString() });
     if (status) params.append('status', status);
-    
+
     return await apiRequest(`/gifts/received?${params.toString()}`, {
       method: 'GET',
     });
@@ -256,10 +277,10 @@ export const coinServerApi = {
       adId,
       metadata,
     });
-    
+
     const requestBody = { adId, ...metadata };
     console.log('📦 Request body:', requestBody);
-    
+
     try {
       const result = await apiRequest('/gifts/reward', {
         method: 'POST',
@@ -326,7 +347,7 @@ export const coinServerApi = {
  */
 export function getErrorMessage(error) {
   if (typeof error === 'string') return error;
-  
+
   if (error.code) {
     switch (error.code) {
       case 'AUTH_REQUIRED':
@@ -354,7 +375,7 @@ export function getErrorMessage(error) {
         return error.message || 'Đã có lỗi xảy ra';
     }
   }
-  
+
   return error.message || 'Đã có lỗi xảy ra';
 }
 

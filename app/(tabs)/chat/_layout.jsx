@@ -17,19 +17,9 @@ const StackLayout = () => {
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       {/* Consistent ThemedStatusBar with translucent for gradient header */}
       <ThemedStatusBar translucent />
-      
+
       {/* Modern Chat Header with theme-aware gradient */}
-      <LinearGradient
-        colors={theme === 'dark' 
-          ? ['#1a1a2e', '#16213e'] 
-          : ['#4facfe', '#00f2fe']
-        }
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.headerGradient, { paddingTop: insets.top }]}
-      >
-        <ChatListHeader />
-      </LinearGradient>
+      <ChatListHeader />
 
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />

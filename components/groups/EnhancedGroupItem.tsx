@@ -51,11 +51,17 @@ const EnhancedGroupItem = ({
   const router = useRouter();
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+  // Validate group data - don't render if invalid
+  if (!item || !item.id) {
+    console.warn('EnhancedGroupItem: Invalid group data, skipping render');
+    return null;
+  }
+
   const rippleColor = theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
-  
+
   // Animation cho voice call ring
   const voiceCallAnim = React.useRef(new RNAnimated.Value(0)).current;
-  
+
   React.useEffect(() => {
     if (isVoiceCallActive) {
       RNAnimated.loop(
@@ -69,7 +75,7 @@ const EnhancedGroupItem = ({
       voiceCallAnim.setValue(0);
     }
   }, [isVoiceCallActive]);
-  
+
   const voiceCallScale = voiceCallAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
   const voiceCallOpacity = voiceCallAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] });
 
@@ -116,7 +122,7 @@ const EnhancedGroupItem = ({
 
   const onlineCount = useMemo(() => onlineMembers.length, [onlineMembers]);
   const memberCount = useMemo(() => item?.members?.length || 0, [item?.members]);
-  
+
   const groupDescription = useMemo(() => {
     if (!item?.description) return null;
     return truncateText(item.description, 60);
@@ -126,9 +132,9 @@ const EnhancedGroupItem = ({
   const groupTypeInfo = useMemo(() => {
     // Check multiple possible field names
     const type = item?.type || item?.privacy || (item?.isPublic ? 'public' : 'private'); // Default to private if no type
-    
+
     console.log('Computed type:', type);
-    
+
     if (type === 'public' || type === 'Public') {
       return { icon: 'earth' as const, color: '#667EEA', label: 'Công khai' };
     }
@@ -147,20 +153,17 @@ const EnhancedGroupItem = ({
     try {
       if (!item?.id) return;
 
-      // If not joined, navigate to preview screen
+      // If not joined, show preview modal
       if (!isJoined) {
-        router.push({
-          pathname: '/groups/preview/[id]',
-          params: { id: item.id }
-        });
+        setShowPreviewModal(true);
         return;
       }
 
       // Update read status (mark all as read now)
       try {
         const readStatusRef = doc(db, 'groups', item.id, 'readStatus', currentUser.uid);
-        setDoc(readStatusRef, { lastReadAt: serverTimestamp() }, { merge: true }).catch(() => {});
-      } catch {}
+        setDoc(readStatusRef, { lastReadAt: serverTimestamp() }, { merge: true }).catch(() => { });
+      } catch { }
 
       // Navigate to group chat
       router.push({
@@ -210,27 +213,27 @@ const EnhancedGroupItem = ({
           <View style={styles.avatarContainer}>
             {/* Voice Call Active Ring */}
             {isVoiceCallActive && (
-              <RNAnimated.View 
+              <RNAnimated.View
                 style={[
-                  styles.voiceCallRing, 
-                  { 
+                  styles.voiceCallRing,
+                  {
                     opacity: voiceCallOpacity,
                     transform: [{ scale: voiceCallScale }]
                   }
                 ]}
               />
             )}
-            
+
             <LinearGradient
-              colors={isVoiceCallActive 
-                ? ['#10B981', '#059669'] 
+              colors={isVoiceCallActive
+                ? ['#10B981', '#059669']
                 : (theme === 'dark' ? ['#6366F1', '#8B5CF6'] : ['#667EEA', '#764BA2'])
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.avatarRing}
             >
-              <View style={[styles.avatarInner, { backgroundColor: theme === 'dark' ? '#111827' : '#FFF' }]}> 
+              <View style={[styles.avatarInner, { backgroundColor: theme === 'dark' ? '#111827' : '#FFF' }]}>
                 {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={styles.avatar} />
                 ) : (
@@ -265,15 +268,15 @@ const EnhancedGroupItem = ({
                   {item.name || 'Nhóm chưa đặt tên'}
                 </Text>
                 {groupTypeInfo && (
-                  <MaterialCommunityIcons 
-                    name={groupTypeInfo.icon} 
-                    size={14} 
+                  <MaterialCommunityIcons
+                    name={groupTypeInfo.icon}
+                    size={14}
                     color={groupTypeInfo.color}
                     style={styles.typeIcon}
                   />
                 )}
               </View>
-              
+
               <View style={styles.rightSection}>
                 {formattedTime && (
                   <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
@@ -314,10 +317,10 @@ const EnhancedGroupItem = ({
                       </Text>
                     )}
                     <View style={styles.metaInfo}>
-                      <MaterialCommunityIcons 
-                        name="account-group" 
-                        size={13} 
-                        color={currentThemeColors.subtleText} 
+                      <MaterialCommunityIcons
+                        name="account-group"
+                        size={13}
+                        color={currentThemeColors.subtleText}
                       />
                       <Text style={[styles.memberCount, { color: currentThemeColors.subtleText }]}>
                         {memberCount} thành viên
@@ -325,10 +328,10 @@ const EnhancedGroupItem = ({
                       {groupTypeInfo && (
                         <>
                           <Text style={[styles.dot, { color: currentThemeColors.subtleText }]}>•</Text>
-                          <MaterialCommunityIcons 
-                            name={groupTypeInfo.icon} 
-                            size={13} 
-                            color={groupTypeInfo.color} 
+                          <MaterialCommunityIcons
+                            name={groupTypeInfo.icon}
+                            size={13}
+                            color={groupTypeInfo.color}
                           />
                           <Text style={[styles.typeLabel, { color: groupTypeInfo.color }]}>
                             {groupTypeInfo.label}
@@ -341,12 +344,12 @@ const EnhancedGroupItem = ({
                   /* Regular Message Preview */
                   <View style={styles.messageContainer}>
                     {messageIcon}
-                    <Text 
+                    <Text
                       style={[
-                        styles.messagePreview, 
+                        styles.messagePreview,
                         { color: isTyping ? '#10B981' : currentThemeColors.subtleText },
                         isTyping && styles.typingText
-                      ]} 
+                      ]}
                       numberOfLines={1}
                     >
                       {messagePreview}
@@ -357,10 +360,10 @@ const EnhancedGroupItem = ({
 
               {/* Unread Badge */}
               {unreadCount > 0 && (
-                <LinearGradient 
-                  colors={['#667EEA', '#764BA2']} 
-                  start={{ x: 0, y: 0 }} 
-                  end={{ x: 1, y: 1 }} 
+                <LinearGradient
+                  colors={['#667EEA', '#764BA2']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                   style={styles.unreadBadge}
                 >
                   <Text style={styles.unreadBadgeText}>
@@ -374,9 +377,9 @@ const EnhancedGroupItem = ({
       </Pressable>
 
       {/* Group Preview Modal */}
-      <GroupPreviewModal 
-        visible={showPreviewModal} 
-        onClose={() => setShowPreviewModal(false)} 
+      <GroupPreviewModal
+        visible={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
         group={item}
         onJoinGroup={onJoinGroup}
         currentUser={currentUser}
@@ -389,16 +392,15 @@ const AVATAR_SIZE = 56;
 
 const styles = StyleSheet.create({
   container: {
-    borderBottomWidth: 1,
   },
   pressable: {
-    padding: 12,
+    padding: 14,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  
+
   // Avatar Styles
   avatarContainer: {
     position: 'relative',
@@ -478,7 +480,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFF',
   },
-  
+
   // Text Content Styles
   textContainer: {
     flex: 1,
@@ -525,7 +527,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  
+
   // Message Row Styles
   messageRow: {
     flexDirection: 'row',

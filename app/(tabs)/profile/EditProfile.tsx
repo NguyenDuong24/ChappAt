@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, StyleSheet, ScrollView, ImageBackground, TouchableOpacity } from 'react-native';
-import { TextInput, Button, RadioButton, Text, Card, Avatar, Chip } from 'react-native-paper';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, ScrollView, ImageBackground, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { TextInput, Button, Text, Card, Avatar, Chip } from 'react-native-paper';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/context/authContext';
 import { useRouter } from 'expo-router';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -9,22 +9,24 @@ import { db } from '@/firebaseConfig';
 import { Colors } from '@/constants/Colors';
 import { ThemeContext } from '@/context/ThemeContext';
 import VibeAvatar from '@/components/vibe/VibeAvatar';
-import { getInterestsArray, getLabelForInterest, getIdForInterest } from '@/utils/interests';
+import { getInterestsArray } from '@/utils/interests';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 interface ProfileForm {
     name: string;
     email: string;
     age: string;
-    gender: string;
     bio: string;
     icon: string | null;
     interests: string[];
 }
 
 const EditProfile = () => {
-    const { user, setName, setEmail, setAge, setGender, setBio, setIcon, icon, refreshUser } = useAuth();
+    const { user, setName, setEmail, setAge, setBio, setIcon, icon, refreshUser } = useAuth();
     const router = useRouter();
-    
+
     const themeContext = useContext(ThemeContext);
     const theme = themeContext?.theme || 'light';
     const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -35,7 +37,6 @@ const EditProfile = () => {
         name: '',
         email: '',
         age: '',
-        gender: 'male',
         bio: '',
         icon: '',
         interests: [],
@@ -53,7 +54,6 @@ const EditProfile = () => {
                 name: user.username || '',
                 email: user.email || '',
                 age: user.age ? user.age.toString() : '',
-                gender: user.gender || 'male',
                 bio: user.bio || '',
                 icon: icon || null,
                 interests: Array.isArray(user.interests) ? user.interests : [],
@@ -86,7 +86,6 @@ const EditProfile = () => {
             await updateDoc(docRef, {
                 username: profile.name,
                 age: Number(profile.age),
-                gender: profile.gender,
                 bio: profile.bio,
                 profileUrl: profile.icon,
                 interests: profile.interests || [],
@@ -94,7 +93,6 @@ const EditProfile = () => {
             setName(profile.name);
             setEmail(profile.email);
             setAge(Number(profile.age));
-            setGender(profile.gender);
             setBio(profile.bio);
             refreshUser();
             router.back();
@@ -109,136 +107,140 @@ const EditProfile = () => {
     return (
         <ImageBackground
             source={{ uri: 'https://i.imgur.com/lhV7JVA.jpg' }}
-            style={[styles.background, { backgroundColor: currentThemeColors.background }]} // Đặt màu nền động
+            style={[styles.background, { backgroundColor: currentThemeColors.background }]}
         >
-            <ScrollView contentContainerStyle={[styles.container, { backgroundColor: currentThemeColors.cardBackground }]}>
-                <Card style={[styles.card, { backgroundColor: currentThemeColors.cardBackground }]}>
-                    <Card.Title title="Chỉnh sửa hồ sơ" titleStyle={[styles.cardTitle, { color: currentThemeColors.text }]} />
-                    <View style={[styles.icon]}>
-                      <Avatar.Image
-                          size={80}
-                          source={{ uri: user.profileUrl || profile.icon || 'https://example.com/default-icon.png' }}
-                      />
-                      <TouchableOpacity
-                          onPress={() => router.push('/signup/IconSelectionScreen?redirectTo=EditProfile')}
-                          style={[styles.changeIconButton]}
-                      >
-                          <Text style={[styles.changeIconText, { color: currentThemeColors.addressText }]}>Chọn Avatar</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <Card.Content>
-                        <TextInput
-                            label="Tên"
-                            textColor={currentThemeColors.text}
-                            value={profile.name}
-                            onChangeText={(text) => handleChange('name', text)}
-                            style={[styles.input, { backgroundColor: currentThemeColors.inputBackground, color: 'white' }]}
-                            mode="outlined"
-                            theme={{ colors: { primary: currentThemeColors.text }}}
-                        />
-                        <TextInput
-                            textColor={currentThemeColors.text}
-                            label="Email"
-                            value={profile.email}
-                            style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
-                            mode="outlined"
-                            keyboardType="email-address"
-                            editable={false}
-                            theme={{ colors: { primary: currentThemeColors.text }}}
-                        />
-                        <TextInput
-                            editable={false}
-                            textColor={currentThemeColors.text}
-                            label="Tuổi"
-                            value={profile.age}
-                            onChangeText={(text) => handleChange('age', text)}
-                            style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
-                            mode="outlined"
-                            keyboardType="numeric"
-                            theme={{ colors: { primary: currentThemeColors.text }}}
-                        />
-                        <TextInput
-                            textColor={currentThemeColors.text}
-                            label="Tiểu sử"
-                            value={profile.bio}
-                            onChangeText={(text) => handleChange('bio', text)}
-                            style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
-                            mode="outlined"
-                            multiline
-                            numberOfLines={4}
-                            theme={{ colors: { primary: currentThemeColors.text } }}
-                        />
-                        <View style={styles.radioGroup}>
-                            <Text style={[styles.radioTitle, { color: currentThemeColors.text }]}>Giới tính</Text>
-                            <RadioButton.Group
-                                onValueChange={(value) => handleChange('gender', value)}
-                                value={profile.gender}
-                            >
-                                <View style={styles.radioOption}>
-                                    <RadioButton value="male" />
-                                    <Text style={{ color: currentThemeColors.text }}>Nam</Text>
-                                </View>
-                                <View style={styles.radioOption}>
-                                    <RadioButton value="female" />
-                                    <Text style={{ color: currentThemeColors.text }}>Nữ</Text>
-                                </View>
-                            </RadioButton.Group>
-                        </View>
-
-                        {/* Current Vibe Section */}
-                        <View style={styles.vibeSection}>
-                            <Text style={[styles.radioTitle, { color: currentThemeColors.text }]}>Vibe hiện tại</Text>
-                            <View style={styles.vibeAvatarContainer}>
-                                <VibeAvatar
-                                    avatarUrl={profile.icon || undefined}
-                                    size={80}
-                                    currentVibe={currentVibe}
-                                    showAddButton={true}
-                                />
-                                {currentVibe && (
-                                    <View style={styles.vibeInfo}>
-                                        <Text style={[styles.vibeName, { color: currentThemeColors.text }]}>
-                                            {currentVibe.vibe?.name} {currentVibe.vibe?.emoji}
-                                        </Text>
-                                        {currentVibe.customMessage && (
-                                            <Text style={[styles.vibeMessage, { color: currentThemeColors.subtleText }]}>
-                                                "{currentVibe.customMessage}"
-                                            </Text>
-                                        )}
-                                    </View>
-                                )}
-                            </View>
-                        </View>
-
-                        <View style={styles.filterSection}>
-                            <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Sở thích</Text>
-                            <View style={styles.tagsContainer}> 
-                                {interestItems.map((item: any) => (
-                                     <Chip
-                                       key={item}
-                                       selected={profile.interests.includes(item.id)}
-                                       onPress={() => setProfile(prev => ({ ...prev, interests: toggleArrayItem(prev.interests || [], item.id) }))}
-                                       style={[styles.interestChip, { borderColor: currentThemeColors.text }, profile.interests.includes(item) && styles.selectedChip]}
-                                       textStyle={{ color: profile.interests.includes(item.id) ? 'white' : currentThemeColors.text }}
-                                     >
-                                      {item.label}
-                                     </Chip>
-                                 ))}
-                            </View>
-                        </View>
-
-                        {error && <Text style={[styles.error, { color: Colors.error }]}>{error}</Text>}
-                        <Button
-                            mode="contained"
-                            onPress={handleSave}
-                            style={[styles.button, { backgroundColor: Colors.primary }]}
-                            loading={loading}
-                            disabled={loading}
+            <View style={[styles.header, { backgroundColor: currentThemeColors.background }]}>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <Ionicons name="arrow-back" size={28} color={currentThemeColors.text} />
+                </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>Chỉnh sửa hồ sơ</Text>
+                <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={loading}>
+                    {loading ? (
+                        <ActivityIndicator color={currentThemeColors.primary} size="small" />
+                    ) : (
+                        <Text style={[styles.saveText, { color: currentThemeColors.primary }]}>Lưu</Text>
+                    )}
+                </TouchableOpacity>
+            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.container, { backgroundColor: currentThemeColors.cardBackground }]}>
+                <Animated.View entering={FadeInDown.delay(100).duration(600)}>
+                    <Card style={[styles.card, { backgroundColor: currentThemeColors.cardBackground }]}>
+                        <LinearGradient
+                            colors={['#8B5CF6', '#EC4899']}
+                            style={styles.avatarGlow}
                         >
-                            Lưu thay đổi
-                        </Button>
-                    </Card.Content>
-                </Card>
+                            <View style={[styles.avatarInner, { backgroundColor: currentThemeColors.background }]}>
+                                <Avatar.Image
+                                    size={100}
+                                    source={{ uri: user.profileUrl || profile.icon || 'https://example.com/default-icon.png' }}
+                                />
+                            </View>
+                        </LinearGradient>
+                        <TouchableOpacity
+                            onPress={() => router.push('/signup/IconSelectionScreen?redirectTo=EditProfile')}
+                            style={[styles.changeIconButton]}
+                        >
+                            <BlurView intensity={30} style={styles.blurButton}>
+                                <Text style={[styles.changeIconText, { color: '#fff' }]}>Chọn Avatar</Text>
+                            </BlurView>
+                        </TouchableOpacity>
+                        <Card.Content>
+                            <Animated.View entering={FadeInDown.delay(200).duration(600)}>
+                                <TextInput
+                                    label="Tên"
+                                    textColor={currentThemeColors.text}
+                                    value={profile.name}
+                                    onChangeText={(text) => handleChange('name', text)}
+                                    style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
+                                    mode="outlined"
+                                    theme={{ colors: { primary: currentThemeColors.primary } }}
+                                />
+                            </Animated.View>
+                            <Animated.View entering={FadeInDown.delay(300).duration(600)}>
+                                <TextInput
+                                    textColor={currentThemeColors.text}
+                                    label="Email"
+                                    value={profile.email}
+                                    style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
+                                    mode="outlined"
+                                    keyboardType="email-address"
+                                    editable={false}
+                                    theme={{ colors: { primary: currentThemeColors.primary } }}
+                                />
+                            </Animated.View>
+                            <Animated.View entering={FadeInDown.delay(400).duration(600)}>
+                                <TextInput
+                                    editable={false}
+                                    textColor={currentThemeColors.text}
+                                    label="Tuổi"
+                                    value={profile.age}
+                                    onChangeText={(text) => handleChange('age', text)}
+                                    style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
+                                    mode="outlined"
+                                    keyboardType="numeric"
+                                    theme={{ colors: { primary: currentThemeColors.primary } }}
+                                />
+                            </Animated.View>
+                            <Animated.View entering={FadeInDown.delay(500).duration(600)}>
+                                <TextInput
+                                    textColor={currentThemeColors.text}
+                                    label="Tiểu sử"
+                                    value={profile.bio}
+                                    onChangeText={(text) => handleChange('bio', text)}
+                                    style={[styles.input, { backgroundColor: currentThemeColors.inputBackground }]}
+                                    mode="outlined"
+                                    multiline
+                                    numberOfLines={4}
+                                    theme={{ colors: { primary: currentThemeColors.primary } }}
+                                />
+                            </Animated.View>
+
+                            {/* Current Vibe Section */}
+                            <Animated.View entering={FadeInDown.delay(600).duration(600)} style={styles.vibeSection}>
+                                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Vibe hiện tại</Text>
+                                <View style={styles.vibeAvatarContainer}>
+                                    <VibeAvatar
+                                        avatarUrl={profile.icon || undefined}
+                                        size={80}
+                                        currentVibe={currentVibe}
+                                        showAddButton={true}
+                                    />
+                                    {currentVibe && (
+                                        <View style={styles.vibeInfo}>
+                                            <Text style={[styles.vibeName, { color: currentThemeColors.text }]}>
+                                                {currentVibe.vibe?.name} {currentVibe.vibe?.emoji}
+                                            </Text>
+                                            {currentVibe.customMessage && (
+                                                <Text style={[styles.vibeMessage, { color: currentThemeColors.subtleText }]}>
+                                                    "{currentVibe.customMessage}"
+                                                </Text>
+                                            )}
+                                        </View>
+                                    )}
+                                </View>
+                            </Animated.View>
+
+                            <Animated.View entering={FadeInDown.delay(700).duration(600)} style={styles.filterSection}>
+                                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Sở thích</Text>
+                                <View style={styles.tagsContainer}>
+                                    {interestItems.map((item: any) => (
+                                        <Chip
+                                            key={item.id}
+                                            selected={profile.interests.includes(item.id)}
+                                            onPress={() => setProfile(prev => ({ ...prev, interests: toggleArrayItem(prev.interests || [], item.id) }))}
+                                            style={[styles.interestChip, { borderColor: currentThemeColors.primary }, profile.interests.includes(item.id) && styles.selectedChip]}
+                                            textStyle={{ color: profile.interests.includes(item.id) ? '#fff' : currentThemeColors.text }}
+                                        >
+                                            {item.label}
+                                        </Chip>
+                                    ))}
+                                </View>
+                            </Animated.View>
+
+                            {error && <Text style={[styles.error, { color: Colors.error }]}>{error}</Text>}
+                        </Card.Content>
+                    </Card>
+                </Animated.View>
             </ScrollView>
         </ImageBackground>
     );
@@ -247,69 +249,91 @@ const EditProfile = () => {
 const styles = StyleSheet.create({
     background: {
         flex: 1,
-        justifyContent: 'center',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingTop: 40,
+        paddingBottom: 10,
+    },
+    backButton: {
+        marginRight: 16,
+    },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+    },
+    saveButton: {
+        marginLeft: 'auto',
+        padding: 8,
+    },
+    saveText: {
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     container: {
         flexGrow: 1,
         padding: 20,
-        justifyContent: 'center',
     },
     card: {
-        borderRadius: 12,
+        borderRadius: 20,
         elevation: 5,
-        padding: 10,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
     },
-    cardTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        textAlign: 'center',
+    avatarGlow: {
+        padding: 4,
+        borderRadius: 60,
+        alignSelf: 'center',
+        marginBottom: 16,
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        elevation: 10,
     },
-    input: {
-        marginBottom: 15,
-    },
-    radioGroup: {
-        marginBottom: 20,
-    },
-    radioTitle: {
-        fontSize: 16,
-        marginBottom: 10,
-    },
-    radioOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 5,
-    },
-    button: {
-        marginTop: 20,
-    },
-    error: {
-        marginBottom: 15,
-        textAlign: 'center',
+    avatarInner: {
+        borderRadius: 56,
+        padding: 2,
     },
     changeIconButton: {
+        alignSelf: 'center',
+        marginBottom: 24,
+        borderRadius: 25,
+        overflow: 'hidden',
+    },
+    blurButton: {
         paddingVertical: 10,
         paddingHorizontal: 20,
-        borderRadius: 25,
-        marginTop: 20,
+        backgroundColor: 'rgba(255,255,255,0.1)',
     },
     changeIconText: {
         fontSize: 16,
         fontWeight: 'bold',
         textAlign: 'center',
     },
-    icon: {
-        alignItems: 'center'
+    input: {
+        marginBottom: 16,
+        borderRadius: 12,
     },
     vibeSection: {
-        marginBottom: 20,
+        marginBottom: 24,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: 12,
     },
     vibeAvatarContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 8,
     },
     vibeInfo: {
-        marginLeft: 12,
+        marginLeft: 16,
         flex: 1,
     },
     vibeName: {
@@ -321,45 +345,8 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         marginTop: 4,
     },
-    currentVibeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 10,
-        marginTop: 8,
-    },
-    changeVibeButton: {
-        padding: 8,
-        borderRadius: 20,
-        marginLeft: 8,
-    },
-    addVibeButton: {
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-        borderRadius: 10,
-        borderWidth: 2,
-        borderStyle: 'dashed',
-        marginTop: 8,
-    },
-    addVibeText: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginTop: 8,
-        textAlign: 'center',
-    },
-    addVibeSubtext: {
-        fontSize: 12,
-        marginTop: 4,
-        textAlign: 'center',
-    },
     filterSection: {
-        marginBottom: 20,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        marginBottom: 10,
+        marginBottom: 24,
     },
     tagsContainer: {
         flexDirection: 'row',
@@ -375,6 +362,10 @@ const styles = StyleSheet.create({
     },
     selectedChip: {
         backgroundColor: Colors.primary,
+    },
+    error: {
+        marginBottom: 15,
+        textAlign: 'center',
     },
 });
 

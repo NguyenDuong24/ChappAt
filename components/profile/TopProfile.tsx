@@ -9,9 +9,8 @@ import {
   Platform,
   ScrollView,
   Dimensions,
+  Pressable,
 } from 'react-native';
-import { Chip } from 'react-native-paper';
-import { AntDesign } from '@expo/vector-icons';
 import { db } from '@/firebaseConfig';
 import {
   doc,
@@ -19,11 +18,12 @@ import {
   collection,
   query,
   where,
-  onSnapshot,
   getDoc,
   setDoc,
   increment,
   arrayUnion,
+  arrayRemove,
+  getCountFromServer,
 } from 'firebase/firestore';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
@@ -35,13 +35,20 @@ import VibeAvatar from '../vibe/VibeAvatar';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { giftService } from '@/services/giftService';
-import { useStateCommon } from '@/context/stateCommon';
 import { BlurView } from 'expo-blur';
 import { getLabelForInterest } from '@/utils/interests';
+import { useTranslation } from 'react-i18next';
+import Animated, {
+  FadeInDown,
+  FadeInRight,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
-const extractHashtags = (text: string) => {
+const extractHashtags = (text: string): string[] => {
   const regex = /#[a-zA-Z0-9_]+/g;
   return text.match(regex) || [];
 };
@@ -52,19 +59,23 @@ interface TopProfileProps {
 }
 
 const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
+  const { t } = useTranslation();
   const [isEditingBio, setIsEditingBio] = useState(false);
+  const [originalBio, setOriginalBio] = useState('');
   const { user, currentVibe, coins } = useAuth();
   const [bio, setBio] = useState('');
   const router = useRouter();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const { stateCommon, setStateCommon } = useStateCommon();
 
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
   const [giftStats, setGiftStats] = useState<{ count: number; value: number }>({ count: 0, value: 0 });
+
+  // Animation values
+  const avatarScale = useSharedValue(1);
 
   useEffect(() => {
     if (user?.bio) {
@@ -75,35 +86,34 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   useEffect(() => {
     if (!user || !user.uid) return;
 
-    const qFollowers = query(
-      collection(db, 'follows'),
-      where('followingId', '==', user.uid)
-    );
-    const unsubscribeFollowers = onSnapshot(qFollowers, (snapshot) => {
-      setFollowersCount(snapshot.size);
-    });
+    const fetchCounts = async () => {
+      try {
+        const qFollowers = query(
+          collection(db, 'follows'),
+          where('followingId', '==', user.uid)
+        );
+        const followersSnap = await getCountFromServer(qFollowers);
+        setFollowersCount(followersSnap.data().count);
 
-    const qFollowing = query(
-      collection(db, 'follows'),
-      where('followerId', '==', user.uid)
-    );
-    const unsubscribeFollowing = onSnapshot(qFollowing, (snapshot) => {
-      setFollowingCount(snapshot.size);
-    });
+        const qFollowing = query(
+          collection(db, 'follows'),
+          where('followerId', '==', user.uid)
+        );
+        const followingSnap = await getCountFromServer(qFollowing);
+        setFollowingCount(followingSnap.data().count);
 
-    const qPosts = query(
-      collection(db, 'posts'),
-      where('userId', '==', user.uid)
-    );
-    const unsubscribePosts = onSnapshot(qPosts, (snapshot) => {
-      setPostsCount(snapshot.size);
-    });
-
-    return () => {
-      unsubscribeFollowers();
-      unsubscribeFollowing();
-      unsubscribePosts();
+        const qPosts = query(
+          collection(db, 'posts'),
+          where('userId', '==', user.uid)
+        );
+        const postsSnap = await getCountFromServer(qPosts);
+        setPostsCount(postsSnap.data().count);
+      } catch (error) {
+        console.error('Error fetching profile counts:', error);
+      }
     };
+
+    fetchCounts();
   }, [user]);
 
   useEffect(() => {
@@ -125,25 +135,35 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
     fetchGiftStats();
   }, [user?.uid]);
 
+  const handleStartEditingBio = () => {
+    setOriginalBio(bio);
+    setIsEditingBio(true);
+  };
+
   const handleSaveBio = async () => {
     try {
       if (user && user.uid) {
         const userDoc = doc(db, 'users', user.uid);
         await updateDoc(userDoc, { bio });
+        await updateBioHashtags(bio, originalBio);
         setIsEditingBio(false);
-        await updateBioHashtags(bio);
       }
     } catch (error) {
       console.error('Error updating bio:', error);
     }
   };
 
-  const updateBioHashtags = async (newBio: string) => {
+  const updateBioHashtags = async (newBio: string, oldBio: string) => {
     if (!user?.uid) return;
 
-    const hashtags = extractHashtags(newBio);
-    for (const tagItem of hashtags) {
-      const tagDocRef = doc(collection(db, 'hashtags'), tagItem);
+    const oldHashtags = [...new Set(extractHashtags(oldBio))];
+    const newHashtags = [...new Set(extractHashtags(newBio))];
+
+    const added = newHashtags.filter((tag) => !oldHashtags.includes(tag));
+    const removed = oldHashtags.filter((tag) => !newHashtags.includes(tag));
+
+    for (const tag of added) {
+      const tagDocRef = doc(collection(db, 'hashtags'), tag);
       const tagDocSnap = await getDoc(tagDocRef);
       if (tagDocSnap.exists()) {
         await updateDoc(tagDocRef, {
@@ -157,13 +177,24 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
         });
       }
     }
+
+    for (const tag of removed) {
+      const tagDocRef = doc(collection(db, 'hashtags'), tag);
+      const tagDocSnap = await getDoc(tagDocRef);
+      if (tagDocSnap.exists()) {
+        await updateDoc(tagDocRef, {
+          bioCount: increment(-1),
+          bioUsers: arrayRemove(user.uid),
+        });
+      }
+    }
   };
 
   const handleCopyUID = async () => {
     if (user?.uid) {
       try {
         await Clipboard.setStringAsync(user.uid);
-        Alert.alert('✅ Copied!', 'UID copied to clipboard');
+        Alert.alert('✅ ' + t('common.success'), t('profile.uid_copied'));
       } catch (error) {
         console.error('Error copying UID:', error);
       }
@@ -171,298 +202,224 @@ const TopProfile = ({ onEditProfile, handleLogout }: TopProfileProps) => {
   };
 
   const openWallet = () => {
-    // Vì TopProfile nằm trong tab Profile, ta mặc định from='profile'
     router.push({
-      pathname: '/CoinWalletScreen',
+      pathname: '/(screens)/wallet/CoinWalletScreen',
       params: { from: 'profile' }
     });
   };
 
+  const avatarAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: withSpring(avatarScale.value) }],
+  }));
+
   if (!user) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={{ fontSize: 16, color: '#666' }}>Loading...</Text>
+        <Text style={{ fontSize: 16, color: '#666' }}>{t('common.loading')}...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: currentThemeColors.background }]}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header with Cover */}
-      <View style={styles.headerSection}>
-        <View style={styles.coverContainer}>
-          <CustomImage
-            type="cover"
-            source={user?.coverImage}
-            style={styles.coverImage}
-            onLongPress={() => { }}
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.7)']}
-            style={styles.coverGradient}
-          />
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+      {/* Cover Section */}
+      <View style={styles.coverWrapper}>
+        <CustomImage
+          type="cover"
+          source={user?.coverImage}
+          style={styles.coverImage}
+          onLongPress={() => { }}
+        />
+        <LinearGradient
+          colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)']}
+          style={styles.coverOverlay}
+          pointerEvents="none"
+        />
 
-          {/* Floating Actions */}
-          <View style={styles.floatingActions}>
-            <TouchableOpacity
-              onPress={() => router.push('/admin/dashboard')}
-              style={[styles.floatingButton, { backgroundColor: 'rgba(255,255,255,0.2)', marginRight: 8 }]}
-            >
-              <Feather name="shield" size={18} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => router.push('/profile/settings')}
-              style={[styles.floatingButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
-            >
-              <Feather name="settings" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Avatar Positioned on Cover */}
-          <View style={styles.avatarContainer}>
-            <View style={[styles.avatarBorder, { borderColor: currentThemeColors.background }]}>
-              <VibeAvatar
-                avatarUrl={user?.profileUrl}
-                size={110}
-                currentVibe={currentVibe}
-                showAddButton={true}
-                storyUser={{
-                  id: user?.uid || '',
-                  username: user?.username || user?.displayName,
-                  profileUrl: user?.profileUrl
-                }}
-              />
-            </View>
-          </View>
-        </View>
-
-      </View>
-
-      {/* Profile Info */}
-      <View style={styles.profileInfo}>
-        <View style={styles.nameRow}>
-          <Text style={[styles.username, { color: currentThemeColors.text }]} numberOfLines={1}>
-            {user?.username || user?.displayName || 'User'}
-          </Text>
-        </View>
-
-        <TouchableOpacity onPress={handleCopyUID} style={styles.uidBadge} activeOpacity={0.7}>
-          <Text style={styles.uidText}>ID: {user?.uid?.slice(0, 8)}</Text>
-          <Feather name="copy" size={10} color="#999" />
-        </TouchableOpacity>
-
-        {/* Bio inline */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {isEditingBio ? (
-            <TextInput
-              style={[styles.bioInputSmall, {
-                color: currentThemeColors.text,
-                backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)',
-                borderColor: currentThemeColors.border
-              }]}
-              value={bio}
-              onChangeText={setBio}
-              autoFocus
-              placeholder="Tell us about yourself..."
-              placeholderTextColor={currentThemeColors.placeholderText}
-              multiline
-              maxLength={160}
-            />
-          ) : (
-            <Text style={[styles.bioTextSmall, { color: currentThemeColors.subtleText }]} numberOfLines={3}>
-              {bio || '✨ Tap edit to add a bio'}
-            </Text>
-          )}
+        {/* Header Actions */}
+        <View style={styles.headerActions}>
           <TouchableOpacity
-            onPress={() => (isEditingBio ? handleSaveBio() : setIsEditingBio(true))}
-            style={[styles.editBioButtonSmall, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-            activeOpacity={0.7}
+            style={styles.actionCircle}
+            onPress={() => router.push('/profile/settings')}
           >
-            <Feather
-              name={isEditingBio ? 'check' : 'edit-3'}
-              size={12}
-              color={currentThemeColors.text}
-            />
+            <BlurView intensity={30} style={styles.blurCircle}>
+              <Feather name="settings" size={20} color="#fff" />
+            </BlurView>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Stats Row */}
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: currentThemeColors.text }]}>{postsCount}</Text>
-          <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Posts</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: currentThemeColors.border }]} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: currentThemeColors.text }]}>{followersCount}</Text>
-          <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Followers</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: currentThemeColors.border }]} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statNumber, { color: currentThemeColors.text }]}>{followingCount}</Text>
-          <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>Following</Text>
-        </View>
-      </View>
-
-      {/* Interests */}
-      {Array.isArray(user.interests) && user.interests.length > 0 && (
-        <View style={styles.interestsSection}>
-          <View style={styles.interestsHeader}>
-            <View style={[styles.interestsIconContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-              <Feather name="heart" size={18} color={currentThemeColors.text} />
-            </View>
-            <Text style={[styles.interestsTitle, { color: currentThemeColors.text }]}>
-              My Interests
-            </Text>
-            <View style={[styles.interestsBadge, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
-              <Text style={[styles.interestsBadgeText, { color: currentThemeColors.text }]}>
-                {user.interests.length}
-              </Text>
-            </View>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.interestsScroll}
+        {/* Avatar Section */}
+        <Animated.View style={[styles.avatarWrapper, avatarAnimatedStyle]}>
+          <Pressable
+            onPressIn={() => avatarScale.value = 0.95}
+            onPressOut={() => avatarScale.value = 1}
           >
-            {(user.interests as string[]).map((interest: string, index: number) => (
-              <TouchableOpacity
-                key={`${interest}-${index}`}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={theme === 'dark'
-                    ? ['rgba(139, 92, 246, 0.2)', 'rgba(59, 130, 246, 0.2)']
-                    : ['rgba(139, 92, 246, 0.1)', 'rgba(59, 130, 246, 0.1)']
-                  }
-                  style={styles.interestChip}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
-                  <Text style={[styles.interestText, { color: currentThemeColors.text }]}>
-                    {getLabelForInterest(interest)}
-                  </Text>
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899']}
+              style={styles.avatarGlow}
+            >
+              <View style={[styles.avatarInner, { backgroundColor: currentThemeColors.background }]}>
+                <VibeAvatar
+                  avatarUrl={user?.profileUrl}
+                  size={100}
+                  currentVibe={currentVibe}
+                  showAddButton={true}
+                  storyUser={{
+                    id: user?.uid || '',
+                    username: user?.username || user?.displayName,
+                    profileUrl: user?.profileUrl
+                  }}
+                />
+              </View>
+            </LinearGradient>
+          </Pressable>
+        </Animated.View>
+      </View>
+
+      {/* Profile Details */}
+      <View style={styles.detailsContainer}>
+        <Animated.View entering={FadeInDown.delay(100).duration(600)} style={styles.nameSection}>
+          <Text style={[styles.displayName, { color: currentThemeColors.text }]}>
+            {user?.username || user?.displayName || t('chat.unknown_user')}
+          </Text>
+          <TouchableOpacity onPress={handleCopyUID} style={styles.uidContainer}>
+            <Text style={styles.uidText}>ID: {user?.uid?.slice(0, 8)}</Text>
+            <Feather name="copy" size={12} color="#94A3B8" />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Bio Section */}
+        <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.bioSection}>
+          {isEditingBio ? (
+            <View style={styles.bioEditWrapper}>
+              <TextInput
+                style={[styles.bioInput, {
+                  color: currentThemeColors.text,
+                  backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                  borderColor: currentThemeColors.border
+                }]}
+                value={bio}
+                onChangeText={setBio}
+                autoFocus
+                multiline
+                maxLength={160}
+                placeholder={t('profile.bio_placeholder')}
+              />
+              <TouchableOpacity onPress={handleSaveBio} style={styles.bioSaveBtn}>
+                <LinearGradient colors={['#8B5CF6', '#6366F1']} style={styles.bioSaveGradient}>
+                  <Feather name="check" size={18} color="#fff" />
                 </LinearGradient>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Rewards Section */}
-      <View style={styles.rewardsSection}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.rewardsScroll}
-        >
-          <TouchableOpacity
-            style={[styles.rewardCardCoin, { backgroundColor: currentThemeColors.cardBackground }]}
-            onPress={openWallet}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#FFD700', '#FFA500', '#FF8C00']}
-              style={styles.rewardIconCoin}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handleStartEditingBio}
+              style={styles.bioDisplayWrapper}
             >
-              {/* Shine effect overlay */}
-              <LinearGradient
-                colors={['rgba(255,255,255,0.8)', 'transparent', 'rgba(255,255,255,0.5)']}
-                style={styles.shineOverlay}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
-              <Text style={styles.rewardEmojiLarge}>💰</Text>
-            </LinearGradient>
-            <View style={styles.rewardInfoCoin}>
-              <View style={styles.coinValueRow}>
-                <Text style={styles.coinIcon}>🪙</Text>
-                <Text style={[styles.rewardValueLarge, { color: currentThemeColors.text }]}>
+              <Text style={[styles.bioText, { color: currentThemeColors.subtleText }]}>
+                {bio || t('profile.bio_empty')}
+              </Text>
+              <Feather name="edit-2" size={14} color="#94A3B8" style={styles.bioEditIcon} />
+            </TouchableOpacity>
+          )}
+        </Animated.View>
+
+        {/* Stats Row */}
+        <Animated.View entering={FadeInDown.delay(300).duration(600)} style={styles.statsRow}>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{postsCount}</Text>
+            <Text style={styles.statLabel}>{t('profile.posts')}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{followersCount}</Text>
+            <Text style={styles.statLabel}>{t('profile.followers')}</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: currentThemeColors.text }]}>{followingCount}</Text>
+            <Text style={styles.statLabel}>{t('profile.following')}</Text>
+          </View>
+        </Animated.View>
+
+        {/* Interests */}
+        {Array.isArray(user.interests) && user.interests.length > 0 && (
+          <Animated.View entering={FadeInDown.delay(400).duration(600)} style={styles.interestsWrapper}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.interestsScroll}>
+              {user.interests.map((interest: string, index: number) => (
+                <View key={index} style={styles.interestChipWrapper}>
+                  <LinearGradient
+                    colors={['rgba(139, 92, 246, 0.1)', 'rgba(236, 72, 153, 0.1)']}
+                    style={styles.interestChip}
+                  >
+                    <Text style={[styles.interestText, { color: '#8B5CF6' }]}>
+                      {getLabelForInterest(interest)}
+                    </Text>
+                  </LinearGradient>
+                </View>
+              ))}
+            </ScrollView>
+          </Animated.View>
+        )}
+
+        {/* Reward Cards */}
+        <View style={styles.rewardsGrid}>
+          <Animated.View entering={FadeInRight.delay(500).duration(600)}>
+            <TouchableOpacity
+              style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}
+              onPress={openWallet}
+            >
+              <LinearGradient colors={['#F59E0B', '#D97706']} style={styles.rewardIconBg}>
+                <Feather name="database" size={20} color="#fff" />
+              </LinearGradient>
+              <View style={styles.rewardInfo}>
+                <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
                   {Number(coins || 0).toLocaleString()}
                 </Text>
+                <Text style={styles.rewardLabel}>{t('wallet.title')}</Text>
               </View>
-              <View style={styles.coinLabelRow}>
-                <Text style={[styles.rewardLabelCoin, { color: currentThemeColors.subtleText }]}>
-                  My Coins
-                </Text>
-                <Feather name="chevron-right" size={14} color={currentThemeColors.subtleText} />
-              </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </Animated.View>
 
-          <TouchableOpacity
-            style={[styles.rewardCardGift, { backgroundColor: currentThemeColors.cardBackground }]}
-            onPress={() => router.push('/gifts/Inbox')}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#FF69B4', '#FF1493', '#C71585']}
-              style={styles.rewardIconGift}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+          <Animated.View entering={FadeInRight.delay(600).duration(600)}>
+            <TouchableOpacity
+              style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}
+              onPress={() => router.push('/gifts/Inbox')}
             >
-              <LinearGradient
-                colors={['rgba(255,255,255,0.8)', 'transparent', 'rgba(255,255,255,0.5)']}
-                style={styles.shineOverlay}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
-              <Text style={styles.rewardEmojiLarge}>🎁</Text>
-            </LinearGradient>
-            <View style={styles.rewardInfoGift}>
-              <View style={styles.coinValueRow}>
-                <Text style={[styles.rewardValueLarge, { color: currentThemeColors.text }]}>
+              <LinearGradient colors={['#EC4899', '#DB2777']} style={styles.rewardIconBg}>
+                <Feather name="gift" size={20} color="#fff" />
+              </LinearGradient>
+              <View style={styles.rewardInfo}>
+                <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
                   {giftStats.count}
                 </Text>
+                <Text style={styles.rewardLabel}>{t('profile.gifts')}</Text>
               </View>
-              <View style={styles.coinLabelRow}>
-                <Text style={[styles.rewardLabelGift, { color: currentThemeColors.subtleText }]}>
-                  Gifts
-                </Text>
-                <Feather name="chevron-right" size={14} color={currentThemeColors.subtleText} />
-              </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </Animated.View>
 
-          <View style={[styles.rewardCardValue, { backgroundColor: currentThemeColors.cardBackground }]}>
-            <LinearGradient
-              colors={['#9370DB', '#8A2BE2', '#4B0082']}
-              style={styles.rewardIconValue}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+          <Animated.View entering={FadeInRight.delay(700).duration(600)}>
+            <TouchableOpacity
+              style={[styles.rewardCard, { backgroundColor: currentThemeColors.cardBackground }]}
+              onPress={() => {
+                console.log('🛒 Navigating to Store...');
+                router.push('/(screens)/store/StoreScreen');
+              }}
             >
-              <LinearGradient
-                colors={['rgba(255,255,255,0.8)', 'transparent', 'rgba(255,255,255,0.5)']}
-                style={styles.shineOverlay}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              />
-              <Text style={styles.rewardEmojiLarge}>💎</Text>
-            </LinearGradient>
-            <View style={styles.rewardInfoValue}>
-              <View style={styles.coinValueRow}>
-                <Text style={[styles.rewardValueLarge, { color: currentThemeColors.text }]}>
-                  {giftStats.value.toLocaleString()}
+              <LinearGradient colors={['#8B5CF6', '#7C3AED']} style={styles.rewardIconBg}>
+                <Feather name="shopping-bag" size={20} color="#fff" />
+              </LinearGradient>
+              <View style={styles.rewardInfo}>
+                <Text style={[styles.rewardValue, { color: currentThemeColors.text }]}>
+                  {t('store.title')}
                 </Text>
+                <Text style={styles.rewardLabel}>{t('store.shop')}</Text>
               </View>
-              <View style={styles.coinLabelRow}>
-                <Text style={[styles.rewardLabelValue, { color: currentThemeColors.subtleText }]}>
-                  Value
-                </Text>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       </View>
-
-      <View style={{ height: 40 }} />
-    </ScrollView>
+    </View>
   );
 };
 
@@ -471,374 +428,214 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   loadingContainer: {
-    flex: 1,
+    height: 300,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
   },
-  headerSection: {
-    position: 'relative',
-  },
-  coverContainer: {
-    height: 200,
+  coverWrapper: {
+    height: 240,
+    width: '100%',
     position: 'relative',
   },
   coverImage: {
     width: '100%',
     height: '100%',
   },
-  coverGradient: {
+  coverOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 100,
+    height: 120,
   },
-  floatingActions: {
+  headerActions: {
     position: 'absolute',
-    top: 50,
-    right: 16,
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
-  floatingButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  actionCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  blurCircle: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    backdropFilter: 'blur(10px)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  avatarContainer: {
+  avatarWrapper: {
     position: 'absolute',
-    bottom: -55,
+    bottom: -50,
     left: 20,
+    zIndex: 10,
   },
-  avatarBorder: {
-    borderWidth: 5,
+  avatarGlow: {
+    padding: 4,
     borderRadius: 60,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  avatarInner: {
+    borderRadius: 56,
     padding: 2,
   },
-  vibeContainer: {
-    position: 'absolute',
-    top: 150,
-    right: 20,
-  },
-  profileInfo: {
-    marginTop: 65,
+  detailsContainer: {
+    paddingTop: 60,
     paddingHorizontal: 20,
-    marginBottom: 16,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
+  nameSection: {
+    marginBottom: 12,
   },
-  username: {
-    fontSize: 26,
+  displayName: {
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: 0.3,
-    flex: 1,
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
-  editBioButtonSmall: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  uidBadge: {
+  uidContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(150,150,150,0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
   },
   uidText: {
-    fontSize: 11,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    color: '#999',
-    fontWeight: '600',
-  },
-  bioTextSmall: {
     fontSize: 13,
-    lineHeight: 18,
-    marginTop: 2,
+    color: '#94A3B8',
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
-  bioInputSmall: {
-    fontSize: 13,
-    lineHeight: 18,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
+  bioSection: {
+    marginBottom: 24,
+  },
+  bioDisplayWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  bioText: {
+    fontSize: 15,
+    lineHeight: 22,
+    flex: 1,
+  },
+  bioEditIcon: {
     marginTop: 4,
-    minHeight: 60,
+    opacity: 0.6,
+  },
+  bioEditWrapper: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  bioInput: {
+    flex: 1,
+    fontSize: 15,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  bioSaveBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  bioSaveGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 20,
-    marginHorizontal: 20,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(148, 163, 184, 0.05)',
+    padding: 16,
     borderRadius: 20,
+    marginBottom: 24,
   },
-  statItem: {
-    alignItems: 'center',
+  statBox: {
     flex: 1,
+    alignItems: 'center',
   },
-  statNumber: {
-    fontSize: 24,
+  statValue: {
+    fontSize: 20,
     fontWeight: '800',
     marginBottom: 2,
   },
   statLabel: {
     fontSize: 12,
+    color: '#94A3B8',
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   statDivider: {
     width: 1,
-    height: 30,
-    opacity: 0.2,
+    height: 24,
+    backgroundColor: 'rgba(148, 163, 184, 0.2)',
   },
-  interestsSection: {
-    marginBottom: 20,
-  },
-  interestsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 14,
-  },
-  interestsIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  interestsTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    flex: 1,
-  },
-  interestsBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  interestsBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
+  interestsWrapper: {
+    marginBottom: 24,
   },
   interestsScroll: {
-    paddingHorizontal: 20,
     gap: 10,
   },
-  interestChip: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+  interestChipWrapper: {
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    overflow: 'hidden',
+  },
+  interestChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   interestText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  rewardsSection: {
-    marginBottom: 20,
-  },
-  rewardsScroll: {
-    paddingHorizontal: 20,
+  rewardsGrid: {
+    flexDirection: 'row',
     gap: 12,
+    marginBottom: 30,
   },
   rewardCard: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: 16,
+    width: (width - 64) / 3,
+    padding: 12,
     borderRadius: 20,
-    width: 110,
+    alignItems: 'center',
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  rewardIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  rewardIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 10,
-  },
-  rewardEmoji: {
-    fontSize: 26,
   },
   rewardInfo: {
     alignItems: 'center',
   },
   rewardValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
     marginBottom: 2,
   },
   rewardLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  // New styles for Coin Card
-  rewardCardCoin: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: 0,
-    borderRadius: 24,
-    width: 160,
-    height: 180,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
-    shadowColor: "#FFD700",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  rewardIconCoin: {
-    width: '100%',
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  shineOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    opacity: 0.3,
-    transform: [{ rotate: '45deg' }, { scale: 1.5 }],
-  },
-  rewardEmojiLarge: {
-    fontSize: 48,
-    textShadowColor: 'rgba(0,0,0,0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  rewardInfoCoin: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingBottom: 6,
-  },
-  coinValueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  coinIcon: {
-    fontSize: 16,
-  },
-  rewardValueLarge: {
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  coinLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    opacity: 0.8,
-  },
-  rewardLabelCoin: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  // Gift Card Styles
-  rewardCardGift: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: 0,
-    borderRadius: 24,
-    width: 160,
-    height: 180,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 105, 180, 0.3)',
-    shadowColor: "#FF69B4",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  rewardIconGift: {
-    width: '100%',
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  rewardInfoGift: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingBottom: 6,
-  },
-  rewardLabelGift: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  // Value Card Styles
-  rewardCardValue: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: 0,
-    borderRadius: 24,
-    width: 160,
-    height: 180,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(147, 112, 219, 0.3)',
-    shadowColor: "#9370DB",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  rewardIconValue: {
-    width: '100%',
-    height: 110,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  rewardInfoValue: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingBottom: 6,
-  },
-  rewardLabelValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
 });
 

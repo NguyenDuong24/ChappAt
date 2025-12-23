@@ -24,6 +24,7 @@ export const OptimizationTest: React.FC<OptimizationTestProps> = ({ peerId }) =>
     refreshMessages 
   } = useOptimizedChatMessages({
     roomId,
+    currentUserId: user?.uid,
     pageSize: 20,
     enableRealtime: true
   });

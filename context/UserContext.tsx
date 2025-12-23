@@ -1,7 +1,29 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { UserVibe } from '@/types/vibe';
+
+// Utility function to check if a vibe has expired (24 hours)
+const isVibeExpired = (vibe: UserVibe | null): boolean => {
+  if (!vibe || !vibe.createdAt) return true;
+  
+  const now = new Date();
+  const createdAt = vibe.createdAt.toDate ? vibe.createdAt.toDate() : new Date(vibe.createdAt);
+  const hoursDifference = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+  
+  return hoursDifference >= 24;
+};
+
+// Utility function to get remaining hours for a vibe
+const getVibeTimeRemaining = (vibe: UserVibe | null): number => {
+  if (!vibe || !vibe.createdAt) return 0;
+  
+  const now = new Date();
+  const createdAt = vibe.createdAt.toDate ? vibe.createdAt.toDate() : new Date(vibe.createdAt);
+  const hoursDifference = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+  
+  return Math.max(0, 24 - hoursDifference);
+};
 
 interface UserInfo {
   uid: string;
@@ -18,6 +40,8 @@ interface UserContextType {
   getUsersInfo: (userIds: string[]) => Promise<Map<string, UserInfo>>;
   clearCache: () => void;
   preloadUsers: (userIds: string[]) => Promise<void>;
+  cleanExpiredVibes: () => void;
+  getVibeTimeRemaining: (vibe: UserVibe | null) => number;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -37,13 +61,50 @@ interface UserProviderProps {
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [userCache, setUserCache] = useState<Map<string, UserInfo>>(new Map());
 
+  // Dọn dẹp các vibe đã hết hạn trong cache
+  const cleanExpiredVibes = useCallback(() => {
+    setUserCache(prevCache => {
+      const newCache = new Map(prevCache);
+      newCache.forEach((userInfo, userId) => {
+        if (userInfo.currentVibe && isVibeExpired(userInfo.currentVibe)) {
+          // Cập nhật user info với vibe = null thay vì xóa user khỏi cache
+          const updatedUserInfo = { ...userInfo, currentVibe: null };
+          newCache.set(userId, updatedUserInfo);
+        }
+      });
+      return newCache;
+    });
+  }, []);
+
+  // Effect để tự động dọn dẹp vibe hết hạn mỗi giờ
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      cleanExpiredVibes();
+    }, 60 * 60 * 1000); // Chạy mỗi giờ
+
+    // Chạy lần đầu ngay khi mount
+    cleanExpiredVibes();
+
+    return () => clearInterval(cleanupInterval);
+  }, [cleanExpiredVibes]);
+
   // Lấy thông tin một user (kiểm tra cache trước)
   const getUserInfo = useCallback(async (userId: string): Promise<UserInfo | null> => {
     if (!userId) return null;
 
     // Kiểm tra cache trước
     if (userCache.has(userId)) {
-      return userCache.get(userId) || null;
+      const cachedUserInfo = userCache.get(userId);
+      if (cachedUserInfo) {
+        // Kiểm tra xem vibe có hết hạn không
+        if (cachedUserInfo.currentVibe && isVibeExpired(cachedUserInfo.currentVibe)) {
+          // Nếu vibe hết hạn, cập nhật cache và trả về user info không có vibe
+          const updatedUserInfo = { ...cachedUserInfo, currentVibe: null };
+          setUserCache(prev => new Map(prev).set(userId, updatedUserInfo));
+          return updatedUserInfo;
+        }
+        return cachedUserInfo;
+      }
     }
 
     try {
@@ -52,12 +113,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       
       if (userSnap.exists()) {
         const userData = userSnap.data();
+        
+        // Kiểm tra và lọc bỏ vibe đã hết hạn (24h)
+        let currentVibe = userData.currentVibe || null;
+        if (currentVibe && isVibeExpired(currentVibe)) {
+          currentVibe = null;
+        }
+        
         const userInfo: UserInfo = {
           uid: userId,
           username: userData.username || 'Unknown User',
           profileUrl: userData.profileUrl,
           email: userData.email,
-          currentVibe: userData.currentVibe || null,
+          currentVibe: currentVibe,
         };
 
         // Lưu vào cache
@@ -105,12 +173,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
         
         if (userSnap.exists()) {
           const userData = userSnap.data();
+          
+          // Kiểm tra và lọc bỏ vibe đã hết hạn (24h)
+          let currentVibe = userData.currentVibe || null;
+          if (currentVibe && isVibeExpired(currentVibe)) {
+            currentVibe = null;
+          }
+          
           const userInfo: UserInfo = {
             uid: userId,
             username: userData.username || 'Unknown User',
             profileUrl: userData.profileUrl,
             email: userData.email,
-            currentVibe: userData.currentVibe || null,
+            currentVibe: currentVibe,
           };
           return { userId, userInfo };
         }
@@ -151,6 +226,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     getUsersInfo,
     clearCache,
     preloadUsers,
+    cleanExpiredVibes,
+    getVibeTimeRemaining: getVibeTimeRemaining,
   };
 
   return (

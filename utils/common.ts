@@ -69,12 +69,12 @@ export const getFileType = (filename: string) => {
   if (!filename) return 'unknown';
   const ext = filename.split('.').pop()?.toLowerCase();
   if (!ext) return 'unknown';
-  
+
   const imageTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
   const videoTypes = ['mp4', 'mov', 'avi', 'webm'];
   const audioTypes = ['mp3', 'wav', 'ogg', 'm4a'];
   const documentTypes = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'];
-  
+
   if (imageTypes.includes(ext)) return 'image';
   if (videoTypes.includes(ext)) return 'video';
   if (audioTypes.includes(ext)) return 'audio';
@@ -83,9 +83,9 @@ export const getFileType = (filename: string) => {
 };
 
 export const getRoomId = (userId1: string, userId2: string) => {
-    const sortedIds = [userId1, userId2].sort();
-    const roomId = sortedIds.join('-');
-    return roomId;
+  const sortedIds = [userId1, userId2].sort();
+  const roomId = sortedIds.join('-');
+  return roomId;
 };
 
 export const convertTimestampToDate = (timestamp: any): string | null => {
@@ -103,3 +103,41 @@ export const convertTimestampToDate = (timestamp: any): string | null => {
     return null;
   }
 };
+
+export const calculateAge = (timestamp: { seconds: number; nanoseconds?: number } | any): number | null => {
+  if (!timestamp) return null;
+
+  let birthDate: Date;
+  if (timestamp.seconds) {
+    birthDate = new Date(timestamp.seconds * 1000);
+  } else {
+    birthDate = new Date(timestamp);
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDifference = today.getMonth() - birthDate.getMonth();
+
+  if (monthDifference < 0 || (monthDifference === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+};
+
+export function convertToAge(isoDate: string | Date): number {
+  const birthDate = new Date(isoDate);
+  const today = new Date();
+
+  let age = today.getFullYear() - birthDate.getFullYear();
+
+  // Kiểm tra xem đã qua ngày sinh nhật năm nay chưa
+  const hasBirthdayPassed =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+
+  if (!hasBirthdayPassed) {
+    age -= 1; // Nếu chưa qua sinh nhật, trừ 1 tuổi
+  }
+
+  return age;
+}

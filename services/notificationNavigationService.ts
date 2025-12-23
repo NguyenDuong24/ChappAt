@@ -35,9 +35,9 @@ class NotificationNavigationService {
 
   private async handleNotificationResponse(response: Notifications.NotificationResponse) {
     console.log('🧭 Notification tapped:', response);
-    
+
     const data = response.notification.request.content.data as NotificationData;
-    
+
     if (!data || !data.type) {
       console.log('❌ No navigation data in notification');
       return;
@@ -61,39 +61,39 @@ class NotificationNavigationService {
         case 'comment':
           this.navigateToPost(data);
           break;
-        
+
         case 'follow':
           this.navigateToProfile(data);
           break;
-        
+
         case 'mention':
           this.navigateToMention(data);
           break;
-        
+
         case 'message':
           this.navigateToChat(data);
           break;
-        
+
         case 'group_message':
           this.navigateToGroup(data);
           break;
-        
+
         case 'group_invite':
           this.navigateToGroupInvite(data);
           break;
-        
+
         case 'hashtag':
           this.navigateToHashtag(data);
           break;
-        
+
         case 'friend_request':
           this.navigateToFriendRequests();
           break;
-        
+
         case 'call':
           this.navigateToCall(data);
           break;
-        
+
         default:
           console.log('❓ Unknown notification type:', data.type);
           this.navigateToNotifications();
@@ -109,17 +109,17 @@ class NotificationNavigationService {
   private navigateToPost(data: NotificationData) {
     if (data.postId) {
       console.log('🧭 Navigating to post:', data.postId);
-      
+
       // Try available navigation paths
       const possiblePaths = [
-        `/PostDetailScreen?postId=${data.postId}`,
+        `/(screens)/social/PostDetailScreen?postId=${data.postId}`,
         `/explore/PostDetailScreen?postId=${data.postId}`,
         `/HashtagPostsScreen?postId=${data.postId}`,
       ];
 
       // Try each path
       let navigationSuccess = false;
-      
+
       for (const path of possiblePaths) {
         try {
           console.log('🔄 Trying navigation path:', path);
@@ -137,7 +137,7 @@ class NotificationNavigationService {
         console.log('🔄 All paths failed, using final fallback...');
         try {
           // Navigate to a screen that definitely exists and show alert
-          router.push('/NotificationsScreen' as any);
+          router.push('/(screens)/social/NotificationsScreen' as any);
           setTimeout(() => {
             console.log(`📍 Should show post: ${data.postId}`);
             // Could show an alert here
@@ -156,15 +156,15 @@ class NotificationNavigationService {
     if (data.userId || data.senderId) {
       const userId = data.userId || data.senderId;
       console.log('🧭 Navigating to profile:', userId);
-      
+
       // Try available navigation paths
       const possiblePaths = [
-        `/UserProfileScreen?userId=${userId}`,
+        `/(screens)/user/UserProfileScreen?userId=${userId}`,
       ];
 
       // Try each path
       let navigationSuccess = false;
-      
+
       for (const path of possiblePaths) {
         try {
           console.log('🔄 Trying navigation path:', path);
@@ -181,7 +181,7 @@ class NotificationNavigationService {
       if (!navigationSuccess) {
         console.log('🔄 All paths failed, using final fallback...');
         try {
-          router.push('/NotificationsScreen' as any);
+          router.push('/(screens)/social/NotificationsScreen' as any);
           setTimeout(() => {
             console.log(`📍 Should show profile: ${userId}`);
           }, 1000);
@@ -212,7 +212,7 @@ class NotificationNavigationService {
   private navigateToChat(data: NotificationData) {
     if (data.chatId) {
       console.log('🧭 Navigating to chat:', data.chatId);
-      
+
       // Try available chat paths (check what exists in your app)
       const possiblePaths = [
         `/chat/${data.chatId}`, // If you have dynamic chat routes
@@ -220,7 +220,7 @@ class NotificationNavigationService {
 
       // Try each path
       let navigationSuccess = false;
-      
+
       for (const path of possiblePaths) {
         try {
           console.log('🔄 Trying navigation path:', path);
@@ -238,7 +238,7 @@ class NotificationNavigationService {
         console.log('🔄 All paths failed, using final fallback...');
         try {
           // Try to navigate to any message-related screen that exists
-          router.push('/NotificationsScreen' as any);
+          router.push('/(screens)/social/NotificationsScreen' as any);
           setTimeout(() => {
             console.log(`📍 Should open chat: ${data.chatId}`);
           }, 1000);
@@ -250,7 +250,7 @@ class NotificationNavigationService {
       console.log('🧭 Navigating to chat with sender:', data.senderId);
       try {
         // Navigate to user profile as fallback for chat
-        router.push(`/UserProfileScreen?userId=${data.senderId}` as any);
+        router.push(`/(screens)/user/UserProfileScreen?userId=${data.senderId}` as any);
       } catch (error) {
         this.navigateToNotifications();
       }
@@ -294,6 +294,17 @@ class NotificationNavigationService {
     }
   }
 
+  private navigateToNotifications() {
+    console.log('🧭 Navigating to notifications screen');
+    try {
+      router.push('/(screens)/social/NotificationsScreen' as any);
+    } catch (error) {
+      console.log('❌ Notifications navigation failed:', error);
+      // Last fallback - go to home
+      router.push('/(tabs)/home');
+    }
+  }
+
   private navigateToFriendRequests() {
     console.log('🧭 Navigating to friend requests');
     try {
@@ -304,13 +315,14 @@ class NotificationNavigationService {
     }
   }
 
+
   private navigateToCall(data: NotificationData) {
     console.log('🧭 Navigating to call:', data);
-    
+
     try {
       // Build query parameters from notification data
       const params = new URLSearchParams();
-      
+
       if (data.callId) params.append('callId', data.callId);
       if (data.callerId) params.append('callerId', data.callerId);
       if (data.meetingId) params.append('meetingId', data.meetingId);
@@ -318,10 +330,10 @@ class NotificationNavigationService {
       if (data.senderId) params.append('senderId', data.senderId);
       if (data.senderName) params.append('senderName', data.senderName);
       if (data.senderAvatar) params.append('senderAvatar', data.senderAvatar);
-      
+
       const queryString = params.toString();
-      const path = queryString ? `/IncomingCallScreen?${queryString}` : '/IncomingCallScreen';
-      
+      const path = queryString ? `/(screens)/call/IncomingCallScreen?${queryString}` : '/(screens)/call/IncomingCallScreen';
+
       router.push(path as any);
       console.log('✅ Navigation to call successful:', path);
     } catch (error) {
@@ -338,7 +350,7 @@ class NotificationNavigationService {
   // Public method to navigate to specific screen with notification context
   public navigateWithNotificationContext(screenName: string, params?: any) {
     console.log('🧭 Navigating with notification context:', screenName, params);
-    
+
     try {
       if (params) {
         const queryParams = new URLSearchParams(params).toString();
@@ -393,17 +405,17 @@ class NotificationNavigationService {
         case 'friend_request':
           this.navigateToFriendRequests();
           break;
-        
+
         case 'call':
           this.navigateToCall(data);
           break;
-        
+
         default:
           console.log('⚠️ Unknown notification type:', data.type);
           this.navigateToNotifications();
           break;
       }
-      
+
       return true;
     } catch (error) {
       console.error('❌ Navigation error:', error);

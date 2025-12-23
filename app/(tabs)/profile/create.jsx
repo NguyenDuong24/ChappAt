@@ -50,8 +50,8 @@ const LOCATION_PRIVACY_OPTIONS = [
 ];
 
 // NSFW model assets (relative to this file)
-const NSFW_MODEL_JSON = require('../../../assets/model/model.json');
-const NSFW_MODEL_WEIGHTS = [require('../../../assets/model/group1-shard1of1.bin')];
+const NSFW_MODEL_JSON = require('@/assets/model/model.json');
+const NSFW_MODEL_WEIGHTS = [require('@/assets/model/group1-shard1of1.bin')];
 const PIC_INPUT_SHAPE = { width: 224, height: 224 };
 const NSFW_CLASSES = { 0: 'Drawing', 1: 'Hentai', 2: 'Neutral', 3: 'Porn', 4: 'Sexy' };
 

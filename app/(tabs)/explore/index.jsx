@@ -1,11 +1,11 @@
-import { useEffect } from 'react';
-import { router } from 'expo-router';
+import React from 'react';
+import Tab1Screen from './tab1';
+import DeferredComponent from '@/components/DeferredComponent';
 
-export default function ExploreIndex() {
-  useEffect(() => {
-    // Tự động chuyển hướng đến tab1 khi vào trang explore
-    router.replace('/(tabs)/explore/tab1');
-  }, []);
-
-  return null;
+export default function ExploreTab() {
+    return (
+        <DeferredComponent>
+            <Tab1Screen />
+        </DeferredComponent>
+    );
 }

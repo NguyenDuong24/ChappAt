@@ -10,20 +10,36 @@ const useExplore = () => {
       sortedPostsByLike: [],
       loading: true,
       error: null,
-      deletePost: async () => {},
-      toggleLike: async () => {},
-      addComment: async () => {},
-      fetchPosts: async () => {},
-      loadMore: async () => {},
+      deletePost: async () => { },
+      toggleLike: async () => { },
+      addComment: async () => { },
+      fetchPosts: async () => { },
+      loadMore: async () => { },
       hasMore: true,
     };
   }
 
-  const { latestPosts, sortedPostsByLike, loadingInitial, loadingMore, error, deletePost, toggleLike, addComment, fetchPosts, loadMore, hasMore } = ctx;
+  const {
+    latestPosts,
+    sortedPostsByLike,
+    followingPosts,
+    loadingInitial,
+    loadingMore,
+    error,
+    deletePost,
+    toggleLike,
+    addComment,
+    fetchPosts,
+    loadMore,
+    loadMoreFollowing,
+    hasMore,
+    hasMoreFollowing
+  } = ctx;
 
   return {
     latestPosts,
     sortedPostsByLike,
+    followingPosts,
     loading: loadingInitial && latestPosts.length === 0,
     error,
     deletePost,
@@ -31,7 +47,9 @@ const useExplore = () => {
     addComment,
     fetchPosts,
     loadMore,
+    loadMoreFollowing,
     hasMore,
+    hasMoreFollowing,
     loadingMore,
   };
 };

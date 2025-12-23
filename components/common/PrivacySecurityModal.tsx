@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
@@ -22,6 +23,7 @@ interface PrivacySecurityModalProps {
 
 const PrivacySecurityModal = ({ visible, onClose }: PrivacySecurityModalProps) => {
   const { user } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   // Privacy settings
@@ -100,7 +102,8 @@ const PrivacySecurityModal = ({ visible, onClose }: PrivacySecurityModalProps) =
   };
 
   const handleChangePassword = () => {
-    Alert.alert('Đổi mật khẩu', 'Mở màn hình đổi mật khẩu');
+    onClose();
+    router.push('/(screens)/user/ChangePasswordScreen');
   };
 
   const handleTwoFactorToggle = async (value: boolean) => {

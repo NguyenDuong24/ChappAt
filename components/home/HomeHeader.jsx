@@ -1,24 +1,45 @@
-import React, { useState, useContext, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useContext, useRef, useEffect, useMemo, useCallback, memo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, Text, ScrollView, StatusBar, Platform, Modal } from 'react-native';
-import { Appbar, Avatar, Button, TextInput, Chip } from 'react-native-paper';
+import { Button, TextInput, Chip } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { useStateCommon } from '../../context/stateCommon.jsx';
+import { useStateCommon } from '@/context/stateCommon';
 import Entypo from '@expo/vector-icons/Entypo';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { saveFilterPreferences, loadFilterPreferences, getActiveFiltersCount as getActiveFiltersCountFromStorage } from '@/utils/filterStorage';
+import { saveFilterPreferences, loadFilterPreferences } from '@/utils/filterStorage';
 import schoolsData from '../../assets/model/schools_hcm.json';
 import educationData from '@/assets/data/educationData.json';
-import interestsData from '@/assets/data/interests.json';
 import { getInterestsArray, getLabelForInterest, getIdForInterest, normalizeInterestsArray } from '@/utils/interests';
+import { useTranslation } from 'react-i18next';
 
 const educationLevels = educationData.educationLevels;
 const jobs = educationData.jobs;
 
+// Memoized particles component
+const HeaderParticles = memo(() => {
+  // Pre-compute particle styles to avoid recalculation on re-render
+  const particleStyles = useMemo(() =>
+    [...Array(6)].map((_, i) => ({
+      left: `${20 + i * 15}%`,
+      top: `${30 + (i % 2) * 40}%`,
+      opacity: 0.3 + (i * 0.1),
+    })),
+    []);
+
+  return (
+    <View style={styles.particlesContainer}>
+      {particleStyles.map((style, i) => (
+        <View key={i} style={[styles.particle, style]} />
+      ))}
+    </View>
+  );
+});
+
 const HomeHeader = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const { stateCommon, setStateCommon } = useStateCommon();
   const { user } = useAuth();
@@ -43,48 +64,50 @@ const HomeHeader = () => {
 
   const { width, height } = Dimensions.get('window');
 
-  // Storage constants
-  const DEFAULT_FILTER = { gender: '', minAge: '', maxAge: '', interests: [] };
-
-  // Interest items as { id, label }
+  // Interest items as { id, label } - memoized
   const interestItems = useMemo(() => getInterestsArray(), []);
-  
-  // Helper functions
-  const getFilterSummary = (filter) => {
+
+  // Memoized helper functions
+  const getFilterSummary = useCallback((filter) => {
     const parts = [];
-    
+
     if (filter.gender) {
-      const genderText = filter.gender === 'male' ? 'Nam' : 
-                       filter.gender === 'female' ? 'Nữ' : 'Tất cả';
-      parts.push(`Giới tính: ${genderText}`);
+      const genderText = filter.gender === 'male' ? t('signup.male') :
+        filter.gender === 'female' ? t('signup.female') : t('common.all');
+      parts.push(t('filter.summary_gender', { gender: genderText }));
     }
-    
+
     if (filter.minAge || filter.maxAge) {
-      const ageText = `Tuổi: ${filter.minAge || 'Không giới hạn'} - ${filter.maxAge || 'Không giới hạn'}`;
+      const ageText = t('filter.summary_age', {
+        min: filter.minAge || t('common.all'),
+        max: filter.maxAge || t('common.all')
+      });
       parts.push(ageText);
     }
 
     if (filter.job) {
-      parts.push(`Nghề nghiệp: ${filter.job}`);
+      parts.push(t('filter.summary_job', { job: filter.job }));
     }
 
     if (filter.educationLevel) {
-      parts.push(`Trình độ: ${filter.educationLevel}`);
+      parts.push(t('filter.summary_education', { education: filter.educationLevel }));
     }
 
     if (filter.university) {
-      parts.push(`Trường: ${filter.university}`);
+      parts.push(t('filter.summary_university', { university: filter.university }));
     }
 
     if (filter.interests && Array.isArray(filter.interests) && filter.interests.length > 0) {
-      const labels = filter.interests.slice(0,3).map(getLabelForInterest);
-      parts.push(`Sở thích: ${labels.join(', ')}${filter.interests.length > 3 ? '...' : ''}`);
+      const labels = filter.interests.slice(0, 3).map(getLabelForInterest);
+      parts.push(t('filter.summary_interests', {
+        interests: labels.join(', ') + (filter.interests.length > 3 ? '...' : '')
+      }));
     }
-    
-    return parts.length > 0 ? parts.join(' • ') : 'Chưa chọn bộ lọc nào';
-  };
 
-  const getActiveFiltersCountUtil = (filter) => {
+    return parts.length > 0 ? parts.join(' • ') : t('filter.no_filters');
+  }, [t]);
+
+  const getActiveFiltersCountUtil = useCallback((filter) => {
     let count = 0;
     if (filter.gender && filter.gender !== 'all') count++;
     if (filter.minAge) count++;
@@ -94,7 +117,7 @@ const HomeHeader = () => {
     if (filter.university) count++;
     if (filter.interests && Array.isArray(filter.interests) && filter.interests.length > 0) count++;
     return count;
-  };
+  }, []);
 
   // Load filter from global state when component mounts
   useEffect(() => {
@@ -106,7 +129,6 @@ const HomeHeader = () => {
       setSelectedJob(job || '');
       setSelectedEducationLevel(educationLevel || '');
       setSelectedUniversity(university || '');
-      // Normalize to IDs in case stored values were labels or mixed
       setSelectedInterests(Array.isArray(interests) ? normalizeInterestsArray(interests) : (interests ? [getIdForInterest(interests)] : []));
     }
   }, [stateCommon?.filter]);
@@ -121,7 +143,7 @@ const HomeHeader = () => {
     })();
   }, []);
 
-  // Load universities list
+  // Load universities list - memoized
   useEffect(() => {
     const uniList = schoolsData.universities.map(u => ({ label: u.name, value: u.name, code: u.code }));
     const colList = schoolsData.colleges.map(c => ({ label: c.name, value: c.name, code: c.code }));
@@ -129,25 +151,33 @@ const HomeHeader = () => {
     setUniversitiesList(allSchools);
   }, []);
 
-  const filteredUniversities = universitiesList.filter(u => u.label.toLowerCase().includes(universitySearch.toLowerCase()));
+  // Memoized filtered universities
+  const filteredUniversities = useMemo(() =>
+    universitiesList.filter(u => u.label.toLowerCase().includes(universitySearch.toLowerCase())),
+    [universitiesList, universitySearch]
+  );
 
-  const toggleFilter = () => {
-    setFilterVisible(!filterVisible);
-  };
+  const toggleFilter = useCallback(() => {
+    setFilterVisible(v => !v);
+  }, []);
 
-  const getActiveFiltersCount = () => {
-    return getActiveFiltersCountUtil({ 
-      gender: selectedGender, 
-      minAge: minAge, 
+  const handleGenderSelect = useCallback((gender) => {
+    setSelectedGender(prev => prev === gender ? '' : gender);
+  }, []);
+
+  const getActiveFiltersCount = useCallback(() => {
+    return getActiveFiltersCountUtil({
+      gender: selectedGender,
+      minAge: minAge,
       maxAge: maxAge,
       job: selectedJob,
       educationLevel: selectedEducationLevel,
       university: selectedUniversity,
       interests: selectedInterests,
     });
-  };
+  }, [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedInterests, getActiveFiltersCountUtil]);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSelectedGender('');
     setMinAge('');
     setMaxAge('');
@@ -156,18 +186,15 @@ const HomeHeader = () => {
     setSelectedUniversity('');
     setUniversitySearch('');
     setSelectedInterests([]);
-    
-    const cleared = { gender: '', minAge: '', maxAge: '', job: '', educationLevel: '', university: '', interests: [] };
-    setStateCommon({
-      filter: { ...cleared }
-    });
-    // persist
-    saveFilterPreferences(cleared);
-    
-    setFilterVisible(false);
-  };
 
-  const applyFilters = () => {
+    const cleared = { gender: '', minAge: '', maxAge: '', job: '', educationLevel: '', university: '', interests: [] };
+    setStateCommon({ filter: { ...cleared } });
+    saveFilterPreferences(cleared);
+
+    setFilterVisible(false);
+  }, [setStateCommon]);
+
+  const applyFilters = useCallback(() => {
     const newFilter = {
       gender: selectedGender,
       minAge: minAge,
@@ -181,12 +208,29 @@ const HomeHeader = () => {
     setStateCommon({ filter: { ...newFilter } });
     saveFilterPreferences(newFilter);
     setFilterVisible(false);
-  };
+  }, [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedInterests, setStateCommon]);
 
-  const toggleArrayItem = (array, item) => {
+  const toggleArrayItem = useCallback((array, item) => {
     return array.includes(item) ? array.filter(i => i !== item) : [...array, item];
-  };
+  }, []);
 
+  const handleInterestToggle = useCallback((id) => {
+    setSelectedInterests(prev => toggleArrayItem(prev, id));
+  }, [toggleArrayItem]);
+
+  const handleEducationSelect = useCallback((value) => {
+    setSelectedEducationLevel(prev => prev === value ? '' : value);
+  }, []);
+
+  const handleJobSelect = useCallback((value) => {
+    setSelectedJob(prev => prev === value ? '' : value);
+  }, []);
+
+  const handleUniversitySelect = useCallback((value) => {
+    setSelectedUniversity(prev => prev === value ? '' : value);
+  }, []);
+
+  // Animation effect
   useEffect(() => {
     if (filterVisible) {
       Animated.parallel([
@@ -225,57 +269,61 @@ const HomeHeader = () => {
         }),
       ]).start();
     }
-  }, [filterVisible]);
+  }, [filterVisible, slideAnim, fadeAnim, scaleAnim]);
+
+  const navigateToProximityRadar = useCallback(() => {
+    router.push('/ProximityRadar');
+  }, [router]);
+
+  // Memoize current filter summary
+  const filterSummary = useMemo(() => getFilterSummary({
+    gender: selectedGender,
+    minAge: minAge,
+    maxAge: maxAge,
+    job: selectedJob,
+    educationLevel: selectedEducationLevel,
+    university: selectedUniversity,
+    interests: selectedInterests,
+  }), [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedInterests, getFilterSummary]);
+
+  // Memoize active filter count
+  const activeFiltersCount = useMemo(() => getActiveFiltersCount(), [getActiveFiltersCount]);
 
   return (
     <View style={styles.container}>
       {/* Modern Header with Theme-Aware Gradient */}
       <LinearGradient
-        colors={theme === 'dark' 
-          ? ['#1a1a2e', '#16213e'] 
+        colors={theme === 'dark'
+          ? ['#1a1a2e', '#16213e']
           : ['#4facfe', '#00f2fe']
         }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
       >
-        <View style={styles.particlesContainer}>
-          {[...Array(6)].map((_, i) => (
-            <Animated.View
-              key={i}
-              style={[
-                styles.particle,
-                {
-                  left: `${20 + i * 15}%`,
-                  top: `${30 + (i % 2) * 40}%`,
-                  opacity: Math.random() * 0.5 + 0.3, // Random opacity for variety
-                }
-              ]}
-            />
-          ))}
-        </View>
-        
+        <HeaderParticles />
+
         <View style={styles.headerContent}>
-          <TouchableOpacity 
-            style={[styles.filterButton, getActiveFiltersCount() > 0 && styles.filterButtonActive]}
+          <TouchableOpacity
+            style={[styles.filterButton, activeFiltersCount > 0 && styles.filterButtonActive]}
             onPress={toggleFilter}
           >
             <MaterialIcons name="tune" size={24} color="white" />
-            {getActiveFiltersCount() > 0 && (
-              <Animated.View style={[styles.filterBadge, { transform: [{ scale: 1.1 }] }]}>
-                <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
-              </Animated.View>
+            {activeFiltersCount > 0 && (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
+              </View>
             )}
           </TouchableOpacity>
 
           <View style={styles.titleContainer}>
             <Text style={styles.appTitle}>ChapAt</Text>
-            <Text style={styles.appSubtitle}>Kết nối mọi người 💬</Text>
+            <Text style={styles.appSubtitle}>{t('home.subtitle')}</Text>
           </View>
 
           <TouchableOpacity
             style={styles.scanButton}
-            onPress={() => router.push('/ProximityRadar')}
+            onPress={navigateToProximityRadar}
           >
             <Entypo name="rss" size={22} color="white" />
           </TouchableOpacity>
@@ -289,17 +337,17 @@ const HomeHeader = () => {
         onRequestClose={toggleFilter}
       >
         <View style={styles.backdrop}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backdropTouchable}
             onPress={toggleFilter}
             activeOpacity={0.5}
           />
-          <Animated.View 
+          <Animated.View
             style={[
               styles.filterPanel,
               {
                 backgroundColor: currentThemeColors.surface || currentThemeColors.background,
-                maxHeight: height - 32,
+                maxHeight: height - 100,
               },
               {
                 opacity: fadeAnim,
@@ -310,66 +358,67 @@ const HomeHeader = () => {
               }
             ]}
           >
-            <ScrollView 
+            <View style={styles.filterHeader}>
+              <View style={styles.filterTitleContainer}>
+                <MaterialIcons name="filter-list" size={24} color={currentThemeColors.tint || '#667eea'} />
+                <Text style={[styles.filterTitle, { color: currentThemeColors.text }]}>
+                  {t('filter.title')}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={toggleFilter} style={styles.closeFilterButton}>
+                <MaterialIcons name="close" size={24} color={currentThemeColors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 100 }}
+              contentContainerStyle={{ paddingBottom: 10 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
+              style={styles.filterScrollView}
             >
-              <View style={styles.filterHeader}>
-                <View style={styles.filterTitleContainer}>
-                  <MaterialIcons name="filter-list" size={24} color={currentThemeColors.tint || '#667eea'} />
-                  <Text style={[styles.filterTitle, { color: currentThemeColors.text }]}>
-                    Bộ lọc tìm kiếm
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={toggleFilter} style={styles.closeFilterButton}>
-                  <MaterialIcons name="close" size={24} color={currentThemeColors.text} />
-                </TouchableOpacity>
-              </View>
-
               <View style={styles.filterSection}>
                 <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  Giới tính
+                  {t('filter.gender')}
                 </Text>
                 <View style={styles.genderChips}>
-                  <Chip 
+                  <Chip
                     selected={selectedGender === 'male'}
                     onPress={() => handleGenderSelect('male')}
                     style={[styles.genderChip, selectedGender === 'male' && styles.selectedChip]}
                     textStyle={{ color: selectedGender === 'male' ? 'white' : currentThemeColors.text }}
                     icon="gender-male"
                   >
-                    Nam
+                    {t('signup.male')}
                   </Chip>
-                  <Chip 
+                  <Chip
                     selected={selectedGender === 'female'}
                     onPress={() => handleGenderSelect('female')}
                     style={[styles.genderChip, selectedGender === 'female' && styles.selectedChip]}
                     textStyle={{ color: selectedGender === 'female' ? 'white' : currentThemeColors.text }}
                     icon="gender-female"
                   >
-                    Nữ
+                    {t('signup.female')}
                   </Chip>
-                  <Chip 
+                  <Chip
                     selected={selectedGender === 'all'}
                     onPress={() => handleGenderSelect('all')}
                     style={[styles.genderChip, selectedGender === 'all' && styles.selectedChip]}
                     textStyle={{ color: selectedGender === 'all' ? 'white' : currentThemeColors.text }}
                     icon="account-group"
                   >
-                    Tất cả
+                    {t('common.all')}
                   </Chip>
                 </View>
               </View>
 
               <View style={styles.filterSection}>
                 <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  Độ tuổi
+                  {t('filter.age')}
                 </Text>
                 <View style={styles.ageInputsContainer}>
                   <View style={styles.ageInputWrapper}>
-                    <Text style={[styles.ageLabel, { color: currentThemeColors.subtleText }]}>Từ</Text>
+                    <Text style={[styles.ageLabel, { color: currentThemeColors.subtleText }]}>{t('filter.age_from')}</Text>
                     <TextInput
                       value={minAge}
                       placeholder="18"
@@ -378,13 +427,13 @@ const HomeHeader = () => {
                       style={styles.ageInput}
                       mode="outlined"
                       dense
-                      theme={{ 
-                        colors: { 
+                      theme={{
+                        colors: {
                           primary: '#667eea',
                           outline: currentThemeColors.border || '#E2E8F0',
                           text: currentThemeColors.text,
                           placeholder: currentThemeColors.subtleText,
-                        } 
+                        }
                       }}
                     />
                   </View>
@@ -392,7 +441,7 @@ const HomeHeader = () => {
                     <MaterialIcons name="remove" size={20} color={currentThemeColors.subtleText} />
                   </View>
                   <View style={styles.ageInputWrapper}>
-                    <Text style={[styles.ageLabel, { color: currentThemeColors.subtleText }]}>Đến</Text>
+                    <Text style={[styles.ageLabel, { color: currentThemeColors.subtleText }]}>{t('filter.age_to')}</Text>
                     <TextInput
                       value={maxAge}
                       placeholder="65"
@@ -401,13 +450,13 @@ const HomeHeader = () => {
                       style={styles.ageInput}
                       mode="outlined"
                       dense
-                      theme={{ 
-                        colors: { 
+                      theme={{
+                        colors: {
                           primary: '#667eea',
                           outline: currentThemeColors.border || '#E2E8F0',
                           text: currentThemeColors.text,
                           placeholder: currentThemeColors.subtleText,
-                        } 
+                        }
                       }}
                     />
                   </View>
@@ -416,14 +465,14 @@ const HomeHeader = () => {
 
               <View style={styles.filterSection}>
                 <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  Trình độ học vấn
+                  {t('filter.education')}
                 </Text>
                 <View style={styles.educationChips}>
                   {educationLevels.map((level) => (
-                    <Chip 
+                    <Chip
                       key={level.value}
                       selected={selectedEducationLevel === level.value}
-                      onPress={() => setSelectedEducationLevel(selectedEducationLevel === level.value ? '' : level.value)}
+                      onPress={() => handleEducationSelect(level.value)}
                       style={[styles.educationChip, selectedEducationLevel === level.value && styles.selectedChip]}
                       textStyle={{ color: selectedEducationLevel === level.value ? 'white' : currentThemeColors.text }}
                     >
@@ -436,23 +485,23 @@ const HomeHeader = () => {
               {selectedEducationLevel === 'Cao đẳng/Đại học' && (
                 <View style={styles.filterSection}>
                   <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    Trường học
+                    {t('filter.university')}
                   </Text>
                   <View style={styles.searchContainer}>
                     <TextInput
-                      placeholder="Tìm kiếm trường..."
+                      placeholder={t('filter.search_university')}
                       value={universitySearch}
                       onChangeText={setUniversitySearch}
                       style={styles.searchInput}
                       mode="outlined"
                       dense
-                      theme={{ 
-                        colors: { 
+                      theme={{
+                        colors: {
                           primary: '#667eea',
                           outline: currentThemeColors.border || '#E2E8F0',
                           text: currentThemeColors.text,
                           placeholder: currentThemeColors.subtleText,
-                        } 
+                        }
                       }}
                     />
                     {universitySearch.length > 0 && (
@@ -464,8 +513,8 @@ const HomeHeader = () => {
                       </TouchableOpacity>
                     )}
                   </View>
-                  <ScrollView 
-                    style={styles.universityList} 
+                  <ScrollView
+                    style={styles.universityList}
                     showsVerticalScrollIndicator={false}
                     nestedScrollEnabled={true}
                   >
@@ -474,7 +523,7 @@ const HomeHeader = () => {
                         <TouchableOpacity
                           key={university.code}
                           style={[styles.universityItem, selectedUniversity === university.value && styles.selectedUniversityItem]}
-                          onPress={() => setSelectedUniversity(selectedUniversity === university.value ? '' : university.value)}
+                          onPress={() => handleUniversitySelect(university.value)}
                         >
                           <Text style={[styles.universityText, { color: selectedUniversity === university.value ? 'white' : currentThemeColors.text }]}>
                             {university.label}
@@ -487,7 +536,7 @@ const HomeHeader = () => {
                     ) : (
                       <View style={styles.noResultsContainer}>
                         <Text style={[styles.noResultsText, { color: currentThemeColors.subtleText }]}>
-                          Không tìm thấy trường nào
+                          {t('filter.no_university')}
                         </Text>
                       </View>
                     )}
@@ -497,14 +546,14 @@ const HomeHeader = () => {
 
               <View style={styles.filterSection}>
                 <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  Nghề nghiệp
+                  {t('filter.job')}
                 </Text>
                 <View style={styles.jobChips}>
                   {jobs.map((job) => (
-                    <Chip 
+                    <Chip
                       key={job.value}
                       selected={selectedJob === job.value}
-                      onPress={() => setSelectedJob(selectedJob === job.value ? '' : job.value)}
+                      onPress={() => handleJobSelect(job.value)}
                       style={[styles.jobChip, selectedJob === job.value && styles.selectedChip]}
                       textStyle={{ color: selectedJob === job.value ? 'white' : currentThemeColors.text }}
                     >
@@ -515,13 +564,13 @@ const HomeHeader = () => {
               </View>
 
               <View style={styles.filterSection}>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Sở thích</Text>
+                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('filter.interests')}</Text>
                 <View style={styles.interestsChips}>
                   {interestItems.map((it) => (
                     <Chip
                       key={it.id}
                       selected={selectedInterests.includes(it.id)}
-                      onPress={() => setSelectedInterests(toggleArrayItem(selectedInterests, it.id))}
+                      onPress={() => handleInterestToggle(it.id)}
                       style={[styles.interestChip, selectedInterests.includes(it.id) && styles.selectedChip]}
                       textStyle={{ color: selectedInterests.includes(it.id) ? 'white' : currentThemeColors.text }}
                     >
@@ -531,42 +580,34 @@ const HomeHeader = () => {
                 </View>
               </View>
 
-              <View style={styles.filterActions}>
-                <Button 
-                  mode="outlined" 
-                  onPress={clearFilters}
-                  style={[styles.clearButton, { borderColor: currentThemeColors.border || '#E2E8F0' }]}
-                  labelStyle={{ color: currentThemeColors.text }}
-                  icon="delete-outline"
-                >
-                  Xóa bộ lọc
-                </Button>
-                <Button 
-                  mode="contained" 
-                  onPress={applyFilters}
-                  style={styles.applyButton}
-                  labelStyle={styles.applyButtonLabel}
-                  icon="check-circle"
-                  contentStyle={{ height: 50 }}
-                >
-                  ÁP DỤNG
-                </Button>
-              </View>
-              
               <View style={styles.filterPreview}>
                 <Text style={[styles.previewText, { color: currentThemeColors.subtleText }]}>
-                  {getFilterSummary({ 
-                    gender: selectedGender, 
-                    minAge: minAge, 
-                    maxAge: maxAge,
-                    job: selectedJob,
-                    educationLevel: selectedEducationLevel,
-                    university: selectedUniversity,
-                    interests: selectedInterests,
-                  })}
+                  {filterSummary}
                 </Text>
               </View>
             </ScrollView>
+
+            <View style={styles.filterActions}>
+              <Button
+                mode="outlined"
+                onPress={clearFilters}
+                style={[styles.clearButton, { borderColor: currentThemeColors.border || '#E2E8F0' }]}
+                labelStyle={{ color: currentThemeColors.text }}
+                icon="delete-outline"
+              >
+                {t('filter.clear')}
+              </Button>
+              <Button
+                mode="contained"
+                onPress={applyFilters}
+                style={styles.applyButton}
+                labelStyle={styles.applyButtonLabel}
+                icon="check-circle"
+                contentStyle={{ height: 50 }}
+              >
+                {t('filter.apply')}
+              </Button>
+            </View>
           </Animated.View>
         </View>
       </Modal>
@@ -576,16 +617,25 @@ const HomeHeader = () => {
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 1000,
+    elevation: 5,
   },
   headerGradient: {
-    // Make room for translucent status bar + nice spacing
-    paddingTop: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24) + 8,
-    paddingBottom: 16,
+    paddingTop: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24),
+    paddingBottom: 10,
     paddingHorizontal: 16,
-    position: 'relative',
-    overflow: 'hidden',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    zIndex: 10,
   },
   particlesContainer: {
     position: 'absolute',
@@ -682,7 +732,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-start',
     alignItems: 'stretch',
-    // Respect translucent status bar spacing
     paddingTop: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24),
   },
   backdropTouchable: {
@@ -748,7 +797,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.15,
     shadowRadius: 2,
-    borderRadius: 30, // Softer rounded corners
+    borderRadius: 30,
   },
   selectedChip: {
     backgroundColor: '#667eea',
@@ -761,148 +810,65 @@ const styles = StyleSheet.create({
   ageInputsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 12,
   },
   ageInputWrapper: {
     flex: 1,
   },
   ageLabel: {
-    fontSize: 15,
-    marginBottom: 8, // Reduced margin for tighter layout
-    fontWeight: '500',
+    fontSize: 12,
+    marginBottom: 4,
+    marginLeft: 4,
   },
   ageInput: {
+    height: 40,
     backgroundColor: 'transparent',
-    fontSize: 16,
   },
   ageSeparator: {
-    alignItems: 'center',
     marginTop: 20,
-  },
-  filterActions: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 20,
-    marginBottom: 16,
-  },
-  clearButton: {
-    flex: 1,
-    height: 52,
-    borderRadius: 16,
-    borderWidth: 2,
-    justifyContent: 'center',
-  },
-  applyButton: {
-    flex: 1,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#667eea',
-    elevation: 4,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  applyButtonLabel: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-    letterSpacing: 0.5,
-  },
-  filterPreview: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: 'rgba(103, 110, 234, 0.1)',
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#667eea',
-  },
-  previewText: {
-    fontSize: 14,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    lineHeight: 20,
   },
   educationChips: {
     flexDirection: 'row',
-    gap: 12,
     flexWrap: 'wrap',
+    gap: 8,
   },
   educationChip: {
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    borderRadius: 30, // Softer rounded corners
-  },
-  jobChips: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  jobChip: {
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    borderRadius: 30, // Softer rounded corners
-  },
-  interestChip: {
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    borderRadius: 30,
-    marginRight: 12,
-    marginBottom: 12,
-  },
-  interestsChips: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  searchInput: {
-    backgroundColor: 'transparent',
-    fontSize: 16,
-    marginBottom: 12,
-    flex: 1,
+    marginBottom: 4,
+    borderRadius: 20,
   },
   searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    position: 'relative',
     marginBottom: 12,
+  },
+  searchInput: {
+    height: 40,
+    backgroundColor: 'transparent',
   },
   clearSearchButton: {
     position: 'absolute',
     right: 12,
-    padding: 4,
+    top: 10,
   },
   universityList: {
-    maxHeight: 150,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.02)',
-    padding: 8,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 12,
+    padding: 4,
   },
   universityItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 12,
-    marginVertical: 2,
     borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.04)',
+    marginBottom: 4,
   },
   selectedUniversityItem: {
     backgroundColor: '#667eea',
   },
   universityText: {
-    fontSize: 16,
+    fontSize: 14,
     flex: 1,
   },
   noResultsContainer: {
@@ -910,8 +876,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   noResultsText: {
-    fontSize: 16,
+    fontSize: 14,
     fontStyle: 'italic',
+  },
+  jobChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  jobChip: {
+    marginBottom: 4,
+    borderRadius: 20,
+  },
+  interestsChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  interestChip: {
+    marginBottom: 4,
+    borderRadius: 20,
+  },
+  filterPreview: {
+    marginTop: 8,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderRadius: 12,
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  previewText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    lineHeight: 18,
+  },
+  filterActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  clearButton: {
+    flex: 1,
+    borderRadius: 12,
+  },
+  applyButton: {
+    flex: 1.5,
+    borderRadius: 12,
+    backgroundColor: '#667eea',
+    elevation: 4,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  applyButtonLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  filterScrollView: {
+    flexGrow: 0,
   },
 });
 

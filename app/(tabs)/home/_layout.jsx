@@ -16,14 +16,6 @@ const StackLayout = () => {
         }}
       />
       <Stack.Screen
-        name="UserProfileScreen"
-        options={{
-          headerShown: false,
-          presentation: 'card',
-          animation: 'slide_from_right',
-        }}
-      />
-      <Stack.Screen
         name="chat/[id]"
         options={{
           headerShown: false,

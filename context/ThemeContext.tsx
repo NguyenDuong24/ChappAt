@@ -18,9 +18,9 @@ interface ThemeProviderProps {
 
 const THEME_STORAGE_KEY = '@chappat:theme_preference';
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({ 
-  children, 
-  defaultTheme = 'light' 
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({
+  children,
+  defaultTheme = 'light'
 }) => {
   const [theme, setThemeState] = useState<ThemeMode>(defaultTheme);
 
@@ -32,28 +32,28 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
         if (saved === 'light' || saved === 'dark') {
           setThemeState(saved as ThemeMode);
         }
-      } catch {}
+      } catch { }
     })();
   }, []);
 
   const setTheme = (newTheme: ThemeMode) => {
     setThemeState(newTheme);
-    AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme).catch(() => {});
+    AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme).catch(() => { });
   };
 
   const toggleTheme = () => {
     setThemeState((prev: ThemeMode) => {
       const next: ThemeMode = prev === 'light' ? 'dark' : 'light';
-      AsyncStorage.setItem(THEME_STORAGE_KEY, next).catch(() => {});
+      AsyncStorage.setItem(THEME_STORAGE_KEY, next).catch(() => { });
       return next;
     });
   };
 
-  const value: ThemeContextType = {
+  const value: ThemeContextType = React.useMemo(() => ({
     theme,
     toggleTheme,
     setTheme,
-  };
+  }), [theme]);
 
   return (
     <ThemeContext.Provider value={value}>

@@ -62,13 +62,13 @@ export const clearFilterPreferences = async () => {
  */
 export const getFilterSummary = (filter) => {
   const parts = [];
-  
+
   if (filter.gender) {
-    const genderText = filter.gender === 'male' ? 'Nam' : 
-                     filter.gender === 'female' ? 'Nữ' : 'Tất cả';
+    const genderText = filter.gender === 'male' ? 'Nam' :
+      filter.gender === 'female' ? 'Nữ' : 'Tất cả';
     parts.push(`Giới tính: ${genderText}`);
   }
-  
+
   if (filter.minAge || filter.maxAge) {
     const ageText = `Tuổi: ${filter.minAge || 'Không giới hạn'} - ${filter.maxAge || 'Không giới hạn'}`;
     parts.push(ageText);
@@ -89,7 +89,7 @@ export const getFilterSummary = (filter) => {
   if (Array.isArray(filter.interests) && filter.interests.length > 0) {
     parts.push(`Sở thích: ${filter.interests.join(', ')}`);
   }
-  
+
   return parts.length > 0 ? parts.join(' • ') : 'Chưa chọn bộ lọc nào';
 };
 

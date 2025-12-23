@@ -46,14 +46,22 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const colors = theme === 'dark' ? Colors.dark : Colors.light;
-  
+
   const [isVibeModalVisible, setIsVibeModalVisible] = useState(false);
   const [isStoryVisible, setIsStoryVisible] = useState(false);
   const [seen, setSeen] = useState(false);
 
   // Normalize vibe presence (support objects without isActive)
   const vibeObj = currentVibe?.vibe ? currentVibe.vibe : undefined;
-  const hasVibe = !!currentVibe && (!!currentVibe.isActive || !!vibeObj);
+
+  const isExpired = (expiresAt: any) => {
+    if (!expiresAt) return false;
+    const now = new Date();
+    const expiry = expiresAt.toDate ? expiresAt.toDate() : new Date(expiresAt);
+    return expiry.getTime() <= now.getTime();
+  };
+
+  const hasVibe = !!currentVibe && (!!currentVibe.isActive || !!vibeObj) && !isExpired(currentVibe.expiresAt);
 
   const vibeRingSize = size + 8;
   const vibeIconSize = size * 0.3;
@@ -68,7 +76,7 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
       try {
         const v = await AsyncStorage.getItem(seenKey);
         if (mounted) setSeen(!!v);
-      } catch {}
+      } catch { }
     };
     loadSeen();
     return () => { mounted = false };
@@ -89,7 +97,7 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
     }
     if (hasVibe && storyUser && (currentVibe?.id || currentVibe?.vibe?.id || currentVibe?.vibeId)) {
       setIsStoryVisible(true);
-      if (seenKey) AsyncStorage.setItem(seenKey, '1').catch(() => {});
+      if (seenKey) AsyncStorage.setItem(seenKey, '1').catch(() => { });
       setSeen(true);
     }
   };
@@ -115,7 +123,7 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
   const renderAvatar = () => {
     if (hasVibe && (vibeObj?.color || currentVibe?.vibe?.color)) {
       const color = (vibeObj?.color || currentVibe?.vibe?.color) as string;
-      const ringTuple = seen 
+      const ringTuple = seen
         ? ['#C7C7CC', '#E5E5EA', '#C7C7CC'] as [string, string, string]
         : [color, `${color}80`, color] as [string, string, string];
       return (
@@ -246,7 +254,7 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
           {renderVibeIcon()}
         </View>
       </TouchableOpacity>
-      
+
       <VibePickerModal
         visible={isVibeModalVisible}
         onClose={() => setIsVibeModalVisible(false)}

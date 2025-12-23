@@ -16,8 +16,8 @@ export const useAuthRouting = (isAuthenticated) => {
     const inSignupFlow = segments[0] === 'signup';
     const inApp = segments[0] === '(tabs)';
     const inChat = segments[0] === 'chat';
-    const inCallScreens = segments.includes('CallScreen') || 
-      segments.includes('IncomingCallScreen') || 
+    const inCallScreens = segments.includes('CallScreen') ||
+      segments.includes('IncomingCallScreen') ||
       segments.includes('ListenCallAcceptedScreen');
     const inGroupChat = segments[0] === 'groups';
     const inGroupManagementScreen = segments[0]?.toLowerCase().includes('groupmanagementscreen');
@@ -45,7 +45,13 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('ProximityRadar') ||
       segments.includes('GroupVoiceRoom') ||
       segments.includes('CoinWalletScreen') ||
-      segments.includes('HotSpotDetailScreen');
+      segments.includes('GroupManagementScreen') ||
+      segments.includes('HotSpotDetailScreen') ||
+      segments.includes('ProUpgradeScreen') ||
+      segments.includes('StoreScreen') ||
+      segments.includes('ChangePasswordScreen') ||
+      segments.includes('PrivacySettingsScreen') ||
+      segments.includes('subscription');
 
     console.log('🔐 Auth routing check:', { isAuthenticated, segments });
 

@@ -1,14 +1,17 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ImageBackground, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/context/authContext'; 
+import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
 import { Colors } from '@/constants/Colors';
 import { ThemeContext } from '@/context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import ProgressIndicator from '@/components/signup/ProgressIndicator';
+import { useTranslation } from 'react-i18next';
 
 const GenderSelectionScreen = () => {
-  const { setGender, cancelRegistration } = useAuth(); 
+  const { t } = useTranslation();
+  const { setGender, cancelRegistration, signupType } = useAuth();
   const router = useRouter();
   const logoUrl = useLogoState();
   const [selectedGender, setSelectedGender] = useState(null);
@@ -16,43 +19,63 @@ const GenderSelectionScreen = () => {
   const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = Colors.dark;
 
-  const handleSelectGender = (gender) => {
+  // Dynamic step calculation
+  const stepInfo = useMemo(() => {
+    if (signupType === 'google') {
+      return { current: 1, total: 4 };
+    }
+    return { current: 3, total: 6 };
+  }, [signupType]);
+
+  const handleSelectGender = useCallback((gender) => {
     setSelectedGender(gender);
     setGender(gender);
-  };
+  }, [setGender]);
 
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     Alert.alert(
-      'Huỷ đăng ký?',
-      'Bạn có chắc muốn huỷ đăng ký và xoá tài khoản tạm thời (nếu có)?',
+      t('signup.cancel_title'),
+      t('signup.cancel_message'),
       [
-        { text: 'Không', style: 'cancel' },
-        { text: 'Huỷ & Xoá', style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) {} } },
+        { text: t('common.no'), style: 'cancel' },
+        { text: t('signup.cancel_confirm'), style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) { } } },
       ]
     );
-  };
+  }, [cancelRegistration, t]);
 
   const isNextButtonDisabled = !selectedGender;
 
+  const handleNext = useCallback(() => {
+    if (!isNextButtonDisabled) {
+      router.push('/signup/NameInputScreen');
+    }
+  }, [isNextButtonDisabled, router]);
+
   return (
-    <ImageBackground 
+    <ImageBackground
       source={require('../../assets/images/cover.png')}
       style={styles.background}
       resizeMode="cover"
     >
       {/* Dark scrim to guarantee text contrast on any image */}
       <LinearGradient
-        colors={[ 'rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)' ]}
+        colors={['rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)']}
         style={styles.backdrop}
       />
 
       <View style={styles.container}>
+        <ProgressIndicator
+          currentStep={stepInfo.current}
+          totalSteps={stepInfo.total}
+          signupType={signupType || 'email'}
+        />
+
         {logoUrl ? (
           <Image source={{ uri: logoUrl }} style={styles.logo} />
         ) : (
-          <Text style={{ color: currentThemeColors.text }}>Loading...</Text>
+          <Text style={{ color: currentThemeColors.text }}>{t('common.loading')}</Text>
         )}
-        <Text style={[styles.title, { color: currentThemeColors.text }]}>Giới tính của bạn là gì?</Text>
+        <Text style={[styles.title, { color: currentThemeColors.text }]}>{t('signup.gender_title')}</Text>
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[
@@ -62,7 +85,7 @@ const GenderSelectionScreen = () => {
             onPress={() => handleSelectGender('male')}
             activeOpacity={0.85}
           >
-            <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>Nam</Text>
+            <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>{t('signup.male')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -72,7 +95,7 @@ const GenderSelectionScreen = () => {
             onPress={() => handleSelectGender('female')}
             activeOpacity={0.85}
           >
-            <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>Nữ</Text>
+            <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>{t('signup.female')}</Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity
@@ -80,20 +103,21 @@ const GenderSelectionScreen = () => {
             styles.nextButton,
             isNextButtonDisabled ? styles.disabledButton : { backgroundColor: currentThemeColors.tint },
           ]}
-          onPress={() => !isNextButtonDisabled && router.push('/signup/NameInputScreen')}
+          onPress={handleNext}
           disabled={isNextButtonDisabled}
           activeOpacity={0.85}
         >
-          <Text style={[styles.nextButtonText, { color: currentThemeColors.text }]}>Tiếp theo</Text>
+          <Text style={[styles.nextButtonText, { color: currentThemeColors.text }]}>{t('common.next')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
-          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>Huỷ đăng ký</Text>
+          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>{t('signup.cancel_registration')}</Text>
         </TouchableOpacity>
       </View>
     </ImageBackground>
   );
 };
+
 
 const styles = StyleSheet.create({
   background: {

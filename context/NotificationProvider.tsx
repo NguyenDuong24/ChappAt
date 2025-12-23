@@ -56,21 +56,21 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           if (success && user.uid) {
             notificationService.listenForNewMessages(user.uid);
           }
-          
+
           // Initialize navigation service
           notificationNavigationService.initialize();
-          
+
           // Listen for foreground notifications
           const foregroundSubscription = Notifications.addNotificationReceivedListener(
             (notification) => {
               console.log('🔔 Foreground notification received:', notification);
               const data = notification.request.content.data;
-              
+
               // Play sound for all notifications except those from the current user
               // if (data?.senderId !== user.uid) {
               //   playNotificationSound();
               // }
-              
+
               // Show modal for social notifications
               if (data?.type && ['like', 'comment', 'follow', 'mention'].includes(data.type)) {
                 setModalNotification({
@@ -86,9 +86,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
               }
             }
           );
-          
+
           setInitialized(true);
-          
+
           // Store subscription for cleanup
           return () => {
             foregroundSubscription && Notifications.removeNotificationSubscription(foregroundSubscription);
@@ -122,12 +122,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       } catch (e) {
         console.log('Failed syncing notification settings locally:', e);
       }
+    }, (error) => {
+      // Silently ignore permission errors during logout
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error('NotificationProvider snapshot error:', error);
+      }
     });
 
     return () => {
       try { unsub(); } catch { /* noop */ }
     };
   }, [user?.uid]);
+
 
   // Cleanup khi user logout
   useEffect(() => {
@@ -136,7 +143,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       notificationNavigationService.cleanup();
       setInitialized(false);
       // Optionally clear local settings to avoid leaking between accounts
-      AsyncStorage.removeItem('notificationSettings').catch(() => {});
+      AsyncStorage.removeItem('notificationSettings').catch(() => { });
     }
   }, [user, initialized]);
 
@@ -145,24 +152,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       // Fetch user document to get pushToken (sử dụng expoPushToken như chat)
       const userDocRef = doc(db, 'users', userId);
       const userDoc = await getDoc(userDocRef);
-      
+
       if (!userDoc.exists()) {
         console.warn('❌ User document not found for notification');
         return;
       }
-      
+
       const userData = userDoc.data();
       const expoPushToken = userData?.expoPushToken;
-      
+
       if (!expoPushToken) {
         console.warn('❌ No push token found for user:', userId);
         // Fallback to local notification
         await notificationService.scheduleLocalNotification(notification);
         return;
       }
-      
+
       console.log('📤 Sending REAL push notification for call to user:', userId);
-      
+
       // Sử dụng ExpoPushNotificationService giống như chat
       const success = await ExpoPushNotificationService.sendRealPushNotification(expoPushToken, {
         title: notification.title,
@@ -223,7 +230,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         console.log('Unknown action:', action);
         break;
     }
-    
+
     setShowModal(false);
   };
 

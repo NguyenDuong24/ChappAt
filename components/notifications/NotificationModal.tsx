@@ -108,7 +108,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   const handleViewProfile = () => {
     if (notification.data?.senderId || notification.data?.userId) {
       const userId = notification.data.senderId || notification.data.userId;
-      router.push(`/UserProfileScreen?userId=${userId}`);
+      router.push(`/(screens)/user/UserProfileScreen?userId=${userId}` as any);
       onClose();
     } else {
       Alert.alert('Lỗi', 'Không thể mở profile người dùng');
@@ -121,15 +121,15 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       case 'comment':
         return (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.primaryButton]} 
+            <TouchableOpacity
+              style={[styles.actionButton, styles.primaryButton]}
               onPress={handleViewContent}
             >
               <MaterialIcons name="visibility" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Xem bài viết</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.secondaryButton]} 
+            <TouchableOpacity
+              style={[styles.actionButton, styles.secondaryButton]}
               onPress={handleViewProfile}
             >
               <MaterialIcons name="person" size={16} color="#666" />
@@ -137,20 +137,20 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
             </TouchableOpacity>
           </View>
         );
-      
+
       case 'follow':
       case 'friend_request':
         return (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.primaryButton]} 
+            <TouchableOpacity
+              style={[styles.actionButton, styles.primaryButton]}
               onPress={handleViewProfile}
             >
               <MaterialIcons name="person" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Xem profile</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.secondaryButton]} 
+            <TouchableOpacity
+              style={[styles.actionButton, styles.secondaryButton]}
               onPress={() => onAction('follow_back')}
             >
               <MaterialIcons name="person-add" size={16} color="#666" />
@@ -158,20 +158,20 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
             </TouchableOpacity>
           </View>
         );
-      
+
       case 'message':
       case 'group_message':
         return (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.primaryButton]} 
+            <TouchableOpacity
+              style={[styles.actionButton, styles.primaryButton]}
               onPress={() => onAction('reply')}
             >
               <MaterialIcons name="reply" size={16} color="#fff" />
               <Text style={styles.actionButtonText}>Trả lời</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.secondaryButton]} 
+            <TouchableOpacity
+              style={[styles.actionButton, styles.secondaryButton]}
               onPress={() => onAction('mark_read')}
             >
               <MaterialIcons name="done" size={16} color="#666" />
@@ -179,11 +179,11 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
             </TouchableOpacity>
           </View>
         );
-      
+
       default:
         return (
-          <TouchableOpacity 
-            style={[styles.actionButton, styles.primaryButton]} 
+          <TouchableOpacity
+            style={[styles.actionButton, styles.primaryButton]}
             onPress={handleViewContent}
           >
             <MaterialIcons name="open-in-new" size={16} color="#fff" />
@@ -203,7 +203,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <Animated.View 
+        <Animated.View
           style={[
             styles.container,
             {
@@ -220,10 +220,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
           >
             <View style={styles.headerContent}>
               <View style={styles.iconContainer}>
-                <MaterialIcons 
-                  name={getNotificationIcon(notification.type) as any} 
-                  size={24} 
-                  color="#fff" 
+                <MaterialIcons
+                  name={getNotificationIcon(notification.type) as any}
+                  size={24}
+                  color="#fff"
                 />
               </View>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -235,8 +235,8 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
           <View style={styles.content}>
             <View style={styles.senderInfo}>
               {notification.senderAvatar ? (
-                <Image 
-                  source={{ uri: notification.senderAvatar }} 
+                <Image
+                  source={{ uri: notification.senderAvatar }}
                   style={styles.avatar}
                 />
               ) : (

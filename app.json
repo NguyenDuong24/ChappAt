@@ -7,6 +7,7 @@
     "name": "Chat",
     "slug": "Chat",
     "version": "1.0.0",
+    "scheme": "chappat",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
@@ -69,7 +70,12 @@
             "importance": "max",
             "description": "Notifications for incoming calls",
             "sound": "./assets/sounds/incoming.mp3",
-            "vibrationPattern": [0, 250, 250, 250],
+            "vibrationPattern": [
+              0,
+              250,
+              250,
+              250
+            ],
             "lightColor": "#4f8bff",
             "bypassDnd": true,
             "showWhen": false,
@@ -148,7 +154,14 @@
           "backgroundColor": "#000000"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-9844251118980104~9150620374",
+          "iosAppId": "ca-app-pub-9844251118980104~9150620374"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

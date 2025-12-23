@@ -8,8 +8,8 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { db, auth } from '../firebaseConfig';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '@/firebaseConfig';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { Avatar, Card } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { calculateDistance } from '@/utils/calculateDistance';
@@ -31,25 +31,49 @@ const FollowUser = () => {
 
   const handleSearch = async () => {
     if (search.trim() === '') {
-      alert('Vui lòng nhập user ID cần tìm.');
+      alert('Vui lòng nhập tên hoặc ID cần tìm.');
       return;
     }
     setLoading(true);
     try {
-      const userRef = doc(db, 'users', search.trim());
+      const results = new Map();
+      const searchTerm = search.trim();
+
+      // 1. Search by ID
+      const userRef = doc(db, 'users', searchTerm);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        const foundUser = { id: userSnap.id, ...userSnap.data() };
-
-        // Kiểm tra xem người dùng hiện tại đã theo dõi user này chưa
-        const followRef = doc(db, 'follows', `${currentUser.uid}_${foundUser.id}`);
-        const followSnap = await getDoc(followRef);
-        foundUser.followStatus = followSnap.exists();
-
-        setUsers([foundUser]);
-      } else {
-        setUsers([]);
+        results.set(userSnap.id, { id: userSnap.id, ...userSnap.data() });
       }
+
+      // 2. Search by Username (prefix search)
+      const usersRef = collection(db, 'users');
+      // Note: This is case-sensitive. For better search, we'd need a lowercase field or external search.
+      // We'll try exact match and prefix match.
+      const q = query(
+        usersRef,
+        where('username', '>=', searchTerm),
+        where('username', '<=', searchTerm + '\uf8ff')
+      );
+
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach((doc) => {
+        if (!results.has(doc.id)) {
+          results.set(doc.id, { id: doc.id, ...doc.data() });
+        }
+      });
+
+      const foundUsers = Array.from(results.values());
+
+      // Check follow status for all found users
+      const usersWithFollowStatus = await Promise.all(foundUsers.map(async (user) => {
+        const followRef = doc(db, 'follows', `${currentUser.uid}_${user.id}`);
+        const followSnap = await getDoc(followRef);
+        return { ...user, followStatus: followSnap.exists() };
+      }));
+
+      setUsers(usersWithFollowStatus);
+
     } catch (error) {
       console.error('Lỗi khi tìm kiếm user:', error);
     }
@@ -80,14 +104,14 @@ const FollowUser = () => {
       item.gender === 'male'
         ? 'gender-male'
         : item.gender === 'female'
-        ? 'gender-female'
-        : 'account';
+          ? 'gender-female'
+          : 'account';
     const genderColor =
       item.gender === 'male'
         ? Colors.secondary
         : item.gender === 'female'
-        ? Colors.primary
-        : Colors.neutralDark;
+          ? Colors.primary
+          : Colors.neutralDark;
 
     let distance = 0;
     if (location && item.location) {
@@ -108,7 +132,7 @@ const FollowUser = () => {
         <TouchableOpacity
           onPress={() =>
             router.push({
-              pathname: '/UserProfileScreen',
+              pathname: '/(screens)/user/UserProfileScreen',
               params: { userId: item.id },
             })
           }
@@ -168,7 +192,7 @@ const FollowUser = () => {
               color: currentThemeColors.text,
             },
           ]}
-          placeholder="Nhập user ID..."
+          placeholder="Nhập tên hoặc ID..."
           placeholderTextColor={currentThemeColors.placeholderText}
           value={search}
           onChangeText={setSearch}

@@ -16,6 +16,7 @@ import { useStateCommon } from '@/context/stateCommon';
 import { DEFAULT_FILTER } from '@/utils/filterStorage';
 import interestsData from '@/assets/data/interests.json';
 import { getInterestsArray, getIdForInterest, getLabelForInterest, normalizeInterestsArray } from '@/utils/interests';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
@@ -31,6 +32,7 @@ interface FilterSettings {
 }
 
 const FilterScreen = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const { stateCommon, setStateCommon } = useStateCommon();
 
@@ -100,18 +102,20 @@ const FilterScreen = () => {
 
   const applyFilters = () => {
     // Persist filters to global state so Home reloads
-    setStateCommon({ filter: {
-      ...stateCommon?.filter,
-      minAge: filters.ageRange.min?.toString?.() || '',
-      maxAge: filters.ageRange.max?.toString?.() || '',
-      distance: filters.distance,
-      showOnlineOnly: filters.showOnlineOnly,
-      interests: filters.interests,
-      education: filters.education,
-      occupation: filters.occupation,
-      height: filters.height,
-      lookingFor: filters.lookingFor,
-    }});
+    setStateCommon({
+      filter: {
+        ...stateCommon?.filter,
+        minAge: filters.ageRange.min?.toString?.() || '',
+        maxAge: filters.ageRange.max?.toString?.() || '',
+        distance: filters.distance,
+        showOnlineOnly: filters.showOnlineOnly,
+        interests: filters.interests,
+        education: filters.education,
+        occupation: filters.occupation,
+        height: filters.height,
+        lookingFor: filters.lookingFor,
+      }
+    });
 
     // Go back
     router.back();
@@ -160,15 +164,15 @@ const FilterScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient colors={['#0F001A', '#2D0A4E']} style={StyleSheet.absoluteFill} />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <MaterialIcons name="close" size={24} color="white" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Filters</Text>
+        <Text style={styles.headerTitle}>{t('filter.title')}</Text>
         <TouchableOpacity onPress={resetFilters}>
-          <Text style={styles.resetText}>Reset</Text>
+          <Text style={styles.resetText}>{t('common.reset')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -176,13 +180,13 @@ const FilterScreen = () => {
         {/* Age Range */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            Age Range: {filters.ageRange.min} - {filters.ageRange.max}
+            {t('filter.age_range', { min: filters.ageRange.min, max: filters.ageRange.max })}
           </Text>
           <View style={styles.rangeContainer}>
             <TouchableOpacity style={styles.rangeButton}>
               <Text style={styles.rangeText}>{filters.ageRange.min}</Text>
             </TouchableOpacity>
-            <Text style={styles.rangeLabel}>to</Text>
+            <Text style={styles.rangeLabel}>{t('filter.age_to')}</Text>
             <TouchableOpacity style={styles.rangeButton}>
               <Text style={styles.rangeText}>{filters.ageRange.max}</Text>
             </TouchableOpacity>
@@ -191,7 +195,7 @@ const FilterScreen = () => {
 
         {/* Distance */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Distance: {filters.distance} km</Text>
+          <Text style={styles.sectionTitle}>{t('filter.distance', { distance: filters.distance })}</Text>
           <View style={styles.rangeContainer}>
             <TouchableOpacity style={styles.rangeButton}>
               <Text style={styles.rangeText}>{filters.distance} km</Text>
@@ -202,13 +206,13 @@ const FilterScreen = () => {
         {/* Height Range */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
-            Height: {filters.height.min}cm - {filters.height.max}cm
+            {t('filter.height', { min: filters.height.min, max: filters.height.max })}
           </Text>
           <View style={styles.rangeContainer}>
             <TouchableOpacity style={styles.rangeButton}>
               <Text style={styles.rangeText}>{filters.height.min}cm</Text>
             </TouchableOpacity>
-            <Text style={styles.rangeLabel}>to</Text>
+            <Text style={styles.rangeLabel}>{t('filter.age_to')}</Text>
             <TouchableOpacity style={styles.rangeButton}>
               <Text style={styles.rangeText}>{filters.height.max}cm</Text>
             </TouchableOpacity>
@@ -218,7 +222,7 @@ const FilterScreen = () => {
         {/* Online Only */}
         <View style={styles.section}>
           <View style={styles.switchRow}>
-            <Text style={styles.sectionTitle}>Show Online Only</Text>
+            <Text style={styles.sectionTitle}>{t('filter.online_only')}</Text>
             <Switch
               value={filters.showOnlineOnly}
               onValueChange={(value) =>
@@ -232,7 +236,7 @@ const FilterScreen = () => {
 
         {/* Interests */}
         {renderToggleSection(
-          'Interests',
+          t('filter.interests'),
           interestItems,
           filters.interests,
           (item) =>
@@ -244,7 +248,7 @@ const FilterScreen = () => {
 
         {/* Education */}
         {renderToggleSection(
-          'Education',
+          t('filter.education'),
           educationLevels,
           filters.education,
           (item) =>
@@ -256,7 +260,7 @@ const FilterScreen = () => {
 
         {/* Occupation */}
         {renderToggleSection(
-          'Occupation',
+          t('filter.job'),
           occupationCategories,
           filters.occupation,
           (item) =>
@@ -268,7 +272,7 @@ const FilterScreen = () => {
 
         {/* Looking For */}
         {renderToggleSection(
-          'Looking For',
+          t('filter.looking_for'),
           relationshipTypes,
           filters.lookingFor,
           (item) =>
@@ -288,7 +292,7 @@ const FilterScreen = () => {
             colors={['#8A4AF3', '#5D3FD3']}
             style={styles.applyButtonGradient}
           >
-            <Text style={styles.applyButtonText}>Apply Filters</Text>
+            <Text style={styles.applyButtonText}>{t('filter.apply')}</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>

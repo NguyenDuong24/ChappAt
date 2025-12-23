@@ -2,34 +2,87 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Rules for users collection - users can only access their own documents
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Rules for userVibes collection - users can only access their own vibes
+    // Helper to check if user is owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Rules for users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Rules for userVibes collection
     match /userVibes/{vibeId} {
-      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // Rules for calls collection
     match /calls/{callId} {
-      // Allow read/write if user is either caller or receiver
-      allow read, write: if resource.data.callerId == request.auth.uid 
-                        || resource.data.receiverId == request.auth.uid;
-      // Allow create if user is the caller
-      allow create: if request.auth != null && request.auth.uid == resource.data.callerId;
+      allow read, write: if isAuthenticated() && 
+        (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isAuthenticated() && request.auth.uid == resource.data.callerId;
     }
 
-    // Rules for badWords collection - allow public read for moderation
+    // Rules for badWords collection
     match /badWords/{document} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAuthenticated(); // Should restrict to admin in future
+    }
+
+    // Rules for private chat rooms
+    match /rooms/{roomId} {
+      // Allow read/write if user is a participant
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+      allow create: if isAuthenticated(); // Validation logic handles structure
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.participants;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants;
+        allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants;
+        allow update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      }
+    }
+
+    // Rules for groups
+    match /groups/{groupId} {
+      allow read: if isAuthenticated(); // Public groups or member check handled in query
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.members;
+
+      // Group messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+        allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+        allow update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      }
     }
     
-    // Default rule for other collections - allow authenticated users
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Rules for reports
+    match /reports/{reportId} {
+      allow create: if isAuthenticated();
+      allow read: if false; // Only admins (via backend) should read reports
+    }
+    
+    // Rules for flagged_content
+    match /flagged_content/{flagId} {
+      allow create: if isAuthenticated();
+      allow read: if false; // Only admins
+    }
+    
+    // Rules for wallet/transactions (read-only for client, write via server)
+    match /transactions/{txId} {
+      allow read: if isOwner(resource.data.uid);
+      allow write: if false; // Only server can write
     }
   }
 }

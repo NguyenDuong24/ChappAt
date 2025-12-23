@@ -1,6 +1,6 @@
-import React, { useContext } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useContext, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity, BackHandler, ToastAndroid, Platform } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import ListUser from '@/components/home/ListUser';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -8,72 +8,147 @@ import { Colors } from '@/constants/Colors';
 import useHome from './useHome';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import DeferredComponent from '@/components/DeferredComponent';
 
-export default function Home() {
+// Memoized loading component
+const LoadingView = memo(({ theme, currentThemeColors }) => (
+  <View style={styles.loadingContainer}>
+    <LinearGradient
+      colors={theme === 'dark'
+        ? ['#1a1a2e', '#16213e']
+        : ['#f8fafc', '#e2e8f0']
+      }
+      style={styles.loadingGradient}
+    >
+      <View style={styles.loadingContent}>
+        <ActivityIndicator size="large" color="#667eea" />
+        <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>
+          Đang tìm kiếm người dùng...
+        </Text>
+        <View style={styles.loadingDots}>
+          <View style={[styles.dot, styles.dot1]} />
+          <View style={[styles.dot, styles.dot2]} />
+          <View style={[styles.dot, styles.dot3]} />
+        </View>
+      </View>
+    </LinearGradient>
+  </View>
+));
+
+// Memoized empty state component
+const EmptyView = memo(({ currentThemeColors }) => (
+  <View style={styles.emptyContainer}>
+    <MaterialIcons name="people-outline" size={80} color={currentThemeColors.subtleText} />
+    <Text style={[styles.emptyTitle, { color: currentThemeColors.text }]}>
+      Không tìm thấy người dùng
+    </Text>
+    <Text style={[styles.emptySubtitle, { color: currentThemeColors.subtleText }]}>
+      Thử điều chỉnh bộ lọc hoặc kéo xuống để làm mới
+    </Text>
+  </View>
+));
+
+// Memoized error component
+const ErrorView = memo(({ error, currentThemeColors, onRetry }) => (
+  <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.surface }]}>
+    <MaterialIcons name="error-outline" size={24} color="#ff4757" />
+    <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
+      {error}
+    </Text>
+    <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
+      <Text style={styles.retryText}>Thử lại</Text>
+    </TouchableOpacity>
+  </View>
+));
+
+const Home = memo(function Home() {
   const { user } = useAuth();
-  const { getUsers, users, loading, refreshing, handleRefresh, error } = useHome();
   const theme = useContext(ThemeContext)?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const router = useRouter();
+  const currentThemeColors = useMemo(() =>
+    theme === 'dark' ? Colors.dark : Colors.light,
+    [theme]
+  );
+  const isFocused = useIsFocused();
+
+  // Only fetch data when tab is focused
+  const { getUsers, users, loading, refreshing, handleRefresh, error } = useHome(isFocused);
+
+  // State for back button handling
+  const backPressedOnce = useRef(false);
+
+  // Memoized retry handler
+  const handleRetry = useCallback(() => {
+    getUsers(true);
+  }, [getUsers]);
+
+  // Back button handler effect
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!isFocused) {
+        return false;
+      }
+
+      if (backPressedOnce.current) {
+        BackHandler.exitApp();
+        return true;
+      }
+
+      backPressedOnce.current = true;
+      ToastAndroid.show('Nhấn lại lần nữa để thoát', ToastAndroid.SHORT);
+
+      setTimeout(() => {
+        backPressedOnce.current = false;
+      }, 2000);
+
+      return true;
+    });
+
+    return () => backHandler.remove();
+  }, [isFocused]);
+
+  // Determine which content to render
+  const content = useMemo(() => {
+    if (loading) {
+      return <LoadingView theme={theme} currentThemeColors={currentThemeColors} />;
+    }
+
+    if (users.length === 0) {
+      return <EmptyView currentThemeColors={currentThemeColors} />;
+    }
+
+    return (
+      <ListUser
+        users={users}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        activeTab="home"
+      />
+    );
+  }, [loading, users, refreshing, handleRefresh, theme, currentThemeColors]);
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>      
-      {error && (
-        <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.surface }]}>
-          <MaterialIcons name="error-outline" size={24} color="#ff4757" />
-          <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
-            {error}
-          </Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={() => getUsers(true)}
-          >
-            <Text style={styles.retryText}>Thử lại</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      
-      {/* Main Content */}
-      <View style={styles.contentContainer}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <LinearGradient
-              colors={theme === 'dark' 
-                ? ['#1a1a2e', '#16213e'] 
-                : ['#f8fafc', '#e2e8f0']
-              }
-              style={styles.loadingGradient}
-            >
-              <View style={styles.loadingContent}>
-                <ActivityIndicator size="large" color="#667eea" />
-                <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>
-                  Đang tìm kiếm người dùng...
-                </Text>
-                <View style={styles.loadingDots}>
-                  <View style={[styles.dot, styles.dot1]} />
-                  <View style={[styles.dot, styles.dot2]} />
-                  <View style={[styles.dot, styles.dot3]} />
-                </View>
-              </View>
-            </LinearGradient>
-          </View>
-        ) : users.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <MaterialIcons name="people-outline" size={80} color={currentThemeColors.subtleText} />
-            <Text style={[styles.emptyTitle, { color: currentThemeColors.text }]}>
-              Không tìm thấy người dùng
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: currentThemeColors.subtleText }]}>
-              Thử điều chỉnh bộ lọc hoặc kéo xuống để làm mới
-            </Text>
-          </View>
-        ) : (
-          <ListUser users={users} refreshing={refreshing} onRefresh={handleRefresh} />
+    <DeferredComponent>
+      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        {error && (
+          <ErrorView
+            error={error}
+            currentThemeColors={currentThemeColors}
+            onRetry={handleRetry}
+          />
         )}
+
+        {/* Main Content */}
+        <View style={styles.contentContainer}>
+          {content}
+        </View>
       </View>
-    </View>
+    </DeferredComponent>
   );
-}
+});
+
+export default Home;
 
 const styles = StyleSheet.create({
   container: {

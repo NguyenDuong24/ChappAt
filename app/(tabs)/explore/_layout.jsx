@@ -1,13 +1,14 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState, useMemo } from 'react';
 import { Tabs, router, useSegments } from 'expo-router';
-import { 
-  Text, 
-  StyleSheet, 
-  View, 
-  StatusBar, 
-  Dimensions, 
-  TouchableOpacity, 
-  Animated, 
+import { useIsFocused } from '@react-navigation/native';
+import {
+  Text,
+  StyleSheet,
+  View,
+  StatusBar,
+  Dimensions,
+  TouchableOpacity,
+  Animated,
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +20,7 @@ import useExploreData, { formatCount } from '../../../hooks/useExploreData';
 import NotificationBadge from '../../../components/common/NotificationBadge';
 import { ExploreProvider } from '../../../context/ExploreContext';
 import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
@@ -51,8 +53,8 @@ const ICON_SHADOW = {
   elevation: 4,
 };
 
-const TabButton = ({ tab, isActive, onPress, style, textStyle, inactiveStyle, activeGradientStyle }) => (
-  <TouchableOpacity 
+const TabButton = React.memo(({ tab, isActive, onPress, style, textStyle, inactiveStyle, activeGradientStyle }) => (
+  <TouchableOpacity
     style={style}
     onPress={onPress}
     activeOpacity={0.8}
@@ -64,6 +66,7 @@ const TabButton = ({ tab, isActive, onPress, style, textStyle, inactiveStyle, ac
         end={{ x: 1, y: 1 }}
         style={activeGradientStyle || styles.fabTabGradient}
       >
+
         <Text style={textStyle}>{tab.label}</Text>
       </LinearGradient>
     ) : (
@@ -72,24 +75,26 @@ const TabButton = ({ tab, isActive, onPress, style, textStyle, inactiveStyle, ac
       </View>
     )}
   </TouchableOpacity>
-);
+));
 
-export default function ExploreLayout() {
+const ExploreLayout = React.memo(function ExploreLayout() {
+  const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'dark';
   const colors = theme === 'dark' ? Colors.dark : Colors.light;
-  
+
   const segments = useSegments();
-  const [activeTab, setActiveTab] = useState('tab1');
-  
-  const { 
-    notificationCount, 
-    trendingHashtags, 
-    loading, 
+  const [activeTab, setActiveTab] = useState('index');
+  const isFocused = useIsFocused(); // Check if tab is focused
+
+  const {
+    notificationCount,
+    trendingHashtags,
+    loading,
     error,
-    refresh: refreshData 
+    refresh: refreshData
   } = useExploreData();
-  
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -126,46 +131,50 @@ export default function ExploreLayout() {
 
   useEffect(() => {
     const currentSegment = segments[segments.length - 1];
-    if (currentSegment === 'tab1' || currentSegment === 'tab2' || currentSegment === 'tab3') {
-      setActiveTab(currentSegment);
+    if (currentSegment === 'index' || currentSegment === 'tab2' || currentSegment === 'tab3') {
+      setActiveTab(currentSegment || 'index');
     }
   }, [segments]);
 
-  const handleTabPress = (tabName) => {
+  const handleTabPress = React.useCallback((tabName) => {
     setActiveTab(tabName);
-    router.push(`/(tabs)/explore/${tabName}`);
-  };
+    if (tabName === 'index') {
+      router.push('/(tabs)/explore/');
+    } else {
+      router.push(`/(tabs)/explore/${tabName}`);
+    }
+  }, []);
 
-  const tabs = [
-    { 
-      key: 'tab1', 
-      label: 'Mới Nhất',
+  const tabs = useMemo(() => [
+    {
+      key: 'index',
+      label: t('social.latest'),
       activeColor: colors.primary,
       gradient: (colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c'],
       inactiveColor: colors.mutedText,
     },
-    { 
-      key: 'tab2', 
-      label: 'Phổ Biến',
+    {
+      key: 'tab2',
+      label: t('social.trending'),
       activeColor: colors.error,
       gradient: (colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c'],
       inactiveColor: colors.mutedText,
     },
-    { 
-      key: 'tab3', 
-      label: 'Theo Dõi',
+    {
+      key: 'tab3',
+      label: t('social.following'),
       activeColor: colors.success,
       gradient: (colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c'],
       inactiveColor: colors.mutedText,
     },
-  ];
+  ], [colors, t]);
 
-  const gradients = [
+  const gradients = useMemo(() => [
     Array.isArray(colors.gradientBackground) ? colors.gradientBackground : ['#667eea', '#764ba2'],
-    Array.isArray(colors.gradientCard) ? colors.gradientCard : (theme === 'dark' ? ['#1E293B', '#334155'] : ['#FFFFFF', '#F8FAFC']),
+    ['#00c6fb', '#005bea'], // Blue gradient instead of white
     Array.isArray(colors.gradientHotSpotsPrimary) ? colors.gradientHotSpotsPrimary : ['#FF6B35', '#F7931E'],
     ['#43e97b', '#38f9d7'],
-  ];
+  ], [colors, theme]);
 
   const headerTranslateY = scrollY.interpolate({
     inputRange: [0, SCROLL_DISTANCE],
@@ -205,23 +214,23 @@ export default function ExploreLayout() {
 
   const handleScroll = Animated.event(
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: false }
+    { useNativeDriver: true }
   );
 
   return (
     <ExploreProvider>
       <ExploreHeaderProvider value={{ scrollY, handleScroll, effectiveHeaderHeight }}>
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-          <StatusBar 
-            barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} 
+          <StatusBar
+            barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
             backgroundColor="transparent"
             translucent
           />
-          
-          <Animated.View 
+
+          <Animated.View
             style={[
               styles.header,
-              { 
+              {
                 opacity: fadeAnim,
                 transform: [
                   { scale: scaleAnim },
@@ -231,15 +240,15 @@ export default function ExploreLayout() {
             ]}
           >
             <LinearGradient
-              colors={theme === 'dark' 
-                ? ['#1a1a2e', '#16213e'] 
+              colors={theme === 'dark'
+                ? ['#1a1a2e', '#16213e']
                 : ['#4facfe', '#00f2fe']
               }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.headerGradient}
             />
-            
+
             <View
               style={[
                 styles.glassOverlay,
@@ -250,10 +259,10 @@ export default function ExploreLayout() {
               pointerEvents="none"
             />
 
-            <Animated.View 
+            <Animated.View
               style={[
                 styles.collapsedHeader,
-                { 
+                {
                   opacity: collapsedOpacity,
                   backgroundColor: colors.surface + '95'
                 }
@@ -261,7 +270,7 @@ export default function ExploreLayout() {
               pointerEvents={isCollapsed ? 'auto' : 'none'}
             >
               <View style={styles.collapsedContent}>
-                <Animated.View 
+                <Animated.View
                   style={{ transform: [{ scale: iconScale }] }}
                 >
                   <View style={styles.collapsedIcon}>
@@ -275,14 +284,14 @@ export default function ExploreLayout() {
                     </LinearGradient>
                   </View>
                 </Animated.View>
-                
+
                 <View style={styles.collapsedActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.collapsedActionBtn}
-                    onPress={() => router.push('/NotificationsScreen')}
+                    onPress={() => router.push('/(screens)/social/NotificationsScreen')}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.notificationGlass}> 
+                    <View style={styles.notificationGlass}>
                       <LinearGradient
                         colors={(colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c']}
                         start={{ x: 0, y: 0 }}
@@ -293,7 +302,7 @@ export default function ExploreLayout() {
                           <MaterialIcons name="notifications" size={ICON_SIZE} color={colors.highlightText} />
                         </View>
                       </LinearGradient>
-                      <NotificationBadge 
+                      <NotificationBadge
                         count={notificationCount}
                         size="small"
                         backgroundColor={colors.highlightText}
@@ -301,13 +310,13 @@ export default function ExploreLayout() {
                       />
                     </View>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     style={styles.collapsedActionBtn}
-                    onPress={() => router.push('/HotSpotsScreen')}
+                    onPress={() => router.push('/(screens)/hotspots/HotSpotsScreen')}
                     activeOpacity={0.8}
                   >
-                    <View style={styles.notificationGlass}> 
+                    <View style={styles.notificationGlass}>
                       <LinearGradient
                         colors={['#ff7e5f', '#feb47b']}
                         start={{ x: 0, y: 0 }}
@@ -325,7 +334,7 @@ export default function ExploreLayout() {
             </Animated.View>
 
             <View style={styles.headerContent}>
-              <Animated.View 
+              <Animated.View
                 style={{ opacity: headerOpacity }}
               >
                 <View style={styles.headerTop}>
@@ -349,11 +358,11 @@ export default function ExploreLayout() {
                       })}
                     </View>
                   </View>
-                  
+
                   <View style={styles.headerActions}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.actionBtn}
-                      onPress={() => router.push('/NotificationsScreen')}
+                      onPress={() => router.push('/(screens)/social/NotificationsScreen')}
                       activeOpacity={0.8}
                     >
                       <View style={styles.notificationGlass}>
@@ -368,16 +377,16 @@ export default function ExploreLayout() {
                           </View>
                         </LinearGradient>
                       </View>
-                      <NotificationBadge 
+                      <NotificationBadge
                         count={notificationCount}
                         size="medium"
                         backgroundColor={colors.highlightText}
                       />
                     </TouchableOpacity>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.actionBtn}
-                      onPress={() => router.push('/HotSpotsScreen')}
+                      onPress={() => router.push('/(screens)/hotspots/HotSpotsScreen')}
                       activeOpacity={0.8}
                     >
                       <View style={styles.notificationGlass}>
@@ -397,13 +406,13 @@ export default function ExploreLayout() {
                 </View>
               </Animated.View>
 
-              <Animated.View 
+              <Animated.View
                 style={{ opacity: headerOpacity }}
               >
                 <View style={styles.trendingSection}>
                   <View style={styles.trendingHeaderCompact}>
-                    <Text style={[styles.trendingTitleCompact, { color: colors.text }]}>Trending Now</Text>
-                    <TouchableOpacity 
+                    <Text style={[styles.trendingTitleCompact, { color: colors.text }]}>{t('social.trending_now', { defaultValue: 'Trending Now' })}</Text>
+                    <TouchableOpacity
                       onPress={refreshData}
                       activeOpacity={0.7}
                       style={styles.refreshBtnCompact}
@@ -424,9 +433,9 @@ export default function ExploreLayout() {
                   <View style={styles.hashtagGridCompact}>
                     {loading ? (
                       [...Array(4)].map((_, i) => (
-                        <View 
-                          key={i} 
-                          style={[styles.hashtagSkeletonCompact, { backgroundColor: colors.cardBackground }]} 
+                        <View
+                          key={i}
+                          style={[styles.hashtagSkeletonCompact, { backgroundColor: colors.cardBackground }]}
                         />
                       ))
                     ) : null}
@@ -439,7 +448,7 @@ export default function ExploreLayout() {
                         return (
                           <Link
                             key={displayTag || `hashtag_${index}`}
-                            href={{ pathname: '/HashtagScreen', params: { hashtag: cleanTag } }}
+                            href={{ pathname: '/(screens)/social/HashtagScreen', params: { hashtag: cleanTag } }}
                             asChild
                           >
                             <TouchableOpacity
@@ -473,7 +482,25 @@ export default function ExploreLayout() {
             </View>
           </Animated.View>
 
-          <Animated.View 
+          <View style={styles.content}>
+            <Animated.View style={[styles.contentInner, { backgroundColor: colors.background }]}>
+              <Tabs
+                screenOptions={{
+                  tabBarStyle: { display: 'none' },
+                  headerShown: false,
+                  lazy: true,
+                  swipeEnabled: false
+                }}
+              >
+                <Tabs.Screen name="index" options={{ tabBarButton: () => null }} />
+                <Tabs.Screen name="tab1" options={{ tabBarButton: () => null }} />
+                <Tabs.Screen name="tab2" options={{ tabBarButton: () => null }} />
+                <Tabs.Screen name="tab3" options={{ tabBarButton: () => null }} />
+              </Tabs>
+            </Animated.View>
+          </View>
+
+          <Animated.View
             style={[
               styles.floatingActions,
               {
@@ -483,12 +510,12 @@ export default function ExploreLayout() {
             ]}
             pointerEvents="box-none"
           >
-            <View 
+            <View
               style={[
-                styles.fabContainer, 
-                { 
+                styles.fabContainer,
+                {
                   backgroundColor: theme === 'dark' ? 'rgba(26, 31, 46, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                  borderColor: colors.borderLight 
+                  borderColor: colors.borderLight
                 }
               ]}
               pointerEvents="auto"
@@ -505,9 +532,9 @@ export default function ExploreLayout() {
                 />
               ))}
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.fabIcon}
-                onPress={() => router.push('/NotificationsScreen')}
+                onPress={() => router.push('/(screens)/social/NotificationsScreen')}
                 activeOpacity={0.8}
               >
                 <View style={styles.notificationGlass}>
@@ -522,16 +549,16 @@ export default function ExploreLayout() {
                     </View>
                   </LinearGradient>
                 </View>
-                <NotificationBadge 
+                <NotificationBadge
                   count={notificationCount}
                   size="medium"
                   backgroundColor={colors.highlightText}
                 />
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={styles.fabIcon}
-                onPress={() => router.push('/HotSpotsScreen')}
+                onPress={() => router.push('/(screens)/hotspots/HotSpotsScreen')}
                 activeOpacity={0.8}
               >
                 <View style={styles.notificationGlass}>
@@ -549,35 +576,19 @@ export default function ExploreLayout() {
               </TouchableOpacity>
             </View>
           </Animated.View>
-
-          <View style={styles.content}>
-            <Animated.View style={[styles.contentInner, { backgroundColor: colors.background }]}> 
-              <Tabs 
-                screenOptions={{ 
-                  tabBarStyle: { display: 'none' }, 
-                  headerShown: false,
-                  lazy: true,
-                  swipeEnabled: false
-                }}
-              >
-                <Tabs.Screen name="index" options={{ tabBarButton: () => null }} />
-                <Tabs.Screen name="tab1" options={{ tabBarButton: () => null }} />
-                <Tabs.Screen name="tab2" options={{ tabBarButton: () => null }} />
-                <Tabs.Screen name="tab3" options={{ tabBarButton: () => null }} />
-              </Tabs>
-            </Animated.View>
-          </View>
         </View>
       </ExploreHeaderProvider>
     </ExploreProvider>
   );
-}
+});
+
+export default ExploreLayout;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  
+
   header: {
     position: 'absolute',
     top: 0,
@@ -592,17 +603,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'transparent',
   },
-  
+
   headerGradient: {
     ...StyleSheet.absoluteFillObject,
     opacity: 0.95,
   },
-  
+
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backdropFilter: 'blur(15px)',
   },
-  
+
   collapsedHeader: {
     position: 'absolute',
     top: 0,
@@ -618,7 +628,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  
+
   collapsedContent: {
     flex: 1,
     flexDirection: 'row',
@@ -627,11 +637,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight + 10,
   },
-  
+
   collapsedIcon: {
     marginRight: 12,
   },
-  
+
   collapsedIconGradient: {
     width: 42,
     height: 42,
@@ -644,12 +654,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  
+
   collapsedActions: {
     flexDirection: 'row',
     gap: 12,
   },
-  
+
   collapsedActionBtn: {
     borderRadius: 21,
     overflow: 'visible',
@@ -662,7 +672,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  
+
   collapsedActionBtnGradient: {
     width: 36,
     height: 36,
@@ -675,7 +685,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 6,
   },
-  
+
   collapsedBadge: {
     position: 'absolute',
     top: -3,
@@ -689,7 +699,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'white',
   },
-  
+
   headerContent: {
     flex: 1,
     paddingTop: Platform.OS === 'ios' ? 68 : (StatusBar.currentHeight || 24) + 28,
@@ -705,18 +715,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  
+
   titleSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  
+
   headerTabsContainer: {
     flexDirection: 'row',
     gap: 4,
   },
-  
+
   headerTab: {
     borderRadius: 24,
     overflow: 'hidden',
@@ -761,7 +771,7 @@ const styles = StyleSheet.create({
     gap: 4,
     alignItems: 'center',
   },
-  
+
   actionBtn: {
     borderRadius: 24,
     overflow: 'visible',
@@ -779,7 +789,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 12,
   },
-  
+
   trendingSection: {
     marginBottom: 12,
   },
@@ -868,19 +878,19 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
-  
+
   content: {
     flex: 1,
     zIndex: 1,
   },
-  
+
   contentInner: {
     flex: 1,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     overflow: 'hidden',
   },
-  
+
   floatingActions: {
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 34 : 20,
@@ -889,7 +899,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
     elevation: 30,
   },
-  
+
   fabContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -904,7 +914,7 @@ const styles = StyleSheet.create({
     elevation: 12,
     borderWidth: 1,
   },
-  
+
   fabIcon: {
     width: 40,
     height: 40,
@@ -912,7 +922,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     position: 'relative',
   },
-  
+
   fabTab: {
     minWidth: 70,
     height: 40,
@@ -952,7 +962,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: -0.3,
   },
-  
+
   fabGradient: {
     width: 40,
     height: 40,
@@ -965,7 +975,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  
+
   notificationGlass: {
     width: 40,
     height: 40,
@@ -978,7 +988,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     overflow: 'visible',
   },
-  
+
   notificationBorder: {
     width: 40,
     height: 40,
@@ -988,7 +998,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'visible',
   },
-  
+
   notificationInner: {
     width: 36,
     height: 36,

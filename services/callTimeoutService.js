@@ -25,7 +25,7 @@ class CallTimeoutService {
    * @param callId ID của cuộc gọi
    * @param timeoutMs Thời gian timeout (mặc định 30 giây)
    */
-  startCallTimeout(callId, timeoutMs = 30000) {
+  startCallTimeout(callId, timeoutMs = 30000, onTimeoutCallback) {
     console.log(`⏰ Starting timeout for call ${callId}, duration: ${timeoutMs}ms`);
 
     // Clear existing timeout if any
@@ -36,14 +36,11 @@ class CallTimeoutService {
       console.log(`⏰ Call ${callId} timed out, auto-cancelling...`);
 
       try {
-        // Lazily require firebaseCallService to avoid circular dependency
-        const { updateCallStatus, CALL_STATUS } = require('./firebaseCallService');
-        // Tự động huỷ cuộc gọi
-        await updateCallStatus(callId, CALL_STATUS.CANCELLED, {
-          cancelledBy: 'timeout',
-          cancelledAt: new Date().toISOString(),
-          timeoutReason: 'User did not respond within timeout period'
-        });
+        if (onTimeoutCallback && typeof onTimeoutCallback === 'function') {
+          await onTimeoutCallback();
+        } else {
+          console.warn(`⚠️ No timeout callback provided for call ${callId}`);
+        }
 
         // Clear call notification
         await clearCallNotification(callId);

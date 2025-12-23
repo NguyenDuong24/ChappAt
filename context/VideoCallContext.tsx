@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState } from 'react';
 import { Alert } from 'react-native';
-import { createMeeting, token } from '../api';
+import { createMeeting, token } from '@/api';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db } from '@/firebaseConfig';
 
 interface CallParticipant {
   id: string;

@@ -96,7 +96,7 @@ export default function GiftsInboxScreen() {
           { backgroundColor: currentThemeColors.surface, borderColor: currentThemeColors.border },
         ]}
         activeOpacity={0.8}
-        onPress={() => router.push(`/chat/${item.fromUid}`)}
+        onPress={() => router.push(`/(tabs)/chat/${item.fromUid}`)}
       >
         <View style={styles.row}>
           <Text style={styles.emoji}>{item.gift?.icon || '🎁'}</Text>

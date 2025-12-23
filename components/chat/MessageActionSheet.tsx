@@ -5,15 +5,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  Animated,
-  Dimensions,
   ScrollView,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
+import { BlurView } from 'expo-blur';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 interface MessageActionSheetProps {
   visible: boolean;
@@ -27,7 +28,7 @@ interface MessageActionSheetProps {
   isCurrentUser: boolean;
   isPinned?: boolean;
   message: any;
-  onReport?: () => void; // optional to avoid breaking existing callers
+  onReport?: () => void;
 }
 
 const REACTIONS = ['❤️', '👍', '👎', '😂', '😮', '😢', '😡', '🔥', '👏', '💯'];
@@ -84,7 +85,7 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
       icon: 'flag',
       title: 'Báo cáo',
       onPress: onReport,
-      show: !!onReport, // only show when handler is provided
+      show: !!onReport && !isCurrentUser,
       danger: true,
     },
     {
@@ -111,18 +112,34 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
         activeOpacity={1}
         onPress={onClose}
       >
-        <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        {Platform.OS === 'ios' ? (
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint={theme === 'dark' ? 'dark' : 'light'} />
+        ) : (
+          <View style={[styles.androidOverlay, { backgroundColor: theme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)' }]} />
+        )}
+
+        <View style={[styles.container, { backgroundColor: currentThemeColors.surface }]}>
+          <View style={styles.handleContainer}>
+            <View style={[styles.handle, { backgroundColor: currentThemeColors.border }]} />
+          </View>
+
           {/* Reactions */}
-          <View style={[styles.reactionsContainer, { backgroundColor: currentThemeColors.surface }]}>
-            <ScrollView 
-              horizontal 
+          <View style={styles.reactionsSection}>
+            <Text style={[styles.sectionTitle, { color: currentThemeColors.subtleText }]}>
+              Thả cảm xúc
+            </Text>
+            <ScrollView
+              horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.reactionsScrollContent}
             >
               {REACTIONS.map((emoji, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={[styles.reactionButton, { backgroundColor: currentThemeColors.background }]}
+                  style={[
+                    styles.reactionButton,
+                    { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }
+                  ]}
                   onPress={() => {
                     onReaction(emoji);
                     onClose();
@@ -134,26 +151,29 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
             </ScrollView>
           </View>
 
+          <View style={[styles.divider, { backgroundColor: currentThemeColors.border }]} />
+
           {/* Actions */}
-          <View style={[styles.actionsContainer, { backgroundColor: currentThemeColors.surface }]}>
+          <View style={styles.actionsContainer}>
             {visibleActions.map((action, index) => (
               <TouchableOpacity
                 key={action.id}
-                style={[
-                  styles.actionButton,
-                  index !== visibleActions.length - 1 && styles.actionButtonBorder,
-                  { borderBottomColor: currentThemeColors.border }
-                ]}
+                style={styles.actionButton}
                 onPress={() => {
                   action.onPress?.();
                   onClose();
                 }}
               >
-                <MaterialIcons
-                  name={action.icon as any}
-                  size={24}
-                  color={action.danger ? '#EF4444' : currentThemeColors.text}
-                />
+                <View style={[
+                  styles.iconContainer,
+                  { backgroundColor: action.danger ? 'rgba(239, 68, 68, 0.1)' : (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)') }
+                ]}>
+                  <MaterialIcons
+                    name={action.icon as any}
+                    size={22}
+                    color={action.danger ? '#EF4444' : currentThemeColors.text}
+                  />
+                </View>
                 <Text
                   style={[
                     styles.actionText,
@@ -165,16 +185,6 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
               </TouchableOpacity>
             ))}
           </View>
-
-          {/* Cancel Button */}
-          <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: currentThemeColors.surface }]}
-            onPress={onClose}
-          >
-            <Text style={[styles.cancelText, { color: currentThemeColors.text }]}>
-              Hủy
-            </Text>
-          </TouchableOpacity>
         </View>
       </TouchableOpacity>
     </Modal>
@@ -184,79 +194,83 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
-  container: {
-    paddingBottom: 34,
-    paddingHorizontal: 16,
+  androidOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
-  reactionsContainer: {
-    marginBottom: 8,
-    borderRadius: 16,
-    paddingVertical: 12,
-    elevation: 4,
+  container: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+    elevation: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  handleContainer: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+  },
+  reactionsSection: {
+    paddingVertical: 12,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 20,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   reactionsScrollContent: {
     paddingHorizontal: 16,
-    alignItems: 'center',
+    paddingBottom: 8,
   },
   reactionButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 4,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    marginHorizontal: 6,
   },
   reactionEmoji: {
-    fontSize: 24,
+    fontSize: 26,
+  },
+  divider: {
+    height: 1,
+    marginHorizontal: 20,
+    marginVertical: 8,
+    opacity: 0.5,
   },
   actionsContainer: {
-    borderRadius: 16,
-    marginBottom: 8,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 20,
+    paddingTop: 8,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  actionButtonBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
   actionText: {
     fontSize: 16,
-    marginLeft: 16,
     fontWeight: '500',
-  },
-  cancelButton: {
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 

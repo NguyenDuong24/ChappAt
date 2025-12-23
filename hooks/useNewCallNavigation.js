@@ -15,7 +15,7 @@ export const useCallNavigation = () => {
   const navigateToListenCallScreen = useCallback((callData) => {
     console.log('🚀 Navigating to ListenCallScreen:', callData);
     router.push({
-      pathname: '/ListenCallAcceptedScreen',
+      pathname: '/(screens)/call/ListenCallAcceptedScreen',
       params: {
         callId: callData.id,
         meetingId: callData.meetingId,
@@ -33,7 +33,7 @@ export const useCallNavigation = () => {
   const navigateToIncomingCallScreen = useCallback((callData) => {
     console.log('🚀 Navigating to IncomingCallScreen:', callData);
     router.push({
-      pathname: '/IncomingCallScreen',
+      pathname: '/(screens)/call/IncomingCallScreen',
       params: {
         callId: callData.id,
         meetingId: callData.meetingId,
@@ -47,11 +47,12 @@ export const useCallNavigation = () => {
 
   /**
    * Navigate đến màn hình CallScreen (cả 2 người vào call)
+   * Use replace to remove IncomingCallScreen/ListenCallAcceptedScreen from stack
    */
   const navigateToCallScreen = useCallback((callData) => {
-    console.log('🚀 Navigating to CallScreen:', callData);
-    router.push({
-      pathname: '/CallScreen',
+    console.log('🚀 Navigating to CallScreen (replace):', callData);
+    router.replace({
+      pathname: '/(screens)/call/CallScreen',
       params: {
         meetingId: callData.meetingId,
         callType: callData.type,

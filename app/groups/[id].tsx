@@ -1,53 +1,25 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import GroupChatHeader from '@/components/groups/GroupChatHeader';
 import GroupMessageList from '@/components/groups/GroupMessageList';
-import { TextInput } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import * as tf from '@tensorflow/tfjs';
-import '@tensorflow/tfjs-react-native';
-import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
-import { manipulateAsync } from 'expo-image-manipulator';
-import * as jpeg from 'jpeg-js';
-import { decode as atob } from 'base-64';
 import ReportModalSimple from '@/components/common/ReportModalSimple';
 import { useOptimizedGroupMessages } from '@/hooks/useOptimizedGroupMessages';
+import { nsfwService } from '@/services/nsfwService';
+import OptimizedGroupInput from '@/components/groups/OptimizedGroupInput';
+import { useTranslation } from 'react-i18next';
 
 const storage = getStorage();
-const PIC_INPUT_SHAPE = { width: 224, height: 224 };
-const NSFW_CLASSES = { 0: 'Drawing', 1: 'Hentai', 2: 'Neutral', 3: 'Porn', 4: 'Sexy' };
-
-// NSFW model assets (relative to this file)
-const NSFW_MODEL_JSON = require('../../assets/model/model.json');
-const NSFW_MODEL_WEIGHTS = [require('../../assets/model/group1-shard1of1.bin')];
-
-function imageToTensor(rawImageData) {
-  try {
-    const TO_UINT8ARRAY = true;
-    const { width, height, data } = jpeg.decode(rawImageData, TO_UINT8ARRAY);
-    const buffer = new Uint8Array(width * height * 3);
-    let offset = 0;
-    for (let i = 0; i < buffer.length; i += 3) {
-      buffer[i] = data[offset];
-      buffer[i + 1] = data[offset + 1];
-      buffer[i + 2] = data[offset + 2];
-      offset += 4;
-    }
-    return tf.tidy(() => tf.tensor4d(buffer, [1, height, width, 3]).div(255));
-  } catch (error) {
-    console.error('Error in imageToTensor:', error);
-    throw error;
-  }
-}
 
 export default function GroupChatScreen() {
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const { user } = useAuth();
   const themeCtx = useContext(ThemeContext);
@@ -60,21 +32,23 @@ export default function GroupChatScreen() {
   const [newMessage, setNewMessage] = useState('');
   const [replyTo, setReplyTo] = useState<any>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
-  const [nsfwModel, setNsfwModel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
   // NEW: simple report modal state
   const [reportVisible, setReportVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState<any>(null);
+  const [scrollToEndTrigger, setScrollToEndTrigger] = useState(0);
 
   // Use optimized group messages hook
-  const { 
-    messages, 
-    loading: messagesLoading, 
-    hasMore, 
+  const {
+    messages,
+    loading: messagesLoading,
+    hasMore,
     loadMore,
-    refresh 
+    refresh,
+    isLoadingMore,
+    isInitialLoadComplete
   } = useOptimizedGroupMessages({
     groupId: id as string,
     currentUserId: user?.uid || '',
@@ -82,65 +56,76 @@ export default function GroupChatScreen() {
     enabled: true
   });
 
-  const loadGroup = async () => {
-    try {
-      console.log(`[DEBUG] Loading group ID: ${id}, user UID: ${user.uid}`);
-      const groupDoc = await getDoc(doc(db, 'groups', id as string));
-      
-      if (groupDoc.exists()) {
-        const groupData = { id: groupDoc.id, ...groupDoc.data() } as any;
-        console.log(`[DEBUG] Group data: ${JSON.stringify(groupData)}`);
-
-        if (!groupData.members || !Array.isArray(groupData.members) || !groupData.members.includes(user.uid)) {
-          console.warn(`[WARN] User ${user.uid} not member. Members: ${JSON.stringify(groupData.members)}`);
-          setError('Bạn không phải thành viên của nhóm này. Kiểm tra quyền truy cập.');
-          return;
-        }
-
-        setGroup(groupData);
-      } else {
-        console.error(`[ERROR] Group ${id} not found`);
-        setError('Không tìm thấy nhóm chat. Kiểm tra ID nhóm.');
-      }
-    } catch (error: any) {
-      console.error('[ERROR] Load group failed:', error.message);
-      setError(`Lỗi tải dữ liệu: ${error.message}. Kiểm tra kết nối hoặc quyền Firebase.`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Load group data - ✅ Fixed dependency array
+  // Real-time group listener
   useEffect(() => {
     if (!id) {
-      setError('ID nhóm không hợp lệ.');
+      setError(t('groups.invalid_id'));
       setLoading(false);
       return;
     }
 
     if (!user?.uid) {
       console.warn('[WARN] User not authenticated, redirecting to signin');
-      setError('Bạn cần đăng nhập để xem nhóm chat.');
+      setError(t('groups.login_required'));
       router.replace('/signin');
       return;
     }
 
-    loadGroup();
-  }, [id, user?.uid, retryKey]); // ✅ Removed 'group' from dependency array
+    console.log(`[DEBUG] Setting up listener for group ID: ${id}`);
 
-  // Separate timeout effect - ✅ Better separation of concerns
+    const unsubscribe = onSnapshot(doc(db, 'groups', id as string),
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const groupData = { id: docSnapshot.id, ...docSnapshot.data() } as any;
+
+          // Check membership
+          if (!groupData.members || !Array.isArray(groupData.members) || !groupData.members.includes(user.uid)) {
+            console.warn(`[WARN] User ${user.uid} no longer a member.`);
+            setError(t('groups.not_member'));
+            setGroup(null);
+          } else {
+            setGroup(groupData);
+            setError(null);
+          }
+        } else {
+          console.error(`[ERROR] Group ${id} not found`);
+          setError(t('groups.not_found'));
+          setGroup(null);
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error('[ERROR] Group snapshot error:', err);
+        setError(t('groups.connection_error'));
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      console.log('[DEBUG] Unsubscribing from group listener');
+      unsubscribe();
+    };
+  }, [id, user?.uid]);
+
+  // Timeout effect
   useEffect(() => {
     if (!loading) return;
-
     const timeout = setTimeout(() => {
       if (loading && !group) {
         setLoading(false);
-        setError('Tải dữ liệu quá lâu. Kiểm tra mạng hoặc thử lại.');
+        setError(t('groups.load_timeout'));
       }
     }, 20000);
-
     return () => clearTimeout(timeout);
   }, [loading, group]);
+
+  // Auto-clear highlight after 2 seconds
+  useEffect(() => {
+    if (highlightedMessageId) {
+      const timer = setTimeout(() => setHighlightedMessageId(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedMessageId]);
 
   const handleSend = async () => {
     if (!newMessage.trim()) return;
@@ -173,17 +158,17 @@ export default function GroupChatScreen() {
       setNewMessage('');
       setReplyTo(null); // Clear reply after sending
       setHighlightedMessageId(null);
+      // Trigger scroll to end after sending
+      setScrollToEndTrigger(prev => prev + 1);
     } catch (error) {
       console.error('[ERROR] Send message failed:', (error as any).message);
-      setError(`Lỗi gửi tin nhắn: ${(error as any).message}`);
+      setError(`${t('groups.send_error')}: ${(error as any).message}`);
     }
   };
 
   const handleReply = (message: any) => {
     setReplyTo(message);
     setHighlightedMessageId(message.id);
-    // Auto-clear highlight after 2 seconds
-    setTimeout(() => setHighlightedMessageId(null), 2000);
   };
 
   const cancelReply = () => {
@@ -193,7 +178,7 @@ export default function GroupChatScreen() {
 
   // Handle user press to navigate to profile
   const handleUserPress = (userId: string) => {
-    router.push({ pathname: '/UserProfileScreen', params: { userId } });
+    router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId } });
   };
 
   // NEW: open report modal for a message
@@ -202,8 +187,8 @@ export default function GroupChatScreen() {
       const messageType = message?.imageUrl ? 'image' : 'text';
       setReportTarget({
         id: message?.id || message?.messageId,
-        name: message?.senderName || 'Người dùng',
-        content: message?.text || (message?.imageUrl ? 'Hình ảnh' : ''),
+        name: message?.senderName || t('groups.user'),
+        content: message?.text || (message?.imageUrl ? t('groups.image') : ''),
         messageType,
         messageText: messageType === 'text' ? (message?.text || '') : '',
         messageImageUrl: messageType === 'image' ? (message?.imageUrl || '') : '',
@@ -236,61 +221,6 @@ export default function GroupChatScreen() {
     }
   };
 
-  const classifyImageNSFW = async (uri) => {
-    if (!nsfwModel || !uri) {
-      console.warn('NSFW model not loaded or invalid URI');
-      return { isInappropriate: false, scores: {}, reason: 'Model not available' };
-    }
-
-    console.group(`🔎 NSFW check for: ${uri}`);
-    try {
-      const resized = await manipulateAsync(
-        uri,
-        [{ resize: { width: PIC_INPUT_SHAPE.width, height: PIC_INPUT_SHAPE.height } }],
-        { format: 'jpeg', base64: true }
-      );
-      const base64 = resized.base64;
-      const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      const input = imageToTensor(bytes);
-      const logits = nsfwModel.predict(input);
-      const values = await logits.data();
-      logits.dispose();
-      input.dispose();
-
-      const p = values[3] || 0; // Porn
-      const h = values[1] || 0; // Hentai
-      const s = values[4] || 0; // Sexy
-      const n = values[2] || 0; // Neutral
-      const d = values[0] || 0; // Drawing
-
-      // New thresholds: more sensitive
-      const isInappropriate = 
-        p >= 0.5 ||  
-        h >= 0.5 ||  
-        s >= 0.7 ||  
-        (p + h + s >= 0.8);  
-
-      // Detailed reason, show if above warning threshold
-      const reasonParts = [];
-      if (p >= 0.45) reasonParts.push(`Porn: ${(p * 100).toFixed(1)}%`);
-      if (h >= 0.45) reasonParts.push(`Hentai: ${(h * 100).toFixed(1)}%`);
-      if (s >= 0.6) reasonParts.push(`Sexy: ${(s * 100).toFixed(1)}%`);
-      const reason = reasonParts.join(', ') || 'An toàn';
-
-      const scores = { p, h, s, n, d };
-      console.log('Scores:', scores);
-      console.log('Is inappropriate:', isInappropriate);
-      console.log('Reason:', reason);
-
-      return { isInappropriate, scores, reason };
-    } catch (error) {
-      console.error('NSFW classify error:', error);
-      return { isInappropriate: true, scores: {}, reason: 'Lỗi xử lý ảnh - chặn để an toàn' }; // Fallback: block if error
-    } finally {
-      console.groupEnd();
-    }
-  };
-
   const handlePickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -302,12 +232,12 @@ export default function GroupChatScreen() {
       if (!result.canceled && result.assets?.[0]?.uri) {
         const uri = result.assets[0].uri;
 
-        // Check image content with NSFW model
-        const checkResult = await classifyImageNSFW(uri);
+        // Check image content with NSFW model via service
+        const checkResult = await nsfwService.classifyImage(uri);
         if (checkResult.isInappropriate) {
-          Alert.alert('Ảnh không phù hợp', `Ảnh bị chặn vì: ${checkResult.reason}`);
-          console.log('⛔ [uploadImage] Image blocked by NSFW check');
-          return; // Image blocked
+          console.log('⚠️ [uploadImage] NSFW detected, will log to flagged_content');
+          // Image will still be sent, logged to flagged_content below
+          // Continue with upload - will log to flagged_content after getting downloadURL
         }
         console.log('✅ [uploadImage] Image passed NSFW check');
 
@@ -328,33 +258,42 @@ export default function GroupChatScreen() {
           status: 'sent',
           type: 'image',
         });
+
+
+        // Log NSFW flagged images to flagged_content collection for admin review
+        if (checkResult.isInappropriate) {
+          try {
+            await addDoc(collection(db, 'flagged_content'), {
+              context: 'group_chat',
+              createdAt: serverTimestamp(),
+              imageUrl: downloadURL,
+              reason: checkResult.reason || 'NSFW detected',
+              groupId: id,
+              senderId: user.uid,
+              senderName: user.displayName || user.username || '',
+              scores: checkResult.scores || {},
+              status: 'pending',
+              type: 'image',
+            });
+            console.log('📋 [uploadImage] Flagged content logged');
+          } catch (flagErr) {
+            console.warn('⚠️ [uploadImage] Failed to log flagged content:', flagErr);
+          }
+        }
+
       }
+
     } catch (error) {
       console.error('[ERROR] Send image failed:', (error as any).message);
-      setError(`Lỗi gửi ảnh: ${(error as any).message}`);
+      setError(`${t('groups.send_image_error')}: ${(error as any).message}`);
     }
   };
-
-  // Load NSFW model once
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        await tf.ready();
-        const model = await tf.loadLayersModel(bundleResourceIO(NSFW_MODEL_JSON, NSFW_MODEL_WEIGHTS));
-        if (isMounted) setNsfwModel(model);
-      } catch (e) {
-        console.error('NSFW model load error:', e);
-      }
-    })();
-    return () => { isMounted = false; };
-  }, []);
 
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: currentThemeColors.background }]}>
         <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>
-          Đang tải nhóm chat...
+          {t('groups.loading')}
         </Text>
       </View>
     );
@@ -364,9 +303,9 @@ export default function GroupChatScreen() {
     return (
       <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.background }]}>
         <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
-          {error || 'Không tìm thấy nhóm chat'}
+          {error || t('groups.not_found')}
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.retryButton}
           onPress={() => {
             setError(null);
@@ -374,16 +313,16 @@ export default function GroupChatScreen() {
             setRetryKey(prev => prev + 1);
           }}
         >
-          <Text style={[styles.buttonText, { color: currentThemeColors.primary }]}>
-            Thử lại
+          <Text style={[styles.buttonText, { color: currentThemeColors.tint }]}>
+            {t('common.retry')}
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Text style={[styles.buttonText, { color: currentThemeColors.primary }]}>
-            Quay lại
+          <Text style={[styles.buttonText, { color: currentThemeColors.tint }]}>
+            {t('common.back')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -393,12 +332,12 @@ export default function GroupChatScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}> 
+      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
         <GroupChatHeader group={group} onBack={() => router.back()} />
         <View style={styles.messagesContainer}>
-          <GroupMessageList 
+          <GroupMessageList
             scrollViewRef={scrollViewRef}
             messages={messages}
             currentUser={user}
@@ -409,40 +348,49 @@ export default function GroupChatScreen() {
             onReport={openReportForMessage}
             onUserPress={handleUserPress}
             loading={messagesLoading}
+            onLoadMore={loadMore}
+            hasMore={hasMore}
+            loadingMore={isLoadingMore}
+            isLoadingMore={isLoadingMore}
+            isInitialLoadComplete={isInitialLoadComplete}
+            scrollToEndTrigger={scrollToEndTrigger}
           />
         </View>
-        
+
         {/* Reply Preview */}
         {replyTo && (
-          <View style={[styles.replyContainer, { backgroundColor: currentThemeColors.surface, borderTopColor: currentThemeColors.border }]}>
+          <View style={[styles.replyContainer, {
+            backgroundColor: currentThemeColors.surface,
+            borderTopColor: currentThemeColors.border,
+            borderLeftColor: currentThemeColors.tint
+          }]}>
+            <View style={[styles.replyBar, { backgroundColor: currentThemeColors.tint }]} />
             <View style={styles.replyContent}>
               <Text style={[styles.replyLabel, { color: currentThemeColors.tint }]}>
-                Trả lời {replyTo.senderName}
+                ↩ {t('groups.reply_to', { name: replyTo.senderName })}
               </Text>
               <Text style={[styles.replyText, { color: currentThemeColors.text }]} numberOfLines={1}>
-                {replyTo.imageUrl ? '📷 Hình ảnh' : replyTo.text}
+                {replyTo.imageUrl ? `📷 ${t('groups.image')}` : replyTo.text}
               </Text>
             </View>
-            <TouchableOpacity onPress={cancelReply} style={styles.cancelReply}>
+            <TouchableOpacity
+              onPress={cancelReply}
+              style={[styles.cancelReply, { backgroundColor: currentThemeColors.border }]}
+              activeOpacity={0.7}
+            >
               <Text style={[styles.cancelText, { color: currentThemeColors.subtleText }]}>✕</Text>
             </TouchableOpacity>
           </View>
         )}
-        
-        <View style={styles.inputContainer}>
-          <TextInput
-            value={newMessage}
-            onChangeText={setNewMessage}
-            placeholder="Nhập tin nhắn..."
-            mode="outlined"
-            style={[styles.input, { backgroundColor: currentThemeColors.inputBackground, borderRadius: 24, paddingLeft: 16 }]}
-            theme={{ roundness: 24 }}
-            placeholderTextColor={currentThemeColors.placeholderText}
-            textColor={currentThemeColors.text}
-            left={<TextInput.Icon icon="image" onPress={handlePickImage} />} 
-            right={<TextInput.Icon icon="send" onPress={handleSend} />}
-          />
-        </View>
+
+        <OptimizedGroupInput
+          newMessage={newMessage}
+          onChangeText={setNewMessage}
+          onSend={handleSend}
+          onImagePress={handlePickImage}
+          sendDisabled={newMessage.trim().length === 0}
+          currentThemeColors={currentThemeColors}
+        />
       </View>
 
       <ReportModalSimple
@@ -506,40 +454,42 @@ const styles = StyleSheet.create({
   messagesContainer: {
     flex: 1,
   },
-  inputContainer: {
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  input: {
-    height: 50,
-  },
+
   replyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
+    gap: 12,
+  },
+  replyBar: {
+    width: 4,
+    height: '100%',
+    minHeight: 36,
+    borderRadius: 2,
   },
   replyContent: {
     flex: 1,
-    paddingLeft: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#2196F3',
+    gap: 2,
   },
   replyLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: 2,
   },
   replyText: {
     fontSize: 14,
+    opacity: 0.8,
   },
   cancelReply: {
-    padding: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

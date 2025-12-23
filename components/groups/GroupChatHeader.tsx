@@ -8,6 +8,7 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/authContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 
 interface GroupChatHeaderProps {
   group: any;
@@ -15,6 +16,7 @@ interface GroupChatHeaderProps {
 }
 
 const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
+  const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -45,28 +47,28 @@ const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
 
   const handleGroupInfo = () => {
     setMenuVisible(false);
-    router.push(`/GroupManagementScreen?id=${group.id}`);
+    router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
   };
 
   const handleViewMembers = () => {
     setMenuVisible(false);
-    router.push(`/GroupManagementScreen?id=${group.id}`);
+    router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
   };
 
   const handleAddMembers = () => {
     setMenuVisible(false);
-    router.push(`/GroupManagementScreen?id=${group.id}`);
+    router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
   };
 
   const handleLeaveGroup = () => {
     setMenuVisible(false);
     Alert.alert(
-      'Rời nhóm',
-      'Bạn có chắc chắn muốn rời khỏi nhóm này không?',
+      t('groups.leave_title'),
+      t('groups.leave_message'),
       [
-        { text: 'Hủy', style: 'cancel' },
-        { 
-          text: 'Rời nhóm', 
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('groups.leave_confirm'),
           style: 'destructive',
           onPress: () => {
             // Implement leave group logic here
@@ -78,11 +80,11 @@ const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
   };
 
   const handleJoinVoiceChat = () => {
-    router.push({ pathname: '/GroupVoiceRoom', params: { groupId: group.id } });
+    router.push({ pathname: '/(screens)/groups/GroupVoiceRoom', params: { groupId: group.id } });
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.backgroundHeader, paddingTop: insets.top }]}> 
+    <View style={[styles.container, { backgroundColor: currentThemeColors.backgroundHeader, paddingTop: insets.top }]}>
       {/* Control status bar color when native header is hidden */}
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} backgroundColor={currentThemeColors.backgroundHeader} />
       <View style={styles.header}>
@@ -97,8 +99,8 @@ const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
               color={currentThemeColors.text}
             />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.avatarSection}
             onPress={handleGroupInfo}
           >
@@ -107,19 +109,19 @@ const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
               source={{ uri: getGroupAvatar() }}
               style={styles.avatar}
             />
-            
+
             <View style={styles.groupInfo}>
               <Text style={[styles.groupName, { color: currentThemeColors.text }]} numberOfLines={1}>
-                {group?.name || 'Nhóm không tên'}
+                {group?.name || t('groups.unnamed')}
               </Text>
               <Text style={[styles.memberInfo, { color: currentThemeColors.subtleText }]}
               >
-                {getMemberCount()} thành viên
+                {t('groups.members_count', { count: getMemberCount() })}
               </Text>
             </View>
           </TouchableOpacity>
         </View>
-        
+
         <View style={styles.rightSection}>
           <TouchableOpacity
             style={styles.actionButton}

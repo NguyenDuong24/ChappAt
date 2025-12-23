@@ -20,8 +20,10 @@ interface PostHeaderProps {
   isOwner: boolean;
   onUserPress: () => void;
   onDeletePost: () => void;
-  onPrivacyChange?: () => void; // Thêm callback cho privacy
-  postPrivacy?: 'public' | 'friends' | 'private'; // Thêm privacy level
+  onPrivacyChange?: () => void;
+  postPrivacy?: 'public' | 'friends' | 'private';
+  isFollowing?: boolean;
+  onFollowPress?: () => void;
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
@@ -32,7 +34,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onUserPress,
   onDeletePost,
   onPrivacyChange,
-  postPrivacy = 'public'
+  postPrivacy = 'public',
+  isFollowing = false,
+  onFollowPress
 }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
@@ -68,9 +72,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               {userInfo?.username || 'Unknown User'}
             </Text>
             {/* Privacy Icon */}
-            <MaterialIcons 
-              name={getPrivacyIcon(postPrivacy) as any} 
-              size={14} 
+            <MaterialIcons
+              name={getPrivacyIcon(postPrivacy) as any}
+              size={14}
               color={currentThemeColors.subtleText}
               style={styles.privacyIcon}
             />
@@ -80,7 +84,18 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           </Text>
         </View>
       </TouchableOpacity>
-      
+
+      {!isOwner && !isFollowing && (
+        <TouchableOpacity
+          style={[styles.followButton, { borderColor: Colors.primary }]}
+          onPress={onFollowPress}
+        >
+          <Text style={[styles.followText, { color: Colors.primary }]}>
+            Theo dõi
+          </Text>
+        </TouchableOpacity>
+      )}
+
       {isOwner && (
         <View style={styles.menuWrapper}>
           <Menu
@@ -88,24 +103,24 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             onDismiss={closeMenu}
             anchor={
               <TouchableOpacity onPress={openMenu} style={styles.menuButton}>
-                <MaterialIcons 
-                  name="more-vert" 
-                  size={28} 
-                  color={currentThemeColors.icon} 
+                <MaterialIcons
+                  name="more-vert"
+                  size={28}
+                  color={currentThemeColors.icon}
                 />
               </TouchableOpacity>
             }
             contentStyle={[styles.menuContent, { backgroundColor: currentThemeColors.background }]}
             style={styles.menuPaper}
           >
-            <Menu.Item 
-              onPress={handlePrivacyChange} 
+            <Menu.Item
+              onPress={handlePrivacyChange}
               title="Quyền riêng tư"
               titleStyle={{ color: currentThemeColors.text }}
               leadingIcon="shield-account"
             />
-            <Menu.Item 
-              onPress={handleDeletePost} 
+            <Menu.Item
+              onPress={handleDeletePost}
               title="Xóa bài viết"
               titleStyle={{ color: '#ff4444' }}
               leadingIcon="delete"
@@ -176,6 +191,17 @@ const styles = StyleSheet.create({
     right: 0,
     top: 36,
     zIndex: 999,
+  },
+  followButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginLeft: 8,
+  },
+  followText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
 

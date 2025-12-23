@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import {
     Box,
     Drawer,
@@ -24,22 +24,31 @@ import {
     BarChart as BarChartIcon,
     Settings as SettingsIcon,
     Logout as LogoutIcon,
+    Chat as ChatIcon,
+    LocalFireDepartment as HotSpotsIcon,
+    Favorite as ActivityIcon,
 } from '@mui/icons-material';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
-import { useNavigate, useLocation } from 'react-router-dom';
+
 import OverviewPage from '../components/OverviewPage';
 import FlaggedContentPage from '../components/FlaggedContentPage';
 import ReportsPage from '../components/ReportsPage';
 import UsersPage from '../components/UsersPage';
+import ChatInspectorPage from '../components/ChatInspectorPage';
+import HotSpotsPage from '../components/HotSpotsPage';
+import HotSpotInteractionsPage from '../components/HotSpotInteractionsPage';
 
 const drawerWidth = 240;
 
 const menuItems = [
     { text: 'Overview', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: 'HotSpots', icon: <HotSpotsIcon />, path: '/dashboard/hotspots' },
+    { text: 'HotSpot Activity', icon: <ActivityIcon />, path: '/dashboard/hotspots-activity' },
     { text: 'Flagged Content', icon: <FlagIcon />, path: '/dashboard/flagged' },
     { text: 'User Reports', icon: <ReportIcon />, path: '/dashboard/reports' },
     { text: 'Users', icon: <PeopleIcon />, path: '/dashboard/users' },
+    { text: 'Chat Inspector', icon: <ChatIcon />, path: '/dashboard/chat-inspector' },
     { text: 'Statistics', icon: <BarChartIcon />, path: '/dashboard/stats' },
 ];
 
@@ -163,7 +172,10 @@ export default function Dashboard() {
                     <Route path="/flagged" element={<FlaggedContentPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/users" element={<UsersPage />} />
+                    <Route path="/chat-inspector" element={<ChatInspectorPage />} />
                     <Route path="/stats" element={<div>Statistics Page (Coming Soon)</div>} />
+                    <Route path="/hotspots" element={<HotSpotsPage />} />
+                    <Route path="/hotspots-activity" element={<HotSpotInteractionsPage />} />
                 </Routes>
             </Box>
         </Box>

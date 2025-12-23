@@ -72,7 +72,7 @@ const InvitationsScreen = () => {
             style={styles.hotSpotInfo}
             onPress={() => {
               router.push({
-                pathname: '/HotSpotDetailScreen',
+                pathname: '/(screens)/hotspots/HotSpotDetailScreen',
                 params: { hotSpotId: item.hotSpotId }
               });
             }}
@@ -222,8 +222,8 @@ const InvitationsScreen = () => {
             color="#CCC"
           />
           <Text style={styles.emptyText}>
-            {selectedTab === 'received' 
-              ? 'Chưa có lời mời nào' 
+            {selectedTab === 'received'
+              ? 'Chưa có lời mời nào'
               : 'Chưa gửi lời mời nào'}
           </Text>
           <Text style={styles.emptySubtext}>

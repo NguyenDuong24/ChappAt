@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Image, Alert, ScrollView, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Image, Alert, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
@@ -8,9 +8,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 
 const CompleteSocialProfileScreen = () => {
-  const { user, gender, name, age, icon, bio, cancelRegistration, register, educationLevel, university, job, email } = useAuth();
+  const {
+    user, gender, name, age, icon, bio,
+    cancelRegistration, register, updateUserProfile,
+    educationLevel, university, job, email, password,
+    signupType, clearSignupState
+  } = useAuth();
   const router = useRouter();
   const logoUrl = useLogoState();
+  const [loading, setLoading] = useState(false);
 
   // Helpers
   const normalizeGender = (g) => {
@@ -65,35 +71,80 @@ const CompleteSocialProfileScreen = () => {
         return;
       }
 
-      const response = await register();
-      if (!response.success) {
-        Alert.alert('Lỗi', response.msg);
-        return;
-      }
+      setLoading(true);
 
-      console.log('✅ User registered and profile completed successfully');
-      router.replace('/(tabs)/home');
-      Alert.alert('Hoàn thành!', 'Tài khoản của bạn đã được tạo thành công!');
+      // Check signup type to determine which method to use
+      if (signupType === 'google' || signupType === 'facebook') {
+        // For social login, user is already authenticated - just update profile
+        console.log('📱 Completing social signup profile...');
+
+        const profileData = {
+          username: name,
+          gender: normalizedGender,
+          age: age,
+          profileUrl: avatarUri,
+          bio: bio || '',
+          educationLevel: educationLevel || '',
+          university: university || '',
+          job: job || '',
+          profileCompleted: true,
+        };
+
+        const response = await updateUserProfile(profileData);
+        if (!response?.success) {
+          Alert.alert('Lỗi', response?.msg || 'Không thể cập nhật hồ sơ');
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ Social profile completed successfully');
+        clearSignupState();
+        router.replace('/(tabs)/home');
+        Alert.alert('Hoàn thành!', 'Hồ sơ của bạn đã được cập nhật thành công!');
+      } else {
+        // For email signup, register the user
+        console.log('📧 Completing email signup...');
+
+        if (!email || !password) {
+          Alert.alert('Lỗi', 'Thiếu thông tin email hoặc mật khẩu');
+          setLoading(false);
+          return;
+        }
+
+        const response = await register();
+        if (!response.success) {
+          Alert.alert('Lỗi', response.msg);
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ Email user registered successfully');
+        clearSignupState();
+        router.replace('/(tabs)/home');
+        Alert.alert('Hoàn thành!', 'Tài khoản của bạn đã được tạo thành công!');
+      }
     } catch (error) {
-      console.error('Error registering user:', error);
-      Alert.alert('Lỗi', 'Không thể tạo tài khoản. Vui lòng thử lại.');
+      console.error('Error completing profile:', error);
+      Alert.alert('Lỗi', 'Không thể hoàn thành đăng ký. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleCancel = () => {
     Alert.alert(
       'Huỷ đăng ký?',
-      'Bạn có chắc muốn huỷ đăng ký và xoá tài khoản tạm thời (nếu có)?',
+      'Bạn có chắc muốn huỷ quá trình đăng ký?',
       [
         { text: 'Không', style: 'cancel' },
-        { 
-          text: 'Huỷ & Xoá', 
-          style: 'destructive', 
-          onPress: async () => { 
-            try { 
-              await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); 
-            } catch (_) {} 
-          } 
+        {
+          text: 'Huỷ',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelRegistration({ deleteAccount: signupType === 'email', navigateTo: '/signin' });
+            } catch (_) { }
+          }
         },
       ]
     );
@@ -112,7 +163,7 @@ const CompleteSocialProfileScreen = () => {
   );
 
   return (
-    <ImageBackground 
+    <ImageBackground
       source={require('../../assets/images/cover.png')}
       style={styles.background}
       resizeMode="cover"
@@ -122,7 +173,7 @@ const CompleteSocialProfileScreen = () => {
         style={styles.backdrop}
       />
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
@@ -174,22 +225,22 @@ const CompleteSocialProfileScreen = () => {
           {/* Info Section */}
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
-            
-            <InfoRow 
-              icon="mail" 
-              label="Email" 
+
+            <InfoRow
+              icon="mail"
+              label="Email"
               value={email || user?.email || 'Chưa cập nhật'}
               iconColor="#3b82f6"
             />
-            <InfoRow 
-              icon={normalizedGender === 'male' ? 'male' : 'female'} 
-              label="Giới tính" 
+            <InfoRow
+              icon={normalizedGender === 'male' ? 'male' : 'female'}
+              label="Giới tính"
               value={displayGender}
               iconColor={normalizedGender === 'male' ? '#3b82f6' : '#ec4899'}
             />
-            <InfoRow 
-              icon="calendar" 
-              label="Tuổi" 
+            <InfoRow
+              icon="calendar"
+              label="Tuổi"
               value={displayAge}
               iconColor="#8b5cf6"
             />
@@ -199,27 +250,27 @@ const CompleteSocialProfileScreen = () => {
               <>
                 <View style={styles.divider} />
                 <Text style={styles.sectionTitle}>Học vấn & Nghề nghiệp</Text>
-                
+
                 {educationLevel && (
-                  <InfoRow 
-                    icon="school" 
-                    label="Trình độ" 
+                  <InfoRow
+                    icon="school"
+                    label="Trình độ"
                     value={educationLevel}
                     iconColor="#10b981"
                   />
                 )}
                 {university && (
-                  <InfoRow 
-                    icon="business" 
-                    label="Trường học" 
+                  <InfoRow
+                    icon="business"
+                    label="Trường học"
                     value={university}
                     iconColor="#f59e0b"
                   />
                 )}
                 {job && (
-                  <InfoRow 
-                    icon="briefcase" 
-                    label="Nghề nghiệp" 
+                  <InfoRow
+                    icon="briefcase"
+                    label="Nghề nghiệp"
                     value={job}
                     iconColor="#ef4444"
                   />
@@ -241,23 +292,29 @@ const CompleteSocialProfileScreen = () => {
 
         {/* Action Buttons */}
         <TouchableOpacity
-          style={[styles.completeButton, !isProfileComplete && styles.disabledButton]}
+          style={[styles.completeButton, (!isProfileComplete || loading) && styles.disabledButton]}
           onPress={handleCompleteProfile}
-          disabled={!isProfileComplete}
+          disabled={!isProfileComplete || loading}
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={isProfileComplete ? ['#ff1493', '#9370db'] : ['#94a3b8', '#64748b']}
+            colors={isProfileComplete && !loading ? ['#ff1493', '#9370db'] : ['#94a3b8', '#64748b']}
             style={styles.buttonGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
-            <Ionicons name="checkmark-done" size={24} color="#fff" />
-            <Text style={styles.completeButtonText}>Hoàn thành và bắt đầu</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name="checkmark-done" size={24} color="#fff" />
+                <Text style={styles.completeButtonText}>Hoàn thành và bắt đầu</Text>
+              </>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton} disabled={loading}>
           <Ionicons name="close-circle-outline" size={20} color="rgba(255,255,255,0.8)" />
           <Text style={styles.cancelButtonText}>Huỷ đăng ký</Text>
         </TouchableOpacity>

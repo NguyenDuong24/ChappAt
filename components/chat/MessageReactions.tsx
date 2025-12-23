@@ -14,7 +14,7 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
   currentUserId,
 }) => {
   console.log('🎭 MessageReactions render:', { reactions, currentUserId });
-  
+
   if (!reactions || Object.keys(reactions).length === 0) {
     console.log('🎭 No reactions to display');
     return null;
@@ -23,9 +23,15 @@ const MessageReactions: React.FC<MessageReactionsProps> = ({
   return (
     <View style={styles.container}>
       {Object.entries(reactions).map(([emoji, userIds]) => {
+        // Safety check: ensure userIds is an array
+        if (!Array.isArray(userIds)) {
+          console.warn('Invalid userIds for emoji:', emoji, userIds);
+          return null;
+        }
+
         const count = userIds.length;
         const hasCurrentUser = userIds.includes(currentUserId);
-        
+
         return (
           <TouchableOpacity
             key={emoji}

@@ -54,26 +54,35 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
     }
   };
 
-  const formatTimeRemaining = (expiresAt: any) => {
-    if (!expiresAt) return '';
-    
+  const formatTimeAgo = (createdAt: any) => {
+    if (!createdAt) return '';
+
     const now = new Date();
-    const expiry = expiresAt.toDate ? expiresAt.toDate() : new Date(expiresAt);
-    const diff = expiry.getTime() - now.getTime();
-    
-    if (diff <= 0) return 'Đã hết hạn';
-    
+    const created = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+    const diff = now.getTime() - created.getTime();
+
+    if (diff < 0) return 'Vừa xong';
+
+    const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hours > 0) {
-      return `${hours}h ${minutes}m còn lại`;
+      return `${hours} giờ trước`;
+    } else if (minutes > 0) {
+      return `${minutes} phút trước`;
     } else {
-      return `${minutes}m còn lại`;
+      return 'Vừa xong';
     }
   };
 
-  if (currentVibe && currentVibe.isActive) {
+  const isExpired = (expiresAt: any) => {
+    if (!expiresAt) return false;
+    const now = new Date();
+    const expiry = expiresAt.toDate ? expiresAt.toDate() : new Date(expiresAt);
+    return expiry.getTime() <= now.getTime();
+  };
+
+  if (currentVibe && currentVibe.isActive && !isExpired(currentVibe.expiresAt)) {
     return (
       <Animated.View style={[styles.vibeContainer, { opacity: fadeAnim }]}>
         <LinearGradient
@@ -96,11 +105,11 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
                     </Text>
                   )}
                   <Text style={[styles.vibeTime, { color: colors.text + '60' }]}>
-                    {formatTimeRemaining(currentVibe.expiresAt)}
+                    {formatTimeAgo(currentVibe.createdAt)}
                   </Text>
                 </View>
               </View>
-              
+
               <View style={styles.vibeActions}>
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: colors.background + '80' }]}
@@ -109,7 +118,7 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
                 >
                   <MaterialIcons name="edit" size={16} color={colors.text} />
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: colors.background + '80' }]}
                   onPress={handleRemoveVibe}
@@ -131,7 +140,7 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
   return (
     <View style={styles.addVibeContainer}>
       <TouchableOpacity
-        style={[styles.addVibeButton, { 
+        style={[styles.addVibeButton, {
           borderColor: colors.text + '30',
           backgroundColor: colors.background
         }]}
@@ -139,10 +148,10 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
         disabled={settingVibe}
       >
         <View style={styles.addVibeContent}>
-          <Ionicons 
-            name="add-circle-outline" 
-            size={20} 
-            color={Colors.primary} 
+          <Ionicons
+            name="add-circle-outline"
+            size={20}
+            color={Colors.primary}
           />
           <Text style={[styles.addVibeText, { color: colors.text }]}>
             Chia sẻ tâm trạng của bạn

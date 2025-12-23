@@ -10,6 +10,11 @@ import { PREDEFINED_VIBES } from '../types/vibe';
 import { walletService } from '../services/walletService';
 import ExpoPushNotificationService from '../services/expoPushNotificationService';
 
+// PERFORMANCE: Enable/disable debug mode
+const DEBUG_MODE = false;
+const log = DEBUG_MODE ? console.log : () => { };
+const logError = console.error; // Always log errors
+
 export const AuthContext = createContext();
 
 export const AuthContextProvider = ({ children }) => {
@@ -20,14 +25,16 @@ export const AuthContextProvider = ({ children }) => {
     const [age, setAge] = useState('');
     const [email, setEmail] = useState('');
     const [icon, setIcon] = useState('');
-    const [password, setPassword] = useState(''); 
-    const [bio, setBio] = useState(''); 
+    const [password, setPassword] = useState('');
+    const [bio, setBio] = useState('');
     const [educationLevel, setEducationLevel] = useState('');
     const [university, setUniversity] = useState('');
     const [job, setJob] = useState('');
     const [loading, setLoading] = useState(true);
     // New: track whether user is in onboarding (profile incomplete)
     const [isOnboarding, setIsOnboarding] = useState(false);
+    // Track signup type: 'email' | 'google' | null
+    const [signupType, setSignupType] = useState(null);
     // Avoid first snapshot overriding local state if user already changed it
     const didUserEditSignup = useRef({ name: false, gender: false, age: false, icon: false });
     const router = useRouter();
@@ -37,6 +44,10 @@ export const AuthContextProvider = ({ children }) => {
     const [settingVibe, setSettingVibe] = useState(false);
     const [vibeError, setVibeError] = useState(null);
     const vibeUnsubscribe = useRef(null);
+
+    // Listener refs for cleanup on logout
+    const userProfileUnsubscribe = useRef(null);
+    const walletUnsubscribe = useRef(null);
 
     // Wallet state
     const [coins, setCoins] = useState(0);
@@ -48,7 +59,7 @@ export const AuthContextProvider = ({ children }) => {
     // Configure Google Sign-In when the app starts
     useEffect(() => {
         configureGoogleSignIn();
-        
+
         // Debug: Check auth state on app start
         const checkAuthState = async () => {
             try {
@@ -81,6 +92,7 @@ export const AuthContextProvider = ({ children }) => {
             setUniversity('');
             setJob('');
             setIsOnboarding(false);
+            setSignupType(null);
             didUserEditSignup.current = { name: false, gender: false, age: false, icon: false };
             // Clear vibe state
             setCurrentVibe(null);
@@ -92,7 +104,7 @@ export const AuthContextProvider = ({ children }) => {
             }
             // Reset wallet state
             setCoins(0);
-        } catch (_e) {}
+        } catch (_e) { }
     };
 
     const updateUserPassword = async (currentPassword, newPassword) => {
@@ -224,15 +236,23 @@ export const AuthContextProvider = ({ children }) => {
                 setIsAuthenticated(true);
                 // normalize: ensure profileCompleted flag set in DB once requirements met
                 if (data.profileCompleted !== true) {
-                    try { updateDoc(userRef, { profileCompleted: true }); } catch (_e) {}
+                    try { updateDoc(userRef, { profileCompleted: true }); } catch (_e) { }
                 }
             } else if (isAuthenticated !== false) {
                 // only set pendingProfile if not logged out
                 setIsAuthenticated('pendingProfile');
             }
+        }, (error) => {
+            // Silently handle permission errors during logout
+            const errorStr = String(error?.message || error?.code || error);
+            if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                console.error('User profile listener error:', error);
+            }
         });
+        userProfileUnsubscribe.current = unsub;
         return () => {
-            try { unsub(); } catch (_e) {}
+            try { unsub(); } catch (_e) { }
+            userProfileUnsubscribe.current = null;
         };
     }, [user?.uid]);
 
@@ -248,11 +268,32 @@ export const AuthContextProvider = ({ children }) => {
             }
             const data = snap.data();
             setCoins(Number(data?.coins || 0));
+        }, (error) => {
+            // Silently handle permission errors during logout
+            const errorStr = String(error?.message || error?.code || error);
+            if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                console.error('Wallet listener error:', error);
+            }
         });
+        walletUnsubscribe.current = unsub;
         return () => {
-            try { unsub(); } catch (_e) {}
+            try { unsub(); } catch (_e) { }
+            walletUnsubscribe.current = null;
         };
     }, [user?.uid]);
+
+    // Helper to stop all listeners before logout
+    const stopAllListeners = () => {
+        if (userProfileUnsubscribe.current) {
+            try { userProfileUnsubscribe.current(); } catch (_e) { }
+            userProfileUnsubscribe.current = null;
+        }
+        if (walletUnsubscribe.current) {
+            try { walletUnsubscribe.current(); } catch (_e) { }
+            walletUnsubscribe.current = null;
+        }
+        stopVibeSubscription();
+    };
 
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, async (userFB) => {
@@ -261,7 +302,7 @@ export const AuthContextProvider = ({ children }) => {
                 console.log('👤 Firebase user:', userFB);
                 console.log('🆔 User ID:', userFB?.uid);
                 console.log('📧 User email:', userFB?.email);
-                
+
                 if (userFB) {
                     await updateIsOnline(userFB.uid, true);
                     // Fetch user data from Firestore first
@@ -269,7 +310,7 @@ export const AuthContextProvider = ({ children }) => {
                         const docRef = doc(db, 'users', userFB.uid);
                         const snap = await getDoc(docRef);
                         const data = snap.exists() ? snap.data() : {};
-                        
+
                         // Check and initialize wallet balance
                         const balanceRef = doc(db, 'users', userFB.uid, 'wallet', 'balance');
                         const balanceSnap = await getDoc(balanceRef);
@@ -284,47 +325,67 @@ export const AuthContextProvider = ({ children }) => {
                         } else {
                             setCoins(Number(balanceSnap.data()?.coins || 0));
                         }
-                        
+
                         // If user has no coins field in main doc, grant initial 1000 Bánh mì once (legacy)
                         if (data.coins === undefined) {
                             try {
                                 await updateDoc(docRef, { coins: 1000 });
-                            } catch (_e) {}
+                            } catch (_e) { }
                         }
-                        
+
                         // Set user with merged Firebase auth + Firestore data
                         setUser({
                             ...userFB,
                             ...data,
                         });
-                        
+
                         const requiredFilled = !!(data.username && data.gender && data.age && (data.profileUrl || data.photoURL));
                         const completedFlag = data.profileCompleted === true;
                         if (completedFlag || requiredFilled) {
                             if (!completedFlag && requiredFilled) {
-                                try { await updateDoc(docRef, { profileCompleted: true }); } catch (_e) {}
+                                try { await updateDoc(docRef, { profileCompleted: true }); } catch (_e) { }
                             }
                             setIsAuthenticated(true);
                             setIsOnboarding(false);
-                            
+
                             // Start vibe subscription for authenticated users
                             startVibeSubscription(userFB.uid);
-                            
+
                             // Initialize Expo Push Notifications
                             initializeNotifications(userFB.uid);
                         } else {
                             setIsAuthenticated('pendingProfile');
                             setIsOnboarding(true);
                         }
-                        
+
                         // Load current vibe from Firestore user document if available
                         if (data.currentVibe) {
-                            setCurrentVibe(data.currentVibe);
+                            // Check for expiration before setting
+                            const exp = data.currentVibe.expiresAt;
+                            let isExpired = false;
+                            if (exp) {
+                                const now = new Date();
+                                const expiry = exp.toDate ? exp.toDate() : new Date(exp);
+                                isExpired = expiry.getTime() <= now.getTime();
+                            }
+
+                            if (!isExpired) {
+                                setCurrentVibe(data.currentVibe);
+                            } else {
+                                console.log('🗑️ AuthContext: Found expired vibe in user profile, cleaning up...');
+                                setCurrentVibe(null);
+                                // Clean up expired vibe from DB
+                                if (data.currentVibe.id) {
+                                    vibeService.removeUserVibe(userFB.uid, data.currentVibe.id)
+                                        .then(() => console.log('✅ AuthContext: Expired vibe removed from DB'))
+                                        .catch(err => console.error("❌ AuthContext: Failed to cleanup expired vibe", err));
+                                }
+                            }
                         } else {
                             // Fallback: try to load from vibeService
                             loadUserVibe(userFB.uid);
                         }
-                        
+
                         // Now update cached fields carefully based on onboarding state
                         if (!isOnboarding) {
                             await updateUserData(userFB.uid);
@@ -379,7 +440,7 @@ export const AuthContextProvider = ({ children }) => {
                 setLoading(false);
             }
         });
-        
+
         return () => {
             try {
                 unsub();
@@ -394,14 +455,14 @@ export const AuthContextProvider = ({ children }) => {
             console.warn('updateUserData called without uid');
             return;
         }
-        
+
         try {
             const docRef = doc(db, 'users', uid);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 console.log("User data updated:", uid, data);
-                
+
                 // Update user state safely - merge with existing Firebase auth + Firestore data
                 setUser((prevUser) => {
                     if (!prevUser) return prevUser;
@@ -413,7 +474,7 @@ export const AuthContextProvider = ({ children }) => {
                         email: prevUser.email || data.email,
                     };
                 });
-                
+
                 // Update individual fields
                 if (!isOnboarding) {
                     setName(data.username || '');
@@ -438,9 +499,9 @@ export const AuthContextProvider = ({ children }) => {
             console.error('Error fetching user data:', error);
         }
     };
-        
-    
-    
+
+
+
     const updateIsOnline = async (uid, status) => {
         const docRef = doc(db, 'users', uid);
         const docSnap = await getDoc(docRef);
@@ -467,7 +528,7 @@ export const AuthContextProvider = ({ children }) => {
         try {
             const result = await vibeService.setUserVibe(user.uid, vibeId, customMessage, location);
             console.log('✅ AuthContext: Vibe set successfully, ID:', result);
-            
+
             // Update local state immediately
             const selectedVibe = PREDEFINED_VIBES.find(v => v.id === vibeId);
             if (selectedVibe) {
@@ -483,7 +544,7 @@ export const AuthContextProvider = ({ children }) => {
                     isActive: true,
                 };
                 setCurrentVibe(newVibe);
-                
+
                 // Also update user document with current vibe
                 try {
                     const userRef = doc(db, 'users', user.uid);
@@ -500,7 +561,7 @@ export const AuthContextProvider = ({ children }) => {
                     console.warn('Could not update user currentVibe field:', updateError);
                 }
             }
-            
+
             return result;
         } catch (error) {
             console.error('❌ AuthContext: Error setting vibe:', error);
@@ -523,7 +584,7 @@ export const AuthContextProvider = ({ children }) => {
         try {
             await vibeService.removeUserVibe(user.uid, currentVibe.id);
             setCurrentVibe(null);
-            
+
             // Also clear from user document
             try {
                 const userRef = doc(db, 'users', user.uid);
@@ -533,7 +594,7 @@ export const AuthContextProvider = ({ children }) => {
             } catch (updateError) {
                 console.warn('Could not clear user currentVibe field:', updateError);
             }
-            
+
             console.log('✅ AuthContext: Vibe removed successfully');
         } catch (error) {
             console.error('❌ AuthContext: Error removing vibe:', error);
@@ -567,7 +628,7 @@ export const AuthContextProvider = ({ children }) => {
         }
 
         console.log('🔍 Debug: Starting vibe data check for user:', user.uid);
-        
+
         try {
             // Check vibeService
             const testConnection = await vibeService.testConnection();
@@ -638,7 +699,7 @@ export const AuthContextProvider = ({ children }) => {
             const loggedInUser = response.user;
 
             await updateIsOnline(loggedInUser.uid, true);
-            await updateUserData(loggedInUser.uid); 
+            await updateUserData(loggedInUser.uid);
 
             return { success: true };
         } catch (error) {
@@ -654,7 +715,7 @@ export const AuthContextProvider = ({ children }) => {
     const loginWithGoogle = async (options = {}) => {
         const { forceChooseAccount = false } = options;
         try {
-            const result = await signInWithGoogle(async () => {}, { forceAccountSelection: forceChooseAccount });
+            const result = await signInWithGoogle(async () => { }, { forceAccountSelection: forceChooseAccount });
             if (result.success) {
                 try {
                     const docRef = doc(db, 'users', result.user.uid);
@@ -663,12 +724,13 @@ export const AuthContextProvider = ({ children }) => {
                     const requiredFilled = !!(data.username && data.gender && data.age && (data.profileUrl || data.photoURL));
                     if (data.profileCompleted || requiredFilled) {
                         if (!data.profileCompleted && requiredFilled) {
-                            try { await updateDoc(docRef, { profileCompleted: true }); } catch(_e){}
+                            try { await updateDoc(docRef, { profileCompleted: true }); } catch (_e) { }
                         }
                         // Go straight home
                         router.replace('/(tabs)/home');
                     } else {
                         console.log('➡️ Incomplete profile -> onboarding');
+                        setSignupType('google');
                         router.replace('/signup/GenderSelectionScreen');
                     }
                 } catch (e) { console.log('Profile check error', e); }
@@ -687,7 +749,7 @@ export const AuthContextProvider = ({ children }) => {
 
     const loginWithFacebook = async () => {
         try {
-            const result = await signInWithFacebook(async () => {}, { forceAccountSelection: false });
+            const result = await signInWithFacebook(async () => { }, { forceAccountSelection: false });
             if (result.success) {
                 try {
                     const docRef = doc(db, 'users', result.user.uid);
@@ -696,11 +758,12 @@ export const AuthContextProvider = ({ children }) => {
                     const requiredFilled = !!(data.username && data.gender && data.age && (data.profileUrl || data.photoURL));
                     if (data.profileCompleted || requiredFilled) {
                         if (!data.profileCompleted && requiredFilled) {
-                            try { await updateDoc(docRef, { profileCompleted: true }); } catch(_e){}
+                            try { await updateDoc(docRef, { profileCompleted: true }); } catch (_e) { }
                         }
                         router.replace('/(tabs)/home');
                     } else {
                         console.log('➡️ Incomplete profile (FB) -> onboarding');
+                        setSignupType('google');
                         router.replace('/signup/GenderSelectionScreen');
                     }
                 } catch (e) { console.log('Profile check error', e); }
@@ -715,13 +778,18 @@ export const AuthContextProvider = ({ children }) => {
     const logout = async (options = {}) => {
         const { forceFullSocial = true } = options; // default: clear Google/Facebook sessions
         try {
+            // IMPORTANT: Stop all Firestore listeners FIRST to prevent permission errors
+            stopAllListeners();
+            cleanupNotifications();
+
             if (user?.uid) {
-                await updateIsOnline(user.uid, false);
+                try {
+                    await updateIsOnline(user.uid, false);
+                } catch (_e) {
+                    // Ignore errors if already logged out
+                }
             }
-            
-            // Stop vibe subscription
-            stopVibeSubscription();
-            
+
             // Clear local state early
             setUser(null);
             setName('');
@@ -733,7 +801,7 @@ export const AuthContextProvider = ({ children }) => {
             setIsAuthenticated(false);
             setIsOnboarding(false);
             didUserEditSignup.current = { name: false, gender: false, age: false, icon: false };
-            
+
             // Clear vibe state
             setCurrentVibe(null);
             setSettingVibe(false);
@@ -772,7 +840,7 @@ export const AuthContextProvider = ({ children }) => {
                 clearSignupState();
                 setIsAuthenticated(false);
                 setIsOnboarding(false);
-                try { router.replace(navigateTo); } catch (_e) {}
+                try { router.replace(navigateTo); } catch (_e) { }
                 return { success: true };
             }
 
@@ -786,7 +854,7 @@ export const AuthContextProvider = ({ children }) => {
                 if (isTempUser && deleteAccount) {
                     try { await deleteDoc(userRef); } catch (_e) { console.log('deleteDoc failed (ok):', _e?.message); }
                 }
-            } catch (_e) {}
+            } catch (_e) { }
 
             // Delete auth user if temporary and allowed
             if (isTempUser && deleteAccount && auth.currentUser) {
@@ -798,13 +866,13 @@ export const AuthContextProvider = ({ children }) => {
             }
 
             // Always sign out social sessions to reset chooser
-            try { await signOutFromSocial(); } catch (_e) {}
+            try { await signOutFromSocial(); } catch (_e) { }
 
             clearSignupState();
             setUser(null);
             setIsAuthenticated(false);
             setIsOnboarding(false);
-            try { router.replace(navigateTo); } catch (_e) {}
+            try { router.replace(navigateTo); } catch (_e) { }
             return { success: true };
         } catch (error) {
             console.error('cancelRegistration error:', error);
@@ -812,7 +880,7 @@ export const AuthContextProvider = ({ children }) => {
             setUser(null);
             setIsAuthenticated(false);
             setIsOnboarding(false);
-            try { router.replace('/signin'); } catch (_e) {}
+            try { router.replace('/signin'); } catch (_e) { }
             return { success: false, error };
         }
     };
@@ -917,8 +985,46 @@ export const AuthContextProvider = ({ children }) => {
         setCoins(Number(b || 0));
         return b;
     };
-    
+
+    // Update user profile (for social login completion)
+
+    const updateUserProfile = async (profileData) => {
+        try {
+            if (!user?.uid) {
+                return { success: false, msg: 'Chưa đăng nhập' };
+            }
+
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+                ...profileData,
+                updatedAt: new Date(),
+            });
+
+            // Update local state
+            if (profileData.username) setName(profileData.username);
+            if (profileData.gender) setGender(profileData.gender);
+            if (profileData.age) setAge(profileData.age);
+            if (profileData.profileUrl) setIcon(profileData.profileUrl);
+            if (profileData.bio) setBio(profileData.bio);
+            if (profileData.educationLevel) setEducationLevel(profileData.educationLevel);
+            if (profileData.university) setUniversity(profileData.university);
+            if (profileData.job) setJob(profileData.job);
+
+            // If profile is now complete, update auth state
+            if (profileData.profileCompleted) {
+                setIsAuthenticated(true);
+                setIsOnboarding(false);
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error updating user profile:', error);
+            return { success: false, msg: error.message };
+        }
+    };
+
     return (
+
         <AuthContext.Provider value={{
             user, isAuthenticated, login, register, logout, logoutAndForceNextGoogleChooser,
             loginWithGoogle, loginWithGoogleForceChoose, loginWithFacebook,
@@ -935,8 +1041,12 @@ export const AuthContextProvider = ({ children }) => {
             refreshUser,
             cancelRegistration,
             isOnboarding,
+            signupType, setSignupType,
+            clearSignupState,
+            updateUserProfile,
             // Wallet
             coins,
+            refreshBalance: getWalletBalance,
             getWalletBalance,
             topupCoins,
             spendCoins,

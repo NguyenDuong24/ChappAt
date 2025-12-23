@@ -1,135 +1,166 @@
-import React, { useContext } from 'react';
+import React, { useContext, useMemo, useCallback } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { Entypo, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
-import { ThemeContext } from '../../context/ThemeContext'; // Đảm bảo đường dẫn chính xác
-import { Colors } from '../../constants/Colors'; // Đảm bảo đã khai báo màu sắc cho theme
+import { ThemeContext } from '../../context/ThemeContext';
+import { Colors } from '../../constants/Colors';
 import { View, StyleSheet } from 'react-native';
 
-
 export default function TabsLayout() {
-  const theme = useContext(ThemeContext)?.theme || 'light'; // Lấy theme từ ThemeContext
-  const router = useRouter(); // Add router hook
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
+  const router = useRouter();
 
-  // Chọn màu sắc cho tab bar icons và nền dựa trên theme
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = useMemo(() => {
+    return theme === 'dark' ? Colors.dark : Colors.light;
+  }, [theme]);
+
+
+
+  const screenOptions = useMemo(() => ({
+    tabBarShowLabel: false,
+    tabBarStyle: {
+      backgroundColor: currentThemeColors.background,
+      borderTopColor: currentThemeColors.border || 'transparent',
+    },
+    tabBarActiveTintColor: Colors.primary,
+    tabBarInactiveTintColor: currentThemeColors.text,
+    freezeOnBlur: false, // Keep tabs active for instant switching
+    lazy: false, // Preload all tabs
+    detachInactiveScreens: false, // Keep screens attached for instant switching
+    animationEnabled: false, // Disable animations for faster tab switching
+    tabBarHideOnKeyboard: true,
+  }), [currentThemeColors]);
+
+  const renderHomeIcon = useCallback(({ focused, color }) => (
+    <View style={styles.iconContainer}>
+      <Ionicons
+        name="home"
+        size={focused ? 22 : 20}
+        color={color}
+      />
+      {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+    </View>
+  ), []);
+
+  const renderExploreIcon = useCallback(({ focused, color }) => (
+    <View style={styles.iconContainer}>
+      <Feather
+        name="globe"
+        size={focused ? 22 : 20}
+        color={color}
+      />
+      {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+    </View>
+  ), []);
+
+  const renderChatIcon = useCallback(({ focused, color }) => (
+    <View style={styles.iconContainer}>
+      <Entypo
+        name="chat"
+        size={focused ? 22 : 20}
+        color={color}
+      />
+      {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+    </View>
+  ), []);
+
+  const renderGroupsIcon = useCallback(({ focused, color }) => (
+    <View style={styles.iconContainer}>
+      <Ionicons
+        name="people"
+        size={focused ? 22 : 20}
+        color={color}
+      />
+      {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+    </View>
+  ), []);
+
+  const renderProfileIcon = useCallback(({ focused, color }) => (
+    <View style={styles.iconContainer}>
+      <FontAwesome
+        name="user-circle-o"
+        size={focused ? 22 : 20}
+        color={color}
+      />
+      {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
+    </View>
+  ), []);
 
   return (
-    <>
-      <Tabs
-        listeners={{
+    <Tabs
+      screenOptions={screenOptions}
+    >
+      <Tabs.Screen
+        name="home"
+        options={{
+          tabBarIcon: renderHomeIcon,
+          headerShown: false,
+          unmountOnBlur: false,
+          freezeOnBlur: true,
+        }}
+      />
+      <Tabs.Screen
+        name="explore"
+        options={{
+          headerShown: false,
+          tabBarIcon: renderExploreIcon,
+          unmountOnBlur: false,
+          freezeOnBlur: true,
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          headerShown: false,
+          tabBarIcon: renderChatIcon,
+          unmountOnBlur: false,
+          freezeOnBlur: true,
+        }}
+      />
+      <Tabs.Screen
+        name="groups"
+        options={{
+          headerShown: false,
+          tabBarIcon: renderGroupsIcon,
+          unmountOnBlur: false,
+          freezeOnBlur: true,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        listeners={({ navigation, route }) => ({
           tabPress: (e) => {
-            // Nếu đang ở tab profile, reset về màn hình gốc
-            if (e.target?.includes('profile')) {
+            const state = navigation.getState();
+            const isFocused = state.routes[state.index].name === route.name;
+
+            if (isFocused) {
+              e.preventDefault();
               router.replace('/(tabs)/profile');
             }
-          },
+          }
+        })}
+        options={{
+          headerShown: false,
+          tabBarIcon: renderProfileIcon,
         }}
-        screenOptions={{
-          tabBarShowLabel: false, // Loại bỏ văn bản dưới biểu tượng
-          tabBarStyle: {
-            backgroundColor: currentThemeColors.background, // Đổi màu nền cho tab bar
-          },
-        }}
-      >
-        <Tabs.Screen
-          name="home"
-          options={{
-            tabBarIcon: ({ focused }) => (
-              <View style={styles.iconContainer}>
-                <Ionicons
-                  name="home"
-                  size={focused ? 22 : 20}
-                  color={focused ? Colors.primary : currentThemeColors.text}
-                />
-                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
-              </View>
-            ),
-            headerShown: false,
-            unmountOnBlur: false, // keep home mounted so list state isn't reset when navigating away
-          }}
-        />
-        <Tabs.Screen
-          name="explore"
-          options={{
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-              <View style={styles.iconContainer}>
-                <Feather
-                  name="globe"
-                  size={focused ? 22 : 20}
-                  color={focused ? Colors.primary : currentThemeColors.text}
-                />
-                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
-              </View>
-            ),
-            unmountOnBlur: false, // keep explore mounted so state isn't reset when navigating away
-          }}
-        />
-        <Tabs.Screen
-          name="chat"
-          options={{
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-              <View style={styles.iconContainer}>
-                <Entypo
-                  name="chat"
-                  size={focused ? 22 : 20}
-                  color={focused ? Colors.primary : currentThemeColors.text}
-                />
-                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
-              </View>
-            ),
-            unmountOnBlur: false, // keep chat list mounted so it returns to same state
-          }}
-        />
-        <Tabs.Screen
-          name="groups"
-          options={{
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-              <View style={styles.iconContainer}>
-                <Ionicons
-                  name="people"
-                  size={focused ? 22 : 20}
-                  color={focused ? Colors.primary : currentThemeColors.text}
-                />
-                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
-              </View>
-            ),
-            unmountOnBlur: false, // keep groups mounted so state isn't reset when navigating away
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            headerShown: false,
-            tabBarIcon: ({ focused }) => (
-              <View style={styles.iconContainer}>
-                <FontAwesome
-                  name="user-circle-o"
-                  size={focused ? 22 : 20}
-                  color={focused ? Colors.primary : currentThemeColors.text}
-                />
-                {focused && <View style={[styles.indicator, { backgroundColor: Colors.primary }]} />}
-              </View>
-            ),
-          }}
-        />
-      </Tabs>
-    </>
+      />
+    </Tabs>
   );
 }
 
-// Style cho màn hình
 const styles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    height: 40, // Fixed height to prevent layout shifts
+    width: 40,
   },
   indicator: {
     height: 3,
     width: 20,
-    marginTop: 5,
+    marginTop: 4,
     borderRadius: 2,
+    position: 'absolute',
+    bottom: 0,
   },
 });

@@ -12,6 +12,7 @@ import EditMessageModal from '@/components/chat/EditMessageModal';
 import MessageReactions from '@/components/chat/MessageReactions';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import GiftMessage from '@/components/chat/GiftMessage';
+import { useTranslation } from 'react-i18next';
 
 // Expanded color palette - 20 distinct colors for better distribution
 const AVATAR_COLORS = [
@@ -40,14 +41,14 @@ const AVATAR_COLORS = [
 // Consistent color assignment based on user ID
 const getUserColor = (userId: string): string[] => {
   if (!userId) return AVATAR_COLORS[0];
-  
+
   // Create a simple hash from userId
   let hash = 0;
   for (let i = 0; i < userId.length; i++) {
     hash = userId.charCodeAt(i) + ((hash << 5) - hash);
     hash = hash & hash; // Convert to 32bit integer
   }
-  
+
   // Get positive index
   const index = Math.abs(hash) % AVATAR_COLORS.length;
   return AVATAR_COLORS[index];
@@ -76,14 +77,14 @@ const StatusIcon = ({ status, isOverlay = false }: { status: string, isOverlay?:
   return <MaterialIcons name={iconName} size={12} color={color} />;
 };
 
-const MessageAvatar = ({ 
-  profileUrl, 
+const MessageAvatar = ({
+  profileUrl,
   senderName,
   userId,
   size = 40,
-  showOnlineIndicator = false 
-}: { 
-  profileUrl: string; 
+  showOnlineIndicator = false
+}: {
+  profileUrl: string;
   senderName: string;
   userId: string;
   size?: number;
@@ -91,10 +92,10 @@ const MessageAvatar = ({
 }) => {
   const [imageError, setImageError] = useState(false);
   const avatarColors = useMemo(() => getUserColor(userId), [userId]);
-  
+
   if (!profileUrl || imageError) {
     const initial = senderName ? senderName.charAt(0).toUpperCase() : '?';
-    
+
     return (
       <View style={[styles.avatarContainer, { width: size, height: size }]}>
         <LinearGradient
@@ -118,14 +119,14 @@ const MessageAvatar = ({
     <View style={[styles.avatarContainer, { width: size, height: size }]}>
       <CustomImage
         source={profileUrl}
-        style={{ 
-          width: size, 
-          height: size, 
+        style={{
+          width: size,
+          height: size,
           borderRadius: size / 2,
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.2)',
         }}
-        onLongPress={() => {}}
+        onLongPress={() => { }}
       />
       {showOnlineIndicator && (
         <View style={[styles.onlineIndicator, { width: size * 0.3, height: size * 0.3, right: -2, bottom: -2 }]} />
@@ -145,9 +146,9 @@ interface GroupMessageItemProps {
   onUserPress?: (userId: string) => void;
 }
 
-const GroupMessageItem: React.FC<GroupMessageItemProps> = ({ 
-  message, 
-  currentUser, 
+const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
+  message,
+  currentUser,
   groupId = '',
   onReply,
   onMessageLayout,
@@ -155,6 +156,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
   onReport,
   onUserPress,
 }) => {
+  const { t } = useTranslation();
   const isCurrentUser = message.uid === currentUser?.uid;
   const [showTime, setShowTime] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
@@ -164,8 +166,8 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   // Get consistent name color for this user
-  const nameColor = useMemo(() => 
-    getNameColor(message.uid, theme), 
+  const nameColor = useMemo(() =>
+    getNameColor(message.uid, theme),
     [message.uid, theme]
   );
 
@@ -295,7 +297,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
 
   return (
     <>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.messageContainer, isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage]}
         onPress={handlePress}
         onLongPress={handleLongPress}
@@ -304,9 +306,9 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
         onLayout={onContainerLayout}
       >
         {!isCurrentUser && (
-          <MessageAvatar 
-            profileUrl={message?.senderProfileUrl || message?.profileUrl} 
-            senderName={message?.senderName || message?.displayName || 'Unknown'}
+          <MessageAvatar
+            profileUrl={message?.senderProfileUrl || message?.profileUrl}
+            senderName={message?.senderName || message?.displayName || t('groups.user')}
             userId={message?.uid}
             size={32}
           />
@@ -315,7 +317,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
           {/* Sender name for group messages (only for received messages) */}
           {!isCurrentUser && (
             <Text style={[styles.senderName, { color: nameColor }]}>
-              {message?.senderName || message?.displayName || 'Unknown'}
+              {message?.senderName || message?.displayName || t('groups.user')}
             </Text>
           )}
 
@@ -323,29 +325,29 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
           {message?.replyTo && (
             <View style={[
               styles.replyContainer,
-              { 
-                backgroundColor: isCurrentUser 
-                  ? 'rgba(255,255,255,0.1)' 
+              {
+                backgroundColor: isCurrentUser
+                  ? 'rgba(255,255,255,0.1)'
                   : theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
                 borderLeftColor: isCurrentUser ? 'rgba(255,255,255,0.5)' : currentThemeColors.tint,
                 marginBottom: 6,
               }
-            ]}> 
+            ]}>
               <View style={styles.replyContent}>
                 <Text style={[
-                  styles.replySender, 
+                  styles.replySender,
                   { color: isCurrentUser ? 'rgba(255,255,255,0.85)' : currentThemeColors.tint }
                 ]}>
                   {message.replyTo.senderName}
                 </Text>
-                <Text 
+                <Text
                   style={[
-                    styles.replyText, 
+                    styles.replyText,
                     { color: isCurrentUser ? 'rgba(255,255,255,0.65)' : currentThemeColors.subtleText }
-                  ]} 
+                  ]}
                   numberOfLines={2}
                 >
-                  {message.replyTo.imageUrl ? '📷 Hình ảnh' : message.replyTo.text}
+                  {message.replyTo.imageUrl ? `📷 ${t('groups.image')}` : message.replyTo.text}
                 </Text>
               </View>
             </View>
@@ -372,7 +374,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
                 {message?.isPinned && (
                   <View style={[styles.pinBadge, { backgroundColor: currentThemeColors.tint }]}>
                     <MaterialCommunityIcons name="pin" size={12} color="#FFFFFF" />
-                    <Text style={styles.pinText}>Pinned</Text>
+                    <Text style={styles.pinText}>{t('chat.pinned_message')}</Text>
                   </View>
                 )}
 
@@ -385,10 +387,10 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
                   />
                 ) : message?.imageUrl ? (
                   <View style={styles.imageWrapper}>
-                    <CustomImage 
-                      source={message.imageUrl} 
+                    <CustomImage
+                      source={message.imageUrl}
                       style={styles.messageImage}
-                      onLongPress={handleLongPress} 
+                      onLongPress={handleLongPress}
                     />
                     {message.text && (
                       <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : currentThemeColors.text, marginTop: 8 }]}>
@@ -448,7 +450,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
                 )}
                 {message.isEdited && (
                   <Text style={[styles.editedLabel, { color: isCurrentUser ? 'rgba(255,255,255,0.6)' : currentThemeColors.subtleText }]}>
-                    đã chỉnh sửa
+                    {t('chat.edited')}
                   </Text>
                 )}
               </View>
@@ -463,18 +465,18 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
               currentUserId={currentUser?.uid}
             />
           )}
-          
+
           {showTime && (
             <View style={[styles.detailedTimeContainer, { alignSelf: isCurrentUser ? 'flex-end' : 'flex-start' }]}>
               <Text style={[styles.detailedTimeText, { color: currentThemeColors.subtleText }]}>
-                {message?.createdAt?.toDate?.().toLocaleString('vi-VN') || 'N/A'}
+                {message?.createdAt?.toDate?.().toLocaleString(t('common.locale') === 'vi' ? 'vi-VN' : 'en-US') || 'N/A'}
               </Text>
             </View>
           )}
         </View>
         {isCurrentUser && (
-          <MessageAvatar 
-            profileUrl={currentUser?.profileUrl || currentUser?.photoURL} 
+          <MessageAvatar
+            profileUrl={currentUser?.profileUrl || currentUser?.photoURL}
             senderName={currentUser?.displayName || currentUser?.username}
             userId={currentUser?.uid}
             size={32}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { InteractionManager } from 'react-native';
 import { useAuth } from '@/context/authContext';
 import { optimizedNotificationService } from '@/services/optimizedServices';
 import { HashtagService } from '@/services/hashtagService';
@@ -62,16 +63,16 @@ export const useExploreData = (): UseExploreDataReturn => {
         () => HashtagService.getTrendingHashtagsToday(4),
         { maxRetries: 3, initialDelay: 1000 }
       );
-      
+
       // Normalize hashtag data format
       const normalizedHashtags = hashtags.map((item: any) => {
         if (typeof item === 'string') {
           return { tag: item.startsWith('#') ? item : `#${item}`, count: 0 };
         }
-        
+
         const tag = item?.tag || item?.name || item?.hashtag || '';
         const count = item?.count || item?.total || item?.usage || 0;
-        
+
         return {
           tag: tag.startsWith('#') ? tag : `#${tag}`,
           count: count
@@ -83,7 +84,7 @@ export const useExploreData = (): UseExploreDataReturn => {
       console.error('Error loading trending hashtags:', error);
       const errorMessage = FirebaseErrorHandler.getUserFriendlyMessage(error);
       setError(errorMessage);
-      
+
       // Fallback data if service fails
       setTrendingHashtags([
         { tag: '#trending', count: 1234 },
@@ -98,19 +99,19 @@ export const useExploreData = (): UseExploreDataReturn => {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Execute both operations concurrently but handle errors independently
       const results = await Promise.allSettled([
         refreshNotifications(),
         refreshHashtags()
       ]);
-      
+
       // Check for any errors
       const errors = results
         .filter(result => result.status === 'rejected')
         .map(result => (result as PromiseRejectedResult).reason?.message || 'Unknown error');
-      
+
       if (errors.length > 0) {
         setError(`Some data failed to load: ${errors.join(', ')}`);
       }
@@ -125,15 +126,18 @@ export const useExploreData = (): UseExploreDataReturn => {
   // Initial load with debounce
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    
+
     const loadInitialData = async () => {
       // Clear any existing timeout
       if (timeoutId) clearTimeout(timeoutId);
-      
-      // Debounce to prevent rapid re-loading when user changes
-      timeoutId = setTimeout(async () => {
-        await refresh();
-      }, 100);
+
+      // Wait for navigation/tab switch animations to complete
+      InteractionManager.runAfterInteractions(() => {
+        // Debounce to prevent rapid re-loading when user changes
+        timeoutId = setTimeout(async () => {
+          await refresh();
+        }, 100);
+      });
     };
 
     if (user?.uid) {
@@ -189,7 +193,7 @@ export const useExploreData = (): UseExploreDataReturn => {
         );
       } catch (error) {
         console.error('Error setting up real-time notifications:', error);
-        
+
         // Retry after delay if initial setup fails
         retryTimeout = setTimeout(() => {
           setupRealtimeNotifications();

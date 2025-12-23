@@ -10,6 +10,7 @@ import {
   Share,
   Linking,
   Image,
+  Modal,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -17,7 +18,6 @@ import FeedbackModalSimple from '@/components/common/FeedbackModalSimple';
 import ReportModalSimple from '@/components/common/ReportModalSimple';
 import HelpSupportModalSimple from '@/components/common/HelpSupportModalSimple';
 import BackupRestoreModal from '@/components/common/BackupRestoreModal';
-import PrivacySecurityModal from '@/components/common/PrivacySecurityModal';
 import DataManagementModal from '@/components/common/DataManagementModal';
 import TestModal from '@/components/common/TestModal';
 import { useRouter } from 'expo-router';
@@ -25,6 +25,7 @@ import { submitFeedback, submitReport, submitSupportRequest } from '@/services/s
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
 
 interface SettingsScreenProps {
   currentUser?: any;
@@ -34,15 +35,17 @@ interface SettingsScreenProps {
 }
 
 const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = false }: SettingsScreenProps) => {
+  const { t, i18n } = useTranslation();
+
   // Modal states
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [reportVisible, setReportVisible] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
   const [backupVisible, setBackupVisible] = useState(false);
-  const [privacyVisible, setPrivacyVisible] = useState(false);
   const [dataManagementVisible, setDataManagementVisible] = useState(false);
   const [testModalVisible, setTestModalVisible] = useState(false);
-  
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
+
   // Settings states
   const [notifications, setNotifications] = useState(true);
   const [messagePreview, setMessagePreview] = useState(true);
@@ -53,13 +56,18 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
   const router = useRouter();
   const { user, refreshUser } = useAuth();
 
+  const changeLanguage = (lng: string) => {
+    i18n.changeLanguage(lng);
+    setLanguageModalVisible(false);
+  };
+
   const openEditProfile = () => {
     try {
       // Primary (group names like (tabs) are omitted in path resolution)
       router.push('/profile/EditProfile');
     } catch (e) {
       // Fallback in case explicit grouped path is needed
-      try { router.push('/(tabs)/profile/EditProfile'); } catch {}
+      try { router.push('/(tabs)/profile/EditProfile'); } catch { }
     }
   };
 
@@ -86,39 +94,39 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       if (val === false) {
         await updateDoc(ref, { isOnline: false });
       }
-      try { await refreshUser?.(); } catch {}
+      try { await refreshUser?.(); } catch { }
     } catch (e) {
-      Alert.alert('Lỗi', 'Không thể cập nhật trạng thái online');
+      Alert.alert(t('common.error'), t('settings.online_status_error', { defaultValue: 'Could not update online status' }));
     }
   }
 
   const settingsSections = [
     {
-      title: 'Tài khoản',
+      title: t('settings.title'),
       items: [
         {
           icon: 'shield-account',
-          title: 'Quyền riêng tư & Bảo mật',
-          subtitle: 'Quản lý quyền riêng tư và bảo mật',
-          onPress: () => setPrivacyVisible(true),
+          title: t('settings.privacy'),
+          subtitle: t('settings.privacy_desc'),
+          onPress: () => router.push('/(screens)/user/PrivacySettingsScreen'),
           color: colors.success,
         },
         {
           icon: 'key',
-          title: 'Đổi mật khẩu',
-          subtitle: 'Cập nhật mật khẩu tài khoản',
-          onPress: () => Alert.alert('Chức năng', 'Mở màn hình đổi mật khẩu'),
+          title: t('settings.change_password'),
+          subtitle: t('settings.change_password_desc'),
+          onPress: () => router.push('/(screens)/user/ChangePasswordScreen'),
           color: colors.warning,
         },
       ],
     },
     {
-      title: 'Chat',
+      title: t('chat.title'),
       items: [
         {
           icon: 'account-clock',
-          title: 'Trạng thái online',
-          subtitle: 'Hiển thị khi bạn đang online',
+          title: t('settings.online_status'),
+          subtitle: t('settings.online_status_desc'),
           isSwitch: true,
           value: onlineStatus,
           onToggle: handleToggleOnlineStatus,
@@ -127,12 +135,24 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       ],
     },
     {
-      title: 'Giao diện',
+      title: t('settings.language'),
+      items: [
+        {
+          icon: 'translate',
+          title: t('settings.select_language'),
+          subtitle: i18n.language === 'vi' ? t('settings.vietnamese') : t('settings.english'),
+          onPress: () => setLanguageModalVisible(true),
+          color: colors.primary,
+        }
+      ],
+    },
+    {
+      title: t('settings.appearance'),
       items: [
         {
           icon: 'theme-light-dark',
-          title: 'Chế độ tối',
-          subtitle: 'Chuyển đổi giữa sáng và tối',
+          title: t('settings.dark_mode'),
+          subtitle: t('settings.appearance_desc'),
           isSwitch: true,
           value: isDarkMode,
           onToggle: onThemeToggle,
@@ -141,59 +161,59 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       ],
     },
     {
-      title: 'Hỗ trợ',
+      title: t('settings.support'),
       items: [
         {
           icon: 'help-circle',
-          title: 'Trung tâm trợ giúp',
-          subtitle: 'FAQ, hướng dẫn và hỗ trợ',
+          title: t('settings.help_center'),
+          subtitle: t('settings.help_center_desc'),
           onPress: () => setHelpVisible(true),
           color: colors.primary,
         },
         {
           icon: 'message-star',
-          title: 'Gửi phản hồi',
-          subtitle: 'Chia sẻ ý kiến về ứng dụng',
+          title: t('settings.send_feedback'),
+          subtitle: t('settings.send_feedback_desc'),
           onPress: () => setFeedbackVisible(true),
           color: colors.success,
         },
         {
           icon: 'flag',
-          title: 'Báo cáo sự cố',
-          subtitle: 'Báo cáo lỗi hoặc sự cố',
+          title: t('settings.report_issue'),
+          subtitle: t('settings.report_issue_desc'),
           onPress: () => setReportVisible(true),
           color: colors.danger,
         },
         {
           icon: 'share-variant',
-          title: 'Chia sẻ ứng dụng',
-          subtitle: 'Giới thiệu ứng dụng cho bạn bè',
+          title: t('settings.share_app'),
+          subtitle: t('settings.share_app_desc'),
           onPress: () => handleShare(),
           color: colors.primary,
         },
       ],
     },
     {
-      title: 'Pháp lý',
+      title: t('settings.legal'),
       items: [
         {
           icon: 'file-document',
-          title: 'Điều khoản sử dụng',
-          subtitle: 'Xem điều khoản và điều kiện',
+          title: t('settings.terms'),
+          subtitle: t('settings.terms_desc'),
           onPress: () => handleOpenURL('https://example.com/terms'),
           color: colors.subtleText,
         },
         {
           icon: 'shield-check',
-          title: 'Chính sách bảo mật',
-          subtitle: 'Tìm hiểu cách bảo vệ dữ liệu',
+          title: t('settings.privacy_policy'),
+          subtitle: t('settings.privacy_policy_desc'),
           onPress: () => handleOpenURL('https://example.com/privacy'),
           color: colors.subtleText,
         },
         {
           icon: 'information',
-          title: 'Về ứng dụng',
-          subtitle: 'Phiên bản 1.0.0',
+          title: t('settings.about'),
+          subtitle: t('settings.about_desc'),
           onPress: () => showAppInfo(),
           color: colors.subtleText,
         },
@@ -204,11 +224,11 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
   const handleShare = async () => {
     try {
       await Share.share({
-        message: 'Hãy thử ứng dụng chat tuyệt vời này! Tải về tại: https://example.com/download',
-        title: 'Chia sẻ ChappAt',
+        message: t('settings.share_message'),
+        title: t('settings.share_title'),
       });
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể chia sẻ ứng dụng');
+      Alert.alert(t('common.error'), t('settings.share_error', { defaultValue: 'Could not share app' }));
     }
   };
 
@@ -218,29 +238,29 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       if (supported) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Lỗi', 'Không thể mở liên kết');
+        Alert.alert(t('common.error'), t('common.error_url', { defaultValue: 'Could not open link' }));
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể mở liên kết');
+      Alert.alert(t('common.error'), t('common.error_url', { defaultValue: 'Could not open link' }));
     }
   };
 
   const showAppInfo = () => {
     Alert.alert(
-      'Về ChappAt',
-      'ChappAt - Ứng dụng chat hiện đại\nPhiên bản: 1.0.0\nBản quyền © 2025\n\nPhát triển bởi: Your Team',
-      [{ text: 'OK' }]
+      t('settings.about'),
+      `ChappAt - ${t('home.subtitle')}\n${t('settings.about_desc')}\nBản quyền © 2025\n\nPhát triển bởi: Your Team`,
+      [{ text: t('common.ok') }]
     );
   };
 
   const handleSignOut = () => {
     Alert.alert(
-      'Đăng xuất',
-      'Bạn có chắc chắn muốn đăng xuất?',
+      t('profile.logout'),
+      t('settings.logout_confirm'),
       [
-        { text: 'Hủy', style: 'cancel' },
-        { 
-          text: 'Đăng xuất', 
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('profile.logout'),
           style: 'destructive',
           onPress: () => onSignOut?.(),
         },
@@ -262,22 +282,14 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
   };
 
   const handleReportSubmit = async (report: any) => {
-    console.log('📤 handleReportSubmit called with:', report);
-    console.log('👤 currentUser:', currentUser);
-    console.log('🔐 user from useAuth:', user);
-    console.log('🔥 Auth state check:', { isAuthenticated: user ? true : false, user });
-
     try {
       const userInfo = {
         uid: currentUser?.uid || user?.uid,
         email: currentUser?.email || user?.email,
         username: currentUser?.username || currentUser?.displayName || user?.username || user?.displayName,
       };
-      console.log('👨‍💼 User info for report:', userInfo);
-
       const sanitized = { ...report, images: Array.isArray(report?.images) ? report.images : [] };
       await submitReport(sanitized, userInfo);
-      console.log('✅ Report submitted successfully from SettingsScreen');
     } catch (e) {
       console.log('❌ submitReport error:', e);
       throw e;
@@ -298,57 +310,14 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
             setOnlineStatus(data.showOnlineStatus);
           }
         }
-      } catch {}
+      } catch { }
     })();
   }, [currentUser?.uid, user?.uid]);
-
-  const renderSettingItem = (item: any) => {
-    if (item.isSwitch) {
-      return (
-        <View key={item.title} style={[styles.settingItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-          <View style={styles.settingLeft}>
-            <View style={[styles.settingIcon, { backgroundColor: `${item.color}20` }]}>
-              <MaterialCommunityIcons name={item.icon} size={20} color={item.color} />
-            </View>
-            <View style={styles.settingContent}>
-              <Text style={[styles.settingTitle, { color: colors.text }]}>{item.title}</Text>
-              <Text style={[styles.settingSubtitle, { color: colors.subtleText }]}>{item.subtitle}</Text>
-            </View>
-          </View>
-          <Switch
-            value={item.value}
-            onValueChange={item.onToggle}
-            trackColor={{ false: colors.border, true: `${item.color}40` }}
-            thumbColor={item.value ? item.color : colors.subtleText}
-          />
-        </View>
-      );
-    }
-
-    return (
-      <TouchableOpacity
-        key={item.title}
-        style={[styles.settingItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}
-        onPress={item.onPress}
-      >
-        <View style={styles.settingLeft}>
-          <View style={[styles.settingIcon, { backgroundColor: `${item.color}20` }]}>
-            <MaterialCommunityIcons name={item.icon} size={20} color={item.color} />
-          </View>
-          <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text }]}>{item.title}</Text>
-            <Text style={[styles.settingSubtitle, { color: colors.subtleText }]}>{item.subtitle}</Text>
-          </View>
-        </View>
-        <MaterialCommunityIcons name="chevron-right" size={20} color={colors.subtleText} />
-      </TouchableOpacity>
-    );
-  };
 
   const renderSection = (section: any) => (
     <View key={section.title} style={styles.section}>
       <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
-      <View style={[styles.sectionContent, { backgroundColor: colors.surface, borderColor: colors.border }] }>
+      <View style={[styles.sectionContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         {section.items.map((it: any) => (
           it.isSwitch ? (
             <View key={it.title} style={[styles.settingItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -389,16 +358,13 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-
         {/* User Info Display */}
         <View style={[styles.userInfo, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Image source={{ uri: user?.profileUrl || 'https://via.placeholder.com/50' }} style={styles.userAvatar} />
           <View style={styles.userDetails}>
-            <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || user?.username || 'User'}</Text>
-            <Text style={[styles.userEmail, { color: colors.subtleText }]}>{user?.email || 'No email'}</Text>
+            <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || user?.username || t('chat.unknown_user')}</Text>
+            <Text style={[styles.userEmail, { color: colors.subtleText }]}>{user?.email || t('settings.no_email')}</Text>
           </View>
           <TouchableOpacity style={styles.editProfileButton} onPress={openEditProfile}>
             <MaterialCommunityIcons name="pencil" size={20} color={colors.primary} />
@@ -415,12 +381,51 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
             style={styles.signOutGradient}
           >
             <MaterialCommunityIcons name="logout" size={20} color="#FFFFFF" />
-            <Text style={styles.signOutText}>Đăng xuất</Text>
+            <Text style={styles.signOutText}>{t('profile.logout')}</Text>
           </LinearGradient>
         </TouchableOpacity>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Language Selection Modal */}
+      <Modal
+        visible={languageModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setLanguageModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t('settings.select_language')}</Text>
+              <TouchableOpacity onPress={() => setLanguageModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.languageOption, i18n.language === 'vi' && { backgroundColor: `${colors.primary}20` }]}
+              onPress={() => changeLanguage('vi')}
+            >
+              <Text style={[styles.languageText, { color: colors.text }, i18n.language === 'vi' && { color: colors.primary, fontWeight: 'bold' }]}>
+                {t('settings.vietnamese')}
+              </Text>
+              {i18n.language === 'vi' && <MaterialCommunityIcons name="check" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.languageOption, i18n.language === 'en' && { backgroundColor: `${colors.primary}20` }]}
+              onPress={() => changeLanguage('en')}
+            >
+              <Text style={[styles.languageText, { color: colors.text }, i18n.language === 'en' && { color: colors.primary, fontWeight: 'bold' }]}>
+                {t('settings.english')}
+              </Text>
+              {i18n.language === 'en' && <MaterialCommunityIcons name="check" size={20} color={colors.primary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modals */}
       <FeedbackModalSimple
@@ -453,10 +458,10 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
               email: currentUser?.email || user?.email,
               username: currentUser?.username || currentUser?.displayName || user?.username || user?.displayName,
             });
-            Alert.alert('✅ Thành công', 'Yêu cầu hỗ trợ đã được gửi thành công!');
+            Alert.alert('✅ ' + t('common.success'), t('settings.support_success'));
           } catch (e) {
             console.error('Submit support request error:', e);
-            Alert.alert('❌ Lỗi', 'Không thể gửi yêu cầu hỗ trợ. Vui lòng thử lại.');
+            Alert.alert('❌ ' + t('common.error'), t('settings.support_error'));
           }
         }}
       />
@@ -464,11 +469,6 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       <BackupRestoreModal
         visible={backupVisible}
         onClose={() => setBackupVisible(false)}
-      />
-
-      <PrivacySecurityModal
-        visible={privacyVisible}
-        onClose={() => setPrivacyVisible(false)}
       />
 
       <DataManagementModal
@@ -599,6 +599,39 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 40,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  languageOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  languageText: {
+    fontSize: 16,
   },
 });
 

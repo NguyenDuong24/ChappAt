@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type ThemeMode = 'light' | 'dark';
@@ -49,7 +49,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     });
   };
 
-  const value: ThemeContextType = React.useMemo(() => ({
+  const value: ThemeContextType = useMemo(() => ({
     theme,
     toggleTheme,
     setTheme,

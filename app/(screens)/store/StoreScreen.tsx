@@ -11,6 +11,7 @@ import {
     FlatList,
     StatusBar,
     Platform,
+    ScrollView,
 } from 'react-native';
 import { useAuth } from '@/context/authContext';
 import { coinServerApi, getErrorMessage } from '@/src/services/coinServerApi';
@@ -18,9 +19,12 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import Feather from '@expo/vector-icons/Feather';
-import { useRouter } from 'expo-router';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
+import AvatarFrame from '@/components/common/AvatarFrame';
+import { useUserContext } from '@/context/UserContext';
 import Animated, {
     FadeInDown,
     FadeInRight,
@@ -48,17 +52,20 @@ const ITEM_ICONS: { [key: string]: any } = {
 
 const StoreScreen = () => {
     const { t, i18n } = useTranslation();
-    const { user, coins, refreshBalance } = useAuth();
+    const { user, coins, banhMi, refreshBalance, activeFrame, setActiveFrame } = useAuth();
     const [loading, setLoading] = useState(true);
     const [purchasing, setPurchasing] = useState<string | null>(null);
     const [items, setItems] = useState<any[]>([]);
     const [myItems, setMyItems] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState<'shop' | 'my-items'>('shop');
+    const params = useLocalSearchParams();
+    const [activeTab, setActiveTab] = useState<'shop' | 'my-items'>((params.initialTab as 'shop' | 'my-items') || 'shop');
+    const [selectedCategory, setSelectedCategory] = useState<string>((params.initialCategory as string) || 'all');
 
     const router = useRouter();
     const themeContext = useContext(ThemeContext);
     const theme = themeContext?.theme || 'light';
     const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const { invalidateUserCache } = useUserContext();
 
     useEffect(() => {
         fetchData();
@@ -83,11 +90,19 @@ const StoreScreen = () => {
     };
 
     const handlePurchase = async (item: any) => {
-        if (coins < item.price) {
-            Alert.alert(t('store.insufficient_coins'), t('store.insufficient_coins_desc'), [
-                { text: t('common.cancel'), style: 'cancel' },
-                { text: t('wallet.topup'), onPress: () => router.push('/(screens)/wallet/CoinWalletScreen') }
-            ]);
+        const currencyType = item.currencyType || 'coins';
+        const userBalance = currencyType === 'coins' ? coins : banhMi;
+        const currencyLabel = currencyType === 'coins' ? t('wallet.coins') : t('wallet.banhMi');
+
+        if (userBalance < item.price) {
+            Alert.alert(
+                currencyType === 'coins' ? t('store.insufficient_coins') : t('chat.gift_insufficient'),
+                currencyType === 'coins' ? t('store.insufficient_coins_desc') : t('chat.gift_insufficient_desc'),
+                [
+                    { text: t('common.cancel'), style: 'cancel' },
+                    { text: t('wallet.topup'), onPress: () => router.push('/(screens)/wallet/CoinWalletScreen') }
+                ]
+            );
             return;
         }
 
@@ -116,14 +131,54 @@ const StoreScreen = () => {
         );
     };
 
-    const handleUseItem = (item: any) => {
-        // For now, most items are applied automatically on purchase
-        // We can add specific logic here if needed
+    const handleUseItem = async (item: any) => {
+        if (item.item?.category === 'avatar_frame' || item.category === 'avatar_frame') {
+            const frameType = item.item?.frameType || item.frameType;
+            if (!frameType) return;
+
+            if (activeFrame === frameType) {
+                // Already equipped, maybe offer to unequip?
+                Alert.alert(
+                    t('common.info'),
+                    t('store.frame_already_equipped'),
+                    [
+                        { text: t('common.ok') },
+                        {
+                            text: t('store.unequip'),
+                            onPress: async () => {
+                                try {
+                                    await coinServerApi.equipFrame('', null);
+                                    setActiveFrame(null);
+                                    if (user?.uid) invalidateUserCache(user.uid);
+                                    Alert.alert(t('common.success'), t('store.unequip_success'));
+                                } catch (error: any) {
+                                    Alert.alert(t('common.error'), getErrorMessage(error));
+                                }
+                            }
+                        }
+                    ]
+                );
+                return;
+            }
+
+            try {
+                await coinServerApi.equipFrame(frameType, item.id);
+                setActiveFrame(frameType);
+                if (user?.uid) invalidateUserCache(user.uid);
+                Alert.alert(t('common.success'), t('store.equip_success'));
+            } catch (error: any) {
+                Alert.alert(t('common.error'), getErrorMessage(error));
+            }
+            return;
+        }
+
+        // For other items
         Alert.alert(t('common.success'), t('store.item_active_desc', { name: item.item?.name || item.name }));
     };
 
     const renderShopItem = ({ item, index }: { item: any, index: number }) => {
         const isOwned = myItems.some(myI => myI.itemId === item.id);
+        const currencyType = item.currencyType || 'coins';
 
         return (
             <Animated.View
@@ -137,16 +192,26 @@ const StoreScreen = () => {
                     activeOpacity={0.8}
                 >
                     <View style={styles.itemImageContainer}>
-                        {ITEM_ICONS[item.id] ? (
+                        {item.category === 'avatar_frame' ? (
+                            <View style={styles.framePreviewContainer}>
+                                <AvatarFrame
+                                    avatarUrl={user?.profileUrl || user?.icon}
+                                    frameType={item.frameType}
+                                    size={ITEM_WIDTH * 0.6}
+                                />
+                            </View>
+                        ) : ITEM_ICONS[item.id] ? (
                             <Image source={ITEM_ICONS[item.id]} style={styles.itemImage} />
                         ) : item.imageUrl ? (
                             <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
                         ) : (
                             <LinearGradient
-                                colors={theme === 'dark' ? ['#2A2A2A', '#1A1A1A'] : ['#F5F5F5', '#E0E0E0']}
+                                colors={theme === 'dark' ? ['#333', '#111'] : ['#F8F9FA', '#E9ECEF']}
                                 style={styles.itemPlaceholder}
                             >
-                                <Text style={styles.itemEmoji}>{item.emoji || '🎁'}</Text>
+                                <View style={styles.emojiContainer}>
+                                    <Text style={styles.itemEmoji}>{item.emoji || '🎁'}</Text>
+                                </View>
                             </LinearGradient>
                         )}
                         {isOwned && (
@@ -167,7 +232,11 @@ const StoreScreen = () => {
 
                         <View style={styles.priceRow}>
                             <View style={styles.priceTag}>
-                                <Text style={styles.coinIcon}>🪙</Text>
+                                {currencyType === 'coins' ? (
+                                    <Text style={styles.coinIcon}>🪙</Text>
+                                ) : (
+                                    <MaterialCommunityIcons name="baguette" size={16} color="#FFD700" />
+                                )}
                                 <Text style={styles.priceText}>{item.price}</Text>
                             </View>
 
@@ -195,50 +264,92 @@ const StoreScreen = () => {
         );
     };
 
-    const renderMyItem = ({ item, index }: { item: any, index: number }) => (
-        <Animated.View
-            entering={FadeInDown.delay(index * 100).springify()}
-            style={styles.itemCardContainer}
-        >
-            <View style={[styles.itemCard, { backgroundColor: currentThemeColors.cardBackground }]}>
-                <View style={styles.itemImageContainer}>
-                    {ITEM_ICONS[item.itemId] ? (
-                        <Image source={ITEM_ICONS[item.itemId]} style={styles.itemImage} />
-                    ) : item.item?.imageUrl ? (
-                        <Image source={{ uri: item.item.imageUrl }} style={styles.itemImage} />
-                    ) : (
-                        <LinearGradient
-                            colors={theme === 'dark' ? ['#2A2A2A', '#1A1A1A'] : ['#F5F5F5', '#E0E0E0']}
-                            style={styles.itemPlaceholder}
-                        >
-                            <Text style={styles.itemEmoji}>{item.item?.emoji || '🎁'}</Text>
-                        </LinearGradient>
-                    )}
-                </View>
-                <View style={styles.itemInfo}>
-                    <Text style={[styles.itemName, { color: currentThemeColors.text }]} numberOfLines={1}>
-                        {item.item?.name || item.itemName || t('store.item')}
-                    </Text>
-                    <Text style={[styles.itemDesc, { color: currentThemeColors.subtleText }]}>
-                        {t('store.purchased_on')}: {new Date(item.purchasedAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
-                    </Text>
+    const renderMyItem = ({ item, index }: { item: any, index: number }) => {
+        const isFrame = item.item?.category === 'avatar_frame' || item.category === 'avatar_frame';
+        const frameType = item.item?.frameType || item.frameType;
+        const isEquipped = isFrame && activeFrame === frameType;
 
-                    {item.expiresAt && (
-                        <Text style={[styles.expiryText, { color: '#FF6347' }]}>
-                            {t('store.expires_at')}: {new Date(item.expiresAt).toLocaleDateString()}
+        return (
+            <Animated.View
+                entering={FadeInDown.delay(index * 100).springify()}
+                style={styles.itemCardContainer}
+            >
+                <View style={[styles.itemCard, { backgroundColor: currentThemeColors.cardBackground }]}>
+                    <View style={styles.itemImageContainer}>
+                        {isFrame ? (
+                            <View style={styles.framePreviewContainer}>
+                                <AvatarFrame
+                                    avatarUrl={user?.profileUrl || user?.icon}
+                                    frameType={frameType}
+                                    size={ITEM_WIDTH * 0.6}
+                                />
+                            </View>
+                        ) : ITEM_ICONS[item.itemId] ? (
+                            <Image source={ITEM_ICONS[item.itemId]} style={styles.itemImage} />
+                        ) : item.item?.imageUrl ? (
+                            <Image source={{ uri: item.item.imageUrl }} style={styles.itemImage} />
+                        ) : (
+                            <LinearGradient
+                                colors={theme === 'dark' ? ['#2A2A2A', '#1A1A1A'] : ['#F5F5F5', '#E0E0E0']}
+                                style={styles.itemPlaceholder}
+                            >
+                                <Text style={styles.itemEmoji}>{item.item?.emoji || '🎁'}</Text>
+                            </LinearGradient>
+                        )}
+                        {isEquipped && (
+                            <BlurView intensity={80} style={styles.ownedBadge}>
+                                <Feather name="star" size={12} color="#8A2BE2" />
+                                <Text style={[styles.ownedText, { color: '#8A2BE2' }]}>{t('store.active')}</Text>
+                            </BlurView>
+                        )}
+                    </View>
+                    <View style={styles.itemInfo}>
+                        <Text style={[styles.itemName, { color: currentThemeColors.text }]} numberOfLines={1}>
+                            {item.item?.name || item.itemName || t('store.item')}
                         </Text>
-                    )}
+                        <Text style={[styles.itemDesc, { color: currentThemeColors.subtleText }]}>
+                            {t('store.purchased_on')}: {new Date(item.purchasedAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
+                        </Text>
 
-                    <TouchableOpacity
-                        style={styles.useButton}
-                        onPress={() => handleUseItem(item)}
-                    >
-                        <Text style={styles.useButtonText}>{t('store.use')}</Text>
-                    </TouchableOpacity>
+                        {item.expiresAt && (
+                            <Text style={[styles.expiryText, { color: '#FF6347' }]}>
+                                {t('store.expires_at')}: {new Date(item.expiresAt).toLocaleDateString()}
+                            </Text>
+                        )}
+
+                        <TouchableOpacity
+                            style={[
+                                styles.useButton,
+                                isEquipped && { backgroundColor: 'rgba(138, 43, 226, 0.1)', borderWidth: 1, borderColor: '#8A2BE2' }
+                            ]}
+                            onPress={() => handleUseItem(item)}
+                        >
+                            <Text style={[styles.useButtonText, isEquipped && { color: '#8A2BE2' }]}>
+                                {isEquipped ? t('store.active') : (isFrame ? t('store.equip') : t('store.use'))}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
-        </Animated.View>
-    );
+            </Animated.View>
+        );
+    };
+
+    const filteredItems = (activeTab === 'shop' ? items : myItems).filter(item => {
+        const category = activeTab === 'shop' ? item.category : (item.item?.category || item.category);
+
+        if (selectedCategory === 'all') return true;
+        if (selectedCategory === 'frames') return category === 'avatar_frame';
+        if (selectedCategory === 'vip') return category === 'vip';
+        if (selectedCategory === 'boosts') return category === 'boost';
+        return true;
+    });
+
+    const categories = [
+        { id: 'all', label: t('common.all') },
+        { id: 'frames', label: t('store.avatar_frames') },
+        { id: 'vip', label: 'VIP' },
+        { id: 'boosts', label: t('store.boosts') },
+    ];
 
     return (
         <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
@@ -266,9 +377,19 @@ const StoreScreen = () => {
                 <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.balanceContainer}>
                     <BlurView intensity={30} tint="light" style={styles.balanceBlur}>
                         <Text style={styles.balanceLabel}>{t('wallet.balance')}</Text>
-                        <View style={styles.balanceRow}>
-                            <Text style={styles.balanceCoinIcon}>🪙</Text>
-                            <Text style={styles.balanceValue}>{Number(coins || 0).toLocaleString()}</Text>
+                        <View style={styles.balancesWrapper}>
+                            <View style={styles.balanceItem}>
+                                <Text style={styles.balanceCoinIcon}>🪙</Text>
+                                <Text style={styles.balanceValue}>{Number(coins || 0).toLocaleString()}</Text>
+                            </View>
+
+                            <View style={styles.balanceDivider} />
+
+                            <View style={styles.balanceItem}>
+                                <MaterialCommunityIcons name="baguette" size={24} color="#FFD700" style={{ marginRight: 4 }} />
+                                <Text style={styles.balanceValue}>{Number(banhMi || 0).toLocaleString()}</Text>
+                            </View>
+
                             <TouchableOpacity
                                 style={styles.addCoinsButton}
                                 onPress={() => router.push('/(screens)/wallet/CoinWalletScreen')}
@@ -307,6 +428,30 @@ const StoreScreen = () => {
                 </TouchableOpacity>
             </View>
 
+            {/* Category Filter */}
+            <View style={styles.categoryContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
+                    {categories.map(cat => (
+                        <TouchableOpacity
+                            key={cat.id}
+                            style={[
+                                styles.categoryTab,
+                                selectedCategory === cat.id && styles.activeCategoryTab,
+                                { backgroundColor: selectedCategory === cat.id ? '#8A2BE2' : 'transparent' }
+                            ]}
+                            onPress={() => setSelectedCategory(cat.id)}
+                        >
+                            <Text style={[
+                                styles.categoryTabText,
+                                { color: selectedCategory === cat.id ? '#fff' : currentThemeColors.subtleText }
+                            ]}>
+                                {cat.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
             {loading ? (
                 <View style={styles.loadingCenter}>
                     <ActivityIndicator size="large" color="#8A2BE2" />
@@ -314,7 +459,7 @@ const StoreScreen = () => {
                 </View>
             ) : (
                 <FlatList
-                    data={activeTab === 'shop' ? items : myItems}
+                    data={filteredItems}
                     renderItem={activeTab === 'shop' ? renderShopItem : renderMyItem}
                     keyExtractor={(item) => item.id}
                     numColumns={COLUMN_COUNT}
@@ -401,16 +546,27 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         letterSpacing: 1.5,
     },
-    balanceRow: {
+    balancesWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        justifyContent: 'center',
+        gap: 15,
+    },
+    balanceItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    balanceDivider: {
+        width: 1,
+        height: 20,
+        backgroundColor: 'rgba(255,255,255,0.2)',
     },
     balanceCoinIcon: {
-        fontSize: 28,
+        fontSize: 24,
+        marginRight: 4,
     },
     balanceValue: {
-        fontSize: 36,
+        fontSize: 24,
         fontWeight: '900',
         color: '#fff',
     },
@@ -494,6 +650,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    emojiContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+    },
+    framePreviewContainer: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.03)',
+    },
     itemEmoji: {
         fontSize: 64,
     },
@@ -526,6 +701,27 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         lineHeight: 18,
         height: 36,
+    },
+    categoryContainer: {
+        marginBottom: 15,
+    },
+    categoryScroll: {
+        paddingHorizontal: 20,
+        gap: 10,
+    },
+    categoryTab: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(138, 43, 226, 0.2)',
+    },
+    activeCategoryTab: {
+        borderColor: '#8A2BE2',
+    },
+    categoryTabText: {
+        fontSize: 13,
+        fontWeight: '700',
     },
     priceRow: {
         flexDirection: 'row',

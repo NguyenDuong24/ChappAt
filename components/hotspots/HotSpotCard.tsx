@@ -2,11 +2,11 @@ import React from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Dimensions
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { HotSpot } from '@/types/hotSpots';
 import { formatTime } from '@/utils/common';
@@ -71,14 +71,14 @@ const HotSpotCard: React.FC<HotSpotCardProps> = ({
     >
       {/* Hot Spot Image */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: hotSpot.thumbnail }} style={styles.image} />
-        
+        <Image source={{ uri: hotSpot.thumbnail }} style={styles.image} contentFit="cover" />
+
         {/* Type Badge */}
         <View style={[styles.typeBadge, hotSpot.type === 'event' ? styles.eventBadge : styles.placeBadge]}>
-          <MaterialIcons 
-            name={hotSpot.type === 'event' ? 'event' : 'place'} 
-            size={12} 
-            color="white" 
+          <MaterialIcons
+            name={hotSpot.type === 'event' ? 'event' : 'place'}
+            size={12}
+            color="white"
           />
           <Text style={styles.typeBadgeText}>
             {hotSpot.type === 'event' ? 'Sự kiện' : 'Địa điểm'}
@@ -120,14 +120,14 @@ const HotSpotCard: React.FC<HotSpotCardProps> = ({
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.categoryContainer}>
-            <MaterialIcons 
-              name={getCategoryIcon(hotSpot.category) as any} 
-              size={16} 
-              color="#666" 
+            <MaterialIcons
+              name={getCategoryIcon(hotSpot.category) as any}
+              size={16}
+              color="#666"
             />
             <Text style={styles.category}>{hotSpot.category}</Text>
           </View>
-          
+
           {hotSpot.type === 'event' && hotSpot.eventInfo && (
             <Text style={styles.price}>
               {formatPrice(hotSpot.eventInfo.price)}
@@ -157,7 +157,7 @@ const HotSpotCard: React.FC<HotSpotCardProps> = ({
                 {formatDate(hotSpot.eventInfo.startDate)}
               </Text>
             </View>
-            
+
             {hotSpot.eventInfo.maxParticipants && (
               <Text style={styles.participantsText}>
                 {hotSpot.eventInfo.currentParticipants}/{hotSpot.eventInfo.maxParticipants} người
@@ -172,17 +172,17 @@ const HotSpotCard: React.FC<HotSpotCardProps> = ({
             <FontAwesome5 name="heart" size={12} color="#FF6B6B" />
             <Text style={styles.statText}>{hotSpot.stats.interested}</Text>
           </View>
-          
+
           <View style={styles.statItem}>
             <FontAwesome5 name="users" size={12} color="#4ECDC4" />
             <Text style={styles.statText}>{hotSpot.stats.joined}</Text>
           </View>
-          
+
           <View style={styles.statItem}>
             <FontAwesome5 name="map-marker-alt" size={12} color="#45B7D1" />
             <Text style={styles.statText}>{hotSpot.stats.checkedIn}</Text>
           </View>
-          
+
           {hotSpot.stats.rating > 0 && (
             <View style={styles.statItem}>
               <FontAwesome5 name="star" size={12} color="#FFD93D" />
@@ -260,7 +260,6 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
   },
   typeBadge: {
     position: 'absolute',

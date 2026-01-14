@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 interface SimpleImageProps {
@@ -8,10 +9,10 @@ interface SimpleImageProps {
   fallbackIcon?: string;
 }
 
-const SimpleImage: React.FC<SimpleImageProps> = ({ 
-  source, 
-  style, 
-  fallbackIcon = 'image-outline' 
+const SimpleImage: React.FC<SimpleImageProps> = ({
+  source,
+  style,
+  fallbackIcon = 'image-outline'
 }) => {
   const [hasError, setHasError] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -48,7 +49,9 @@ const SimpleImage: React.FC<SimpleImageProps> = ({
         style={[StyleSheet.absoluteFill, { opacity: isLoading ? 0 : 1 }]}
         onError={handleError}
         onLoad={handleLoad}
-        resizeMode="cover"
+        contentFit="cover"
+        transition={200}
+        cachePolicy="memory-disk"
       />
     </View>
   );

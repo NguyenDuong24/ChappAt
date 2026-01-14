@@ -21,12 +21,11 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useTranslation } from 'react-i18next';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { useNotificationContext } from '@/context/NotificationProvider';
 import NotificationNavigationService from '@/services/core/NotificationNavigationService';
 import { db } from '@/firebaseConfig';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, getDocs, limit } from 'firebase/firestore';
 import { NotificationActionsService } from '@/services/notificationActions';
 
 const { width, height } = Dimensions.get('window');
@@ -53,9 +52,7 @@ const NotificationsScreen = () => {
     const { user } = useAuth();
     const { expoPushToken } = useNotificationContext();
 
-    const themeContext = useContext(ThemeContext);
-    const theme = themeContext?.theme || 'dark';
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const colors = useThemedColors();
 
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
@@ -173,14 +170,16 @@ const NotificationsScreen = () => {
                 q = query(
                     notificationsRef,
                     where('receiverId', '==', user.uid),
-                    orderBy('timestamp', 'desc')
+                    orderBy('timestamp', 'desc'),
+                    limit(50)
                 );
             } catch (indexError) {
                 console.log('📝 Using fallback query (index not ready)');
                 // Fallback to simple query without ordering
                 q = query(
                     notificationsRef,
-                    where('receiverId', '==', user.uid)
+                    where('receiverId', '==', user.uid),
+                    limit(50)
                 );
             }
 
@@ -224,7 +223,8 @@ const NotificationsScreen = () => {
                     // Retry with simple query
                     const simpleQ = query(
                         notificationsRef,
-                        where('receiverId', '==', user.uid)
+                        where('receiverId', '==', user.uid),
+                        limit(50)
                     );
 
                     const retryListener = onSnapshot(simpleQ, (retrySnapshot) => {
@@ -298,13 +298,15 @@ const NotificationsScreen = () => {
                 q = query(
                     notificationsRef,
                     where('receiverId', '==', user.uid),
-                    orderBy('timestamp', 'desc')
+                    orderBy('timestamp', 'desc'),
+                    limit(50)
                 );
             } catch (indexError) {
                 console.log('📝 Using fallback query for initial load');
                 q = query(
                     notificationsRef,
-                    where('receiverId', '==', user.uid)
+                    where('receiverId', '==', user.uid),
+                    limit(50)
                 );
             }
 
@@ -347,7 +349,8 @@ const NotificationsScreen = () => {
 
                     const simpleQ = query(
                         notificationsRef,
-                        where('receiverId', '==', user.uid)
+                        where('receiverId', '==', user.uid),
+                        limit(50)
                     );
 
                     const retrySnapshot = await getDocs(simpleQ);
@@ -687,17 +690,17 @@ const NotificationsScreen = () => {
     const styles = StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: currentThemeColors.background,
+            backgroundColor: colors.background,
         },
 
         // Header - Instagram style
         header: {
-            backgroundColor: currentThemeColors.background,
+            backgroundColor: colors.background,
             paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight! + 10,
             paddingHorizontal: 16,
             paddingBottom: 12,
             borderBottomWidth: 0.5,
-            borderBottomColor: currentThemeColors.border,
+            borderBottomColor: colors.border,
         },
 
         headerContent: {
@@ -720,7 +723,7 @@ const NotificationsScreen = () => {
         headerTitle: {
             fontSize: 22,
             fontWeight: '700',
-            color: currentThemeColors.text,
+            color: colors.text,
         },
 
         headerRight: {
@@ -731,11 +734,11 @@ const NotificationsScreen = () => {
 
         // Filter Section - Instagram style
         filterContainer: {
-            backgroundColor: currentThemeColors.background,
+            backgroundColor: colors.background,
             paddingHorizontal: 16,
             paddingVertical: 12,
             borderBottomWidth: 0.5,
-            borderBottomColor: currentThemeColors.border,
+            borderBottomColor: colors.border,
         },
 
         filterTabs: {
@@ -748,20 +751,20 @@ const NotificationsScreen = () => {
             paddingVertical: 8,
             marginRight: 12,
             borderRadius: 20,
-            backgroundColor: currentThemeColors.surface,
+            backgroundColor: colors.surface,
             borderWidth: 1,
-            borderColor: currentThemeColors.border,
+            borderColor: colors.border,
         },
 
         filterTabActive: {
-            backgroundColor: currentThemeColors.tint,
-            borderColor: currentThemeColors.tint,
+            backgroundColor: colors.primary,
+            borderColor: colors.primary,
         },
 
         filterTabText: {
             fontSize: 14,
             fontWeight: '600',
-            color: currentThemeColors.text,
+            color: colors.text,
         },
 
         filterTabTextActive: {
@@ -780,14 +783,14 @@ const NotificationsScreen = () => {
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: currentThemeColors.surface,
+            backgroundColor: colors.surface,
             borderWidth: 1,
-            borderColor: currentThemeColors.border,
+            borderColor: colors.border,
         },
 
         categoryChipActive: {
-            backgroundColor: currentThemeColors.tint,
-            borderColor: currentThemeColors.tint,
+            backgroundColor: colors.primary,
+            borderColor: colors.primary,
         },
 
         // Notification List
@@ -798,16 +801,14 @@ const NotificationsScreen = () => {
         // Notification Item - Instagram style
         notificationItem: {
             flexDirection: 'row',
-            alignItems: 'flex-start',
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            backgroundColor: currentThemeColors.background,
+            padding: 16,
+            backgroundColor: colors.background,
             borderBottomWidth: 0.5,
-            borderBottomColor: currentThemeColors.border,
+            borderBottomColor: colors.border,
         },
 
         notificationItemUnread: {
-            backgroundColor: currentThemeColors.tint + '05',
+            backgroundColor: colors.primary + '05',
         },
 
         // Avatar container
@@ -820,19 +821,19 @@ const NotificationsScreen = () => {
             width: 44,
             height: 44,
             borderRadius: 22,
-            backgroundColor: currentThemeColors.surface,
+            backgroundColor: colors.surface,
         },
 
         avatarPlaceholder: {
             width: 44,
             height: 44,
             borderRadius: 22,
-            backgroundColor: currentThemeColors.surface,
+            backgroundColor: colors.surface,
             alignItems: 'center',
             justifyContent: 'center',
         },
 
-        // Notification type indicator
+        // Type indicator
         typeIndicator: {
             position: 'absolute',
             bottom: -2,
@@ -843,7 +844,7 @@ const NotificationsScreen = () => {
             alignItems: 'center',
             justifyContent: 'center',
             borderWidth: 2,
-            borderColor: currentThemeColors.background,
+            borderColor: colors.background,
         },
 
         // Content area
@@ -854,7 +855,7 @@ const NotificationsScreen = () => {
         notificationText: {
             fontSize: 14,
             lineHeight: 18,
-            color: currentThemeColors.text,
+            color: colors.text,
             marginBottom: 4,
         },
 
@@ -864,7 +865,7 @@ const NotificationsScreen = () => {
 
         timestamp: {
             fontSize: 12,
-            color: currentThemeColors.mutedText,
+            color: colors.subtleText,
             marginBottom: 8,
         },
 
@@ -883,13 +884,13 @@ const NotificationsScreen = () => {
         },
 
         primaryButton: {
-            backgroundColor: currentThemeColors.tint,
+            backgroundColor: colors.primary,
         },
 
         secondaryButton: {
             backgroundColor: 'transparent',
             borderWidth: 1,
-            borderColor: currentThemeColors.border,
+            borderColor: colors.border,
         },
 
         primaryButtonText: {
@@ -899,7 +900,7 @@ const NotificationsScreen = () => {
         },
 
         secondaryButtonText: {
-            color: currentThemeColors.text,
+            color: colors.text,
             fontSize: 14,
             fontWeight: '600',
         },
@@ -912,7 +913,7 @@ const NotificationsScreen = () => {
             width: 8,
             height: 8,
             borderRadius: 4,
-            backgroundColor: currentThemeColors.tint,
+            backgroundColor: colors.primary,
         },
 
         // Empty state
@@ -931,14 +932,14 @@ const NotificationsScreen = () => {
         emptyTitle: {
             fontSize: 20,
             fontWeight: '700',
-            color: currentThemeColors.text,
+            color: colors.text,
             marginBottom: 8,
             textAlign: 'center',
         },
 
         emptySubtitle: {
             fontSize: 16,
-            color: currentThemeColors.subtleText,
+            color: colors.subtleText,
             textAlign: 'center',
             lineHeight: 22,
         },
@@ -952,7 +953,7 @@ const NotificationsScreen = () => {
 
         loadingText: {
             fontSize: 16,
-            color: currentThemeColors.subtleText,
+            color: colors.subtleText,
             marginTop: 16,
             fontWeight: '500',
         },
@@ -961,9 +962,9 @@ const NotificationsScreen = () => {
     if (loading) {
         return (
             <View style={styles.container}>
-                <StatusBar barStyle="light-content" backgroundColor={Colors.primary} />
+                <StatusBar barStyle={colors.isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <ActivityIndicator size="large" color={colors.primary} />
                     <Text style={styles.loadingText}>{t('common.loading')}</Text>
                 </View>
             </View>
@@ -973,7 +974,7 @@ const NotificationsScreen = () => {
     // Instagram-style notification renderer
     const renderNotificationItem = ({ item: notification }: { item: Notification }) => {
         const typeIcon = getNotificationIcon(notification.type);
-        const typeColor = getNotificationColor(notification.type);
+        const typeColor = getNotificationColor(notification.type, colors);
 
         return (
             <TouchableOpacity
@@ -1147,8 +1148,8 @@ const NotificationsScreen = () => {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar
-                barStyle={theme === 'dark' ? "light-content" : "dark-content"}
-                backgroundColor={currentThemeColors.background}
+                barStyle={colors.isDark ? "light-content" : "dark-content"}
+                backgroundColor={colors.background}
             />
 
             {/* Instagram-style Header */}
@@ -1162,7 +1163,7 @@ const NotificationsScreen = () => {
                             <Ionicons
                                 name="arrow-back"
                                 size={24}
-                                color={currentThemeColors.text}
+                                color={colors.text}
                             />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>{t('notifications.title')}</Text>
@@ -1173,7 +1174,7 @@ const NotificationsScreen = () => {
                             <Ionicons
                                 name="checkmark-done"
                                 size={24}
-                                color={currentThemeColors.text}
+                                color={colors.text}
                             />
                         </TouchableOpacity>
                     </View>
@@ -1218,15 +1219,15 @@ const NotificationsScreen = () => {
                 {/* Category Chips */}
                 <View style={styles.categoriesContainer}>
                     {[
-                        { key: 'all', icon: 'apps', color: currentThemeColors.tint },
+                        { key: 'all', icon: 'apps', color: colors.primary },
                         { key: 'like', icon: 'favorite', color: '#E91E63' },
                         { key: 'comment', icon: 'comment', color: '#FF9800' },
                         { key: 'follow', icon: 'person-add', color: '#4CAF50' },
-                        { key: 'message', icon: 'message', color: Colors.info },
-                        { key: 'hot_spot', icon: 'place', color: Colors.warning },
+                        { key: 'message', icon: 'message', color: colors.info },
+                        { key: 'hot_spot', icon: 'place', color: colors.warning },
                         { key: 'accepted_invite', icon: 'how-to-reg', color: '#22C55E' },
-                        { key: 'call', icon: 'call', color: Colors.error },
-                        { key: 'system', icon: 'settings', color: Colors.gray500 }
+                        { key: 'call', icon: 'call', color: colors.error },
+                        { key: 'system', icon: 'settings', color: '#64748B' }
                     ].map((cat) => (
                         <TouchableOpacity
                             key={cat.key}
@@ -1256,8 +1257,8 @@ const NotificationsScreen = () => {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={handleRefresh}
-                        tintColor={currentThemeColors.tint}
-                        colors={[currentThemeColors.tint]}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
                     />
                 }
                 style={styles.notificationsList}
@@ -1266,7 +1267,7 @@ const NotificationsScreen = () => {
                         <Ionicons
                             name="notifications-off-outline"
                             size={64}
-                            color={currentThemeColors.mutedText}
+                            color={colors.subtleText}
                             style={styles.emptyIcon}
                         />
                         <Text style={styles.emptyTitle}>
@@ -1303,19 +1304,19 @@ const getNotificationIcon = (type: string) => {
     }
 };
 
-const getNotificationColor = (type: string) => {
+const getNotificationColor = (type: string, colors: any) => {
     switch (type) {
-        case 'message': return Colors.info;
-        case 'call': return Colors.error;
+        case 'message': return colors.info;
+        case 'call': return colors.error;
         case 'friend_request': return '#4CAF50';
-        case 'hot_spot': return Colors.warning;
+        case 'hot_spot': return colors.warning;
         case 'event_pass': return '#9C27B0';
         case 'like': return '#E91E63';
         case 'comment': return '#FF9800';
         case 'follow': return '#2196F3';
         case 'mention': return '#00BCD4';
         case 'accepted_invite': return '#4CAF50';
-        default: return Colors.gray500;
+        default: return '#64748B';
     }
 };
 

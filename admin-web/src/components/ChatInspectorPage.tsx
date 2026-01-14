@@ -33,6 +33,7 @@ import {
 import { collection, query, orderBy, limit, onSnapshot, doc, getDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { format } from 'date-fns';
+import AvatarFrame from './common/AvatarFrame';
 
 interface Message {
     id: string;
@@ -185,10 +186,13 @@ export default function ChatInspectorPage() {
                 }}
             >
                 <Box display="flex" alignItems="center" width="100%" mb={1}>
-                    <Avatar src={avatarUrl} sx={{ mr: 1.5 }}>
-                        {displayName[0]?.toUpperCase()}
-                    </Avatar>
-                    <Box flex={1}>
+                    <AvatarFrame
+                        avatarUrl={avatarUrl}
+                        frameType={user?.activeFrame}
+                        size={40}
+                        username={displayName}
+                    />
+                    <Box flex={1} ml={1.5}>
                         <Typography variant="subtitle2" fontWeight="bold" color="primary">
                             {displayName}
                         </Typography>
@@ -339,9 +343,12 @@ export default function ChatInspectorPage() {
                                             const pUser = userCache[pid];
                                             return (
                                                 <Box key={idx} display="flex" alignItems="center" gap={1}>
-                                                    <Avatar src={pUser?.profileUrl} sx={{ width: 24, height: 24 }}>
-                                                        {pUser?.displayName?.[0] || '?'}
-                                                    </Avatar>
+                                                    <AvatarFrame
+                                                        avatarUrl={pUser?.profileUrl || ''}
+                                                        frameType={pUser?.activeFrame}
+                                                        size={24}
+                                                        username={pUser?.displayName || pUser?.username}
+                                                    />
                                                     <Typography variant="caption">
                                                         {pUser?.displayName || pUser?.username || pid.slice(0, 8)}
                                                     </Typography>

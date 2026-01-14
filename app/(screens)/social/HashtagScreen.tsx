@@ -13,15 +13,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Chip } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ThemeContext } from '@/context/ThemeContext';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { useAuth } from '@/context/authContext';
 import { useUserContext } from '@/context/UserContext';
-import { Colors } from '@/constants/Colors';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getPostsByHashtag } from '@/utils/hashtagUtils';
-import PostCardStandard from '@/components/profile/PostCardStandard';
+import PostCard from '@/components/profile/PostCard';
 import { doc, updateDoc, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import { followService } from '@/services/followService';
 
 interface PostData {
   id: string;
@@ -38,18 +38,26 @@ interface PostData {
 }
 
 const HashtagScreen: React.FC = () => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const colors = useThemedColors();
   const { user } = useAuth();
-  const { getUserInfo } = useUserContext();
+  const { getUserInfo, getUsersInfo } = useUserContext();
   const router = useRouter();
   const params = useLocalSearchParams();
 
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userInfoCache, setUserInfoCache] = useState<{ [key: string]: any }>({});
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (user?.uid) {
+      followService.getFollowing(user.uid).then(follows => {
+        setFollowingIds(follows.map(f => f.followingId));
+      });
+    }
+  }, [user?.uid]);
+
+
 
   const hashtag = params.hashtag as string || '';
   const displayHashtag = hashtag.startsWith('#') ? hashtag : `#${hashtag}`;
@@ -86,29 +94,7 @@ const HashtagScreen: React.FC = () => {
 
       setPosts(sortedPosts);
 
-      // Preload thông tin user cho tất cả posts
-      const userIds = [...new Set(sortedPosts.map(post => post.userID))];
-      const userInfoPromises = userIds.map(async (userId) => {
-        if (!userInfoCache[userId]) {
-          try {
-            const userInfo = await getUserInfo(userId);
-            return { userId, userInfo };
-          } catch (error) {
-            console.error('Error fetching user info:', error);
-            return { userId, userInfo: null };
-          }
-        }
-        return { userId, userInfo: userInfoCache[userId] };
-      });
 
-      const userInfoResults = await Promise.all(userInfoPromises);
-      const newUserInfoCache = { ...userInfoCache };
-      userInfoResults.forEach(({ userId, userInfo }) => {
-        if (userInfo) {
-          newUserInfoCache[userId] = userInfo;
-        }
-      });
-      setUserInfoCache(newUserInfoCache);
 
     } catch (error) {
       console.error('🔍 Error loading hashtag posts:', error);
@@ -174,57 +160,60 @@ const HashtagScreen: React.FC = () => {
     }
   };
 
+  const handleToggleFollow = async (targetUserId: string) => {
+    if (!user?.uid) return;
+    try {
+      await followService.followUser(user.uid, targetUserId);
+      setFollowingIds(prev => [...prev, targetUserId]);
+    } catch (error) {
+      console.error('Error following user:', error);
+    }
+  };
+
   const renderPostItem = ({ item: post }: { item: PostData }) => {
-    const userInfo = userInfoCache[post.userID];
     const isOwner = user?.uid === post.userID;
 
-    // Ensure required fields have default values
     const postWithDefaults = {
       ...post,
       likes: post.likes || [],
       shares: post.shares || 0,
-      comments: post.comments || [],
-      username: userInfo?.username || post.username || 'Unknown User',
-      userAvatar: userInfo?.avatar || userInfo?.profileImageUrl
+      comments: post.comments || []
     };
 
     return (
-      <PostCardStandard
+      <PostCard
         post={postWithDefaults}
-        currentUserId={user?.uid || ''}
-        currentUserAvatar={user?.avatar || user?.profileImageUrl}
         onLike={handleLike}
-        onComment={addComment}
-        onShare={handleShare}
-        onDelete={handleDeletePost}
-        onUserPress={(userId) => router.push(`/(screens)/user/UserProfileScreen?userId=${userId}` as any)}
-        isOwner={isOwner}
+        onDeletePost={handleDeletePost}
+        owner={isOwner}
+        isFollowing={followingIds.includes(post.userID)}
+        onToggleFollow={() => handleToggleFollow(post.userID)}
       />
     );
   };
 
   const renderHeader = () => (
-    <View style={[styles.header, { backgroundColor: currentThemeColors.surface }]}>
+    <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => router.back()}
       >
-        <MaterialIcons name="arrow-back" size={24} color={currentThemeColors.text} />
+        <MaterialIcons name="arrow-back" size={24} color={colors.text} />
       </TouchableOpacity>
 
       <View style={styles.headerContent}>
-        <Text style={[styles.hashtagTitle, { color: Colors.primary }]}>
+        <Text style={[styles.hashtagTitle, { color: colors.primary }]}>
           {displayHashtag}
         </Text>
-        <Text style={[styles.postCount, { color: currentThemeColors.subtleText }]}>
+        <Text style={[styles.postCount, { color: colors.subtleText }]}>
           {posts.length} bài viết • Sắp xếp mới nhất
         </Text>
       </View>
 
       <View style={styles.headerActions}>
         <Chip
-          style={[styles.trendingChip, { backgroundColor: Colors.accent + '20' }]}
-          textStyle={{ color: Colors.accent, fontSize: 12 }}
+          style={[styles.trendingChip, { backgroundColor: colors.accent + '20' }]}
+          textStyle={{ color: colors.accent, fontSize: 12 }}
           compact
         >
           🔥 Hot
@@ -235,16 +224,16 @@ const HashtagScreen: React.FC = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <MaterialIcons name="tag" size={80} color={currentThemeColors.subtleText} />
-      <Text style={[styles.emptyTitle, { color: currentThemeColors.text }]}>
+      <MaterialIcons name="tag" size={80} color={colors.subtleText} />
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>
         Chưa có bài viết nào
       </Text>
-      <Text style={[styles.emptySubtitle, { color: currentThemeColors.subtleText }]}>
+      <Text style={[styles.emptySubtitle, { color: colors.subtleText }]}>
         Chưa có ai sử dụng hashtag {displayHashtag}.{'\n'}
         Hãy là người đầu tiên tạo bài viết với hashtag này!
       </Text>
       <TouchableOpacity
-        style={[styles.createPostButton, { backgroundColor: Colors.primary }]}
+        style={[styles.createPostButton, { backgroundColor: colors.primary }]}
         onPress={() => {
           router.dismiss();
           router.push('/(tabs)/profile/create');
@@ -256,29 +245,11 @@ const HashtagScreen: React.FC = () => {
     </View>
   );
 
-  if (loading) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        <StatusBar
-          barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
-          backgroundColor={currentThemeColors.background}
-        />
-        {renderHeader()}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>
-            Đang tải bài viết cho {displayHashtag}...
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar
-        barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
-        backgroundColor={currentThemeColors.background}
+        barStyle={colors.isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
       />
       <FlatList
         data={posts}
@@ -290,8 +261,8 @@ const HashtagScreen: React.FC = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            colors={[Colors.primary]}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -313,7 +284,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

@@ -72,8 +72,8 @@ const EnhancedGroupList = ({
   // Refs for optimization
   const isMountedRef = useRef(true);
   const groupsMapRef = useRef(new Map());
-  const typingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
-  const onlineTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const typingTimeoutRef = useRef<Record<string, any>>({});
+  const onlineTimeoutRef = useRef<Record<string, any>>({});
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -95,7 +95,7 @@ const EnhancedGroupList = ({
 
   useEffect(() => {
     if (!displayGroups || !Array.isArray(displayGroups) || displayGroups.length === 0 || !currentUser?.uid) {
-      setSortedGroups([]);
+      setSortedGroups(prev => prev.length === 0 ? prev : []);
       return;
     }
 
@@ -114,7 +114,10 @@ const EnhancedGroupList = ({
         return bTime - aTime;
       });
 
-      setSortedGroups(sorted);
+      setSortedGroups(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(sorted)) return prev;
+        return sorted;
+      });
     };
 
     // Batch setup listeners

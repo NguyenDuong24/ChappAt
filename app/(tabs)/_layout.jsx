@@ -4,11 +4,13 @@ import { Entypo, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
 import { ThemeContext } from '../../context/ThemeContext';
 import { Colors } from '../../constants/Colors';
 import { View, StyleSheet } from 'react-native';
+import { RefreshProvider, useRefresh } from '../../context/RefreshContext';
 
-export default function TabsLayout() {
+function TabsLayoutContent() {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const router = useRouter();
+  const { triggerRefresh } = useRefresh();
 
   const currentThemeColors = useMemo(() => {
     return theme === 'dark' ? Colors.dark : Colors.light;
@@ -92,6 +94,17 @@ export default function TabsLayout() {
     >
       <Tabs.Screen
         name="home"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            const state = navigation.getState();
+            const isFocused = state.routes[state.index].name === route.name;
+
+            if (isFocused) {
+              e.preventDefault();
+              triggerRefresh('home');
+            }
+          }
+        })}
         options={{
           tabBarIcon: renderHomeIcon,
           headerShown: false,
@@ -101,6 +114,17 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="explore"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            const state = navigation.getState();
+            const isFocused = state.routes[state.index].name === route.name;
+
+            if (isFocused) {
+              e.preventDefault();
+              triggerRefresh('explore');
+            }
+          }
+        })}
         options={{
           headerShown: false,
           tabBarIcon: renderExploreIcon,
@@ -110,6 +134,17 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="chat"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            const state = navigation.getState();
+            const isFocused = state.routes[state.index].name === route.name;
+
+            if (isFocused) {
+              e.preventDefault();
+              triggerRefresh('chat');
+            }
+          }
+        })}
         options={{
           headerShown: false,
           tabBarIcon: renderChatIcon,
@@ -119,6 +154,17 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="groups"
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            const state = navigation.getState();
+            const isFocused = state.routes[state.index].name === route.name;
+
+            if (isFocused) {
+              e.preventDefault();
+              triggerRefresh('groups');
+            }
+          }
+        })}
         options={{
           headerShown: false,
           tabBarIcon: renderGroupsIcon,
@@ -135,6 +181,7 @@ export default function TabsLayout() {
 
             if (isFocused) {
               e.preventDefault();
+              triggerRefresh('profile');
               router.replace('/(tabs)/profile');
             }
           }
@@ -145,6 +192,14 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+  );
+}
+
+export default function TabsLayout() {
+  return (
+    <RefreshProvider>
+      <TabsLayoutContent />
+    </RefreshProvider>
   );
 }
 

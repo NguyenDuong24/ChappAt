@@ -1,63 +1,58 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ImageBackground, Image, Alert } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
-import { Colors } from '@/constants/Colors';
 import { useLogoState } from '@/context/LogoStateContext';
+import { Colors } from '@/constants/Colors';
+import { TextInput } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import ProgressIndicator from '@/components/signup/ProgressIndicator';
 import { useTranslation } from 'react-i18next';
 
 const PasswordInputScreen = () => {
   const { t } = useTranslation();
-  const { setPassword, cancelRegistration } = useAuth();
+  const { setPassword: setAuthPassword, register, cancelRegistration, signupType } = useAuth();
   const router = useRouter();
   const logoUrl = useLogoState();
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const [password, setPasswordInput] = useState('');
-  const [confirmPassword, setConfirmPasswordInput] = useState('');
-  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-  const [passwordError, setPasswordError] = useState('');
-
-  const validatePassword = useCallback((pass, confirm) => {
-    if (pass.length < 6) {
-      setPasswordError(t('signup.password_error_min'));
-      return false;
+  // Dynamic step calculation
+  const stepInfo = useMemo(() => {
+    if (signupType === 'google') {
+      return { current: 1, total: 4 };
     }
-    if (pass !== confirm) {
-      setPasswordError(t('signup.password_error_mismatch'));
-      return false;
-    }
-    setPasswordError('');
-    return true;
-  }, [t]);
+    return { current: 5, total: 6 };
+  }, [signupType]);
 
-  const handlePasswordChange = useCallback((input) => {
-    setPasswordInput(input);
-    const isValid = input.length >= 6 && input === confirmPassword;
-    setIsButtonEnabled(isValid);
-    if (input.length > 0 || confirmPassword.length > 0) {
-      validatePassword(input, confirmPassword);
-    }
-  }, [confirmPassword, validatePassword]);
-
-  const handleConfirmPasswordChange = useCallback((input) => {
-    setConfirmPasswordInput(input);
-    const isValid = password.length >= 6 && password === input;
-    setIsButtonEnabled(isValid);
-    if (password.length > 0 || input.length > 0) {
-      validatePassword(password, input);
-    }
-  }, [password, validatePassword]);
-
-  const handleNext = useCallback(() => {
-    if (!validatePassword(password, confirmPassword)) {
+  const handleNext = useCallback(async () => {
+    if (password.length < 6) {
+      Alert.alert(t('signup.invalid_password_title'), t('signup.invalid_password_message'));
       return;
     }
-    setPassword(password);
-    // Navigate to GenderSelectionScreen (Step 3)
-    router.push('/signup/GenderSelectionScreen');
-  }, [password, confirmPassword, setPassword, router, validatePassword]);
+    if (password !== confirmPassword) {
+      Alert.alert(t('signup.password_mismatch_title'), t('signup.password_mismatch_message'));
+      return;
+    }
+
+    setLoading(true);
+    try {
+      setAuthPassword(password);
+      const response = await register();
+      if (response.success) {
+        router.replace('/signup/EmailVerificationScreen');
+      } else {
+        Alert.alert(t('common.error'), response.msg || t('signup.registration_failed'));
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      Alert.alert(t('common.error'), t('signup.registration_failed'));
+    } finally {
+      setLoading(false);
+    }
+  }, [password, confirmPassword, router, setAuthPassword, register, t]);
 
   const handleCancel = useCallback(() => {
     Alert.alert(
@@ -65,15 +60,7 @@ const PasswordInputScreen = () => {
       t('signup.cancel_message'),
       [
         { text: t('common.no'), style: 'cancel' },
-        {
-          text: t('common.cancel'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await cancelRegistration({ deleteAccount: false, navigateTo: '/signin' });
-            } catch (_) { }
-          }
-        },
+        { text: t('signup.cancel_confirm'), style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) { } } },
       ]
     );
   }, [cancelRegistration, t]);
@@ -81,51 +68,55 @@ const PasswordInputScreen = () => {
   return (
     <ImageBackground
       source={require('../../assets/images/cover.png')}
-      style={styles.backgroundImage}
+      style={styles.background}
+      resizeMode="cover"
     >
       <LinearGradient colors={['rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)']} style={styles.backdrop} />
 
-      <View style={styles.overlay}>
-        <ProgressIndicator currentStep={2} totalSteps={6} signupType="email" />
+      <View style={styles.container}>
+        <ProgressIndicator
+          currentStep={stepInfo.current}
+          totalSteps={stepInfo.total}
+          signupType={signupType || 'email'}
+        />
 
         {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logo} />
+          <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
         ) : (
-          <Text style={{ color: Colors.dark.text }}>{t('common.loading')}</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         )}
-
-        <Text style={[styles.title, { color: Colors.dark.text }]}>{t('signup.password_title')}</Text>
-        <Text style={styles.subtitle}>{t('signup.password_subtitle')}</Text>
-
+        <Text style={styles.title}>{t('signup.password_title')}</Text>
         <TextInput
-          style={[styles.input, { backgroundColor: Colors.dark.inputBackground, borderColor: Colors.dark.inputBorder, color: Colors.dark.text }]}
-          placeholder={t('signup.password_placeholder')}
-          placeholderTextColor={Colors.dark.placeholderText}
-          secureTextEntry
+          label={t('signup.password_label')}
           value={password}
-          onChangeText={handlePasswordChange}
-        />
-
-        <TextInput
-          style={[styles.input, { backgroundColor: Colors.dark.inputBackground, borderColor: Colors.dark.inputBorder, color: Colors.dark.text }]}
-          placeholder={t('signup.password_confirm_placeholder')}
-          placeholderTextColor={Colors.dark.placeholderText}
+          onChangeText={setPassword}
+          style={styles.input}
           secureTextEntry
-          value={confirmPassword}
-          onChangeText={handleConfirmPasswordChange}
+          mode="outlined"
+          theme={{ colors: { primary: Colors.primary, text: 'white', placeholder: 'rgba(255,255,255,0.7)' } }}
+          textColor="white"
         />
-
-        {passwordError ? (
-          <Text style={styles.errorText}>{passwordError}</Text>
-        ) : null}
-
+        <TextInput
+          label={t('signup.confirm_password_label')}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          style={styles.input}
+          secureTextEntry
+          mode="outlined"
+          theme={{ colors: { primary: Colors.primary, text: 'white', placeholder: 'rgba(255,255,255,0.7)' } }}
+          textColor="white"
+        />
         <TouchableOpacity
-          style={[styles.nextButton, !isButtonEnabled && styles.disabledButton, { backgroundColor: Colors.dark.tint }]}
+          style={[styles.nextButton, (!password || !confirmPassword || loading) && styles.disabledButton]}
           onPress={handleNext}
-          disabled={!isButtonEnabled}
+          disabled={!password || !confirmPassword || loading}
           activeOpacity={0.85}
         >
-          <Text style={styles.nextButtonText}>{t('common.next')}</Text>
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.nextButtonText}>{t('common.next')}</Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
@@ -137,68 +128,58 @@ const PasswordInputScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  backgroundImage: {
+  background: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     width: '100%',
+    height: '100%',
   },
-  backdrop: { ...StyleSheet.absoluteFillObject },
-  overlay: {
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
+    padding: 20,
     backgroundColor: 'transparent',
-    width: '100%',
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
+    marginBottom: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: 'white',
     marginBottom: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 24,
-    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 20,
   },
   input: {
     width: '100%',
-    padding: 15,
-    borderWidth: 1,
-    borderRadius: 25,
-    marginBottom: 16,
-    fontSize: 18,
-    fontWeight: '500',
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
+    marginBottom: 20,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   nextButton: {
+    backgroundColor: Colors.primary,
     paddingVertical: 15,
+    paddingHorizontal: 30,
     borderRadius: 25,
     alignItems: 'center',
     width: '100%',
-  },
-  nextButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   disabledButton: {
     backgroundColor: '#475569',
   },
+  nextButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
 });
 
 export default PasswordInputScreen;
-

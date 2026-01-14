@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIn
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { coinServerApi, getErrorMessage } from '../../../src/services/coinServerApi';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BackHandler } from 'react-native';
 import CoinPurchaseSection from '../../../components/payment/CoinPurchaseSection';
@@ -22,17 +22,19 @@ interface Transaction {
   id: string;
   type: string;
   amount: number;
+  currencyType?: string;
   createdAt?: Date | string;
   metadata?: any;
 }
 
-const CACHED_BALANCE_KEY = '@chappat:cached_balance';
+const CACHED_BALANCE_KEY = '@chappat:cached_balance_v2';
 
 export default function CoinWalletScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from: string }>();
-  const [balance, setBalance] = useState<number>(0);
+  const [coins, setCoins] = useState<number>(0);
+  const [banhMi, setBanhMi] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,7 +77,9 @@ export default function CoinWalletScreen() {
       try {
         const cached = await AsyncStorage.getItem(CACHED_BALANCE_KEY);
         if (cached !== null) {
-          setBalance(parseInt(cached, 10) || 0);
+          const parsed = JSON.parse(cached);
+          setCoins(parsed.coins || 0);
+          setBanhMi(parsed.banhMi || 0);
         }
       } catch (e) {
         // ignore cache read errors
@@ -167,12 +171,13 @@ export default function CoinWalletScreen() {
       setLoading(true);
       if (type === 'reward') {
         const result = await coinServerApi.reward(adId, { source: 'rewarded_ad' });
-        setBalance(result.newBalance);
-        Alert.alert(t('common.success'), `${t('common.success')}! ${t('wallet.earned')} ${result.amount} coin!`);
+        setBanhMi(result.newBalance);
+        loadBalance(false);
+        Alert.alert(t('common.success'), `${t('common.success')}! ${t('wallet.earned')} ${result.amount} ${t('wallet.banhMi')}!`);
 
-        // Persist balance to cache to show instantly on next open
+        // Persist balance to cache
         try {
-          await AsyncStorage.setItem(CACHED_BALANCE_KEY, String(result.newBalance));
+
         } catch (e) { }
       } else {
         const result = await coinServerApi.rewardGift(adId, { source: 'rewarded_ad_gift' });
@@ -216,28 +221,17 @@ export default function CoinWalletScreen() {
     }
   };
 
-  const simulateAd = (type: 'reward' | 'gift') => {
-    Alert.alert(
-      'DEV Mode',
-      `Mô phỏng xem quảng cáo ${type}?`,
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: 'Xem xong',
-          onPress: () => handleAdEarned(type)
-        }
-      ]
-    );
-  };
-
   const loadBalance = async (showLoading = false) => {
     try {
       if (showLoading) setLoading(true);
       const result = await coinServerApi.getBalance();
-      setBalance(result.coins);
+      setCoins(result.coins);
+      setBanhMi(result.banhMi);
 
-      // Cache balance locally so screen can be drawn quickly next time
-      try { await AsyncStorage.setItem(CACHED_BALANCE_KEY, String(result.coins)); } catch (e) { }
+      // Cache balance locally
+      try {
+        await AsyncStorage.setItem(CACHED_BALANCE_KEY, JSON.stringify({ coins: result.coins, banhMi: result.banhMi }));
+      } catch (e) { }
     } catch (error) {
       console.error('Load balance error:', error);
     } finally {
@@ -323,7 +317,7 @@ export default function CoinWalletScreen() {
 
     return {
       title: type.charAt(0).toUpperCase() + type.slice(1),
-      description: 'Giao dịch coin',
+      description: 'Giao dịch',
       icon: (amount > 0 ? "arrow-down-circle-outline" : "arrow-up-circle-outline") as any,
       color: amount > 0 ? '#4CAF50' : '#F44336'
     };
@@ -354,17 +348,26 @@ export default function CoinWalletScreen() {
         </View>
 
         <View style={styles.headerBalance}>
-          <Text style={styles.headerBalanceLabel}>{t('wallet.balance')}</Text>
-          <View style={styles.headerBalanceAmount}>
-            <Ionicons name="diamond" size={20} color="#ffd700" style={{ marginRight: 6 }} />
-            <Text style={styles.headerBalanceValue}>{balance.toLocaleString()}</Text>
-            <Text style={styles.headerBalanceCoin}> Coin</Text>
-
-            {/* Inline loader for initial load so whole screen doesn't block */}
-            {initialLoading && (
-              <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 8 }} />
-            )}
+          <View style={styles.balanceContainer}>
+            <View style={styles.balanceItem}>
+              <Text style={styles.headerBalanceLabel}>{t('wallet.coins')}</Text>
+              <View style={styles.headerBalanceAmount}>
+                <Ionicons name="diamond" size={20} color="#ffd700" style={{ marginRight: 6 }} />
+                <Text style={styles.headerBalanceValue}>{coins.toLocaleString()}</Text>
+              </View>
+            </View>
+            <View style={styles.balanceDivider} />
+            <View style={styles.balanceItem}>
+              <Text style={styles.headerBalanceLabel}>{t('wallet.banhMi')}</Text>
+              <View style={styles.headerBalanceAmount}>
+                <MaterialCommunityIcons name="baguette" size={20} color="#FFD700" style={{ marginRight: 6 }} />
+                <Text style={styles.headerBalanceValue}>{banhMi.toLocaleString()}</Text>
+              </View>
+            </View>
           </View>
+          {initialLoading && (
+            <ActivityIndicator size="small" color="#fff" style={{ marginTop: 8 }} />
+          )}
         </View>
       </LinearGradient>
 
@@ -480,7 +483,7 @@ export default function CoinWalletScreen() {
                       <Text style={[styles.txAmount, { color: tx.amount > 0 ? "#4CAF50" : "#F44336" }]}>
                         {tx.amount > 0 ? '+' : ''}{tx.amount}
                       </Text>
-                      <Text style={styles.txCurrency}>coin</Text>
+                      <Text style={styles.txCurrency}>{tx.currencyType === 'coins' ? t('wallet.coins') : t('wallet.banhMi')}</Text>
                     </View>
                   </View>
                 );
@@ -554,6 +557,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 8,
   },
+  balanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  balanceItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  balanceDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 10,
+  },
   headerBalanceLabel: {
     color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
@@ -565,7 +584,7 @@ const styles = StyleSheet.create({
   },
   headerBalanceValue: {
     color: '#fff',
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: 'bold',
   },
   headerBalanceCoin: {

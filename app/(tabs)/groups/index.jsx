@@ -1,5 +1,5 @@
 import { View, StyleSheet, Platform, TouchableOpacity, InteractionManager } from 'react-native';
-import React, { useEffect, useState, useContext, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useContext, useRef, useMemo, useCallback } from 'react';
 import EnhancedGroupList from '@/components/groups/EnhancedGroupList';
 import EnhancedCreateGroupModal from '@/components/groups/EnhancedCreateGroupModal';
 import { useAuth } from '@/context/authContext';
@@ -12,6 +12,7 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import ThemedStatusBar from '@/components/common/ThemedStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRefresh } from '@/context/RefreshContext';
 
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -57,11 +58,19 @@ export default function Groups() {
   };
 
   // Function to refresh groups once (for pull-to-refresh)
-  const refreshGroupsOnce = () => {
+  const refreshGroupsOnce = useCallback(() => {
     if (user?.uid) {
       getGroups();
     }
-  };
+  }, [user?.uid]);
+
+  const { registerRefreshHandler } = useRefresh();
+
+  useEffect(() => {
+    if (registerRefreshHandler) {
+      registerRefreshHandler('groups', refreshGroupsOnce);
+    }
+  }, [registerRefreshHandler, refreshGroupsOnce]);
 
   useEffect(() => {
     let unsub = null;
@@ -84,10 +93,10 @@ export default function Groups() {
         console.warn('Error cleaning up groups listener', err);
       }
     };
-  }, [user]);
+  }, [user?.uid, getGroups]);
 
   // Real-time listener for user's joined groups only
-  const getGroups = () => {
+  const getGroups = useCallback(() => {
     try {
       setLoading(true);
       if (!user?.uid) {
@@ -116,8 +125,14 @@ export default function Groups() {
           return bTime - aTime;
         });
 
-        setGroups(sortedData || []);
-        setUserGroups(userGroupsData);
+        setGroups(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(sortedData)) return prev;
+          return sortedData || [];
+        });
+        setUserGroups(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(userGroupsData)) return prev;
+          return userGroupsData;
+        });
         setLoading(false);
       }, (error) => {
         console.error('Groups snapshot error', error);
@@ -135,7 +150,7 @@ export default function Groups() {
       setLoading(false);
       return null;
     }
-  };
+  }, [user?.uid]);
 
   // Debounced search effect - similar to Telegram's global search
   useEffect(() => {

@@ -2,7 +2,7 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+// import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 
 export const pickImage = async () => {
@@ -22,7 +22,7 @@ export const pickImage = async () => {
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
       const fileInfo = await FileSystem.getInfoAsync(asset.uri);
-      
+
       return {
         uri: asset.uri,
         name: asset.fileName || `image_${Date.now()}.jpg`,
@@ -53,7 +53,7 @@ export const takePhoto = async () => {
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
       const fileInfo = await FileSystem.getInfoAsync(asset.uri);
-      
+
       return {
         uri: asset.uri,
         name: `photo_${Date.now()}.jpg`,
@@ -68,29 +68,29 @@ export const takePhoto = async () => {
   }
 };
 
-export const pickDocument = async () => {
-  try {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: '*/*',
-      copyToCacheDirectory: true,
-      multiple: false,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      return {
-        uri: asset.uri,
-        name: asset.name,
-        type: asset.mimeType || 'application/octet-stream',
-        size: asset.size || 0,
-      };
-    }
-    return null;
-  } catch (error) {
-    console.error('Pick document error:', error);
-    throw error;
-  }
-};
+// export const pickDocument = async () => {
+//   try {
+//     const result = await DocumentPicker.getDocumentAsync({
+//       type: '*/*',
+//       copyToCacheDirectory: true,
+//       multiple: false,
+//     });
+// 
+//     if (!result.canceled && result.assets[0]) {
+//       const asset = result.assets[0];
+//       return {
+//         uri: asset.uri,
+//         name: asset.name,
+//         type: asset.mimeType || 'application/octet-stream',
+//         size: asset.size || 0,
+//       };
+//     }
+//     return null;
+//   } catch (error) {
+//     console.error('Pick document error:', error);
+//     throw error;
+//   }
+// };
 
 export const uploadFile = async (file, path, onProgress) => {
   try {
@@ -100,7 +100,7 @@ export const uploadFile = async (file, path, onProgress) => {
     const storageRef = ref(storage, path);
     const snapshot = await uploadBytes(storageRef, blob);
     const downloadURL = await getDownloadURL(snapshot.ref);
-    
+
     return downloadURL;
   } catch (error) {
     console.error('Upload file error:', error);

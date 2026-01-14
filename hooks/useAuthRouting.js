@@ -50,6 +50,7 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('ProUpgradeScreen') ||
       segments.includes('StoreScreen') ||
       segments.includes('ChangePasswordScreen') ||
+      segments.includes('ProfileVisitorsScreen') ||
       segments.includes('PrivacySettingsScreen') ||
       segments.includes('subscription');
 
@@ -69,7 +70,9 @@ export const useAuthRouting = (isAuthenticated) => {
       return;
     }
 
-    if (isAuthenticated && !inAuthenticatedScreens) {
+    const isIconSelection = segments.includes('IconSelectionScreen');
+
+    if (isAuthenticated && !inAuthenticatedScreens && !isIconSelection) {
       // User đã đăng nhập nhưng không ở trong app screens
       console.log('🔐 Redirecting authenticated user to home');
       router.replace('/(tabs)/home');

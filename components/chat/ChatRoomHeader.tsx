@@ -271,7 +271,7 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
             onPress={toggleMenu}
             onLayout={handleMenuLayout}
           >
-            <MaterialIcons name="more-vert" size={16} color={currentThemeColors.text} />
+            <MaterialIcons name="more-vert" size={16} color={chatTheme?.textColor || currentThemeColors.text} />
           </TouchableOpacity>
         </View>
       </View>

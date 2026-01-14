@@ -1,4 +1,5 @@
-import { View, StyleSheet, TouchableOpacity, Pressable, Image, Animated as RNAnimated } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Pressable, Animated as RNAnimated } from 'react-native';
+import { Image } from 'expo-image';
 import React, { useContext, useMemo, useCallback, useState } from 'react';
 import { Avatar, Text, Badge } from 'react-native-paper';
 import { useRouter } from 'expo-router';
@@ -206,173 +207,139 @@ const EnhancedGroupItem = ({
         onPress={handlePress}
         onLongPress={onLongPress}
         android_ripple={{ color: rippleColor }}
-        style={styles.pressable}
+        style={({ pressed }) => [
+          styles.pressable,
+          pressed && { backgroundColor: rippleColor }
+        ]}
       >
         <View style={styles.content}>
           {/* Avatar Section */}
           <View style={styles.avatarContainer}>
-            {/* Voice Call Active Ring */}
             {isVoiceCallActive && (
               <RNAnimated.View
                 style={[
                   styles.voiceCallRing,
                   {
-                    opacity: voiceCallOpacity,
-                    transform: [{ scale: voiceCallScale }]
+                    borderColor: '#10B981',
+                    transform: [{ scale: voiceCallScale }],
+                    opacity: voiceCallOpacity
                   }
                 ]}
               />
             )}
 
-            <LinearGradient
-              colors={isVoiceCallActive
-                ? ['#10B981', '#059669']
-                : (theme === 'dark' ? ['#6366F1', '#8B5CF6'] : ['#667EEA', '#764BA2'])
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatarRing}
-            >
-              <View style={[styles.avatarInner, { backgroundColor: theme === 'dark' ? '#111827' : '#FFF' }]}>
-                {avatarUri ? (
-                  <Image source={{ uri: avatarUri }} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.placeholderAvatar, { backgroundColor: theme === 'dark' ? '#1F2937' : '#E0E7FF' }]}>
-                    <MaterialCommunityIcons name="account-group" size={24} color={theme === 'dark' ? '#93C5FD' : '#6366F1'} />
-                  </View>
-                )}
-              </View>
-            </LinearGradient>
-
-            {/* Voice Call Badge */}
-            {isVoiceCallActive && (
-              <View style={styles.voiceCallBadge}>
-                <MaterialCommunityIcons name="phone" size={12} color="#FFF" />
-              </View>
+            {avatarUri ? (
+              <Image
+                source={{ uri: avatarUri }}
+                style={styles.avatar}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
+              />
+            ) : (
+              <Avatar.Text
+                size={56}
+                label={initials}
+                style={[styles.avatarPlaceholder, { backgroundColor: groupTypeInfo.color + '20' }]}
+                labelStyle={[styles.avatarLabel, { color: groupTypeInfo.color }]}
+              />
             )}
 
-            {/* Online Badge */}
-            {onlineCount > 0 && !isVoiceCallActive && (
-              <View style={styles.onlineBadge}>
-                <Text style={styles.onlineBadgeText}>{onlineCount}</Text>
+            {/* Online Status Badge */}
+            {onlineCount > 0 && (
+              <View style={[styles.onlineBadge, { borderColor: currentThemeColors.cardBackground }]}>
+                <View style={styles.onlineDot} />
               </View>
             )}
           </View>
 
-          {/* Text Content */}
-          <View style={styles.textContainer}>
-            {/* Header Row: Group Name + Type Icon + Time */}
-            <View style={styles.headerRow}>
-              <View style={styles.nameContainer}>
-                <Text style={[styles.groupName, { color: currentThemeColors.text }]} numberOfLines={1}>
-                  {item.name || 'Nhóm chưa đặt tên'}
-                </Text>
-                {groupTypeInfo && (
-                  <MaterialCommunityIcons
-                    name={groupTypeInfo.icon}
-                    size={14}
-                    color={groupTypeInfo.color}
-                    style={styles.typeIcon}
-                  />
-                )}
-              </View>
-
-              <View style={styles.rightSection}>
-                {formattedTime && (
-                  <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
-                    {formattedTime}
-                  </Text>
-                )}
-
-                {/* Join Button for Public Groups */}
-                {!isJoined && item?.type === 'public' && onJoinGroup && (
-                  <TouchableOpacity
-                    style={styles.joinButton}
-                    onPress={handleJoinGroup}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.joinButtonText}>Tham gia</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            {/* Message/Description Row */}
-            <View style={styles.messageRow}>
-              <View style={styles.previewLeft}>
-                {/* Voice Call Active State */}
-                {isVoiceCallActive ? (
-                  <View style={styles.voiceCallContainer}>
-                    <MaterialCommunityIcons name="phone-in-talk" size={16} color="#10B981" />
-                    <Text style={styles.voiceCallText} numberOfLines={1}>
-                      Đang gọi...{voiceCallParticipantsCount > 0 ? ` (${voiceCallParticipantsCount})` : ''}
-                    </Text>
-                  </View>
-                ) : (isSearchResult || !isJoined) ? (
-                  /* Search Result / Not Joined: Show Description + Member Count */
-                  <View style={styles.searchInfoContainer}>
-                    {groupDescription && (
-                      <Text style={[styles.description, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
-                        {groupDescription}
-                      </Text>
-                    )}
-                    <View style={styles.metaInfo}>
-                      <MaterialCommunityIcons
-                        name="account-group"
-                        size={13}
-                        color={currentThemeColors.subtleText}
-                      />
-                      <Text style={[styles.memberCount, { color: currentThemeColors.subtleText }]}>
-                        {memberCount} thành viên
-                      </Text>
-                      {groupTypeInfo && (
-                        <>
-                          <Text style={[styles.dot, { color: currentThemeColors.subtleText }]}>•</Text>
-                          <MaterialCommunityIcons
-                            name={groupTypeInfo.icon}
-                            size={13}
-                            color={groupTypeInfo.color}
-                          />
-                          <Text style={[styles.typeLabel, { color: groupTypeInfo.color }]}>
-                            {groupTypeInfo.label}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  </View>
-                ) : (
-                  /* Regular Message Preview */
-                  <View style={styles.messageContainer}>
-                    {messageIcon}
-                    <Text
-                      style={[
-                        styles.messagePreview,
-                        { color: isTyping ? '#10B981' : currentThemeColors.subtleText },
-                        isTyping && styles.typingText
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {messagePreview}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Unread Badge */}
-              {unreadCount > 0 && (
-                <LinearGradient
-                  colors={['#667EEA', '#764BA2']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.unreadBadge}
+          {/* Info Section */}
+          <View style={styles.info}>
+            <View style={styles.topRow}>
+              <View style={styles.nameRow}>
+                <Text
+                  variant="titleMedium"
+                  style={[styles.name, { color: currentThemeColors.text }]}
+                  numberOfLines={1}
                 >
-                  <Text style={styles.unreadBadgeText}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </LinearGradient>
+                  {item?.name || 'Group'}
+                </Text>
+                <MaterialCommunityIcons
+                  name={groupTypeInfo.icon}
+                  size={14}
+                  color={groupTypeInfo.color}
+                  style={styles.typeIcon}
+                />
+              </View>
+              {isJoined && formattedTime && (
+                <Text variant="bodySmall" style={[styles.time, { color: currentThemeColors.subtleText }]}>
+                  {formattedTime}
+                </Text>
               )}
             </View>
+
+            {isJoined ? (
+              <View style={styles.bottomRow}>
+                <View style={styles.messageRow}>
+                  {messageIcon}
+                  <Text
+                    variant="bodyMedium"
+                    style={[
+                      styles.message,
+                      { color: unreadCount > 0 ? currentThemeColors.text : currentThemeColors.subtleText },
+                      unreadCount > 0 && styles.unreadMessage
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {messagePreview}
+                  </Text>
+                </View>
+
+                {unreadCount > 0 && (
+                  <Badge size={20} style={[styles.badge, { backgroundColor: Colors.primary }]}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Badge>
+                )}
+              </View>
+            ) : (
+              <View style={styles.searchResultInfo}>
+                {groupDescription && (
+                  <Text
+                    variant="bodySmall"
+                    style={[styles.description, { color: currentThemeColors.subtleText }]}
+                    numberOfLines={1}
+                  >
+                    {groupDescription}
+                  </Text>
+                )}
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <MaterialCommunityIcons name="account-group" size={14} color={currentThemeColors.subtleText} />
+                    <Text variant="bodySmall" style={[styles.statText, { color: currentThemeColors.subtleText }]}>
+                      {memberCount} thành viên
+                    </Text>
+                  </View>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <View style={[styles.onlineDotSmall, { backgroundColor: '#10B981' }]} />
+                    <Text variant="bodySmall" style={[styles.statText, { color: currentThemeColors.subtleText }]}>
+                      {onlineCount} trực tuyến
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
+
+          {/* Action Button for search results */}
+          {!isJoined && isSearchResult && (
+            <TouchableOpacity
+              onPress={handleJoinGroup}
+              style={[styles.joinButton, { backgroundColor: Colors.primary }]}
+            >
+              <Text style={styles.joinButtonText}>Tham gia</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Pressable>
 
@@ -381,222 +348,157 @@ const EnhancedGroupItem = ({
         visible={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
         group={item}
-        onJoinGroup={onJoinGroup}
-        currentUser={currentUser}
+        onJoin={handleJoinGroup}
       />
     </Animated.View>
   );
 };
 
-const AVATAR_SIZE = 56;
-
 const styles = StyleSheet.create({
   container: {
+    width: '100%',
+    overflow: 'hidden',
   },
   pressable: {
-    padding: 14,
+    width: '100%',
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-
-  // Avatar Styles
   avatarContainer: {
     position: 'relative',
-    marginRight: 12,
-  },
-  avatarRing: {
-    width: AVATAR_SIZE + 6,
-    height: AVATAR_SIZE + 6,
-    borderRadius: (AVATAR_SIZE + 6) / 2,
-    padding: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInner: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginRight: 16,
   },
   avatar: {
-    width: '100%',
-    height: '100%',
-    borderRadius: AVATAR_SIZE / 2,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
   },
-  placeholderAvatar: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarPlaceholder: {
+    borderRadius: 20,
+  },
+  avatarLabel: {
+    fontWeight: 'bold',
+    fontSize: 20,
+  },
+  voiceCallRing: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 24,
+    borderWidth: 2,
   },
   onlineBadge: {
     position: 'absolute',
     bottom: 0,
-    right: 2,
-    backgroundColor: '#10B981',
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
-  },
-  onlineBadgeText: {
-    color: '#FFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  voiceCallRing: {
-    position: 'absolute',
-    top: -8,
-    left: -8,
-    right: -8,
-    bottom: -8,
-    borderRadius: (AVATAR_SIZE + 22) / 2,
+    right: 0,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 3,
-    borderColor: '#10B981',
-    backgroundColor: 'transparent',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  voiceCallBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 2,
     backgroundColor: '#10B981',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
+    alignItems: 'center',
   },
-
-  // Text Content Styles
-  textContainer: {
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+  },
+  info: {
     flex: 1,
+    justifyContent: 'center',
   },
-  headerRow: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
   },
-  nameContainer: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 8,
   },
-  groupName: {
-    fontSize: 16,
+  name: {
     fontWeight: '700',
     marginRight: 6,
   },
   typeIcon: {
-    marginTop: 1,
+    opacity: 0.7,
   },
-  rightSection: {
+  time: {
+    fontSize: 12,
+    marginLeft: 8,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 4,
+  },
+  message: {
+    flex: 1,
+  },
+  unreadMessage: {
+    fontWeight: '600',
+  },
+  badge: {
+    marginLeft: 8,
+    fontWeight: 'bold',
+  },
+  searchResultInfo: {
+    marginTop: 2,
+  },
+  description: {
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  time: {
-    fontSize: 12,
-    fontWeight: '500',
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statText: {
+    fontSize: 11,
+  },
+  statDivider: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  onlineDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   joinButton: {
     paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 16,
-    backgroundColor: '#667EEA',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginLeft: 12,
   },
   joinButtonText: {
-    color: '#FFF',
+    color: '#fff',
     fontSize: 12,
-    fontWeight: '700',
-  },
-
-  // Message Row Styles
-  messageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  previewLeft: {
-    flex: 1,
-    marginRight: 8,
-  },
-  voiceCallContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  voiceCallText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#10B981',
-    flex: 1,
-  },
-  searchInfoContainer: {
-    gap: 3,
-  },
-  description: {
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  metaInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  memberCount: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  dot: {
-    fontSize: 12,
-  },
-  typeLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  messageContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  messagePreview: {
-    fontSize: 14,
-    flex: 1,
-  },
-  typingText: {
-    fontWeight: '600',
-    fontStyle: 'italic',
-  },
-  unreadBadge: {
-    minWidth: 24,
-    height: 24,
-    paddingHorizontal: 8,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unreadBadgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: '800',
+    fontWeight: 'bold',
   },
 });
 

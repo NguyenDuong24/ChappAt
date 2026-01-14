@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
-import { 
-  StyleSheet, View, Text, TouchableOpacity, Alert, Clipboard, 
-  ActivityIndicator, Animated 
+import {
+  StyleSheet, View, Text, TouchableOpacity, Alert, Clipboard,
+  ActivityIndicator, Animated
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
@@ -78,11 +78,11 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
 
     Animated.sequence([
       Animated.timing(followButtonScale, { toValue: 0.92, duration: 80, useNativeDriver: true }),
-      Animated.spring(followButtonScale, { 
-        toValue: 1, 
-        friction: 3, 
-        tension: 50, 
-        useNativeDriver: true 
+      Animated.spring(followButtonScale, {
+        toValue: 1,
+        friction: 3,
+        tension: 50,
+        useNativeDriver: true
       }),
     ]).start();
 
@@ -153,7 +153,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       {/* Cover Section with Blur Gradient */}
       <View style={styles.coverWrapper}>
-        <CustomImage type="cover" source={user?.coverImage} style={styles.coverImage} onLongPress={() => {}} />
+        <CustomImage type="cover" source={user?.coverImage} style={styles.coverImage} onLongPress={() => { }} />
         <LinearGradient
           colors={[
             'transparent',
@@ -166,7 +166,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
       </View>
 
       {/* Avatar Section */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.avatarSection,
           {
@@ -176,7 +176,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
         ]}
       >
         <View style={styles.avatarWrapper}>
-          <View style={[styles.avatarRing, { 
+          <View style={[styles.avatarRing, {
             backgroundColor: currentThemeColors.background,
             shadowColor: theme === 'dark' ? '#667eea' : '#000',
           }]}>
@@ -185,6 +185,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
               size={100}
               currentVibe={currentVibe}
               showAddButton={false}
+              frameType={user?.activeFrame}
               storyUser={{ id: uid, username: displayName, profileUrl: profileImage }}
             />
           </View>
@@ -201,7 +202,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
               style={styles.followButtonWrapper}
             >
               <LinearGradient
-                colors={isFollowing 
+                colors={isFollowing
                   ? (theme === 'dark' ? ['#2d2d2d', '#1f1f1f'] : ['#f8f8f8', '#ececec'])
                   : ['#667eea', '#764ba2']}
                 start={{ x: 0, y: 0 }}
@@ -215,19 +216,19 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                 ) : (
                   <>
                     <View style={[styles.followIconCircle, {
-                      backgroundColor: isFollowing 
+                      backgroundColor: isFollowing
                         ? (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')
                         : 'rgba(255,255,255,0.25)'
-                    }]}> 
+                    }]}>
                       <Feather
                         name={isFollowing ? 'user-check' : 'user-plus'}
                         size={16}
                         color={isFollowing ? currentThemeColors.text : 'white'}
                       />
                     </View>
-                    <Text style={[styles.followText, { 
-                      color: isFollowing ? currentThemeColors.text : 'white' 
-                    }]}> 
+                    <Text style={[styles.followText, {
+                      color: isFollowing ? currentThemeColors.text : 'white'
+                    }]}>
                       {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
                     </Text>
                   </>
@@ -243,7 +244,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
               disabled={followLoading}
             >
               <LinearGradient
-                colors={isBlocked 
+                colors={isBlocked
                   ? ['#a1a1aa', '#6b7280'] // xám khi đã chặn
                   : ['#d1d5db', '#6b7280']} // xám nhạt khi chưa chặn
                 start={{ x: 0, y: 0 }}
@@ -257,19 +258,19 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                 ) : (
                   <>
                     <View style={[styles.followIconCircle, {
-                      backgroundColor: isBlocked 
+                      backgroundColor: isBlocked
                         ? 'rgba(156,163,175,0.15)' // xám nhạt
                         : 'rgba(209,213,219,0.25)' // xám nhạt
-                    }]}> 
+                    }]}>
                       <Feather
                         name={isBlocked ? 'user-x' : 'lock'}
                         size={16}
                         color={isBlocked ? '#374151' : '#374151'} // xám đậm cho icon
                       />
                     </View>
-                    <Text style={[styles.followText, { 
+                    <Text style={[styles.followText, {
                       color: '#374151' // xám đậm cho text
-                    }]}> 
+                    }]}>
                       {isBlocked ? 'Đã chặn' : 'Chặn'}
                     </Text>
                   </>
@@ -281,7 +282,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
       </Animated.View>
 
       {/* Content Section */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.contentSection,
           {
@@ -292,7 +293,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
       >
         {/* Blocked State Banner */}
         {isBlocked && (
-          <View style={[styles.blockedBanner, { 
+          <View style={[styles.blockedBanner, {
             backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)',
             borderColor: '#EF4444'
           }]}
@@ -309,11 +310,11 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
           <Text style={[styles.userName, { color: currentThemeColors.text }]}>
             {displayName}
           </Text>
-          
-          <TouchableOpacity 
-            style={[styles.uidBadge, { 
+
+          <TouchableOpacity
+            style={[styles.uidBadge, {
               backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            }]} 
+            }]}
             onPress={handleCopyUID}
             activeOpacity={0.7}
           >
@@ -333,7 +334,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
         )}
 
         {/* Stats - Premium Grid */}
-        <View style={[styles.statsContainer, { 
+        <View style={[styles.statsContainer, {
           backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(102,126,234,0.04)',
           borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(102,126,234,0.1)',
         }]}>
@@ -366,7 +367,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
           <View style={styles.professionalSection}>
             {/* Job/Occupation - Simple Item */}
             {(user.job || user.occupation) && (
-              <View style={[styles.professionalItem, { 
+              <View style={[styles.professionalItem, {
                 backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
               }]}>
                 <Feather name="briefcase" size={14} color="#667eea" style={{ marginRight: 10 }} />
@@ -380,7 +381,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
             {(user.educationLevel || user.university || user.school) && (
               <View style={styles.professionalList}>
                 {user.educationLevel && (
-                  <View style={[styles.professionalItem, { 
+                  <View style={[styles.professionalItem, {
                     backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                   }]}>
                     <View style={styles.educationDot} />
@@ -391,7 +392,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                   </View>
                 )}
                 {user.university && (
-                  <View style={[styles.professionalItem, { 
+                  <View style={[styles.professionalItem, {
                     backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                   }]}>
                     <Feather name="book-open" size={13} color="#667eea" style={{ marginRight: 10 }} />
@@ -401,7 +402,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                   </View>
                 )}
                 {user.school && (
-                  <View style={[styles.professionalItem, { 
+                  <View style={[styles.professionalItem, {
                     backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                   }]}>
                     <Feather name="bookmark" size={13} color="#667eea" style={{ marginRight: 10 }} />

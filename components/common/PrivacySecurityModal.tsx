@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface PrivacySecurityModalProps {
   visible: boolean;
@@ -23,6 +24,7 @@ interface PrivacySecurityModalProps {
 
 const PrivacySecurityModal = ({ visible, onClose }: PrivacySecurityModalProps) => {
   const { user } = useAuth();
+  const colors = useThemedColors();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -122,27 +124,27 @@ const PrivacySecurityModal = ({ visible, onClose }: PrivacySecurityModalProps) =
   };
 
   const renderSettingItem = (icon: string, title: string, subtitle: string, isSwitch: boolean, value?: boolean, onToggle?: (val: boolean) => void, onPress?: () => void) => (
-    <View style={styles.settingItem}>
+    <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
       <View style={styles.settingLeft}>
-        <View style={styles.settingIcon}>
-          <MaterialCommunityIcons name={icon as any} size={20} color="#6366F1" />
+        <View style={[styles.settingIcon, { backgroundColor: colors.isDark ? colors.surface : '#F8FAFC' }]}>
+          <MaterialCommunityIcons name={icon as any} size={20} color={colors.primary} />
         </View>
         <View style={styles.settingContent}>
-          <Text style={styles.settingTitle}>{title}</Text>
-          <Text style={styles.settingSubtitle}>{subtitle}</Text>
+          <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.settingSubtitle, { color: colors.subtleText }]}>{subtitle}</Text>
         </View>
       </View>
       {isSwitch ? (
         <Switch
           value={value}
           onValueChange={onToggle}
-          trackColor={{ false: '#E2E8F0', true: '#6366F1' }}
+          trackColor={{ false: colors.isDark ? colors.surface : '#E2E8F0', true: colors.primary }}
           thumbColor="#FFFFFF"
           disabled={loading}
         />
       ) : (
         <TouchableOpacity onPress={onPress}>
-          <MaterialCommunityIcons name="chevron-right" size={24} color="#64748B" />
+          <MaterialCommunityIcons name="chevron-right" size={24} color={colors.mutedText} />
         </TouchableOpacity>
       )}
     </View>
@@ -150,8 +152,8 @@ const PrivacySecurityModal = ({ visible, onClose }: PrivacySecurityModalProps) =
 
   const renderSection = (title: string, items: React.ReactNode) => (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionContent}>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+      <View style={[styles.sectionContent, { borderColor: colors.border }]}>
         {items}
       </View>
     </View>
@@ -160,12 +162,12 @@ const PrivacySecurityModal = ({ visible, onClose }: PrivacySecurityModalProps) =
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
-        <View style={styles.container}>
-          <View style={styles.header}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.headerSpacer} />
-            <Text style={styles.title}>Quyền riêng tư & Bảo mật</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Quyền riêng tư & Bảo mật</Text>
             <TouchableOpacity onPress={onClose}>
-              <MaterialCommunityIcons name="close" size={24} color="#0F172A" />
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -288,7 +290,6 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     maxHeight: '90%',
-    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     overflow: 'hidden',
   },
@@ -298,7 +299,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   headerSpacer: {
     width: 32,
@@ -308,7 +308,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
   },
   content: {
     flex: 1,
@@ -321,12 +320,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 16,
-    color: '#0F172A',
   },
   sectionContent: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     overflow: 'hidden',
   },
   settingItem: {
@@ -336,7 +333,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   settingLeft: {
     flexDirection: 'row',
@@ -349,7 +345,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
     marginRight: 12,
   },
   settingContent: {
@@ -358,12 +353,10 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#0F172A',
     marginBottom: 2,
   },
   settingSubtitle: {
     fontSize: 14,
-    color: '#64748B',
   },
   bottomPadding: {
     height: 40,

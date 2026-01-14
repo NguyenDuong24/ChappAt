@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 interface GroupChatHeaderProps {
@@ -22,6 +23,7 @@ export default function GroupChatHeader({ group, onBack, onMembers }: GroupChatH
         <Image
           source={group?.avatarUrl ? { uri: group.avatarUrl } : require('../../assets/images/icon.png')}
           style={styles.avatar}
+          contentFit="cover"
         />
         <View>
           <Text style={styles.groupName} numberOfLines={1}>{group?.name || 'Nhóm chat'}</Text>

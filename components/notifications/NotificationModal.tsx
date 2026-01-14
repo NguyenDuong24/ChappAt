@@ -5,11 +5,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  Image,
   Dimensions,
   Animated,
   Alert,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -238,6 +238,8 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
                 <Image
                   source={{ uri: notification.senderAvatar }}
                   style={styles.avatar}
+                  contentFit="cover"
+                  transition={200}
                 />
               ) : (
                 <View style={styles.avatarPlaceholder}>

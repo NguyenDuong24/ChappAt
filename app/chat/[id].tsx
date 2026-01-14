@@ -20,7 +20,8 @@ import {
     getDocs,
     where,
     increment,
-    runTransaction
+    runTransaction,
+    writeBatch
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 
@@ -49,6 +50,8 @@ import ChatThemePicker from '@/components/chat/ChatThemePicker';
 import { useNSFWDetection } from '@/hooks/useNSFWDetection';
 import OptimizedChatInput from '@/components/chat/OptimizedChatInput';
 import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
+import GiftPicker from '@/components/chat/GiftPicker';
+import GiftBurst from '@/components/chat/GiftBurst';
 
 const storage = getStorage();
 
@@ -56,7 +59,7 @@ function ChatRoomContent() {
     const { t } = useTranslation();
     const { id, messageId } = useLocalSearchParams();
     const router = useRouter();
-    const { user, coins, /* optional */ topupCoins } = useAuth();
+    const { user, coins, banhMi = 0, /* optional */ topupCoins } = useAuth();
 
     // Route param can be a peer user id OR a roomId (uidA-uidB). Normalize to peerId.
     const routeId: string = Array.isArray(id) ? id[0] : (id as string);
@@ -98,6 +101,7 @@ function ChatRoomContent() {
     const [reportTarget, setReportTarget] = useState<any>(null);
     const [showThemePicker, setShowThemePicker] = useState(false);
     const [scrollToEndTrigger, setScrollToEndTrigger] = useState(0);
+    const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
     const scrollViewRef = useRef<any>(null);
     const messagePositionsRef = useRef<Record<string, number>>({});
     const { playMessageReceivedSound, playMessageSentSound } = useSound();
@@ -144,8 +148,12 @@ function ChatRoomContent() {
     // Load theme and effect when entering room
     useEffect(() => {
         if (roomId) {
-            loadTheme(roomId);
-            loadEffect(roomId);
+            const unsubTheme = loadTheme(roomId);
+            const unsubEffect = loadEffect(roomId);
+            return () => {
+                unsubTheme();
+                unsubEffect();
+            };
         }
     }, [roomId]);
     const themeContext = useContext(ThemeContext);
@@ -449,21 +457,22 @@ function ChatRoomContent() {
 
             // Filter messages from other user and update status to 'delivered'
             const messagesToUpdate = snapshot.docs.filter(msgDoc => msgDoc.data().uid !== user.uid);
-            const updatePromises = messagesToUpdate.map(async (msgDoc) => {
-                try {
-                    await updateDoc(msgDoc.ref, {
+
+            if (messagesToUpdate.length > 0) {
+                const batch = writeBatch(db);
+                messagesToUpdate.forEach((msgDoc) => {
+                    batch.update(msgDoc.ref, {
                         status: 'delivered',
                         deliveredAt: Timestamp.fromDate(new Date()),
                     });
+                });
+
+                try {
+                    await batch.commit();
+                    console.log(`[markMessagesAsDelivered] Updated ${messagesToUpdate.length} messages to 'delivered'`);
                 } catch (e) {
-                    console.warn('Failed to update message status to delivered:', e);
+                    console.warn('Failed to batch update message status to delivered:', e);
                 }
-            });
-
-            await Promise.all(updatePromises);
-
-            if (messagesToUpdate.length > 0) {
-                console.log(`[markMessagesAsDelivered] Updated ${messagesToUpdate.length} messages to 'delivered'`);
 
                 // Also update lastMessage.status in room document if it's from other user
                 try {
@@ -509,19 +518,20 @@ function ChatRoomContent() {
             const messagesToUpdate = snapshot.docs.filter(msgDoc => msgDoc.data().uid !== user.uid);
 
             if (messagesToUpdate.length > 0) {
-                const updatePromises = messagesToUpdate.map(async (msgDoc) => {
-                    try {
-                        await updateDoc(msgDoc.ref, {
-                            status: 'read',
-                            readAt: Timestamp.fromDate(new Date()),
-                        });
-                    } catch (e) {
-                        console.warn('Failed to update message status to read:', e);
-                    }
+                const batch = writeBatch(db);
+                messagesToUpdate.forEach((msgDoc) => {
+                    batch.update(msgDoc.ref, {
+                        status: 'read',
+                        readAt: Timestamp.fromDate(new Date()),
+                    });
                 });
 
-                await Promise.all(updatePromises);
-                console.log(`âœ… [markMessagesAsRead] Updated ${messagesToUpdate.length} messages to 'read'`);
+                try {
+                    await batch.commit();
+                    console.log(`✅ [markMessagesAsRead] Updated ${messagesToUpdate.length} messages to 'read'`);
+                } catch (e) {
+                    console.warn('Failed to batch update message status to read:', e);
+                }
             }
 
             // Also reset unreadCounts and update lastMessage.status to 'read' if sender is other user
@@ -538,7 +548,7 @@ function ChatRoomContent() {
                 // If lastMessage was from other user, update its status to 'read'
                 if (lastMsg && lastMsg.uid && lastMsg.uid !== user.uid && lastMsg.status !== 'read') {
                     updatePayload['lastMessage.status'] = 'read';
-                    console.log(`âœ… [markMessagesAsRead] Updating lastMessage.status to 'read'`);
+                    console.log(`✅ [markMessagesAsRead] Updating lastMessage.status to 'read'`);
                 }
 
                 await updateDoc(roomRef, updatePayload);
@@ -816,6 +826,10 @@ function ChatRoomContent() {
                 roomId,
                 giftId,
             });
+            const gift = giftCatalog.find(g => g.id === giftId);
+            if (gift) {
+                setBurstEmoji(gift.icon || '🎁');
+            }
             refreshMessages?.();
             Alert.alert(t('common.success'), t('chat.gift_sent'));
         } catch (e: any) {
@@ -933,41 +947,22 @@ function ChatRoomContent() {
                     replyTo={replyTo}
                     onCancelReply={() => setReplyTo(null)}
                     sendDisabled={sendDisabled}
+                    currentTheme={chatThemeForUI}
                     currentThemeColors={currentThemeColors}
                 />
             </KeyboardAvoidingView>
 
             {/* Modals */}
-            <Modal
+            <GiftPicker
                 visible={showGifts}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowGifts(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.giftModalContent, { backgroundColor: currentThemeColors.surface }]}>
-                        <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: currentThemeColors.text }]}>{t('chat.send_gift')}</Text>
-                            <TouchableOpacity onPress={() => setShowGifts(false)}>
-                                <MaterialIcons name="close" size={24} color={currentThemeColors.text} />
-                            </TouchableOpacity>
-                        </View>
-                        <ScrollView horizontal contentContainerStyle={styles.giftList}>
-                            {giftCatalog.map((gift) => (
-                                <TouchableOpacity
-                                    key={gift.id}
-                                    style={styles.giftItem}
-                                    onPress={() => handleSendGift(gift.id)}
-                                >
-                                    <Text style={styles.giftEmoji}>{gift.emoji}</Text>
-                                    <Text style={[styles.giftName, { color: currentThemeColors.text }]}>{gift.name}</Text>
-                                    <Text style={[styles.giftPrice, { color: currentThemeColors.tint }]}>{gift.price} {t('chat.bread')}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-                </View>
-            </Modal>
+                onClose={() => setShowGifts(false)}
+                onSend={handleSendGift}
+                gifts={giftCatalog}
+                coins={coins || 0}
+                banhMi={banhMi || 0}
+                themeColors={currentThemeColors}
+                loading={giftCatalog.length === 0}
+            />
 
             <ReportModalSimple
                 visible={reportVisible}
@@ -986,6 +981,7 @@ function ChatRoomContent() {
                 visible={showThemePicker}
                 onClose={() => setShowThemePicker(false)}
                 roomId={roomId}
+                currentUser={user}
             />
 
             {/* Background Effects */}
@@ -993,6 +989,12 @@ function ChatRoomContent() {
                 effect={currentEffect}
                 themeColor={currentThemeColors.tint}
                 backgroundColor={currentThemeColors.background}
+            />
+
+            <GiftBurst
+                visible={!!burstEmoji}
+                emoji={burstEmoji || '🎁'}
+                onComplete={() => setBurstEmoji(null)}
             />
         </View>
 

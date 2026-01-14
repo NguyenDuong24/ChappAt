@@ -6,7 +6,7 @@ import { db } from '@/firebaseConfig';
 import { collection, getDocs, query, where, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import AddPostButton from '@/components/profile/AddPostButton';
 import TopProfile from '@/components/profile/TopProfile';
-import PostCardStandard from '@/components/profile/PostCardStandard';
+import PostCard from '@/components/profile/PostCard';
 import { useFocusEffect } from '@react-navigation/native';
 import { convertTimestampToDate } from '@/utils/common';
 import { PrivacyLevel } from '@/utils/postPrivacyUtils';
@@ -14,6 +14,7 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import DeferredComponent from '@/components/DeferredComponent';
 import { useTranslation } from 'react-i18next';
+import { useRefresh } from '@/context/RefreshContext';
 
 // Define a Post shape compatible with PostCard props
 interface Comment {
@@ -44,15 +45,15 @@ interface PostForCard {
 
 // Constants
 const FETCH_INTERVAL = 30000; // 30 seconds minimum between fetches
-const ITEM_HEIGHT = 400; // Approximate height of post card
 
 // Memoized Post Card
-const MemoizedPostCard = memo(PostCardStandard, (prevProps, nextProps) => {
+const MemoizedPostCard = memo(PostCard, (prevProps, nextProps) => {
   return (
     prevProps.post?.id === nextProps.post?.id &&
     prevProps.post?.likes?.length === nextProps.post?.likes?.length &&
     prevProps.post?.comments?.length === nextProps.post?.comments?.length &&
-    prevProps.currentUserId === nextProps.currentUserId
+    prevProps.post?.privacy === nextProps.post?.privacy &&
+    prevProps.user?.uid === nextProps.user?.uid
   );
 });
 
@@ -77,6 +78,7 @@ const ProfileScreen = memo(() => {
   // Refs for optimization
   const lastFetchTimeRef = useRef<number>(0);
   const isMountedRef = useRef(true);
+  const { registerRefreshHandler } = useRefresh();
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -152,9 +154,20 @@ const ProfileScreen = memo(() => {
     setRefreshing(false);
   }, [fetchPosts]);
 
+  useEffect(() => {
+    if (registerRefreshHandler) {
+      registerRefreshHandler('profile', onRefresh);
+    }
+  }, [registerRefreshHandler, onRefresh]);
+
   const handlePrivacyChange = useCallback((postId: string, newPrivacy: PrivacyLevel) => {
-    fetchPosts();
-  }, [fetchPosts]);
+    // Optimistic update
+    setPosts(prevPosts =>
+      prevPosts.map(post =>
+        post.id === postId ? { ...post, privacy: newPrivacy } : post
+      )
+    );
+  }, []);
 
   const handleShared = useCallback(async () => {
     await fetchPosts();
@@ -230,34 +243,27 @@ const ProfileScreen = memo(() => {
   }, []);
 
   const handleEditProfile = useCallback(() => {
-    console.log('Edit Profile Pressed');
-  }, []);
+    router.push('/(tabs)/profile/EditProfile');
+  }, [router]);
 
   const renderPost = useCallback(({ item }: { item: PostForCard }) => (
     <MemoizedPostCard
       post={item}
-      currentUserId={user?.uid || ''}
-      currentUserAvatar={user?.profileUrl || user?.avatar}
+      user={user as any}
       onLike={handleLike}
-      onComment={handleComment}
-      onShare={handleShare}
-      onDelete={handleDelete}
-      onUserPress={handleUserPress}
-      isOwner={true}
+      addComment={handleComment as any}
+      onDeletePost={handleDelete}
+      onPrivacyChange={handlePrivacyChange}
+      owner={true}
     />
-  ), [user?.uid, user?.profileUrl, user?.avatar, handleLike, handleComment, handleShare, handleDelete, handleUserPress]);
+  ), [user, handleLike, handleComment, handleDelete, handlePrivacyChange]);
 
   const keyExtractor = useCallback((item: PostForCard) => item.id, []);
-
-  const getItemLayout = useCallback((data: any, index: number) => ({
-    length: ITEM_HEIGHT,
-    offset: ITEM_HEIGHT * index,
-    index,
-  }), []);
 
   const ListHeader = useMemo(() => (
     <MemoizedTopProfile onEditProfile={handleEditProfile} />
   ), [handleEditProfile]);
+
 
   const handleScroll = useCallback(() => setIsScroll(true), []);
   const handleScrollEnd = useCallback(() => setIsScroll(false), []);

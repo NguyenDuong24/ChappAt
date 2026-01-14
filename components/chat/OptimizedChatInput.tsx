@@ -110,7 +110,7 @@ const OptimizedChatInput: React.FC<OptimizedChatInputProps> = memo(({
                         style={[styles.iconButton, { backgroundColor: inputBackgroundColor }]}
                         onPress={onGiftPress}
                     >
-                        <MaterialIcons name="card-giftcard" size={22} color="#F59E0B" />
+                        <MaterialIcons name="card-giftcard" size={22} color={iconColor} />
                     </TouchableOpacity>
 
                     {/* Text Input */}

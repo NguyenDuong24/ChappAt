@@ -5,11 +5,11 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  Image,
   Dimensions,
   Alert,
 } from 'react-native';
-import { Text, Avatar, Button, Surface } from 'react-native-paper';
+import { Image } from 'expo-image';
+import { Text, Button, Surface } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -145,10 +145,11 @@ const GroupPreviewModal = ({
                   colors={theme === 'dark' ? ['#667EEA', '#764BA2'] : ['#4facfe', '#00f2fe']}
                   style={styles.avatarContainer}
                 >
-                  <Avatar.Image
-                    size={80}
+                  <Image
                     source={{ uri: getGroupAvatar() }}
                     style={styles.avatar}
+                    contentFit="cover"
+                    transition={200}
                   />
                 </LinearGradient>
 
@@ -288,7 +289,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    backgroundColor: 'transparent',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   groupInfo: {
     alignItems: 'center',

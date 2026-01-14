@@ -134,8 +134,8 @@ export const coinServerApi = {
   // ============== WALLET ==============
 
   /**
-   * Get user's coin balance
-   * @returns {Promise<{success: boolean, coins: number, uid: string}>}
+   * Get user's coin and banhMi balance
+   * @returns {Promise<{success: boolean, coins: number, banhMi: number, uid: string}>}
    */
   async getBalance() {
     return await apiRequest('/wallet/balance', {
@@ -147,7 +147,7 @@ export const coinServerApi = {
    * Top up coins
    * @param {number} amount - Amount to add (1-1000)
    * @param {object} metadata - Optional metadata
-   * @returns {Promise<{success: boolean, amount: number, newBalance: number, transactionId: string}>}
+   * @returns {Promise<{success: boolean, amount: number, newBalance: number, banhMi: number, transactionId: string}>}
    */
   async topup(amount, metadata = {}) {
     return await apiRequest('/wallet/topup', {
@@ -157,15 +157,16 @@ export const coinServerApi = {
   },
 
   /**
-   * Spend coins
+   * Spend coins or banhMi
    * @param {number} amount - Amount to spend (1-5000)
+   * @param {string} currencyType - 'coins' or 'banhMi'
    * @param {object} metadata - Optional metadata
-   * @returns {Promise<{success: boolean, amount: number, newBalance: number, transactionId: string}>}
+   * @returns {Promise<{success: boolean, amount: number, currencyType: string, newBalance: number, transactionId: string}>}
    */
-  async spend(amount, metadata = {}) {
+  async spend(amount, currencyType = 'banhMi', metadata = {}) {
     return await apiRequest('/wallet/spend', {
       method: 'POST',
-      body: JSON.stringify({ amount, metadata }),
+      body: JSON.stringify({ amount, currencyType, metadata }),
     });
   },
 
@@ -338,6 +339,19 @@ export const coinServerApi = {
       method: 'GET',
     });
   },
+
+  /**
+   * Equip an owned avatar frame
+   * @param {string} frameType - Frame type to equip (e.g., 'gold', 'silver')
+   * @returns {Promise<{success: boolean, activeFrame: string}>}
+   */
+  async equipFrame(frameType, itemId) {
+    console.log('🖼️ [EQUIP FRAME] Called with:', frameType, itemId);
+    return await apiRequest('/shop/equip-frame', {
+      method: 'POST',
+      body: JSON.stringify({ frameType, itemId }),
+    });
+  },
 };
 
 /**
@@ -374,6 +388,10 @@ export function getErrorMessage(error) {
       default:
         return error.message || 'Đã có lỗi xảy ra';
     }
+  }
+
+  if (error.status === 429) {
+    return 'Bạn đã nhận thưởng hôm nay rồi. Vui lòng quay lại vào ngày mai!';
   }
 
   return error.message || 'Đã có lỗi xảy ra';

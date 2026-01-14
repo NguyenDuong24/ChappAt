@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { collection, addDoc, doc, Timestamp } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
 import { useChatTheme, ChatTheme, ChatEffect } from '@/context/ChatThemeContext';
 import { Colors } from '@/constants/Colors';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -9,9 +11,10 @@ interface ChatThemePickerProps {
   visible: boolean;
   onClose: () => void;
   roomId: string;
+  currentUser: any;
 }
 
-const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roomId }) => {
+const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roomId, currentUser }) => {
   const { themes, currentTheme, setTheme, effects, currentEffect, setEffect } = useChatTheme();
   const { theme: appTheme } = React.useContext(ThemeContext) || { theme: 'light' };
   const currentThemeColors = (appTheme === 'dark' ? Colors.dark : Colors.light) || {
@@ -24,11 +27,41 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
   const [activeTab, setActiveTab] = useState<'theme' | 'effect'>('theme');
 
   const handleThemeSelect = async (theme: ChatTheme) => {
+    if (theme.id === currentTheme.id) return;
     await setTheme(theme.id, roomId);
+
+    // Send system message
+    try {
+      const roomRef = doc(db, 'rooms', roomId);
+      const messagesRef = collection(roomRef, 'messages');
+      await addDoc(messagesRef, {
+        type: 'system',
+        text: `${currentUser?.username || 'Người dùng'} đã đổi chủ đề thành ${theme.name}`,
+        createdAt: Timestamp.fromDate(new Date()),
+        uid: 'system'
+      });
+    } catch (error) {
+      console.error('Error sending system message for theme:', error);
+    }
   };
 
   const handleEffectSelect = async (effect: ChatEffect) => {
+    if (effect.id === currentEffect) return;
     await setEffect(effect.id, roomId);
+
+    // Send system message
+    try {
+      const roomRef = doc(db, 'rooms', roomId);
+      const messagesRef = collection(roomRef, 'messages');
+      await addDoc(messagesRef, {
+        type: 'system',
+        text: `${currentUser?.username || 'Người dùng'} đã đổi hiệu ứng thành ${effect.name}`,
+        createdAt: Timestamp.fromDate(new Date()),
+        uid: 'system'
+      });
+    } catch (error) {
+      console.error('Error sending system message for effect:', error);
+    }
   };
 
   return (

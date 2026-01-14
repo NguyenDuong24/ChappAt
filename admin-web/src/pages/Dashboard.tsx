@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import {
     Box,
     Drawer,
@@ -13,7 +13,6 @@ import {
     ListItemButton,
     ListItemIcon,
     ListItemText,
-    Button,
 } from '@mui/material';
 import {
     Menu as MenuIcon,
@@ -27,6 +26,10 @@ import {
     Chat as ChatIcon,
     LocalFireDepartment as HotSpotsIcon,
     Favorite as ActivityIcon,
+    AccountBalance as WalletIcon,
+    Store as StoreIcon,
+    CardGiftcard,
+    Face as FaceIcon
 } from '@mui/icons-material';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
@@ -38,11 +41,21 @@ import UsersPage from '../components/UsersPage';
 import ChatInspectorPage from '../components/ChatInspectorPage';
 import HotSpotsPage from '../components/HotSpotsPage';
 import HotSpotInteractionsPage from '../components/HotSpotInteractionsPage';
+import WalletOverviewPage from '../components/WalletOverviewPage';
+import AdSettingsPage from './AdSettingsPage';
+import ShopPage from './ShopPage';
+import GiftPage from './GiftPage';
+import IconManagementPage from './IconManagementPage';
 
 const drawerWidth = 240;
 
 const menuItems = [
     { text: 'Overview', icon: <DashboardIcon />, path: '/dashboard' },
+    { text: '💰 Wallet', icon: <WalletIcon />, path: '/dashboard/wallet' },
+    { text: '🛍️ Shop', icon: <StoreIcon />, path: '/dashboard/shop' },
+    { text: '🎁 Gifts', icon: <CardGiftcard />, path: '/dashboard/gifts' },
+    { text: '👤 Icons', icon: <FaceIcon />, path: '/dashboard/icons' },
+    { text: '📺 Ad Settings', icon: <SettingsIcon />, path: '/dashboard/ads' },
     { text: 'HotSpots', icon: <HotSpotsIcon />, path: '/dashboard/hotspots' },
     { text: 'HotSpot Activity', icon: <ActivityIcon />, path: '/dashboard/hotspots-activity' },
     { text: 'Flagged Content', icon: <FlagIcon />, path: '/dashboard/flagged' },
@@ -169,6 +182,11 @@ export default function Dashboard() {
                 <Toolbar />
                 <Routes>
                     <Route path="/" element={<OverviewPage />} />
+                    <Route path="/wallet" element={<WalletOverviewPage />} />
+                    <Route path="/shop" element={<ShopPage />} />
+                    <Route path="/gifts" element={<GiftPage />} />
+                    <Route path="/icons" element={<IconManagementPage />} />
+                    <Route path="/ads" element={<AdSettingsPage />} />
                     <Route path="/flagged" element={<FlaggedContentPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
                     <Route path="/users" element={<UsersPage />} />

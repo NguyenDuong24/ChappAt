@@ -6,11 +6,11 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Image,
   ActivityIndicator,
   Alert,
   Dimensions
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserProfile } from '@/types/eventInvites';
@@ -38,9 +38,9 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
   const viewerShowOnline = user?.showOnlineStatus !== false;
   const [interestedUsers, setInterestedUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
-  const [invitingUsers, setInvitingUsers] = useState<{[key: string]: boolean}>({});
+  const [invitingUsers, setInvitingUsers] = useState<{ [key: string]: boolean }>({});
   const [hotSpotData, setHotSpotData] = useState<any>(null);
-  const [pendingInvites, setPendingInvites] = useState<{[key: string]: boolean}>({});
+  const [pendingInvites, setPendingInvites] = useState<{ [key: string]: boolean }>({});
 
   // Helper: safely format location which may be string or { latitude, longitude }
   const getLocationText = (loc: any): string | undefined => {
@@ -71,10 +71,10 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
       // Filter out current user
       const filteredUsers = users.filter(u => u.id !== user?.uid);
       setInterestedUsers(filteredUsers);
-      
+
       // Check for existing pending invites
       if (user?.uid) {
-        const pendingChecks: {[key: string]: boolean} = {};
+        const pendingChecks: { [key: string]: boolean } = {};
         for (const targetUser of filteredUsers) {
           try {
             const existing = await eventInviteService.checkExistingInvite(
@@ -116,9 +116,9 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
       Alert.alert('Đã gửi', 'Bạn đã có lời mời đang chờ người này.');
       return;
     }
-    
+
     setInvitingUsers(prev => ({ ...prev, [targetUserId]: true }));
-    
+
     try {
       const targetUser = interestedUsers.find(u => u.id === targetUserId);
 
@@ -132,9 +132,9 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
 
       const inviteId = await eventInviteService.sendInvite(eventId, user.uid, targetUserId);
       setPendingInvites(prev => ({ ...prev, [targetUserId]: true }));
-      
+
       Alert.alert(
-        'Thành công! 💌', 
+        'Thành công! 💌',
         `Đã gửi lời mời đến ${targetUser?.name || 'người dùng'}! Họ sẽ nhận được thông báo.`,
         [{ text: 'OK' }]
       );
@@ -153,7 +153,7 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
         <View style={styles.userInfo}>
           <View style={styles.avatarContainer}>
             {item.avatar ? (
-              <Image source={{ uri: item.avatar }} style={styles.avatar} />
+              <Image source={{ uri: item.avatar }} style={styles.avatar} contentFit="cover" />
             ) : (
               <View style={[styles.avatar, styles.avatarPlaceholder]}>
                 <Text style={styles.avatarText}>
@@ -163,7 +163,7 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
             )}
             {viewerShowOnline && <View style={styles.onlineIndicator} />}
           </View>
-          
+
           <View style={styles.userDetails}>
             <Text style={styles.userName}>{item.name || 'Người dùng'}</Text>
             {typeof item.age === 'number' && (
@@ -180,8 +180,8 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
             )}
           </View>
         </View>
-  
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[styles.inviteButton, (invitingUsers[item.id] || pendingInvites[item.id]) && styles.inviteButtonDisabled]}
           onPress={() => handleInviteUser(item.id)}
           disabled={invitingUsers[item.id] || pendingInvites[item.id]}
@@ -223,17 +223,17 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
             colors={['#7C3AED', '#EC4899']}
             style={StyleSheet.absoluteFill}
           />
-          
+
           <View style={styles.headerContent}>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <MaterialIcons name="close" size={24} color="white" />
             </TouchableOpacity>
-            
+
             <View style={styles.headerTitleContainer}>
               <Text style={styles.headerTitle}>Những người quan tâm 🎉</Text>
               <Text style={styles.headerSubtitle} numberOfLines={1}>{eventTitle}</Text>
             </View>
-            
+
             <View style={styles.headerSpacer} />
           </View>
         </View>

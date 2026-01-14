@@ -60,7 +60,7 @@ export const useExploreData = (): UseExploreDataReturn => {
     try {
       setError(null);
       const hashtags = await FirebaseErrorHandler.retryOperation(
-        () => HashtagService.getTrendingHashtagsToday(4),
+        () => HashtagService.getTrendingHashtagsToday(8),
         { maxRetries: 3, initialDelay: 1000 }
       );
 
@@ -87,10 +87,14 @@ export const useExploreData = (): UseExploreDataReturn => {
 
       // Fallback data if service fails
       setTrendingHashtags([
-        { tag: '#trending', count: 1234 },
-        { tag: '#viral', count: 987 },
-        { tag: '#explore', count: 756 },
-        { tag: '#discover', count: 543 }
+        { tag: '#Dating', count: 2150 },
+        { tag: '#Love', count: 1890 },
+        { tag: '#Romance', count: 1234 },
+        { tag: '#Weekend', count: 987 },
+        { tag: '#Coffee', count: 756 },
+        { tag: '#Music', count: 654 },
+        { tag: '#Travel', count: 543 },
+        { tag: '#Food', count: 432 }
       ]);
     }
   }, []);
@@ -125,7 +129,7 @@ export const useExploreData = (): UseExploreDataReturn => {
 
   // Initial load with debounce
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: any;
 
     const loadInitialData = async () => {
       // Clear any existing timeout
@@ -176,7 +180,7 @@ export const useExploreData = (): UseExploreDataReturn => {
     if (!user?.uid) return;
 
     let unsubscribe: (() => void) | undefined;
-    let retryTimeout: NodeJS.Timeout;
+    let retryTimeout: any;
 
     const setupRealtimeNotifications = async () => {
       try {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, FlatList, ActivityIndicator, ImageBackground, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, ImageBackground, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { getStorage, ref, list, getDownloadURL } from 'firebase/storage';
@@ -9,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ProgressIndicator from '@/components/signup/ProgressIndicator';
 import { useTranslation } from 'react-i18next';
 
-const PAGE_SIZE = 9;
+const PAGE_SIZE = 21;
 
 const IconSelectionScreen = () => {
   const { t } = useTranslation();
@@ -30,11 +31,14 @@ const IconSelectionScreen = () => {
   const [selectedIcon, setSelectedIcon] = useState(null);
   const [nextPageToken, setNextPageToken] = useState(undefined);
   const [initialLoading, setInitialLoading] = useState(true);
-  const isLoadingRef = useRef(false); // Dùng ref để track loading, tránh stale closure
+  const isLoadingRef = useRef(false);
+  const hasLoadedInitial = useRef(false);
 
   const loadIcons = useCallback(async (pageToken = undefined) => {
     if (isLoadingRef.current) return;
-    if (pageToken === undefined && icons.length > 0) return; // Ngăn load initial duplicate
+    if (pageToken === undefined && hasLoadedInitial.current) {
+      return;
+    }
 
     isLoadingRef.current = true;
     const storage = getStorage();
@@ -44,13 +48,14 @@ const IconSelectionScreen = () => {
       const urls = await Promise.all(result.items.map((item) => getDownloadURL(item)));
       setIcons((prev) => [...prev, ...urls]);
       setNextPageToken(result.nextPageToken);
+      if (pageToken === undefined) hasLoadedInitial.current = true;
     } catch (error) {
       console.error('Error fetching icons: ', error);
     } finally {
       isLoadingRef.current = false;
       if (initialLoading) setInitialLoading(false);
     }
-  }, [icons.length, initialLoading]);
+  }, [initialLoading]);
 
   useEffect(() => {
     loadIcons();
@@ -94,28 +99,31 @@ const IconSelectionScreen = () => {
             styles.icon,
             selectedIcon === item && styles.selectedIcon,
           ]}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
         />
       </TouchableOpacity>
     ),
     [selectedIcon, handleIconSelect]
   );
 
-  const getItemLayout = (data, index) => ({
+  const getItemLayout = useCallback((data, index) => ({
     length: 100,
-    offset: 100 * index,
+    offset: 100 * Math.floor(index / 3),
     index,
-  });
+  }), []);
 
-  const handleEndReached = () => {
+  const handleEndReached = useCallback(() => {
     if (nextPageToken && !isLoadingRef.current) {
       loadIcons(nextPageToken);
     }
-  };
+  }, [nextPageToken, loadIcons]);
 
-  const renderFooter = () => {
+  const renderFooter = useCallback(() => {
     if (!isLoadingRef.current) return null;
     return <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 20 }} />;
-  };
+  }, []);
 
   return (
     <ImageBackground
@@ -126,16 +134,25 @@ const IconSelectionScreen = () => {
       <LinearGradient colors={['rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)']} style={styles.backdrop} />
 
       <View style={styles.container}>
-        <ProgressIndicator
-          currentStep={stepInfo.current}
-          totalSteps={stepInfo.total}
-          signupType={signupType || 'email'}
-        />
+        {params.isEditing === 'true' ? (
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ position: 'absolute', top: 50, left: 20, zIndex: 10, padding: 10 }}
+          >
+            <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>{t('common.back')}</Text>
+          </TouchableOpacity>
+        ) : (
+          <ProgressIndicator
+            currentStep={stepInfo.current}
+            totalSteps={stepInfo.total}
+            signupType={signupType || 'email'}
+          />
+        )}
 
         {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logo} />
+          <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
         ) : (
-          <Text style={styles.loadingText}>{t('common.loading')}</Text>
+          <Image source={require('../../assets/images/logo.png')} style={styles.logo} contentFit="contain" />
         )}
         <Text style={styles.title}>{t('signup.icon_title')}</Text>
         {initialLoading ? (
@@ -160,12 +177,14 @@ const IconSelectionScreen = () => {
           disabled={!selectedIcon}
           activeOpacity={0.85}
         >
-          <Text style={styles.nextButtonText}>{t('common.next')}</Text>
+          <Text style={styles.nextButtonText}>{params.isEditing === 'true' ? t('common.save') : t('common.next')}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
-          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>{t('signup.cancel_registration')}</Text>
-        </TouchableOpacity>
+        {params.isEditing !== 'true' && (
+          <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
+            <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>{t('signup.cancel_registration')}</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ImageBackground>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useContext, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ImageBackground, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
@@ -71,7 +72,7 @@ const GenderSelectionScreen = () => {
         />
 
         {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logo} />
+          <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
         ) : (
           <Text style={{ color: currentThemeColors.text }}>{t('common.loading')}</Text>
         )}

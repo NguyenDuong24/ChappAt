@@ -35,6 +35,7 @@ import {
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { format } from 'date-fns';
+import AvatarFrame from './common/AvatarFrame';
 
 interface User {
     id: string;
@@ -49,6 +50,7 @@ interface User {
     gender?: string;
     birthDate?: any;
     images?: string[];
+    activeFrame?: string;
 }
 
 export default function UsersPage() {
@@ -222,9 +224,12 @@ export default function UsersPage() {
                             <TableRow key={user.id} hover>
                                 <TableCell>
                                     <Box display="flex" alignItems="center" gap={2}>
-                                        <Avatar src={user.profileUrl} alt={user.username}>
-                                            {user.username?.[0]?.toUpperCase() || user.displayName?.[0]?.toUpperCase()}
-                                        </Avatar>
+                                        <AvatarFrame
+                                            avatarUrl={user.profileUrl || ''}
+                                            frameType={user.activeFrame}
+                                            size={44}
+                                            username={user.username || user.displayName}
+                                        />
                                         <Box>
                                             <Typography variant="body1" fontWeight="500">
                                                 {user.username || user.displayName || 'Unknown'}
@@ -295,9 +300,11 @@ export default function UsersPage() {
                         <DialogContent dividers>
                             <Grid container spacing={3}>
                                 <Grid item xs={12} md={4} display="flex" flexDirection="column" alignItems="center" gap={2}>
-                                    <Avatar
-                                        src={selectedUser.profileUrl}
-                                        sx={{ width: 120, height: 120, border: '4px solid #fff', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                    <AvatarFrame
+                                        avatarUrl={selectedUser.profileUrl || ''}
+                                        frameType={selectedUser.activeFrame}
+                                        size={120}
+                                        username={selectedUser.username || selectedUser.displayName}
                                     />
                                     <Typography variant="h5" fontWeight="bold">
                                         {selectedUser.displayName || selectedUser.username}

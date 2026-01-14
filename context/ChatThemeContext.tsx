@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { EffectType } from '@/components/chat/ChatBackgroundEffects';
 
@@ -197,6 +197,30 @@ export const CHAT_EFFECTS: ChatEffect[] = [
     name: 'Thiên hà',
     preview: '🌌',
     description: 'Bầu trời đêm huyền ảo'
+  },
+  {
+    id: 'balloons',
+    name: 'Bóng bay',
+    preview: '🎈',
+    description: 'Bóng bay rực rỡ sắc màu'
+  },
+  {
+    id: 'fireworks',
+    name: 'Pháo hoa',
+    preview: '🎆',
+    description: 'Pháo hoa nổ tung rực rỡ'
+  },
+  {
+    id: 'music',
+    name: 'Âm nhạc',
+    preview: '🎵',
+    description: 'Nốt nhạc bay bổng'
+  },
+  {
+    id: 'sunlight',
+    name: 'Nắng vàng',
+    preview: '☀️',
+    description: 'Tia nắng ấm áp'
   }
 ];
 
@@ -205,8 +229,8 @@ interface ChatThemeContextType {
   currentEffect: EffectType;
   setTheme: (themeId: string, roomId: string) => Promise<void>;
   setEffect: (effectId: EffectType, roomId: string) => Promise<void>;
-  loadTheme: (roomId: string) => Promise<void>;
-  loadEffect: (roomId: string) => Promise<void>;
+  loadTheme: (roomId: string) => () => void;
+  loadEffect: (roomId: string) => () => void;
   themes: ChatTheme[];
   effects: ChatEffect[];
 }
@@ -217,11 +241,9 @@ export const ChatThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [currentTheme, setCurrentTheme] = useState<ChatTheme>(CHAT_THEMES[0]);
   const [currentEffect, setCurrentEffect] = useState<EffectType>('none');
 
-  const loadTheme = async (roomId: string) => {
-    try {
-      const themeDocRef = doc(db, 'roomThemes', roomId);
-      const themeDoc = await getDoc(themeDocRef);
-
+  const loadTheme = (roomId: string) => {
+    const themeDocRef = doc(db, 'roomThemes', roomId);
+    return onSnapshot(themeDocRef, (themeDoc) => {
       if (themeDoc.exists()) {
         const themeData = themeDoc.data();
         const theme = CHAT_THEMES.find(t => t.id === themeData.themeId);
@@ -229,21 +251,18 @@ export const ChatThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setCurrentTheme(theme);
         }
       } else {
-        // Set default theme
         setCurrentTheme(CHAT_THEMES[0]);
       }
-    } catch (error) {
+    }, (error) => {
       console.error('Error loading chat theme:', error);
       setCurrentTheme(CHAT_THEMES[0]);
-    }
+    });
   };
 
-  const loadEffect = async (roomId: string) => {
-    try {
-      console.log('🎨 [ChatThemeContext] Loading effect for room:', roomId);
-      const themeDocRef = doc(db, 'roomThemes', roomId);
-      const themeDoc = await getDoc(themeDocRef);
-
+  const loadEffect = (roomId: string) => {
+    console.log('🎨 [ChatThemeContext] Subscribing to effect for room:', roomId);
+    const themeDocRef = doc(db, 'roomThemes', roomId);
+    return onSnapshot(themeDocRef, (themeDoc) => {
       if (themeDoc.exists()) {
         const themeData = themeDoc.data();
         const effectId = themeData.effectId as EffectType;
@@ -251,15 +270,11 @@ export const ChatThemeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (effectId && CHAT_EFFECTS.find(e => e.id === effectId)) {
           setCurrentEffect(effectId);
           console.log('🎨 [ChatThemeContext] Set currentEffect to:', effectId);
-        } else {
-          console.log('🎨 [ChatThemeContext] Invalid or no effect, staying with:', currentEffect);
         }
-      } else {
-        console.log('🎨 [ChatThemeContext] No theme doc, staying with:', currentEffect);
       }
-    } catch (error) {
+    }, (error) => {
       console.error('❌ [ChatThemeContext] Error loading chat effect:', error);
-    }
+    });
   };
 
   const setTheme = async (themeId: string, roomId: string) => {

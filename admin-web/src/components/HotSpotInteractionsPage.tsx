@@ -68,6 +68,7 @@ import {
   getDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import AvatarFrame from './common/AvatarFrame';
 
 // Types
 interface HotSpotInteraction {
@@ -87,6 +88,7 @@ interface HotSpotInteraction {
   // Additional data for display
   userName?: string;
   userAvatar?: string;
+  userFrame?: string;
   hotSpotTitle?: string;
 }
 
@@ -102,6 +104,7 @@ interface HotSpotInvitation {
   hotSpotTitle: string;
   fromUserName: string;
   fromUserAvatar?: string;
+  fromUserFrame?: string;
 }
 
 interface EventPass {
@@ -125,32 +128,49 @@ interface EventPass {
   };
   userName?: string;
   userAvatar?: string;
+  userFrame?: string;
 }
 
 export default function HotSpotInteractionsPage() {
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(true);
-  
+  const [userCache, setUserCache] = useState<Record<string, any>>({});
+
+  const fetchUserInfo = async (userId: string) => {
+    if (userCache[userId]) return userCache[userId];
+    try {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = { id: userId, ...userDoc.data() };
+        setUserCache(prev => ({ ...prev, [userId]: userData }));
+        return userData;
+      }
+    } catch (err) {
+      console.error('Error fetching user:', err);
+    }
+    return null;
+  };
+
   // Data states
   const [interactions, setInteractions] = useState<HotSpotInteraction[]>([]);
   const [invitations, setInvitations] = useState<HotSpotInvitation[]>([]);
   const [eventPasses, setEventPasses] = useState<EventPass[]>([]);
-  
+
   // Pagination
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'interested' | 'joined' | 'checked_in'>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'accepted' | 'declined' | 'expired'>('all');
   const [filterBadge, setFilterBadge] = useState<'all' | 'participant' | 'checked_in' | 'organizer' | 'vip'>('all');
-  
+
   // Dialog states
   const [openViewDialog, setOpenViewDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  
+
   // Snackbar
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -181,7 +201,16 @@ export default function HotSpotInteractionsPage() {
         id: doc.id,
         ...doc.data(),
       })) as HotSpotInteraction[];
-      setInteractions(interactionsData);
+
+      // Enrich with user frames
+      const uniqueUserIds = [...new Set(interactionsData.map(i => i.userId).filter(Boolean))];
+      await Promise.all(uniqueUserIds.map(id => fetchUserInfo(id)));
+
+      const enrichedInteractions = interactionsData.map(item => ({
+        ...item,
+        userFrame: userCache[item.userId]?.activeFrame
+      }));
+      setInteractions(enrichedInteractions);
 
       // Fetch invitations
       const invitationsRef = collection(db, 'hotSpotInvitations');
@@ -190,7 +219,16 @@ export default function HotSpotInteractionsPage() {
         id: doc.id,
         ...doc.data(),
       })) as HotSpotInvitation[];
-      setInvitations(invitationsData);
+
+      // Enrich with user frames
+      const uniqueFromUserIds = [...new Set(invitationsData.map(i => i.fromUserId).filter(Boolean))];
+      await Promise.all(uniqueFromUserIds.map(id => fetchUserInfo(id)));
+
+      const enrichedInvitations = invitationsData.map(item => ({
+        ...item,
+        fromUserFrame: userCache[item.fromUserId]?.activeFrame
+      }));
+      setInvitations(enrichedInvitations);
 
       // Fetch event passes
       const passesRef = collection(db, 'eventPasses');
@@ -199,7 +237,16 @@ export default function HotSpotInteractionsPage() {
         id: doc.id,
         ...doc.data(),
       })) as EventPass[];
-      setEventPasses(passesData);
+
+      // Enrich with user frames
+      const uniquePassUserIds = [...new Set(passesData.map(i => i.userId).filter(Boolean))];
+      await Promise.all(uniquePassUserIds.map(id => fetchUserInfo(id)));
+
+      const enrichedPasses = passesData.map(item => ({
+        ...item,
+        userFrame: userCache[item.userId]?.activeFrame
+      }));
+      setEventPasses(enrichedPasses);
 
       // Calculate stats
       setStats({
@@ -304,9 +351,9 @@ export default function HotSpotInteractionsPage() {
     if (filterType !== 'all' && item.type !== filterType) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!item.userId?.toLowerCase().includes(query) && 
-          !item.hotSpotId?.toLowerCase().includes(query) &&
-          !item.userName?.toLowerCase().includes(query)) return false;
+      if (!item.userId?.toLowerCase().includes(query) &&
+        !item.hotSpotId?.toLowerCase().includes(query) &&
+        !item.userName?.toLowerCase().includes(query)) return false;
     }
     return true;
   });
@@ -315,10 +362,10 @@ export default function HotSpotInteractionsPage() {
     if (filterStatus !== 'all' && item.status !== filterStatus) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!item.fromUserId?.toLowerCase().includes(query) && 
-          !item.toUserId?.toLowerCase().includes(query) &&
-          !item.hotSpotTitle?.toLowerCase().includes(query) &&
-          !item.fromUserName?.toLowerCase().includes(query)) return false;
+      if (!item.fromUserId?.toLowerCase().includes(query) &&
+        !item.toUserId?.toLowerCase().includes(query) &&
+        !item.hotSpotTitle?.toLowerCase().includes(query) &&
+        !item.fromUserName?.toLowerCase().includes(query)) return false;
     }
     return true;
   });
@@ -327,9 +374,9 @@ export default function HotSpotInteractionsPage() {
     if (filterBadge !== 'all' && item.badgeType !== filterBadge) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!item.userId?.toLowerCase().includes(query) && 
-          !item.hotSpotTitle?.toLowerCase().includes(query) &&
-          !item.userName?.toLowerCase().includes(query)) return false;
+      if (!item.userId?.toLowerCase().includes(query) &&
+        !item.hotSpotTitle?.toLowerCase().includes(query) &&
+        !item.userName?.toLowerCase().includes(query)) return false;
     }
     return true;
   });
@@ -564,10 +611,13 @@ export default function HotSpotInteractionsPage() {
                       <TableRow key={item.id} hover>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar src={item.userAvatar} sx={{ width: 32, height: 32 }}>
-                              {item.userName?.[0] || 'U'}
-                            </Avatar>
-                            <Box>
+                            <AvatarFrame
+                              avatarUrl={item.userAvatar || ''}
+                              frameType={item.userFrame}
+                              size={32}
+                              username={item.userName}
+                            />
+                            <Box ml={1}>
                               <Typography variant="body2">{item.userName || 'Unknown'}</Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {item.userId?.substring(0, 10)}...
@@ -652,10 +702,13 @@ export default function HotSpotInteractionsPage() {
                       <TableRow key={item.id} hover>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar src={item.fromUserAvatar} sx={{ width: 32, height: 32 }}>
-                              {item.fromUserName?.[0] || 'U'}
-                            </Avatar>
-                            <Typography variant="body2">{item.fromUserName || 'Unknown'}</Typography>
+                            <AvatarFrame
+                              avatarUrl={item.fromUserAvatar || ''}
+                              frameType={item.fromUserFrame}
+                              size={32}
+                              username={item.fromUserName}
+                            />
+                            <Typography variant="body2" ml={1}>{item.fromUserName || 'Unknown'}</Typography>
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -760,10 +813,13 @@ export default function HotSpotInteractionsPage() {
                       <TableRow key={item.id} hover>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar src={item.userAvatar} sx={{ width: 32, height: 32 }}>
-                              {item.userName?.[0] || 'U'}
-                            </Avatar>
-                            <Box>
+                            <AvatarFrame
+                              avatarUrl={item.userAvatar || ''}
+                              frameType={item.userFrame}
+                              size={32}
+                              username={item.userName}
+                            />
+                            <Box ml={1}>
                               <Typography variant="body2">{item.userName || 'Unknown'}</Typography>
                               <Typography variant="caption" color="text.secondary">
                                 {item.userId?.substring(0, 10)}...
@@ -846,8 +902,8 @@ export default function HotSpotInteractionsPage() {
           component="div"
           count={
             tabValue === 0 ? filteredInteractions.length :
-            tabValue === 1 ? filteredInvitations.length :
-            filteredPasses.length
+              tabValue === 1 ? filteredInvitations.length :
+                filteredPasses.length
           }
           rowsPerPage={rowsPerPage}
           page={page}

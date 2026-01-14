@@ -4,11 +4,11 @@ import { Platform, AppState, AppStateStatus } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../firebaseConfig';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
   doc,
   orderBy,
   limit,
@@ -42,6 +42,7 @@ class ExpoPushNotificationService {
   private notificationDebounceTime = 1000; // 1 giây
   private chatMessageListeners: Map<string, () => void> = new Map();
   private groupMessageListeners: Map<string, () => void> = new Map();
+  private commentListeners: Map<string, () => void> = new Map();
   private devicePushToken: { type: string; data: string } | null = null;
 
   /**
@@ -80,7 +81,7 @@ class ExpoPushNotificationService {
 
     try {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-      
+
       if (!projectId) {
         console.warn('⚠️ Không tìm thấy Project ID, sử dụng local notifications');
         return null;
@@ -92,7 +93,7 @@ class ExpoPushNotificationService {
 
       this.expoPushToken = pushTokenString;
       await AsyncStorage.setItem('expoPushToken', pushTokenString);
-      
+
       // Đồng bộ token lên Firestore để thiết bị khác có thể gửi push cho bạn
       if (this.currentUserId) {
         await this.syncPushTokenToUser(this.currentUserId, pushTokenString);
@@ -113,7 +114,7 @@ class ExpoPushNotificationService {
       } catch (e) {
         console.warn('⚠️ Lỗi khi lấy native device push token:', e);
       }
-      
+
       console.log('✅ Expo Push Token:', pushTokenString);
       return pushTokenString;
     } catch (error) {
@@ -226,7 +227,7 @@ class ExpoPushNotificationService {
   private handleAppStateChange = (nextAppState: AppStateStatus) => {
     console.log('🔄 App state changed:', this.appState, '->', nextAppState);
     this.appState = nextAppState;
-    
+
     if (nextAppState === 'background' || nextAppState === 'inactive') {
       console.log('📱 App đang ở background - notifications sẽ được hiển thị');
     } else if (nextAppState === 'active') {
@@ -265,10 +266,12 @@ class ExpoPushNotificationService {
 
       this.listeners.chatMessages = onSnapshot(q, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added' || change.type === 'modified') {
+          if (change.type === 'added') {
             const chatData = change.doc.data();
             this.listenToMessagesInChat(change.doc.id, chatData);
           }
+          // Note: We don't need to re-subscribe on 'modified' because the message listener 
+          // is already active and listening to the subcollection.
         });
       });
 
@@ -299,7 +302,7 @@ class ExpoPushNotificationService {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const messageData = change.doc.data();
-          
+
           if (
             this.isAppInBackground() &&
             messageData.senderId !== this.currentUserId &&
@@ -329,10 +332,11 @@ class ExpoPushNotificationService {
 
       this.listeners.groupMessages = onSnapshot(q, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === 'added' || change.type === 'modified') {
+          if (change.type === 'added') {
             const groupData = change.doc.data();
             this.listenToMessagesInGroup(change.doc.id, groupData);
           }
+          // Note: We don't need to re-subscribe on 'modified'
         });
       });
 
@@ -363,7 +367,7 @@ class ExpoPushNotificationService {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const messageData = change.doc.data();
-          
+
           if (
             this.isAppInBackground() &&
             messageData.senderId !== this.currentUserId &&
@@ -392,9 +396,18 @@ class ExpoPushNotificationService {
       );
 
       this.listeners.comments = onSnapshot(q, (snapshot) => {
-        snapshot.docs.forEach((postDoc) => {
-          const postData = postDoc.data();
-          this.listenToCommentsInPost(postDoc.id, postData);
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const postData = change.doc.data();
+            this.listenToCommentsInPost(change.doc.id, postData);
+          } else if (change.type === 'removed') {
+            // Stop listening to comments for this post
+            const unsubscribe = this.commentListeners.get(change.doc.id);
+            if (unsubscribe) {
+              unsubscribe();
+              this.commentListeners.delete(change.doc.id);
+            }
+          }
         });
       });
 
@@ -408,6 +421,9 @@ class ExpoPushNotificationService {
    * Lắng nghe bình luận trong một bài viết cụ thể
    */
   private listenToCommentsInPost(postId: string, postData: DocumentData) {
+    // Avoid duplicate listeners
+    if (this.commentListeners.has(postId)) return;
+
     const commentsRef = collection(db, 'posts', postId, 'comments');
     const q = query(
       commentsRef,
@@ -415,11 +431,11 @@ class ExpoPushNotificationService {
       limit(1)
     );
 
-    onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const commentData = change.doc.data();
-          
+
           if (
             this.isAppInBackground() &&
             commentData.userId !== this.currentUserId &&
@@ -430,6 +446,8 @@ class ExpoPushNotificationService {
         }
       });
     });
+
+    this.commentListeners.set(postId, unsubscribe);
   }
 
   /**
@@ -440,11 +458,18 @@ class ExpoPushNotificationService {
 
     try {
       const userDocRef = doc(db, 'users', this.currentUserId);
-      
+
+      let lastFriendsJson = '';
+
       onSnapshot(userDocRef, (snapshot) => {
         const userData = snapshot.data();
         const friends = userData?.friends || [];
-        
+
+        // Optimize: Only re-subscribe if friends list (first 10) actually changed
+        const currentFriendsJson = JSON.stringify(friends.slice(0, 10));
+        if (currentFriendsJson === lastFriendsJson) return;
+        lastFriendsJson = currentFriendsJson;
+
         if (friends.length > 0) {
           const postsRef = collection(db, 'posts');
           const q = query(
@@ -454,11 +479,16 @@ class ExpoPushNotificationService {
             limit(1)
           );
 
+          // Unsubscribe previous listener if exists
+          if (this.listeners.posts) {
+            this.listeners.posts();
+          }
+
           this.listeners.posts = onSnapshot(q, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
               if (change.type === 'added') {
                 const postData = change.doc.data();
-                
+
                 if (
                   this.isAppInBackground() &&
                   postData.userId !== this.currentUserId &&
@@ -536,11 +566,11 @@ class ExpoPushNotificationService {
    */
   private async sendChatNotification(chatId: string, messageData: DocumentData, chatData: DocumentData) {
     const notificationKey = `chat_${chatId}_${messageData.timestamp}`;
-    
+
     if (this.shouldSendNotification(notificationKey)) {
       try {
         const senderName = await this.getUserName(messageData.senderId);
-        
+
         let body = messageData.text || '';
         if (messageData.imageUrl) {
           body = '📷 Đã gửi một hình ảnh';
@@ -577,12 +607,12 @@ class ExpoPushNotificationService {
    */
   private async sendGroupNotification(groupId: string, messageData: DocumentData, groupData: DocumentData) {
     const notificationKey = `group_${groupId}_${messageData.timestamp}`;
-    
+
     if (this.shouldSendNotification(notificationKey)) {
       try {
         const senderName = await this.getUserName(messageData.senderId);
         const groupName = groupData.name || 'Nhóm';
-        
+
         let body = messageData.text || '';
         if (messageData.imageUrl) {
           body = '📷 Đã gửi một hình ảnh';
@@ -618,11 +648,11 @@ class ExpoPushNotificationService {
    */
   private async sendCommentNotification(postId: string, commentData: DocumentData, postData: DocumentData) {
     const notificationKey = `comment_${postId}_${commentData.timestamp}`;
-    
+
     if (this.shouldSendNotification(notificationKey)) {
       try {
         const commenterName = await this.getUserName(commentData.userId);
-        
+
         await Notifications.scheduleNotificationAsync({
           content: {
             title: '💬 Bình luận mới',
@@ -652,11 +682,11 @@ class ExpoPushNotificationService {
    */
   private async sendPostNotification(postId: string, postData: DocumentData) {
     const notificationKey = `post_${postId}_${postData.timestamp}`;
-    
+
     if (this.shouldSendNotification(notificationKey)) {
       try {
         const authorName = await this.getUserName(postData.userId);
-        
+
         let body = postData.text || 'Đã đăng một bài viết mới';
         if (postData.imageUrl) {
           body = '📷 Đã đăng một hình ảnh mới';
@@ -697,9 +727,9 @@ class ExpoPushNotificationService {
    */
   private isRecentMessage(timestamp: Timestamp | Date | any): boolean {
     if (!timestamp) return false;
-    
+
     let messageTime: number;
-    
+
     if (timestamp instanceof Timestamp) {
       messageTime = timestamp.toMillis();
     } else if (timestamp instanceof Date) {
@@ -714,7 +744,7 @@ class ExpoPushNotificationService {
 
     const now = Date.now();
     const diff = now - messageTime;
-    
+
     return diff < 10000; // 10 giây
   }
 
@@ -724,7 +754,7 @@ class ExpoPushNotificationService {
   private shouldSendNotification(key: string): boolean {
     const lastTime = this.lastNotificationTime[key] || 0;
     const now = Date.now();
-    
+
     return (now - lastTime) > this.notificationDebounceTime;
   }
 
@@ -738,14 +768,14 @@ class ExpoPushNotificationService {
 
       const userDocRef = doc(db, 'users', userId);
       const userSnapshot = await getDoc(userDocRef);
-      
+
       if (userSnapshot.exists()) {
         const userData = userSnapshot.data();
         const name = userData.displayName || userData.name || 'Người dùng';
         await AsyncStorage.setItem(`userName_${userId}`, name);
         return name;
       }
-      
+
       return 'Người dùng';
     } catch (error) {
       console.error('❌ Lỗi khi lấy tên người dùng:', error);
@@ -771,6 +801,10 @@ class ExpoPushNotificationService {
     // Hủy group message listeners
     this.groupMessageListeners.forEach(unsubscribe => unsubscribe());
     this.groupMessageListeners.clear();
+
+    // Hủy comment listeners
+    this.commentListeners.forEach(unsubscribe => unsubscribe());
+    this.commentListeners.clear();
 
     this.listeners = {
       chatMessages: null,
@@ -947,7 +981,7 @@ class ExpoPushNotificationService {
     try {
       // Thử gửi real push notification trước
       const pushSuccess = await this.sendRealPushNotification(expoPushToken, notification);
-      
+
       if (pushSuccess) {
         console.log('✅ Real push notification sent successfully');
         return true;
@@ -978,7 +1012,7 @@ class ExpoPushNotificationService {
    */
   async testPushNotification(expoPushToken: string) {
     return await this.sendRealPushNotification(expoPushToken, {
-      title: '🧪 Test Notification', 
+      title: '🧪 Test Notification',
       body: 'This is a test push notification from ChappAt!',
       data: { test: true, timestamp: new Date().toISOString() },
       priority: 'high'

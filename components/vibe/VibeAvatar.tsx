@@ -3,9 +3,9 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
-  Image,
   Text,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -15,6 +15,15 @@ import VibePickerModal from './VibePickerModal';
 import { useAuth } from '@/context/authContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import VibeStoryModal from './VibeStoryModal';
+import AvatarFrame from '../common/AvatarFrame';
+import Animated, {
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  withSequence,
+  useAnimatedStyle,
+  Easing
+} from 'react-native-reanimated';
 
 interface VibeAvatarProps {
   avatarUrl?: string;
@@ -29,6 +38,7 @@ interface VibeAvatarProps {
   vibeBadgePosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   // New: allow hiding the vibe icon entirely (useful when parent draws its own)
   showVibeIcon?: boolean;
+  frameType?: string;
 }
 
 const VibeAvatar: React.FC<VibeAvatarProps> = ({
@@ -42,6 +52,7 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
   storyUser,
   vibeBadgePosition = 'bottom-right',
   showVibeIcon = true,
+  frameType,
 }) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
@@ -63,7 +74,8 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
 
   const hasVibe = !!currentVibe && (!!currentVibe.isActive || !!vibeObj) && !isExpired(currentVibe.expiresAt);
 
-  const vibeRingSize = size + 8;
+  const framePadding = frameType ? (size * 0.3) : 0;
+  const vibeRingSize = size + framePadding + 8;
   const vibeIconSize = size * 0.3;
   const addButtonSize = size * 0.35;
 
@@ -82,12 +94,12 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
     return () => { mounted = false };
   }, [seenKey]);
 
-  const avatarContent = avatarUrl ? (
-    <Image source={{ uri: avatarUrl }} style={[styles.avatar, { width: size, height: size }]} />
-  ) : (
-    <View style={[styles.defaultAvatar, { width: size, height: size, backgroundColor: colors.border }]}>
-      <MaterialIcons name="person" size={size * 0.6} color={colors.text + '60'} />
-    </View>
+  const avatarContent = (
+    <AvatarFrame
+      avatarUrl={avatarUrl || ''}
+      frameType={frameType}
+      size={size}
+    />
   );
 
   const handleAvatarPress = () => {
@@ -120,39 +132,82 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
     } as UserVibe;
   }, [currentVibe, vibeObj, storyUser?.id]);
 
+  const vibePulse = useSharedValue(1);
+
+  useEffect(() => {
+    if (hasVibe && !seen) {
+      vibePulse.value = withRepeat(
+        withSequence(
+          withTiming(1.1, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      );
+    } else {
+      vibePulse.value = 1;
+    }
+  }, [hasVibe, seen]);
+
+  const animatedRingStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: vibePulse.value }],
+    opacity: withTiming(hasVibe ? 1 : 0, { duration: 300 }),
+  }));
+
   const renderAvatar = () => {
+    // Hide vibe ring when frame is active to prevent gray background
+    if (frameType) {
+      return (
+        <View style={styles.avatarContainer}>
+          {avatarContent}
+        </View>
+      );
+    }
+
     if (hasVibe && (vibeObj?.color || currentVibe?.vibe?.color)) {
       const color = (vibeObj?.color || currentVibe?.vibe?.color) as string;
       const ringTuple = seen
         ? ['#C7C7CC', '#E5E5EA', '#C7C7CC'] as [string, string, string]
         : [color, `${color}80`, color] as [string, string, string];
+
+      // Even with a frame, we can show a subtle glow ring behind it
+      const finalRingColors = ringTuple;
+
       return (
         <View style={styles.avatarContainer}>
-          <LinearGradient
-            colors={ringTuple}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[
-              styles.vibeRing,
-              {
-                width: vibeRingSize,
-                height: vibeRingSize,
-                borderRadius: vibeRingSize / 2,
-              }
-            ]}
-          >
-            <View style={[
-              styles.avatarWrapper,
-              {
-                width: size,
-                height: size,
-                borderRadius: size / 2,
-                backgroundColor: colors.background,
-              }
-            ]}>
-              {avatarContent}
-            </View>
-          </LinearGradient>
+          <Animated.View style={animatedRingStyle}>
+            <LinearGradient
+              colors={finalRingColors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[
+                styles.vibeRing,
+                {
+                  width: vibeRingSize,
+                  height: vibeRingSize,
+                  borderRadius: vibeRingSize / 2,
+                  // Add a glow effect
+                  shadowColor: color,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: seen ? 0 : 0.6,
+                  shadowRadius: 10,
+                  elevation: seen ? 0 : 10,
+                }
+              ]}
+            >
+              <View style={[
+                styles.avatarWrapper,
+                {
+                  width: size + framePadding,
+                  height: size + framePadding,
+                  borderRadius: (size + framePadding) / 2,
+                  backgroundColor: frameType ? 'transparent' : colors.background,
+                }
+              ]}>
+                {avatarContent}
+              </View>
+            </LinearGradient>
+          </Animated.View>
         </View>
       );
     }
@@ -173,16 +228,17 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
   };
 
   const getBadgePositionStyle = (): any => {
+    const offset = frameType ? -(framePadding / 4) : -2;
     switch (vibeBadgePosition) {
       case 'top-left':
-        return { top: -2, left: -2 };
+        return { top: offset, left: offset };
       case 'top-right':
-        return { top: -2, right: -2 };
+        return { top: offset, right: offset };
       case 'bottom-left':
-        return { bottom: -2, left: -2 };
+        return { bottom: offset, left: offset };
       case 'bottom-right':
       default:
-        return { bottom: -2, right: -2 };
+        return { bottom: offset, right: offset };
     }
   };
 
@@ -292,7 +348,6 @@ const styles = StyleSheet.create({
   avatarWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
   avatar: {
     borderRadius: 1000,

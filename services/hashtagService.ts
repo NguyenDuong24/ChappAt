@@ -10,23 +10,16 @@ export interface TrendingHashtag {
 
 export class HashtagService {
   // Lấy hashtags trending trong ngày
-  static async getTrendingHashtagsToday(limitCount: number = 10): Promise<TrendingHashtag[]> {
+  static async getTrendingHashtagsToday(limitCount: number = 8): Promise<TrendingHashtag[]> {
     try {
-      // Đơn giản hóa query để tránh lỗi composite index
-      // Lấy tất cả hashtags và filter trong code
       const hashtagsRef = collection(db, 'hashtags');
-      const q = query(
-        hashtagsRef,
-        orderBy('count', 'desc'),
-        limit(50) // Lấy 50 hashtags top để filter
-      );
-
+      const q = query(hashtagsRef, orderBy('count', 'desc'), limit(limitCount));
       const querySnapshot = await getDocs(q);
-      const allHashtags: TrendingHashtag[] = [];
 
+      let results: TrendingHashtag[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        allHashtags.push({
+        results.push({
           tag: data.tag || doc.id,
           count: data.count || 0,
           posts: data.posts || [],
@@ -34,25 +27,20 @@ export class HashtagService {
         });
       });
 
-      // Nếu không có dữ liệu, tạo sample data
-      if (allHashtags.length === 0) {
-        return this.getSampleHashtags(limitCount);
+      // Nếu thiếu, bổ sung thêm sample data cho đủ limitCount (ít nhất là 8)
+      const targetCount = Math.max(limitCount, 8);
+      if (results.length < targetCount) {
+        const samples = this.getSampleHashtags(15);
+        for (const sample of samples) {
+          if (results.length >= targetCount) break;
+          const isDuplicate = results.some(r => r.tag.toLowerCase() === sample.tag.toLowerCase());
+          if (!isDuplicate) {
+            results.push(sample);
+          }
+        }
       }
 
-      // Filter hashtags được sử dụng trong ngày
-      const today = new Date();
-      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-
-      const todayHashtags = allHashtags.filter(hashtag => {
-        const lastUsed = hashtag.lastUsed;
-        return lastUsed >= startOfDay && lastUsed < endOfDay;
-      });
-
-      // Nếu không có hashtags hôm nay, trả về top hashtags
-      const result = todayHashtags.length > 0 ? todayHashtags : allHashtags;
-      
-      return result.slice(0, limitCount);
+      return results.slice(0, targetCount);
     } catch (error) {
       console.error('Error fetching trending hashtags:', error);
       return this.getSampleHashtags(limitCount);
@@ -99,7 +87,7 @@ export class HashtagService {
 
       // Nếu không có hashtags tuần này, trả về top hashtags
       const result = weekHashtags.length > 0 ? weekHashtags : allHashtags;
-      
+
       return result.slice(0, limitCount);
     } catch (error) {
       console.error('Error fetching weekly trending hashtags:', error);
@@ -121,7 +109,7 @@ export class HashtagService {
       { tag: '#Fitness', count: 321, posts: [], lastUsed: new Date() },
       { tag: '#Photography', count: 210, posts: [], lastUsed: new Date() },
     ];
-    
+
     return sampleHashtags.slice(0, limitCount);
   }
 
@@ -130,7 +118,7 @@ export class HashtagService {
     try {
       const hashtagRef = collection(db, 'hashtags');
       const normalizedTag = hashtag.startsWith('#') ? hashtag : `#${hashtag}`;
-      
+
       // Kiểm tra xem hashtag đã tồn tại chưa
       const q = query(hashtagRef, where('tag', '==', normalizedTag));
       const querySnapshot = await getDocs(q);
@@ -149,7 +137,7 @@ export class HashtagService {
         const docRef = querySnapshot.docs[0].ref;
         const existingData = querySnapshot.docs[0].data();
         const currentPosts = existingData.posts || [];
-        
+
         if (!currentPosts.includes(postId)) {
           await updateDoc(docRef, {
             count: (existingData.count || 0) + 1,
@@ -176,7 +164,7 @@ export class HashtagService {
   // Lấy màu ngẫu nhiên cho hashtag
   static getRandomColor(): string {
     const colors = [
-      '#FF6B6B', '#8A4AF3', '#5D3FD3', '#FF9500', 
+      '#FF6B6B', '#8A4AF3', '#5D3FD3', '#FF9500',
       '#4CAF50', '#2196F3', '#E91E63', '#9C27B0',
       '#FF5722', '#795548', '#607D8B', '#FFC107'
     ];

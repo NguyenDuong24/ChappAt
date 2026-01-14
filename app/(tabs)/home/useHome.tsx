@@ -72,6 +72,7 @@ const useHome = (isFocused: boolean = true) => {
     if (hasMin || hasMax) {
       constraints.push(orderBy('age', 'asc'));
     } else {
+      constraints.push(orderBy('isOnline', 'desc'));
       constraints.push(orderBy('__name__', 'asc'));
     }
 
@@ -95,11 +96,13 @@ const useHome = (isFocused: boolean = true) => {
     });
   }, [user?.uid, user?.showOnlineStatus]);
 
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
   // Real-time subscription for the first page
   useEffect(() => {
     if (!user?.uid || !isFocused) return;
 
-    const key = `${user.uid}|${filterKey}`;
+    const key = `${user.uid}|${filterKey}|${refreshTrigger}`;
     if (lastTriggerKeyRef.current === key) return;
     lastTriggerKeyRef.current = key;
 
@@ -126,7 +129,7 @@ const useHome = (isFocused: boolean = true) => {
     return () => {
       if (unsubRef.current) unsubRef.current();
     };
-  }, [user?.uid, isFocused, filterKey, buildConstraints, sortUsers]);
+  }, [user?.uid, isFocused, filterKey, buildConstraints, sortUsers, refreshTrigger]);
 
   const loadMore = useCallback(async () => {
     if (loading || isFetchingRef.current || !hasMore || !lastDoc) return;
@@ -152,12 +155,17 @@ const useHome = (isFocused: boolean = true) => {
   }, [loading, hasMore, lastDoc, buildConstraints, sortUsers]);
 
   const handleRefresh = useCallback(() => {
+    setUsers([]); // Clear users to show loading state more clearly
     setRefreshing(true);
-    // Real-time subscription will handle the refresh automatically 
-    // when we trigger a re-render or just by being active.
-    // But we can force a re-subscription by clearing the trigger key.
-    lastTriggerKeyRef.current = '';
+    setRefreshTrigger(prev => prev + 1);
   }, []);
+
+  // Wrapper for compatibility
+  const getUsers = useCallback((force?: boolean) => {
+    if (force) {
+      handleRefresh();
+    }
+  }, [handleRefresh]);
 
   return {
     users,
@@ -167,6 +175,7 @@ const useHome = (isFocused: boolean = true) => {
     hasMore,
     loadMore,
     handleRefresh,
+    getUsers,
     error,
   };
 };

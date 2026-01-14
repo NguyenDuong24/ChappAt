@@ -1,6 +1,6 @@
-import React, { useContext, useRef, useState, useCallback, useMemo, memo } from 'react';
-import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated, Platform, StyleSheet } from 'react-native';
-import useExplore from '../../explore/useExplore';
+import React, { useContext, useRef, useState, useCallback, useMemo, memo, useEffect } from 'react';
+import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated, Platform, StyleSheet, InteractionManager, Dimensions } from 'react-native';
+import { useTrendingPosts, useExploreActions, useExploreState, useExploreLoading } from '@/context/ExploreContext';
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -8,33 +8,65 @@ import { Colors } from '@/constants/Colors';
 import { useExploreHeader } from '@/context/ExploreHeaderContext';
 import { useTranslation } from 'react-i18next';
 
+const { width } = Dimensions.get('window');
 const HEADER_HEIGHT = Platform.OS === 'ios' ? 280 : 260;
 
-// Memoized Loading Component
-const LoadingView = memo(({ backgroundColor, primaryColor }) => (
-  <View style={[styles.centerContainer, { backgroundColor }]}>
-    <ActivityIndicator size="large" color={primaryColor} />
+// Reusable Shimmer Component
+const ShimmerPlaceholder = memo(({ style }) => {
+  const shimmerAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, { toValue: 0.7, duration: 800, useNativeDriver: true }),
+        Animated.timing(shimmerAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return <Animated.View style={[style, { opacity: shimmerAnim }]} />;
+});
+
+// Premium Post Skeleton
+const PostSkeleton = memo(({ cardBackground }) => (
+  <View style={[styles.skeletonCard, { backgroundColor: cardBackground }]}>
+    <View style={styles.skeletonHeader}>
+      <ShimmerPlaceholder style={styles.skeletonAvatar} />
+      <View style={styles.skeletonHeaderText}>
+        <ShimmerPlaceholder style={styles.skeletonName} />
+        <ShimmerPlaceholder style={styles.skeletonTime} />
+      </View>
+    </View>
+    <ShimmerPlaceholder style={styles.skeletonContent} />
+    <ShimmerPlaceholder style={styles.skeletonImage} />
+    <View style={styles.skeletonFooter}>
+      <ShimmerPlaceholder style={styles.skeletonAction} />
+      <ShimmerPlaceholder style={styles.skeletonAction} />
+    </View>
   </View>
 ));
 
-// Memoized Error Component
-const ErrorView = memo(({ backgroundColor, textColor, error, t }) => (
-  <View style={[styles.centerContainer, { backgroundColor }]}>
-    <Text style={{ color: textColor }}>{t('common.error')}: {error}</Text>
+// Full Page Skeleton
+const LoadingView = memo(({ backgroundColor, cardBackground, effectiveHeaderHeight }) => (
+  <View style={[styles.container, { backgroundColor, paddingTop: effectiveHeaderHeight }]}>
+    {[1, 2, 3].map(i => <PostSkeleton key={i} cardBackground={cardBackground} />)}
   </View>
 ));
 
-// Memoized Skeleton Footer
-const SkeletonFooter = memo(({ cardBackground }) => (
-  <View style={styles.footerContainer}>
-    {[0, 1, 2].map(i => (
-      <View
-        key={`sk-${i}`}
-        style={[styles.skeleton, { backgroundColor: cardBackground }]}
-      />
-    ))}
-  </View>
-));
+// Skeleton Footer
+const SkeletonFooter = memo(({ cardBackground, primaryColor, hasMore }) => {
+  if (!hasMore) return <View style={styles.endReachedContainer}><Text style={[styles.endReachedText, { color: primaryColor }]}>Đã xem hết bài viết ✨</Text></View>;
+
+  return (
+    <View style={styles.footerContainer}>
+      <View style={styles.loadingMoreRow}>
+        <ActivityIndicator size="small" color={primaryColor} />
+        <Text style={[styles.loadingMoreText, { color: primaryColor }]}>Đang tìm thêm bài viết phổ biến...</Text>
+      </View>
+      <PostSkeleton cardBackground={cardBackground} />
+    </View>
+  );
+});
 
 // Memoized Post Card wrapper
 const MemoizedPostCard = memo(PostCard, (prevProps, nextProps) => {
@@ -42,43 +74,31 @@ const MemoizedPostCard = memo(PostCard, (prevProps, nextProps) => {
     prevProps.post?.id === nextProps.post?.id &&
     prevProps.post?.likes?.length === nextProps.post?.likes?.length &&
     prevProps.post?.comments?.length === nextProps.post?.comments?.length &&
-    prevProps.user?.uid === nextProps.user?.uid
+    prevProps.post?.privacy === nextProps.post?.privacy
   );
 });
 
 const Tab2Screen = () => {
   const { t } = useTranslation();
-  // Call hooks at the top level - NOT inside useMemo/useCallback
   const { user } = useAuth();
   const themeContext = useContext(ThemeContext);
   const headerContext = useExploreHeader();
 
-  // Safe hook usage - call hook directly at top level
-  let hookData;
-  try {
-    hookData = useExplore();
-  } catch (error) {
-    console.error('Error in useExplore hook:', error);
-    hookData = {
-      sortedPostsByLike: [],
-      loading: false,
-      error: t('common.no_data'),
-      deletePost: () => { },
-      toggleLike: () => { },
-      addComment: () => { },
-      fetchPosts: () => Promise.resolve(),
-      loadMore: () => { },
-      hasMore: false,
-      loadingMore: false,
-    };
-  }
+  const { posts: trendingPosts, hasMore } = useTrendingPosts() || { posts: [], hasMore: false };
+  const { loadMoreTrending, deletePost, toggleLike, addComment, refresh, updatePostPrivacy } = useExploreActions() || {};
+  const { loadingInitial, error, isRefreshing } = useExploreState() || {};
+  const { loadingTrending } = useExploreLoading() || {};
 
-  const { sortedPostsByLike, loading, error, deletePost, toggleLike, addComment, fetchPosts, loadMore, hasMore, loadingMore } = hookData;
-  const [refreshing, setRefreshing] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(true);
 
-  // Header scroll binding
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setIsTransitioning(false);
+    });
+    return () => task.cancel();
+  }, []);
+
   const { scrollY, handleScroll, effectiveHeaderHeight } = headerContext || {};
-
   const defaultScrollY = useRef(new Animated.Value(0)).current;
   const defaultEffectiveHeaderHeight = useRef(new Animated.Value(HEADER_HEIGHT)).current;
 
@@ -90,7 +110,6 @@ const Tab2Screen = () => {
     [handleScroll, scrollY, defaultScrollY]
   );
 
-  // Theme
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = useMemo(() =>
     theme === 'dark' ? Colors.dark : Colors.light,
@@ -98,10 +117,8 @@ const Tab2Screen = () => {
   );
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchPosts();
-    setRefreshing(false);
-  }, [fetchPosts]);
+    if (refresh) await refresh('trending');
+  }, [refresh]);
 
   const handleDeletePost = useCallback((id) => {
     Alert.alert(
@@ -119,38 +136,26 @@ const Tab2Screen = () => {
     await toggleLike(postId, userId, isLiked);
   }, [toggleLike]);
 
-  const handleComment = useCallback((id) => {
-    console.log(`Commented on post ${id}`);
-  }, []);
-
-  const handleShare = useCallback((id) => {
-    console.log(`Shared post ${id}`);
-  }, []);
-
   const renderFooter = useCallback(() => {
-    if (!loadingMore) return null;
-    return <SkeletonFooter cardBackground={currentThemeColors.cardBackground} />;
-  }, [loadingMore, currentThemeColors.cardBackground]);
+    if (loadingInitial) return null;
+    return <SkeletonFooter cardBackground={currentThemeColors.cardBackground} primaryColor={currentThemeColors.tint} hasMore={hasMore} />;
+  }, [loadingTrending, loadingInitial, hasMore, currentThemeColors]);
 
   const keyExtractor = useCallback((item) => item.id, []);
 
   const renderItem = useCallback(({ item }) => (
     <MemoizedPostCard
       post={item}
-      currentUserId={user?.uid || ''}
-      currentUserAvatar={user?.profileUrl}
       onLike={handleLike}
-      onComment={(postId, comment) => addComment(postId, { text: comment })}
-      onShare={handleShare}
-      onDelete={() => handleDeletePost(item.id)}
-      isOwner={user?.uid === item.userID}
-      onUserPress={(userId) => console.log('User pressed:', userId)}
+      onDeletePost={() => handleDeletePost(item.id)}
+      onPrivacyChange={updatePostPrivacy}
+      owner={user?.uid === item.userID}
     />
-  ), [user, handleLike, handleShare, handleDeletePost, addComment]);
+  ), [user, handleLike, handleDeletePost, updatePostPrivacy]);
 
   const handleEndReached = useCallback(() => {
-    if (hasMore && !loading) loadMore();
-  }, [hasMore, loading, loadMore]);
+    if (hasMore && !loadingTrending && loadMoreTrending) loadMoreTrending();
+  }, [hasMore, loadingTrending, loadMoreTrending]);
 
   const contentContainerStyle = useMemo(() => ({
     paddingTop: effectiveHeaderHeight || defaultEffectiveHeaderHeight,
@@ -159,64 +164,66 @@ const Tab2Screen = () => {
   }), [effectiveHeaderHeight, defaultEffectiveHeaderHeight, currentThemeColors.background]);
 
   const refreshControl = useMemo(() => (
-    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-  ), [refreshing, onRefresh]);
+    <RefreshControl
+      refreshing={isRefreshing}
+      onRefresh={onRefresh}
+      tintColor={currentThemeColors.tint}
+      colors={[currentThemeColors.tint]}
+    />
+  ), [isRefreshing, onRefresh, currentThemeColors.tint]);
 
-  if (loading) {
-    return <LoadingView backgroundColor={currentThemeColors.background} primaryColor={currentThemeColors.primary} />;
+  if (loadingInitial && trendingPosts.length === 0) {
+    return (
+      <LoadingView
+        backgroundColor={currentThemeColors.background}
+        cardBackground={currentThemeColors.cardBackground}
+        effectiveHeaderHeight={effectiveHeaderHeight || HEADER_HEIGHT}
+      />
+    );
   }
 
-  if (error) {
-    return <ErrorView backgroundColor={currentThemeColors.background} textColor={currentThemeColors.text} error={error} t={t} />;
+  if (error && trendingPosts.length === 0) {
+    return (
+      <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background }]}>
+        <Text style={{ color: currentThemeColors.text, textAlign: 'center', padding: 20 }}>{t('common.error')}: {error}</Text>
+      </View>
+    );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       <Animated.FlatList
-        data={sortedPostsByLike}
+        data={trendingPosts}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         contentContainerStyle={contentContainerStyle}
-        style={{ backgroundColor: currentThemeColors.background }}
-        refreshControl={refreshControl}
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        bounces={true}
-        bouncesZoom={false}
-        onEndReachedThreshold={0.4}
-        onEndReached={handleEndReached}
-        ListFooterComponent={renderFooter}
-        // Performance optimizations
-        initialNumToRender={5}
-        maxToRenderPerBatch={3}
-        windowSize={5}
-        removeClippedSubviews={true}
-        updateCellsBatchingPeriod={100}
+        updateCellsBatchingPeriod={50}
       />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  footerContainer: {
-    paddingVertical: 12,
-  },
-  skeleton: {
-    height: 180,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    opacity: 0.5,
-  },
+  container: { flex: 1 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  footerContainer: { paddingVertical: 20, alignItems: 'center' },
+  loadingMoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 10 },
+  loadingMoreText: { fontSize: 14, fontWeight: '600', opacity: 0.8 },
+
+  // Skeleton Styles
+  skeletonCard: { width: '94%', alignSelf: 'center', borderRadius: 16, padding: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
+  skeletonHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  skeletonAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#E1E1E1' },
+  skeletonHeaderText: { marginLeft: 12, flex: 1 },
+  skeletonName: { width: '40%', height: 14, borderRadius: 7, backgroundColor: '#E1E1E1', marginBottom: 6 },
+  skeletonTime: { width: '25%', height: 10, borderRadius: 5, backgroundColor: '#E1E1E1' },
+  skeletonContent: { width: '90%', height: 12, borderRadius: 6, backgroundColor: '#E1E1E1', marginBottom: 12 },
+  skeletonImage: { width: '100%', height: 200, borderRadius: 12, backgroundColor: '#E1E1E1', marginBottom: 12 },
+  skeletonFooter: { flexDirection: 'row', gap: 20 },
+  skeletonAction: { width: 60, height: 12, borderRadius: 6, backgroundColor: '#E1E1E1' },
+
+  endReachedContainer: { paddingVertical: 40, alignItems: 'center' },
+  endReachedText: { fontSize: 14, fontWeight: '600', opacity: 0.6 }
 });
 
 export default memo(Tab2Screen);

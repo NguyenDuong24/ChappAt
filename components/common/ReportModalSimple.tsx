@@ -16,6 +16,7 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface ReportModalProps {
   visible: boolean;
@@ -41,6 +42,7 @@ interface ReportData {
 }
 
 const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, currentUser }: ReportModalProps) => {
+  const colors = useThemedColors();
   const [selectedReason, setSelectedReason] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -144,9 +146,6 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    console.log('🚀 Modal handleSubmit called');
-    console.log('🔐 Current auth state:', currentUser);
-    
     if (!selectedReason) {
       Alert.alert('⚠️ Thiếu thông tin', 'Vui lòng chọn lý do báo cáo');
       return;
@@ -159,36 +158,23 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
 
     try {
       setSubmitting(true);
-      console.log('📊 Preparing report data...');
-
       const reportData: ReportData = {
         targetType,
         targetId: targetInfo.id,
         reason: selectedReason,
         description: description.trim(),
         reporterId: currentUser?.uid || 'anonymous',
-        // Ensure images is never undefined to avoid Firestore errors
         images: selectedImages.length > 0 ? selectedImages : [],
       };
 
-      console.log('📋 Final report data:', reportData);
-      console.log('🔥 Attempting to submit to Firebase...');
-
       await onSubmit(reportData);
 
-      console.log('✅ Report submitted successfully!');
       Alert.alert(
         '✅ Đã gửi báo cáo',
         'Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét và xử lý trong thời gian sớm nhất.',
         [{ text: 'OK', onPress: () => { resetForm(); onClose(); } }]
       );
     } catch (error) {
-      console.log('❌ Modal handleSubmit error:', error);
-      console.log('❌ Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        code: error instanceof Error && 'code' in error ? (error as any).code : 'unknown',
-        stack: error instanceof Error ? error.stack : undefined
-      });
       Alert.alert('❌ Lỗi', 'Không thể gửi báo cáo. Vui lòng thử lại.');
     } finally {
       setSubmitting(false);
@@ -204,28 +190,6 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
     }
   }, [targetType]);
 
-  const handleImagePicker = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setSelectedImages(result.assets.map((asset) => asset.uri));
-    }
-  };
-
-  const renderImageItem = ({ item }: { item: string }) => (
-    <View style={styles.imageItem}>
-      <Image source={{ uri: item }} style={styles.selectedImage} />
-      <TouchableOpacity style={styles.removeImageButton} onPress={() => setSelectedImages((prev) => prev.filter((img) => img !== item))}>
-        <MaterialCommunityIcons name="close-circle" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
-    </View>
-  );
-
   if (!visible) return null;
 
   return (
@@ -235,43 +199,43 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
         style={{ flex: 1 }}
       >
         <View style={styles.overlay}>
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <MaterialCommunityIcons name="close" size={24} color="#64748B" />
+                <MaterialCommunityIcons name="close" size={24} color={colors.subtleText} />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>{getTargetTitle()}</Text>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>{getTargetTitle()}</Text>
               <View style={{ width: 24 }} />
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
               {/* Target Info */}
-              <View style={styles.targetInfo}>
+              <View style={[styles.targetInfo, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={styles.targetHeader}>
                   {targetInfo.avatar ? (
                     <Image source={{ uri: targetInfo.avatar }} style={styles.targetAvatar} />
                   ) : (
-                    <View style={[styles.targetAvatar, styles.avatarPlaceholder]}>
-                      <MaterialCommunityIcons 
-                        name={targetType === 'user' ? 'account' : targetType === 'group' ? 'account-group' : 'message'} 
-                        size={24} 
-                        color="#64748B" 
+                    <View style={[styles.targetAvatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
+                      <MaterialCommunityIcons
+                        name={targetType === 'user' ? 'account' : targetType === 'group' ? 'account-group' : 'message'}
+                        size={24}
+                        color={colors.subtleText}
                       />
                     </View>
                   )}
                   <View style={styles.targetDetails}>
-                    <Text style={styles.targetName}>{targetInfo.name || 'Không có tên'}</Text>
-                    <Text style={styles.targetType}>
-                      {targetType === 'user' ? 'Người dùng' : 
-                       targetType === 'group' ? 'Nhóm' : 'Tin nhắn'}
+                    <Text style={[styles.targetName, { color: colors.text }]}>{targetInfo.name || 'Không có tên'}</Text>
+                    <Text style={[styles.targetType, { color: colors.subtleText }]}>
+                      {targetType === 'user' ? 'Người dùng' :
+                        targetType === 'group' ? 'Nhóm' : 'Tin nhắn'}
                     </Text>
                   </View>
                 </View>
-                
+
                 {targetInfo.content && (
-                  <View style={styles.messageContent}>
-                    <Text style={styles.messageText} numberOfLines={3} ellipsizeMode="tail">
+                  <View style={[styles.messageContent, { backgroundColor: colors.background, borderLeftColor: colors.primary }]}>
+                    <Text style={[styles.messageText, { color: colors.text }]} numberOfLines={3} ellipsizeMode="tail">
                       {targetInfo.content}
                     </Text>
                   </View>
@@ -279,33 +243,35 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
               </View>
 
               {/* Warning */}
-              <View style={styles.warningBox}>
-                <MaterialCommunityIcons name="shield-alert" size={20} color="#DC2626" />
-                <Text style={styles.warningText}>
+              <View style={[styles.warningBox, { backgroundColor: colors.isDark ? colors.surface : '#FEF2F2' }]}>
+                <MaterialCommunityIcons name="shield-alert" size={20} color={colors.error} />
+                <Text style={[styles.warningText, { color: colors.error }]}>
                   Báo cáo sai sự thật có thể dẫn đến việc hạn chế tài khoản của bạn
                 </Text>
               </View>
 
               {/* Reasons */}
               <View style={styles.reasonsContainer}>
-                <Text style={styles.reasonsTitle}>Lý do báo cáo *</Text>
+                <Text style={[styles.reasonsTitle, { color: colors.text }]}>Lý do báo cáo *</Text>
                 {reportReasons[targetType]?.map((reason) => (
                   <TouchableOpacity
                     key={reason.id}
                     style={[
                       styles.reasonButton,
-                      selectedReason === reason.id && styles.reasonButtonSelected,
+                      { borderColor: colors.border },
+                      selectedReason === reason.id && { backgroundColor: colors.primary, borderColor: colors.primary },
                     ]}
                     onPress={() => setSelectedReason(reason.id)}
                   >
                     <MaterialCommunityIcons
                       name={reason.icon as any}
                       size={20}
-                      color={selectedReason === reason.id ? '#FFFFFF' : '#6366F1'}
+                      color={selectedReason === reason.id ? '#FFFFFF' : colors.primary}
                     />
                     <Text style={[
                       styles.reasonText,
-                      selectedReason === reason.id && styles.reasonTextSelected,
+                      { color: colors.text },
+                      selectedReason === reason.id && { color: '#FFFFFF' },
                     ]}>
                       {reason.label}
                     </Text>
@@ -318,7 +284,7 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
 
               {/* Description */}
               <View style={styles.descriptionContainer}>
-                <Text style={styles.descriptionTitle}>
+                <Text style={[styles.descriptionTitle, { color: colors.text }]}>
                   Mô tả chi tiết {selectedReason === 'other' ? '*' : '(tùy chọn)'}
                 </Text>
                 <TextInput
@@ -327,19 +293,19 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
                   placeholder="Vui lòng mô tả cụ thể hành vi vi phạm để chúng tôi xử lý chính xác..."
                   multiline
                   numberOfLines={4}
-                  style={styles.descriptionInput}
+                  style={[styles.descriptionInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                   maxLength={500}
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor={colors.subtleText}
                   autoFocus={selectedReason === 'other'}
                 />
-                <Text style={styles.charCount}>{description.length}/500</Text>
+                <Text style={[styles.charCount, { color: colors.subtleText }]}>{description.length}/500</Text>
               </View>
 
               {/* Image Attachments */}
               <View style={styles.imagesContainer}>
-                <Text style={styles.imagesTitle}>Hình ảnh đính kèm (tùy chọn)</Text>
-                <Text style={styles.imagesSubtitle}>Thêm ảnh để cung cấp bằng chứng chi tiết hơn</Text>
-                
+                <Text style={[styles.imagesTitle, { color: colors.text }]}>Hình ảnh đính kèm (tùy chọn)</Text>
+                <Text style={[styles.imagesSubtitle, { color: colors.subtleText }]}>Thêm ảnh để cung cấp bằng chứng chi tiết hơn</Text>
+
                 {/* Selected Images */}
                 {selectedImages.length > 0 && (
                   <FlatList
@@ -350,7 +316,7 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
                     style={styles.imagesList}
                     renderItem={({ item, index }) => (
                       <View style={styles.imageItem}>
-                        <Image source={{ uri: item }} style={styles.selectedImage} />
+                        <Image source={{ uri: item }} style={[styles.selectedImage, { borderColor: colors.border }]} />
                         <TouchableOpacity
                           style={styles.removeImageButton}
                           onPress={() => removeImage(index)}
@@ -364,40 +330,40 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
 
                 {/* Image Picker Buttons */}
                 <View style={styles.imageButtonsContainer}>
-                  <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-                    <MaterialCommunityIcons name="image" size={20} color="#6366F1" />
-                    <Text style={styles.imageButtonText}>Chọn từ thư viện</Text>
+                  <TouchableOpacity style={[styles.imageButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={pickImage}>
+                    <MaterialCommunityIcons name="image" size={20} color={colors.primary} />
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>Chọn từ thư viện</Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-                    <MaterialCommunityIcons name="camera" size={20} color="#6366F1" />
-                    <Text style={styles.imageButtonText}>Chụp ảnh</Text>
+
+                  <TouchableOpacity style={[styles.imageButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={takePhoto}>
+                    <MaterialCommunityIcons name="camera" size={20} color={colors.primary} />
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>Chụp ảnh</Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.imageLimitText}>
+                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}>
                   {selectedImages.length}/5 hình ảnh (tối đa 5 ảnh)
                 </Text>
               </View>
 
               {/* Privacy Notice */}
-              <View style={styles.privacyNotice}>
-                <MaterialCommunityIcons name="information" size={16} color="#6366F1" />
-                <Text style={styles.privacyText}>
+              <View style={[styles.privacyNotice, { backgroundColor: colors.isDark ? colors.surface : '#EFF6FF' }]}>
+                <MaterialCommunityIcons name="information" size={16} color={colors.primary} />
+                <Text style={[styles.privacyText, { color: colors.isDark ? colors.text : '#1E40AF' }]}>
                   Báo cáo của bạn sẽ được xử lý bảo mật và không được chia sẻ với người bị báo cáo
                 </Text>
               </View>
             </ScrollView>
 
             {/* Submit Button */}
-            <View style={styles.footer}>
-              <TouchableOpacity 
+            <View style={[styles.footer, { borderTopColor: colors.border }]}>
+              <TouchableOpacity
                 style={[styles.submitButton, { opacity: submitting ? 0.7 : 1 }]}
                 onPress={handleSubmit}
                 disabled={submitting}
               >
                 <LinearGradient
-                  colors={['#DC2626', '#EF4444']}
+                  colors={[colors.error, colors.error + 'CC']}
                   style={styles.submitGradient}
                 >
                   {submitting ? (
@@ -425,7 +391,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
@@ -437,7 +402,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   closeButton: {
     padding: 4,
@@ -446,7 +410,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    color: '#0F172A',
     textAlign: 'center',
   },
   content: {
@@ -456,10 +419,8 @@ const styles = StyleSheet.create({
   targetInfo: {
     marginVertical: 20,
     padding: 16,
-    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   targetHeader: {
     flexDirection: 'row',
@@ -472,7 +433,6 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarPlaceholder: {
-    backgroundColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -482,30 +442,24 @@ const styles = StyleSheet.create({
   targetName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0F172A',
   },
   targetType: {
     fontSize: 14,
-    color: '#64748B',
     marginTop: 2,
   },
   messageContent: {
     marginTop: 12,
     padding: 12,
-    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#6366F1',
   },
   messageText: {
     fontSize: 14,
-    color: '#374151',
     lineHeight: 20,
   },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
@@ -514,7 +468,6 @@ const styles = StyleSheet.create({
   warningText: {
     flex: 1,
     fontSize: 14,
-    color: '#DC2626',
     lineHeight: 20,
   },
   reasonsContainer: {
@@ -523,7 +476,6 @@ const styles = StyleSheet.create({
   reasonsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0F172A',
     marginBottom: 12,
   },
   reasonButton: {
@@ -531,22 +483,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderRadius: 12,
     marginBottom: 8,
     gap: 12,
   },
-  reasonButtonSelected: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1',
-  },
   reasonText: {
     flex: 1,
     fontSize: 16,
-    color: '#374151',
-  },
-  reasonTextSelected: {
-    color: '#FFFFFF',
   },
   descriptionContainer: {
     marginBottom: 20,
@@ -554,23 +497,19 @@ const styles = StyleSheet.create({
   descriptionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0F172A',
     marginBottom: 8,
   },
   descriptionInput: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#0F172A',
     textAlignVertical: 'top',
     minHeight: 100,
   },
   charCount: {
     fontSize: 12,
-    color: '#64748B',
     textAlign: 'right',
     marginTop: 4,
   },
@@ -580,12 +519,10 @@ const styles = StyleSheet.create({
   imagesTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#0F172A',
     marginBottom: 4,
   },
   imagesSubtitle: {
     fontSize: 14,
-    color: '#64748B',
     marginBottom: 12,
   },
   imagesList: {
@@ -600,7 +537,6 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   removeImageButton: {
     position: 'absolute',
@@ -625,25 +561,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
     gap: 8,
   },
   imageButtonText: {
     fontSize: 14,
-    color: '#6366F1',
     fontWeight: '500',
   },
   imageLimitText: {
     fontSize: 12,
-    color: '#64748B',
     textAlign: 'center',
   },
   privacyNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: '#EFF6FF',
     borderRadius: 8,
     padding: 12,
     marginBottom: 20,
@@ -652,14 +583,12 @@ const styles = StyleSheet.create({
   privacyText: {
     flex: 1,
     fontSize: 12,
-    color: '#1E40AF',
     lineHeight: 16,
   },
   footer: {
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
   },
   submitButton: {
     borderRadius: 12,

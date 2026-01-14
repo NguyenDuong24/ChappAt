@@ -112,7 +112,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSend, onCancel, current
                 <TouchableOpacity onPress={() => stopRecording(false)} style={styles.cancelButton}>
                     <Text style={{ color: currentThemeColors.subtleText }}>Hủy</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => stopRecording(true)} style={styles.sendButton}>
+                <TouchableOpacity onPress={() => stopRecording(true)} style={[styles.sendButton, { backgroundColor: currentThemeColors.tint }]}>
                     <MaterialIcons name="send" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
@@ -153,7 +153,6 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#6366F1',
         alignItems: 'center',
         justifyContent: 'center',
     },

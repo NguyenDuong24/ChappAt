@@ -20,6 +20,9 @@
         "ok": "OK",
         "you": "You",
         "locale": "en",
+        "vip_required_title": "VIP Required",
+        "vip_required_message": "This feature is only available for VIP members. Please upgrade to use!",
+        "upgrade": "Upgrade",
         "time": {
             "just_now": "Just now",
             "minutes_ago": "{{count}}m ago",
@@ -78,6 +81,8 @@
         "age_from": "From",
         "age_to": "To",
         "distance": "Distance: {{distance}} km",
+        "distance_title": "Distance",
+        "summary_distance": "Distance: {{distance}} km",
         "height": "Height: {{min}}cm - {{max}}cm",
         "online_only": "Show Online Only",
         "education": "Education Level",
@@ -204,11 +209,18 @@
         "interests": "My Interests",
         "bio_placeholder": "Tell us about yourself...",
         "bio_empty": "Tap edit to add a bio",
-        "uid_copied": "UID copied to clipboard"
+        "uid_copied": "UID copied to clipboard",
+        "visitors": "Visitors",
+        "who_viewed": "Who viewed you",
+        "no_visitors": "No one has visited your profile yet",
+        "unlock_visitors": "Unlock Visitors",
+        "unlock_visitors_desc": "Buy VIP to see who visited your profile"
     },
     "wallet": {
-        "title": "Coin Wallet",
-        "balance": "Your Balance",
+        "title": "My Wallet",
+        "coins": "Coins",
+        "banhMi": "Bánh mì",
+        "balance": "Your balance",
         "topup": "Top Up",
         "spend": "Spend",
         "history": "Transaction History",
@@ -240,7 +252,69 @@
         "empty_my_items": "You haven't purchased any items yet",
         "error_fetch": "Could not load store data",
         "special_item": "Special Item",
-        "item": "Item"
+        "item": "Item",
+        "frame_already_equipped": "This frame is already equipped",
+        "unequip": "Unequip",
+        "unequip_success": "Frame unequipped successfully",
+        "equip_success": "Frame equipped successfully",
+        "active": "Active",
+        "equip": "Equip",
+        "avatar_frames": "Avatar Frames",
+        "boosts": "Boosts",
+        "items": {
+            "vip_1m": {
+                "name": "VIP 1 Month",
+                "description": "Unlock premium features for 30 days. See who likes you, unlimited swipes, and more!"
+            },
+            "vip_3m": {
+                "name": "VIP 3 Months",
+                "description": "Save 20% with the 3-month plan. Best value for new users."
+            },
+            "vip_1y": {
+                "name": "VIP 1 Year",
+                "description": "Ultimate VIP experience for a whole year. Save 33%!"
+            },
+            "boost_profile": {
+                "name": "Boost Profile",
+                "description": "Be the top profile in your area for 30 minutes. Get up to 10x more views!"
+            },
+            "super_like_pack": {
+                "name": "5 Super Likes",
+                "description": "Stand out from the crowd. Super Likes let them know you are really interested."
+            },
+            "frame_gold": {
+                "name": "Golden Frame",
+                "description": "Luxurious golden frame for your avatar. Show off your premium status!"
+            },
+            "frame_silver": {
+                "name": "Silver Frame",
+                "description": "Elegant silver frame that adds a touch of class to your profile."
+            },
+            "frame_diamond": {
+                "name": "Diamond Frame",
+                "description": "Exclusive diamond-studded frame with sparkling effects. Ultra rare!"
+            },
+            "frame_rainbow": {
+                "name": "Rainbow Frame",
+                "description": "Colorful animated rainbow frame that cycles through vibrant colors."
+            },
+            "frame_fire": {
+                "name": "Fire Frame",
+                "description": "Blazing fire effect frame with animated flames. Hot!"
+            },
+            "frame_neon": {
+                "name": "Neon Frame",
+                "description": "Glowing neon frame with pulsing light effects."
+            },
+            "frame_heart": {
+                "name": "Heart Frame",
+                "description": "Romantic heart-shaped frame perfect for showing love."
+            },
+            "frame_star": {
+                "name": "Star Frame",
+                "description": "Shining star frame that makes you stand out from the crowd."
+            }
+        }
     },
     "settings": {
         "title": "Settings",

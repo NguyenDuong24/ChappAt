@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface FeedbackModalProps {
   visible: boolean;
@@ -26,6 +27,7 @@ interface FeedbackData {
 }
 
 const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
+  const colors = useThemedColors();
   const [rating, setRating] = useState(0);
   const [category, setCategory] = useState('');
   const [comment, setComment] = useState('');
@@ -75,7 +77,7 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
 
     try {
       setSubmitting(true);
-      
+
       const feedbackData: FeedbackData = {
         rating,
         category,
@@ -84,7 +86,7 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
       };
 
       await onSubmit(feedbackData);
-      
+
       Alert.alert('🎉 Cảm ơn!', 'Phản hồi của bạn đã được gửi thành công', [
         { text: 'OK', onPress: () => { resetForm(); onClose(); } }
       ]);
@@ -100,20 +102,20 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
   return (
     <Modal visible={visible} transparent animationType="slide" presentationStyle="overFullScreen">
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialCommunityIcons name="close" size={24} color="#64748B" />
+              <MaterialCommunityIcons name="close" size={24} color={colors.subtleText} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Phản hồi & Đánh giá</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Phản hồi & Đánh giá</Text>
             <View style={{ width: 24 }} />
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Star Rating */}
             <View style={styles.ratingContainer}>
-              <Text style={styles.ratingLabel}>Đánh giá ứng dụng *</Text>
+              <Text style={[styles.ratingLabel, { color: colors.text }]}>Đánh giá ứng dụng *</Text>
               <View style={styles.starsContainer}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <TouchableOpacity
@@ -124,41 +126,41 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
                     <MaterialCommunityIcons
                       name={star <= rating ? 'star' : 'star-outline'}
                       size={32}
-                      color={star <= rating ? '#FFD700' : '#E2E8F0'}
+                      color={star <= rating ? '#FFD700' : colors.border}
                     />
                   </TouchableOpacity>
                 ))}
               </View>
-              <Text style={styles.ratingText}>
-                {rating === 0 ? 'Chưa đánh giá' : 
-                 rating === 1 ? 'Rất tệ' :
-                 rating === 2 ? 'Tệ' :
-                 rating === 3 ? 'Bình thường' :
-                 rating === 4 ? 'Tốt' : 'Xuất sắc'}
+              <Text style={[styles.ratingText, { color: colors.subtleText }]}>
+                {rating === 0 ? 'Chưa đánh giá' :
+                  rating === 1 ? 'Rất tệ' :
+                    rating === 2 ? 'Tệ' :
+                      rating === 3 ? 'Bình thường' :
+                        rating === 4 ? 'Tốt' : 'Xuất sắc'}
               </Text>
             </View>
 
             {/* Categories */}
             <View style={styles.categoriesContainer}>
-              <Text style={styles.categoryLabel}>Loại phản hồi *</Text>
+              <Text style={[styles.categoryLabel, { color: colors.text }]}>Loại phản hồi *</Text>
               <View style={styles.categoriesGrid}>
                 {feedbackCategories.map((cat) => (
                   <TouchableOpacity
                     key={cat.id}
                     style={[
                       styles.categoryButton,
-                      { backgroundColor: category === cat.id ? '#6366F1' : '#F8FAFC' }
+                      { backgroundColor: category === cat.id ? colors.primary : colors.surface, borderColor: colors.border }
                     ]}
                     onPress={() => setCategory(cat.id)}
                   >
                     <MaterialCommunityIcons
                       name={cat.icon as any}
                       size={20}
-                      color={category === cat.id ? '#FFFFFF' : '#6366F1'}
+                      color={category === cat.id ? '#FFFFFF' : colors.primary}
                     />
                     <Text style={[
                       styles.categoryText,
-                      { color: category === cat.id ? '#FFFFFF' : '#6366F1' }
+                      { color: category === cat.id ? '#FFFFFF' : colors.primary }
                     ]}>
                       {cat.label}
                     </Text>
@@ -169,51 +171,52 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
 
             {/* Comment */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Nội dung phản hồi *</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Nội dung phản hồi *</Text>
               <TextInput
                 value={comment}
                 onChangeText={setComment}
                 placeholder="Chia sẻ trải nghiệm hoặc gợi ý cải thiện..."
                 multiline
                 numberOfLines={4}
-                style={styles.textArea}
+                style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 maxLength={500}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.subtleText}
               />
-              <Text style={styles.charCount}>{comment.length}/500</Text>
+              <Text style={[styles.charCount, { color: colors.subtleText }]}>{comment.length}/500</Text>
             </View>
 
             {/* Contact Info */}
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Thông tin liên hệ (tùy chọn)</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Thông tin liên hệ (tùy chọn)</Text>
               <TextInput
                 value={contactInfo}
                 onChangeText={setContactInfo}
                 placeholder="Email hoặc số điện thoại để chúng tôi phản hồi"
-                style={styles.textInput}
+                style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 maxLength={100}
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor={colors.subtleText}
               />
             </View>
 
             {/* Info Box */}
-            <View style={styles.infoBox}>
-              <MaterialCommunityIcons name="information" size={20} color="#6366F1" />
-              <Text style={styles.infoText}>
+            <View style={[styles.infoBox, { backgroundColor: colors.isDark ? colors.surface : '#EFF6FF' }]}>
+              <MaterialCommunityIcons name="information" size={20} color={colors.primary} />
+              <Text style={[styles.infoText, { color: colors.isDark ? colors.text : '#1E40AF' }]}>
                 Phản hồi của bạn giúp chúng tôi cải thiện ứng dụng tốt hơn
               </Text>
             </View>
           </ScrollView>
 
           {/* Submit Button */}
-          <View style={styles.footer}>
-            <TouchableOpacity 
+          {/* Footer */}
+          <View style={[styles.footer, { borderTopColor: colors.border }]}>
+            <TouchableOpacity
               style={[styles.submitButton, { opacity: submitting ? 0.7 : 1 }]}
               onPress={handleSubmit}
               disabled={submitting}
             >
               <LinearGradient
-                colors={['#6366F1', '#8B5CF6']}
+                colors={[colors.primary, colors.tintDark || colors.primary]}
                 style={styles.submitGradient}
               >
                 {submitting ? (

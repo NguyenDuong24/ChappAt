@@ -3,8 +3,9 @@ import { coinServerApi } from '../src/services/coinServerApi';
 export interface GiftItem {
   id: string;
   name: string;
-  price: number; // cost in coins (Bánh mì)
-  icon?: string; // emoji or image URL
+  price: number;
+  currencyType?: 'coins' | 'banhMi';
+  icon?: string;
   active?: boolean;
 }
 
@@ -83,7 +84,7 @@ export function subscribeReceivedGifts(uid: string, cb: (items: GiftReceiptDoc[]
   // Temporary: return empty function, implement polling later if needed
   console.warn('subscribeReceivedGifts not implemented yet, using server API only');
   cb([]);
-  return () => {}; // unsubscribe function
+  return () => { }; // unsubscribe function
 }
 
 export async function markGiftReceiptRead(uid: string, receiptId: string) {

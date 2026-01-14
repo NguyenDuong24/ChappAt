@@ -1,10 +1,11 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Image, ActivityIndicator, ScrollView, FlatList, Dimensions, Alert, Modal } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, ScrollView, FlatList, Dimensions, Alert, Modal } from 'react-native';
+import { Image } from 'expo-image';
 import { TextInput, Button, Chip } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { 
-  addDoc, collection, serverTimestamp, getDoc, setDoc, updateDoc, doc, increment, arrayUnion, query, orderBy, limit, getDocs 
+import {
+  addDoc, collection, serverTimestamp, getDoc, setDoc, updateDoc, doc, increment, arrayUnion, query, orderBy, limit, getDocs
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -174,11 +175,11 @@ const CreatePostScreen = () => {
       const d = values[0] || 0; // Drawing
 
       // New thresholds: more sensitive
-      const isInappropriate = 
-        p >= 0.5 ||  
-        h >= 0.5 ||  
-        s >= 0.7 ||  
-        (p + h + s >= 0.8);  
+      const isInappropriate =
+        p >= 0.5 ||
+        h >= 0.5 ||
+        s >= 0.7 ||
+        (p + h + s >= 0.8);
 
       // Detailed reason, show if above warning threshold
       const reasonParts = [];
@@ -250,12 +251,12 @@ const CreatePostScreen = () => {
       console.log('- Length check (>1):', hashtag.length > 1);
       console.log('- Duplicate check:', !selectedHashtags.includes(hashtag));
       console.log('- Limit check (<10):', selectedHashtags.length < 10);
-      
+
       let errorMessage = 'Không thể thêm hashtag. ';
       if (hashtag.length <= 1) errorMessage += 'Hashtag quá ngắn.';
       else if (selectedHashtags.includes(hashtag)) errorMessage += 'Hashtag đã tồn tại.';
       else if (selectedHashtags.length >= 10) errorMessage += 'Đã đạt giới hạn 10 hashtag.';
-      
+
       Alert.alert('Thông báo', errorMessage);
     }
   };
@@ -263,9 +264,9 @@ const CreatePostScreen = () => {
   // Function to format address based on privacy setting
   const formatAddressForPrivacy = (fullAddress) => {
     if (!fullAddress || locationPrivacy === 'none') return null;
-    
+
     const addressParts = fullAddress.split(', ');
-    
+
     switch (locationPrivacy) {
       case 'city':
         // Chỉ lấy 2 phần cuối (thành phố/tỉnh và quốc gia)
@@ -282,23 +283,23 @@ const CreatePostScreen = () => {
 
   const getCurrentLocationDisplay = () => {
     const formattedAddress = formatAddressForPrivacy(address);
-    
+
     if (locationPrivacy === 'none') {
       return 'Không hiển thị vị trí';
     }
-    
+
     if (locationLoading) {
       return 'Đang lấy vị trí...';
     }
-    
+
     if (formattedAddress) {
       return formattedAddress;
     }
-    
+
     if (errorMsg) {
       return errorMsg;
     }
-    
+
     return 'Không có vị trí';
   };
 
@@ -392,7 +393,7 @@ const CreatePostScreen = () => {
     // Kết hợp hashtag từ nội dung và hashtag được chọn
     const contentHashtags = extractHashtags(finalContent);
     const allHashtags = [...new Set([...contentHashtags, ...selectedHashtags])];
-    
+
     console.log('🏷️ Hashtag processing details:', {
       contentText: finalContent,
       extractedFromContent: contentHashtags,
@@ -405,14 +406,14 @@ const CreatePostScreen = () => {
 
     // Tạo bài viết mới
     const formattedAddress = formatAddressForPrivacy(address);
-    
+
     const newPost = {
       content: finalContent,
       hashtags: allHashtags, // Lưu danh sách hashtag
       images: imageUrls,
-      location: (location && locationPrivacy !== 'none') ? { 
-        latitude: location.coords.latitude, 
-        longitude: location.coords.longitude 
+      location: (location && locationPrivacy !== 'none') ? {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude
       } : null,
       address: formattedAddress, // Sử dụng địa chỉ đã được format theo privacy
       locationPrivacy: locationPrivacy, // Lưu setting privacy
@@ -425,24 +426,24 @@ const CreatePostScreen = () => {
     };
 
     // Validation để đảm bảo hashtags hợp lệ trước khi lưu
-    const validHashtags = allHashtags.filter(tag => 
-      tag && 
-      typeof tag === 'string' && 
-      tag.startsWith('#') && 
+    const validHashtags = allHashtags.filter(tag =>
+      tag &&
+      typeof tag === 'string' &&
+      tag.startsWith('#') &&
       tag.length > 1
     );
-    
+
     console.log('🚀 Creating post with data:', {
       content: newPost.content,
       originalHashtags: allHashtags,
-      validHashtags: validHashtags,  
+      validHashtags: validHashtags,
       hashtagsCount: validHashtags.length,
       hashtagsType: typeof validHashtags,
       hashtagsIsArray: Array.isArray(validHashtags),
       address: newPost.address,
       locationPrivacy: newPost.locationPrivacy
     });
-    
+
     // Cập nhật newPost với hashtags đã được validate
     newPost.hashtags = validHashtags;
 
@@ -455,10 +456,10 @@ const CreatePostScreen = () => {
       const cleanTag = tagItem.toLowerCase();
       const tagDocRef = doc(collection(db, 'hashtags'), cleanTag);
       console.log(`📝 Processing hashtag: ${tagItem} -> ${cleanTag}`);
-      
+
       try {
         const tagDocSnap = await getDoc(tagDocRef);
-        
+
         if (tagDocSnap.exists()) {
           await updateDoc(tagDocRef, {
             count: increment(1),
@@ -481,7 +482,7 @@ const CreatePostScreen = () => {
 
     console.log('✅ Post created successfully with ID:', postRef.id);
     console.log('📊 Final hashtag stats updated for:', validHashtags);
-    
+
     // Verify the post was saved correctly by reading it back
     try {
       const savedPostDoc = await getDoc(postRef);
@@ -498,7 +499,7 @@ const CreatePostScreen = () => {
     } catch (verifyError) {
       console.error('❌ Error verifying saved post:', verifyError);
     }
-    
+
     Alert.alert('Thành công', 'Bài viết đã được đăng thành công!', [
       { text: 'OK', onPress: () => router.back() }
     ]);
@@ -527,8 +528,8 @@ const CreatePostScreen = () => {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tạo bài viết</Text>
-        <TouchableOpacity 
-          onPress={handleSave} 
+        <TouchableOpacity
+          onPress={handleSave}
           disabled={isButtonDisabled}
           style={[styles.postButton, { opacity: isButtonDisabled ? 0.5 : 1 }]}
         >
@@ -626,17 +627,17 @@ const CreatePostScreen = () => {
               autoCapitalize="none"
               autoCorrect={false}
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 console.log('Adding custom hashtag:', customHashtag);
                 addCustomHashtag();
               }}
               style={[
-                styles.addHashtagButton, 
-                { 
-                  backgroundColor: (!customHashtag.trim() || selectedHashtags.length >= 10) 
-                    ? Colors.primary + '50' 
-                    : Colors.primary 
+                styles.addHashtagButton,
+                {
+                  backgroundColor: (!customHashtag.trim() || selectedHashtags.length >= 10)
+                    ? Colors.primary + '50'
+                    : Colors.primary
                 }
               ]}
               disabled={!customHashtag.trim() || selectedHashtags.length >= 10}
@@ -661,15 +662,15 @@ const CreatePostScreen = () => {
                 <Chip
                   style={[
                     styles.trendingChip,
-                    { 
-                      backgroundColor: selectedHashtags.includes(hashtag) 
-                        ? Colors.success + '30' 
-                        : currentThemeColors.cardBackground 
+                    {
+                      backgroundColor: selectedHashtags.includes(hashtag)
+                        ? Colors.success + '30'
+                        : currentThemeColors.cardBackground
                     }
                   ]}
-                  textStyle={{ 
-                    color: selectedHashtags.includes(hashtag) 
-                      ? Colors.success 
+                  textStyle={{
+                    color: selectedHashtags.includes(hashtag)
+                      ? Colors.success
                       : currentThemeColors.text,
                     fontSize: 12
                   }}
@@ -689,8 +690,8 @@ const CreatePostScreen = () => {
             </Text>
             {image.length === 1 ? (
               <View style={styles.singleImageContainer}>
-                <Image source={{ uri: image[0] }} style={styles.singleImage} resizeMode="cover" />
-                <TouchableOpacity 
+                <Image source={{ uri: image[0] }} style={styles.singleImage} contentFit="cover" />
+                <TouchableOpacity
                   style={styles.removeImageButton}
                   onPress={() => removeImage(0)}
                 >
@@ -701,8 +702,8 @@ const CreatePostScreen = () => {
               <View style={styles.imageGrid}>
                 {image.slice(0, 4).map((uri, index) => (
                   <View key={index} style={styles.gridItem}>
-                    <Image source={{ uri }} style={styles.gridImage} resizeMode="cover" />
-                    <TouchableOpacity 
+                    <Image source={{ uri }} style={styles.gridImage} contentFit="cover" />
+                    <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => removeImage(index)}
                     >
@@ -722,9 +723,9 @@ const CreatePostScreen = () => {
 
         {/* Action Buttons */}
         <View style={styles.actionContainer}>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: currentThemeColors.cardBackground }]} 
-            onPress={pickImage} 
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: currentThemeColors.cardBackground }]}
+            onPress={pickImage}
             disabled={loading || image.length >= 4}
           >
             <Ionicons name="camera" size={24} color={Colors.primary} />
@@ -733,7 +734,7 @@ const CreatePostScreen = () => {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: currentThemeColors.cardBackground }]}
             onPress={() => setShowHashtagSuggestions(!showHashtagSuggestions)}
           >
@@ -745,16 +746,16 @@ const CreatePostScreen = () => {
           <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
             🔒 Cài đặt vị trí
           </Text>
-          
+
           {/* Current Location Display */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.locationDisplay, { backgroundColor: currentThemeColors.cardBackground }]}
             onPress={() => setShowLocationOptions(!showLocationOptions)}
           >
-            <Ionicons 
-              name={LOCATION_PRIVACY_OPTIONS.find(opt => opt.id === locationPrivacy)?.icon || 'location'} 
-              size={20} 
-              color={locationPrivacy === 'none' ? Colors.error : Colors.success} 
+            <Ionicons
+              name={LOCATION_PRIVACY_OPTIONS.find(opt => opt.id === locationPrivacy)?.icon || 'location'}
+              size={20}
+              color={locationPrivacy === 'none' ? Colors.error : Colors.success}
             />
             <View style={styles.locationInfo}>
               <Text style={[styles.locationPrivacyLabel, { color: currentThemeColors.text }]}>
@@ -768,10 +769,10 @@ const CreatePostScreen = () => {
                 )}
               </Text>
             </View>
-            <Ionicons 
-              name={showLocationOptions ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color={currentThemeColors.icon} 
+            <Ionicons
+              name={showLocationOptions ? "chevron-up" : "chevron-down"}
+              size={20}
+              color={currentThemeColors.icon}
             />
           </TouchableOpacity>
 
@@ -790,14 +791,14 @@ const CreatePostScreen = () => {
                     setShowLocationOptions(false);
                   }}
                 >
-                  <Ionicons 
-                    name={option.icon} 
-                    size={18} 
-                    color={locationPrivacy === option.id ? Colors.primary : currentThemeColors.icon} 
+                  <Ionicons
+                    name={option.icon}
+                    size={18}
+                    color={locationPrivacy === option.id ? Colors.primary : currentThemeColors.icon}
                   />
                   <Text style={[
-                    styles.locationOptionText, 
-                    { 
+                    styles.locationOptionText,
+                    {
                       color: locationPrivacy === option.id ? Colors.primary : currentThemeColors.text,
                       fontWeight: locationPrivacy === option.id ? '600' : '400'
                     }

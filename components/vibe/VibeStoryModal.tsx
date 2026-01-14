@@ -1,5 +1,6 @@
 import React, { useContext, useMemo, useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -135,7 +136,7 @@ const VibeStoryModal: React.FC<VibeStoryModalProps> = ({ visible, onClose, user,
           <View style={styles.header}>
             <View style={styles.userRow}>
               {user?.profileUrl ? (
-                <Image source={{ uri: user.profileUrl }} style={styles.miniAvatar} />
+                <Image source={{ uri: user.profileUrl }} style={styles.miniAvatar} contentFit="cover" />
               ) : (
                 <View style={[styles.miniAvatar, { backgroundColor: colors.border }]} />
               )}
@@ -203,11 +204,11 @@ const styles = StyleSheet.create({
   vibeName: { fontSize: 24, color: '#fff', fontWeight: '700', marginBottom: 6 },
   message: { fontSize: 16, color: '#fff', opacity: 0.9, textAlign: 'center', paddingHorizontal: 12 },
   reactionsRow: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 16 },
-  reactionBtn: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22 },
-  reactionText: { fontSize: 20, color: '#fff' },
-  replyRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 24, padding: 8, marginBottom: 12 },
-  input: { flex: 1, color: '#fff', paddingHorizontal: 8 },
-  sendBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 18 },
+  reactionBtn: { padding: 8 },
+  reactionText: { fontSize: 28 },
+  replyRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 24, paddingHorizontal: 12, paddingVertical: 6, marginBottom: 12, borderWidth: 1 },
+  input: { flex: 1, color: '#fff', fontSize: 15, paddingVertical: 8, paddingHorizontal: 4 },
+  sendBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
 });
 
 export default VibeStoryModal;

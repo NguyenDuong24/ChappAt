@@ -8,8 +8,7 @@ import {
   ScrollView
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { PRIVACY_OPTIONS, PrivacyLevel } from '@/utils/postPrivacyUtils';
 
 interface PrivacySelectorProps {
@@ -25,9 +24,7 @@ const PrivacySelector: React.FC<PrivacySelectorProps> = ({
   onClose,
   onSelect
 }) => {
-  const themeCtx = useContext(ThemeContext);
-  const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const colors = useThemedColors();
 
   const handleSelect = (privacy: PrivacyLevel) => {
     onSelect(privacy);
@@ -42,14 +39,14 @@ const PrivacySelector: React.FC<PrivacySelectorProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
           {/* Header */}
-          <View style={[styles.header, { borderBottomColor: currentThemeColors.border }]}>
-            <Text style={[styles.title, { color: currentThemeColors.text }]}>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.title, { color: colors.text }]}>
               Ai có thể xem bài viết này?
             </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialIcons name="close" size={24} color={currentThemeColors.text} />
+              <MaterialIcons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -60,41 +57,41 @@ const PrivacySelector: React.FC<PrivacySelectorProps> = ({
                 key={option.key}
                 style={[
                   styles.optionItem,
-                  { borderBottomColor: currentThemeColors.border },
-                  currentPrivacy === option.key && { backgroundColor: Colors.primary + '10' }
+                  { borderBottomColor: colors.border },
+                  currentPrivacy === option.key && { backgroundColor: colors.primary + '10' }
                 ]}
                 onPress={() => handleSelect(option.key)}
               >
                 <View style={styles.optionContent}>
                   <View style={[
                     styles.iconContainer,
-                    { backgroundColor: currentPrivacy === option.key ? Colors.primary : currentThemeColors.surface }
+                    { backgroundColor: currentPrivacy === option.key ? colors.primary : colors.surface }
                   ]}>
-                    <MaterialIcons 
-                      name={option.icon as any} 
-                      size={20} 
-                      color={currentPrivacy === option.key ? 'white' : currentThemeColors.text} 
+                    <MaterialIcons
+                      name={option.icon as any}
+                      size={20}
+                      color={currentPrivacy === option.key ? 'white' : colors.text}
                     />
                   </View>
-                  
+
                   <View style={styles.textContainer}>
                     <Text style={[
                       styles.optionLabel,
-                      { color: currentThemeColors.text },
+                      { color: colors.text },
                       currentPrivacy === option.key && { fontWeight: '600' }
                     ]}>
                       {option.label}
                     </Text>
-                    <Text style={[styles.optionDescription, { color: currentThemeColors.subtleText }]}>
+                    <Text style={[styles.optionDescription, { color: colors.subtleText }]}>
                       {option.description}
                     </Text>
                   </View>
 
                   {currentPrivacy === option.key && (
-                    <MaterialIcons 
-                      name="check-circle" 
-                      size={20} 
-                      color={Colors.primary} 
+                    <MaterialIcons
+                      name="check-circle"
+                      size={20}
+                      color={colors.primary}
                     />
                   )}
                 </View>
@@ -103,8 +100,8 @@ const PrivacySelector: React.FC<PrivacySelectorProps> = ({
           </ScrollView>
 
           {/* Footer */}
-          <View style={[styles.footer, { borderTopColor: currentThemeColors.border }]}>
-            <Text style={[styles.footerText, { color: currentThemeColors.subtleText }]}>
+          <View style={[styles.footer, { borderTopColor: colors.border }]}>
+            <Text style={[styles.footerText, { color: colors.subtleText }]}>
               Bạn có thể thay đổi quyền riêng tư bất cứ lúc nào
             </Text>
           </View>

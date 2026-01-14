@@ -1,50 +1,50 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ImageBackground, Alert } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
 import { Colors } from '@/constants/Colors';
+import { TextInput } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import ProgressIndicator from '@/components/signup/ProgressIndicator';
+import { useTranslation } from 'react-i18next';
 
 const EmailInputScreen = () => {
-  const { setEmail, setSignupType, cancelRegistration } = useAuth();
+  const { t } = useTranslation();
+  const { setEmail: setAuthEmail, cancelRegistration, signupType } = useAuth();
   const router = useRouter();
   const logoUrl = useLogoState();
+  const [email, setEmail] = useState('');
 
-  const [email, setEmailInput] = useState('');
-  const [isButtonEnabled, setIsButtonEnabled] = useState(false);
-
-  const handleEmailChange = useCallback((input) => {
-    setEmailInput(input);
-    setIsButtonEnabled(validateEmail(input));
-  }, []);
-
-  const validateEmail = (emailStr) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(emailStr);
-  };
+  // Dynamic step calculation
+  const stepInfo = useMemo(() => {
+    if (signupType === 'google') {
+      return { current: 1, total: 4 };
+    }
+    return { current: 1, total: 6 };
+  }, [signupType]);
 
   const handleNext = useCallback(() => {
-    setEmail(email);
-    setSignupType('email');
-    router.push('/signup/PasswordInputScreen');
-  }, [email, setEmail, setSignupType, router]);
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert(t('signup.invalid_email_title'), t('signup.invalid_email_message'));
+      return;
+    }
+    setAuthEmail(email);
+    router.push('/signup/AgeInputScreen');
+  }, [email, router, setAuthEmail, t]);
 
   const handleCancel = useCallback(() => {
     Alert.alert(
-      'Huỷ đăng ký?',
-      'Bạn có chắc muốn huỷ đăng ký?',
+      t('signup.cancel_title'),
+      t('signup.cancel_message'),
       [
-        { text: 'Không', style: 'cancel' },
-        {
-          text: 'Huỷ',
-          style: 'destructive',
-          onPress: async () => { try { await cancelRegistration({ deleteAccount: false, navigateTo: '/signin' }); } catch (_) { } },
-        },
+        { text: t('common.no'), style: 'cancel' },
+        { text: t('signup.cancel_confirm'), style: 'destructive', onPress: async () => { try { await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' }); } catch (_) { } } },
       ]
     );
-  }, [cancelRegistration]);
+  }, [cancelRegistration, t]);
 
   return (
     <ImageBackground
@@ -55,37 +55,40 @@ const EmailInputScreen = () => {
       <LinearGradient colors={['rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)']} style={styles.backdrop} />
 
       <View style={styles.container}>
-        <ProgressIndicator currentStep={1} totalSteps={6} signupType="email" />
+        <ProgressIndicator
+          currentStep={stepInfo.current}
+          totalSteps={stepInfo.total}
+          signupType={signupType || 'email'}
+        />
 
         {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logo} />
+          <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
         ) : (
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         )}
-        <Text style={styles.title}>Nhập Email của bạn</Text>
-        <Text style={styles.subtitle}>Email sẽ được dùng để đăng nhập</Text>
-
+        <Text style={styles.title}>{t('signup.email_title')}</Text>
         <TextInput
-          style={[styles.input, { color: Colors.dark.text, borderColor: Colors.dark.inputBorder, backgroundColor: Colors.dark.inputBackground }]}
-          placeholder="example@email.com"
-          placeholderTextColor={Colors.dark.placeholderText}
-          keyboardType="email-address"
+          label={t('signup.email_label')}
           value={email}
-          onChangeText={handleEmailChange}
+          onChangeText={setEmail}
+          style={styles.input}
+          keyboardType="email-address"
           autoCapitalize="none"
-          autoComplete="email"
+          mode="outlined"
+          theme={{ colors: { primary: Colors.primary, text: 'white', placeholder: 'rgba(255,255,255,0.7)' } }}
+          textColor="white"
         />
         <TouchableOpacity
-          style={[styles.nextButton, !isButtonEnabled && styles.disabledButton]}
+          style={[styles.nextButton, !email && styles.disabledButton]}
           onPress={handleNext}
-          disabled={!isButtonEnabled}
+          disabled={!email}
           activeOpacity={0.85}
         >
-          <Text style={styles.nextButtonText}>Tiếp theo</Text>
+          <Text style={styles.nextButtonText}>{t('common.next')}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn}>
-          <Text style={styles.cancelText}>Huỷ đăng ký</Text>
+        <TouchableOpacity onPress={handleCancel} style={{ marginTop: 14 }}>
+          <Text style={{ color: '#ffd1d1', textDecorationLine: 'underline' }}>{t('signup.cancel_registration')}</Text>
         </TouchableOpacity>
       </View>
     </ImageBackground>
@@ -98,7 +101,9 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  backdrop: { ...StyleSheet.absoluteFillObject },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -107,33 +112,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
     marginBottom: 20,
   },
   loadingText: {
     fontSize: 18,
-    color: Colors.light.text,
+    color: 'white',
     marginBottom: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 24,
+    color: 'white',
+    marginBottom: 20,
   },
   input: {
     width: '100%',
-    padding: 15,
-    borderWidth: 1,
-    borderRadius: 25,
     marginBottom: 20,
-    fontSize: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   nextButton: {
     backgroundColor: Colors.primary,
@@ -147,13 +144,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#475569',
   },
   nextButtonText: {
-    color: '#fff',
+    color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
   },
-  cancelBtn: { marginTop: 14 },
-  cancelText: { color: '#ffd1d1', textDecorationLine: 'underline' },
 });
 
 export default EmailInputScreen;
-

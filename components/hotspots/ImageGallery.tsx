@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { Image } from 'react-native';
+import { Image } from 'expo-image';
 
 const { width } = Dimensions.get('window');
 
@@ -18,14 +18,14 @@ const ImageGallery = ({ images, thumbnail }: ImageGalleryProps) => {
   if (allImages.length <= 1) {
     return (
       <View style={styles.container}>
-        <Image source={{ uri: selectedImage }} style={styles.mainImage} />
+        <Image source={{ uri: selectedImage }} style={styles.mainImage} contentFit="cover" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Image source={{ uri: selectedImage }} style={styles.mainImage} />
+      <Image source={{ uri: selectedImage }} style={styles.mainImage} contentFit="cover" />
 
       <ScrollView
         horizontal
@@ -42,7 +42,7 @@ const ImageGallery = ({ images, thumbnail }: ImageGalleryProps) => {
               selectedImage === image && styles.selectedThumbnail
             ]}
           >
-            <Image source={{ uri: image }} style={styles.thumbnail} />
+            <Image source={{ uri: image }} style={styles.thumbnail} contentFit="cover" />
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -57,7 +57,6 @@ const styles = StyleSheet.create({
   mainImage: {
     width: '100%',
     height: 250,
-    resizeMode: 'cover',
   },
   thumbnailScroll: {
     marginTop: 10,

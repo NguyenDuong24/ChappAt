@@ -5,12 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   TextInput,
   Alert,
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useBlockStatus } from '@/hooks/useBlockStatus';
@@ -62,13 +62,13 @@ const UserProfile = ({
   });
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [blockActionLoading, setBlockActionLoading] = useState(false);
-  
+
   // Get block status
-  const { 
-    isBlocked, 
-    isBlockedBy, 
-    hasBlockRelation, 
-    loading: blockLoading 
+  const {
+    isBlocked,
+    isBlockedBy,
+    hasBlockRelation,
+    loading: blockLoading
   } = useBlockStatus(currentUser?.uid, user.id);
 
   const colors = {
@@ -124,7 +124,7 @@ const UserProfile = ({
 
     Alert.alert(
       isBlocked ? 'Bỏ chặn người dùng' : 'Chặn người dùng',
-      isBlocked 
+      isBlocked
         ? `Bạn có chắc muốn bỏ chặn ${user.displayName}? Họ sẽ có thể nhắn tin và xem nội dung của bạn.`
         : `Bạn có chắc muốn chặn ${user.displayName}? Họ sẽ không thể nhắn tin cho bạn và bạn sẽ không thấy nội dung của họ nữa.`,
       [
@@ -138,7 +138,7 @@ const UserProfile = ({
           onPress: async () => {
             try {
               setBlockActionLoading(true);
-              
+
               let success;
               if (isBlocked) {
                 // Unblock user
@@ -151,7 +151,7 @@ const UserProfile = ({
               if (success) {
                 Alert.alert(
                   '✅ Thành công',
-                  isBlocked 
+                  isBlocked
                     ? `Đã bỏ chặn ${user.displayName}`
                     : `Đã chặn ${user.displayName}`
                 );
@@ -181,7 +181,7 @@ const UserProfile = ({
         {/* Avatar */}
         <View style={styles.avatarContainer}>
           {user.avatar ? (
-            <Image source={{ uri: user.avatar }} style={styles.avatar} />
+            <Image source={{ uri: user.avatar }} style={styles.avatar} contentFit="cover" transition={200} />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
               <Text style={styles.avatarText}>
@@ -194,7 +194,7 @@ const UserProfile = ({
               <MaterialCommunityIcons name="camera" size={16} color="#FFFFFF" />
             </TouchableOpacity>
           )}
-          
+
           {/* Status Indicator */}
           <TouchableOpacity
             style={[styles.statusIndicator, { backgroundColor: getStatusInfo(user.status).color }]}
@@ -225,18 +225,18 @@ const UserProfile = ({
         {/* Action Buttons - Disabled if blocked */}
         {!isOwnProfile && !isBlockedBy && (
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
                 styles.primaryActionButton,
                 isBlocked && styles.disabledButton
-              ]} 
+              ]}
               onPress={isBlocked ? undefined : onSendMessage}
               disabled={isBlocked}
             >
-              <MaterialCommunityIcons 
-                name="message" 
-                size={20} 
-                color={isBlocked ? colors.subtleText : "#FFFFFF"} 
+              <MaterialCommunityIcons
+                name="message"
+                size={20}
+                color={isBlocked ? colors.subtleText : "#FFFFFF"}
               />
               <Text style={[
                 styles.actionButtonText,
@@ -245,18 +245,18 @@ const UserProfile = ({
                 Nhắn tin
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
                 styles.secondaryActionButton,
                 isBlocked && styles.disabledButton
-              ]} 
+              ]}
               onPress={isBlocked ? undefined : onAddFriend}
               disabled={isBlocked}
             >
-              <MaterialCommunityIcons 
-                name="account-plus" 
-                size={20} 
-                color={isBlocked ? colors.subtleText : colors.primary} 
+              <MaterialCommunityIcons
+                name="account-plus"
+                size={20}
+                color={isBlocked ? colors.subtleText : colors.primary}
               />
             </TouchableOpacity>
           </View>
@@ -277,7 +277,7 @@ const UserProfile = ({
             {isBlockedBy ? 'Bạn đã bị chặn' : 'Bạn đã chặn người dùng này'}
           </Text>
           <Text style={[styles.blockBannerText, { color: colors.subtleText }]}>
-            {isBlockedBy 
+            {isBlockedBy
               ? 'Bạn không thể xem nội dung hoặc nhắn tin với người dùng này.'
               : 'Bạn sẽ không thấy nội dung của họ và họ không thể nhắn tin cho bạn.'
             }
@@ -418,24 +418,24 @@ const UserProfile = ({
     return (
       <View style={[styles.profileSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Thêm</Text>
-        
+
         {!isBlockedBy && (
-          <TouchableOpacity 
-            style={styles.actionItem} 
+          <TouchableOpacity
+            style={styles.actionItem}
             onPress={handleBlockUser}
             disabled={blockActionLoading}
           >
             {blockActionLoading ? (
               <ActivityIndicator size="small" color={colors.danger} />
             ) : (
-              <MaterialCommunityIcons 
-                name={isBlocked ? "account-check" : "block-helper"} 
-                size={20} 
-                color={isBlocked ? colors.warning : colors.danger} 
+              <MaterialCommunityIcons
+                name={isBlocked ? "account-check" : "block-helper"}
+                size={20}
+                color={isBlocked ? colors.warning : colors.danger}
               />
             )}
             <Text style={[
-              styles.actionText, 
+              styles.actionText,
               { color: isBlocked ? colors.warning : colors.danger }
             ]}>
               {isBlocked ? 'Bỏ chặn người dùng' : 'Chặn người dùng'}
@@ -463,7 +463,7 @@ const UserProfile = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.statusModal, { backgroundColor: colors.background, borderColor: colors.border }]}>
           <Text style={[styles.modalTitle, { color: colors.text }]}>Đặt trạng thái</Text>
-          
+
           {statusOptions.map((status) => (
             <TouchableOpacity
               key={status.value}

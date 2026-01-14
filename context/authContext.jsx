@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, deleteDoc, collection, query, where, limit, getDocs } from "firebase/firestore";
 import { convertToAge } from '../utils/common';
@@ -51,10 +51,12 @@ export const AuthContextProvider = ({ children }) => {
 
     // Wallet state
     const [coins, setCoins] = useState(0);
+    const [banhMi, setBanhMi] = useState(0);
 
     // Expo Push Notification state
     const [notificationToken, setNotificationToken] = useState(null);
     const [notificationInitialized, setNotificationInitialized] = useState(false);
+    const [activeFrame, setActiveFrame] = useState(null);
 
     // Configure Google Sign-In when the app starts
     useEffect(() => {
@@ -104,6 +106,7 @@ export const AuthContextProvider = ({ children }) => {
             }
             // Reset wallet state
             setCoins(0);
+            setBanhMi(0);
         } catch (_e) { }
     };
 
@@ -146,6 +149,7 @@ export const AuthContextProvider = ({ children }) => {
             }));
             // Update coins
             setCoins(Number(data?.coins || 0));
+            setBanhMi(Number(data?.banhMi || 0));
             // Guard: do not override local signup inputs while onboarding
             if (!isOnboarding) {
                 setName(data.username);
@@ -212,36 +216,68 @@ export const AuthContextProvider = ({ children }) => {
 
             // update cached fields cautiously
             if (completed) {
-                setIsOnboarding(false);
-                setName(data.username || '');
-                setEmail(data.email || '');
-                setAge(data.age || '');
-                setGender(data.gender || '');
-                setIcon(data.profileUrl || data.photoURL || '');
-                setBio(data.bio || '');
+                setIsOnboarding(prev => prev !== false ? false : prev);
+                setName(prev => prev !== (data.username || '') ? (data.username || '') : prev);
+                setEmail(prev => prev !== (data.email || '') ? (data.email || '') : prev);
+                setAge(prev => prev !== (data.age || '') ? (data.age || '') : prev);
+                setGender(prev => prev !== (data.gender || '') ? (data.gender || '') : prev);
+                setIcon(prev => {
+                    const newIcon = data.profileUrl || data.photoURL || '';
+                    return prev !== newIcon ? newIcon : prev;
+                });
+                setBio(prev => prev !== (data.bio || '') ? (data.bio || '') : prev);
+                setActiveFrame(prev => prev !== (data.activeFrame || null) ? (data.activeFrame || null) : prev);
             } else {
-                setIsOnboarding(true);
+                setIsOnboarding(prev => prev !== true ? true : prev);
                 // While onboarding, avoid overwriting user-entered signup fields
                 // Only backfill fields if not edited locally yet
-                if (!didUserEditSignup.current.name) setName(data.username || '');
-                setEmail(data.email || '');
-                if (!didUserEditSignup.current.age) setAge(data.age || '');
-                if (!didUserEditSignup.current.gender) setGender(data.gender || '');
-                if (!didUserEditSignup.current.icon) setIcon(data.profileUrl || data.photoURL || '');
-                if (!bio) setBio(data.bio || '');
+                if (!didUserEditSignup.current.name) setName(prev => prev !== (data.username || '') ? (data.username || '') : prev);
+                setEmail(prev => prev !== (data.email || '') ? (data.email || '') : prev);
+                if (!didUserEditSignup.current.age) setAge(prev => prev !== (data.age || '') ? (data.age || '') : prev);
+                if (!didUserEditSignup.current.gender) setGender(prev => prev !== (data.gender || '') ? (data.gender || '') : prev);
+                if (!didUserEditSignup.current.icon) {
+                    const newIcon = data.profileUrl || data.photoURL || '';
+                    setIcon(prev => prev !== newIcon ? newIcon : prev);
+                }
+                setBio(prev => prev !== (data.bio || '') ? (data.bio || '') : prev);
+                setActiveFrame(prev => prev !== (data.activeFrame || null) ? (data.activeFrame || null) : prev);
             }
 
             // if profile now completed, flip auth state to true
             if (completed) {
-                setIsAuthenticated(true);
+                setIsAuthenticated(prev => prev !== true ? true : prev);
                 // normalize: ensure profileCompleted flag set in DB once requirements met
                 if (data.profileCompleted !== true) {
-                    try { updateDoc(userRef, { profileCompleted: true }); } catch (_e) { }
+                    // Only update if not already true to avoid loops
+                    updateDoc(userRef, { profileCompleted: true }).catch(e => {
+                        // Silently handle permission errors during logout
+                        const errorStr = String(e?.message || e?.code || e);
+                        if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                            console.error("Error updating profileCompleted:", e);
+                        }
+                    });
                 }
             } else if (isAuthenticated !== false) {
                 // only set pendingProfile if not logged out
-                setIsAuthenticated('pendingProfile');
+                setIsAuthenticated(prev => prev !== 'pendingProfile' ? 'pendingProfile' : prev);
             }
+            // Sync pinnedChatIds and other critical user data
+            setUser(prev => {
+                if (!prev) return prev;
+                // Check if pinnedChatIds changed
+                const prevPins = prev.pinnedChatIds || [];
+                const newPins = data.pinnedChatIds || [];
+
+                const isDifferent = prevPins.length !== newPins.length ||
+                    !prevPins.every((val, index) => val === newPins[index]);
+
+                if (isDifferent) {
+                    console.log('📌 AuthContext: Syncing pinnedChatIds:', newPins);
+                    return { ...prev, pinnedChatIds: newPins };
+                }
+                return prev;
+            });
+
         }, (error) => {
             // Silently handle permission errors during logout
             const errorStr = String(error?.message || error?.code || error);
@@ -249,9 +285,15 @@ export const AuthContextProvider = ({ children }) => {
                 console.error('User profile listener error:', error);
             }
         });
-        userProfileUnsubscribe.current = unsub;
+
+        userProfileUnsubscribe.current = () => {
+            unsub();
+        };
+
         return () => {
-            try { unsub(); } catch (_e) { }
+            try {
+                unsub();
+            } catch (_e) { }
             userProfileUnsubscribe.current = null;
         };
     }, [user?.uid]);
@@ -268,6 +310,7 @@ export const AuthContextProvider = ({ children }) => {
             }
             const data = snap.data();
             setCoins(Number(data?.coins || 0));
+            setBanhMi(Number(data?.banhMi || 0));
         }, (error) => {
             // Silently handle permission errors during logout
             const errorStr = String(error?.message || error?.code || error);
@@ -323,7 +366,9 @@ export const AuthContextProvider = ({ children }) => {
                                 setCoins(0);
                             }
                         } else {
-                            setCoins(Number(balanceSnap.data()?.coins || 0));
+                            const balanceData = balanceSnap.data();
+                            setCoins(Number(balanceData?.coins || 0));
+                            setBanhMi(Number(balanceData?.banhMi || 0));
                         }
 
                         // If user has no coins field in main doc, grant initial 1000 Bánh mì once (legacy)
@@ -426,6 +471,7 @@ export const AuthContextProvider = ({ children }) => {
                     setVibeError(null);
                     // Reset coins
                     setCoins(0);
+                    setBanhMi(0);
                     // Clear notification state
                     setNotificationToken(null);
                     setNotificationInitialized(false);
@@ -948,6 +994,34 @@ export const AuthContextProvider = ({ children }) => {
         }
     };
 
+    const signUpWithEmail = async (email, password) => {
+        try {
+            const response = await createUserWithEmailAndPassword(auth, email, password);
+            const user = response.user;
+
+            // Send verification email
+            await sendEmailVerification(user);
+
+            // Create initial user document
+            await setDoc(doc(db, "users", user.uid), {
+                email: email,
+                uid: user.uid,
+                profileCompleted: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                coins: 1000, // Grant initial coins
+            });
+
+            return { success: true, user };
+        } catch (error) {
+            let msg = error.message;
+            if (msg.includes('(auth/email-already-in-use)')) msg = 'Email này đã được sử dụng';
+            if (msg.includes('(auth/invalid-email)')) msg = 'Email không hợp lệ';
+            if (msg.includes('(auth/weak-password)')) msg = 'Mật khẩu quá yếu';
+            return { success: false, msg };
+        }
+    };
+
     // Wallet helpers
     const getWalletBalance = async () => {
         if (!user?.uid) return 0;
@@ -1046,6 +1120,7 @@ export const AuthContextProvider = ({ children }) => {
             updateUserProfile,
             // Wallet
             coins,
+            banhMi,
             refreshBalance: getWalletBalance,
             getWalletBalance,
             topupCoins,
@@ -1064,6 +1139,9 @@ export const AuthContextProvider = ({ children }) => {
             notificationInitialized,
             // Thêm hàm mới
             updateUserPassword,
+            signUpWithEmail,
+            activeFrame,
+            setActiveFrame,
         }}>
             {children}
         </AuthContext.Provider>

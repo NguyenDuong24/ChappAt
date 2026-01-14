@@ -1,5 +1,5 @@
 import React, { useState, useContext, useRef, useEffect, useMemo, useCallback, memo } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, Text, ScrollView, StatusBar, Platform, Modal } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, Text, ScrollView, StatusBar, Platform, Modal, Alert } from 'react-native';
 import { Button, TextInput, Chip } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { useStateCommon } from '@/context/stateCommon';
 import Entypo from '@expo/vector-icons/Entypo';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { saveFilterPreferences, loadFilterPreferences } from '@/utils/filterStorage';
@@ -14,6 +15,7 @@ import schoolsData from '../../assets/model/schools_hcm.json';
 import educationData from '@/assets/data/educationData.json';
 import { getInterestsArray, getLabelForInterest, getIdForInterest, normalizeInterestsArray } from '@/utils/interests';
 import { useTranslation } from 'react-i18next';
+import { useIsPremium } from '@/hooks/useIsPremium';
 
 const educationLevels = educationData.educationLevels;
 const jobs = educationData.jobs;
@@ -38,11 +40,19 @@ const HeaderParticles = memo(() => {
   );
 });
 
+const VipBadge = memo(({ currentThemeColors }) => (
+  <View style={[styles.vipBadge, { backgroundColor: '#FFF9C4' }]}>
+    <MaterialCommunityIcons name="crown" size={12} color="#F59E0B" />
+    <Text style={[styles.vipBadgeText, { color: '#F59E0B' }]}>VIP</Text>
+  </View>
+));
+
 const HomeHeader = () => {
   const { t } = useTranslation();
   const router = useRouter();
   const { stateCommon, setStateCommon } = useStateCommon();
   const { user } = useAuth();
+  const { isPremium } = useIsPremium();
   const [filterVisible, setFilterVisible] = useState(false);
   const [selectedGender, setSelectedGender] = useState('');
   const [minAge, setMinAge] = useState('');
@@ -50,6 +60,7 @@ const HomeHeader = () => {
   const [selectedJob, setSelectedJob] = useState('');
   const [selectedEducationLevel, setSelectedEducationLevel] = useState('');
   const [selectedUniversity, setSelectedUniversity] = useState('');
+  const [selectedDistance, setSelectedDistance] = useState('');
   const [universitiesList, setUniversitiesList] = useState([]);
   const [universitySearch, setUniversitySearch] = useState('');
   const [selectedInterests, setSelectedInterests] = useState([]);
@@ -97,6 +108,10 @@ const HomeHeader = () => {
       parts.push(t('filter.summary_university', { university: filter.university }));
     }
 
+    if (filter.distance && filter.distance !== 'all') {
+      parts.push(t('filter.summary_distance', { distance: filter.distance }));
+    }
+
     if (filter.interests && Array.isArray(filter.interests) && filter.interests.length > 0) {
       const labels = filter.interests.slice(0, 3).map(getLabelForInterest);
       parts.push(t('filter.summary_interests', {
@@ -115,6 +130,7 @@ const HomeHeader = () => {
     if (filter.job) count++;
     if (filter.educationLevel) count++;
     if (filter.university) count++;
+    if (filter.distance && filter.distance !== 'all') count++;
     if (filter.interests && Array.isArray(filter.interests) && filter.interests.length > 0) count++;
     return count;
   }, []);
@@ -122,13 +138,14 @@ const HomeHeader = () => {
   // Load filter from global state when component mounts
   useEffect(() => {
     if (stateCommon?.filter) {
-      const { gender, minAge, maxAge, job, educationLevel, university, interests } = stateCommon.filter;
+      const { gender, minAge, maxAge, job, educationLevel, university, distance, interests } = stateCommon.filter;
       setSelectedGender(gender || '');
       setMinAge(minAge || '');
       setMaxAge(maxAge || '');
       setSelectedJob(job || '');
       setSelectedEducationLevel(educationLevel || '');
       setSelectedUniversity(university || '');
+      setSelectedDistance(distance || '');
       setSelectedInterests(Array.isArray(interests) ? normalizeInterestsArray(interests) : (interests ? [getIdForInterest(interests)] : []));
     }
   }, [stateCommon?.filter]);
@@ -161,6 +178,26 @@ const HomeHeader = () => {
     setFilterVisible(v => !v);
   }, []);
 
+  const checkVipAccess = useCallback(() => {
+    if (!isPremium) {
+      Alert.alert(
+        t('common.vip_required_title') || 'Yêu cầu VIP',
+        t('common.vip_required_message') || 'Tính năng này chỉ dành cho thành viên VIP. Vui lòng nâng cấp để sử dụng!',
+        [
+          { text: t('common.cancel') || 'Hủy', style: 'cancel' },
+          {
+            text: t('common.upgrade') || 'Nâng cấp', onPress: () => {
+              setFilterVisible(false);
+              router.push('/(screens)/store/StoreScreen');
+            }
+          }
+        ]
+      );
+      return false;
+    }
+    return true;
+  }, [isPremium, t, router]);
+
   const handleGenderSelect = useCallback((gender) => {
     setSelectedGender(prev => prev === gender ? '' : gender);
   }, []);
@@ -173,9 +210,10 @@ const HomeHeader = () => {
       job: selectedJob,
       educationLevel: selectedEducationLevel,
       university: selectedUniversity,
+      distance: selectedDistance,
       interests: selectedInterests,
     });
-  }, [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedInterests, getActiveFiltersCountUtil]);
+  }, [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedDistance, selectedInterests, getActiveFiltersCountUtil]);
 
   const clearFilters = useCallback(() => {
     setSelectedGender('');
@@ -184,10 +222,11 @@ const HomeHeader = () => {
     setSelectedJob('');
     setSelectedEducationLevel('');
     setSelectedUniversity('');
+    setSelectedDistance('');
     setUniversitySearch('');
     setSelectedInterests([]);
 
-    const cleared = { gender: '', minAge: '', maxAge: '', job: '', educationLevel: '', university: '', interests: [] };
+    const cleared = { gender: '', minAge: '', maxAge: '', job: '', educationLevel: '', university: '', distance: '', interests: [] };
     setStateCommon({ filter: { ...cleared } });
     saveFilterPreferences(cleared);
 
@@ -202,33 +241,43 @@ const HomeHeader = () => {
       job: selectedJob,
       educationLevel: selectedEducationLevel,
       university: selectedUniversity,
+      distance: selectedDistance,
       interests: selectedInterests,
     };
 
     setStateCommon({ filter: { ...newFilter } });
     saveFilterPreferences(newFilter);
     setFilterVisible(false);
-  }, [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedInterests, setStateCommon]);
+  }, [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedDistance, selectedInterests, setStateCommon]);
 
   const toggleArrayItem = useCallback((array, item) => {
     return array.includes(item) ? array.filter(i => i !== item) : [...array, item];
   }, []);
 
   const handleInterestToggle = useCallback((id) => {
+    if (!checkVipAccess()) return;
     setSelectedInterests(prev => toggleArrayItem(prev, id));
-  }, [toggleArrayItem]);
+  }, [toggleArrayItem, checkVipAccess]);
 
   const handleEducationSelect = useCallback((value) => {
+    if (!checkVipAccess()) return;
     setSelectedEducationLevel(prev => prev === value ? '' : value);
-  }, []);
+  }, [checkVipAccess]);
 
   const handleJobSelect = useCallback((value) => {
+    if (!checkVipAccess()) return;
     setSelectedJob(prev => prev === value ? '' : value);
-  }, []);
+  }, [checkVipAccess]);
 
   const handleUniversitySelect = useCallback((value) => {
+    if (!checkVipAccess()) return;
     setSelectedUniversity(prev => prev === value ? '' : value);
-  }, []);
+  }, [checkVipAccess]);
+
+  const handleDistanceSelect = useCallback((value) => {
+    if (!checkVipAccess()) return;
+    setSelectedDistance(prev => prev === value ? '' : value);
+  }, [checkVipAccess]);
 
   // Animation effect
   useEffect(() => {
@@ -283,8 +332,9 @@ const HomeHeader = () => {
     job: selectedJob,
     educationLevel: selectedEducationLevel,
     university: selectedUniversity,
+    distance: selectedDistance,
     interests: selectedInterests,
-  }), [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedInterests, getFilterSummary]);
+  }), [selectedGender, minAge, maxAge, selectedJob, selectedEducationLevel, selectedUniversity, selectedDistance, selectedInterests, getFilterSummary]);
 
   // Memoize active filter count
   const activeFiltersCount = useMemo(() => getActiveFiltersCount(), [getActiveFiltersCount]);
@@ -378,9 +428,11 @@ const HomeHeader = () => {
               style={styles.filterScrollView}
             >
               <View style={styles.filterSection}>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  {t('filter.gender')}
-                </Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                    {t('filter.gender')}
+                  </Text>
+                </View>
                 <View style={styles.genderChips}>
                   <Chip
                     selected={selectedGender === 'male'}
@@ -413,9 +465,11 @@ const HomeHeader = () => {
               </View>
 
               <View style={styles.filterSection}>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  {t('filter.age')}
-                </Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                    {t('filter.age')}
+                  </Text>
+                </View>
                 <View style={styles.ageInputsContainer}>
                   <View style={styles.ageInputWrapper}>
                     <Text style={[styles.ageLabel, { color: currentThemeColors.subtleText }]}>{t('filter.age_from')}</Text>
@@ -464,9 +518,34 @@ const HomeHeader = () => {
               </View>
 
               <View style={styles.filterSection}>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  {t('filter.education')}
-                </Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                    {t('filter.distance_title')}
+                  </Text>
+                  <VipBadge currentThemeColors={currentThemeColors} />
+                </View>
+                <View style={styles.distanceChips}>
+                  {['1', '5', '10', '50', '100', 'all'].map((dist) => (
+                    <Chip
+                      key={dist}
+                      selected={selectedDistance === dist}
+                      onPress={() => handleDistanceSelect(dist)}
+                      style={[styles.distanceChip, selectedDistance === dist && styles.selectedChip]}
+                      textStyle={{ color: selectedDistance === dist ? 'white' : currentThemeColors.text }}
+                    >
+                      {dist === 'all' ? t('common.all') : `${dist} km`}
+                    </Chip>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.filterSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                    {t('filter.education')}
+                  </Text>
+                  <VipBadge currentThemeColors={currentThemeColors} />
+                </View>
                 <View style={styles.educationChips}>
                   {educationLevels.map((level) => (
                     <Chip
@@ -484,9 +563,12 @@ const HomeHeader = () => {
 
               {selectedEducationLevel === 'Cao đẳng/Đại học' && (
                 <View style={styles.filterSection}>
-                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    {t('filter.university')}
-                  </Text>
+                  <View style={styles.sectionHeader}>
+                    <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                      {t('filter.university')}
+                    </Text>
+                    <VipBadge currentThemeColors={currentThemeColors} />
+                  </View>
                   <View style={styles.searchContainer}>
                     <TextInput
                       placeholder={t('filter.search_university')}
@@ -545,9 +627,12 @@ const HomeHeader = () => {
               )}
 
               <View style={styles.filterSection}>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                  {t('filter.job')}
-                </Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                    {t('filter.job')}
+                  </Text>
+                  <VipBadge currentThemeColors={currentThemeColors} />
+                </View>
                 <View style={styles.jobChips}>
                   {jobs.map((job) => (
                     <Chip
@@ -564,7 +649,12 @@ const HomeHeader = () => {
               </View>
 
               <View style={styles.filterSection}>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('filter.interests')}</Text>
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                    {t('filter.interests')}
+                  </Text>
+                  <VipBadge currentThemeColors={currentThemeColors} />
+                </View>
                 <View style={styles.interestsChips}>
                   {interestItems.map((it) => (
                     <Chip
@@ -780,10 +870,27 @@ const styles = StyleSheet.create({
   filterSection: {
     marginBottom: 28,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  vipBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  vipBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
   sectionTitle: {
     fontSize: 17,
     fontWeight: '600',
-    marginBottom: 16,
   },
   genderChips: {
     flexDirection: 'row',
@@ -940,6 +1047,14 @@ const styles = StyleSheet.create({
   },
   filterScrollView: {
     flexGrow: 0,
+  },
+  distanceChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  distanceChip: {
+    marginBottom: 8,
   },
 });
 

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import React, { useState, useContext } from 'react';
-import { Avatar } from 'react-native-paper';
+import { Image } from 'expo-image';
 import { formatTime, getRoomId } from '../../utils/common';
 import CustomImage from '../common/CustomImage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -149,6 +149,19 @@ export default function MessageItem({
     const isImageMessage = !!message?.imageUrl && !message?.text;
     const isGiftMessage = message?.type === 'gift' && message?.gift;
     const isAudioMessage = message?.type === 'audio' && message?.audioUrl;
+    const isSystemMessage = message?.type === 'system' || message?.uid === 'system';
+
+    if (isSystemMessage) {
+        return (
+            <View style={styles.systemMessageContainer}>
+                <View style={[styles.systemMessageBadge, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+                    <Text style={[styles.systemMessageText, { color: currentThemeColors.subtleText }]}>
+                        {message.text}
+                    </Text>
+                </View>
+            </View>
+        );
+    }
 
     return (
         <>
@@ -161,10 +174,11 @@ export default function MessageItem({
                 onLayout={onContainerLayout}
             >
                 {!isCurrentUser && (
-                    <Avatar.Image
-                        size={32}
+                    <Image
                         source={{ uri: message.profileUrl }}
                         style={styles.avatar}
+                        contentFit="cover"
+                        transition={200}
                     />
                 )}
                 <View style={[styles.messageContent, { maxWidth: '80%' }]}>
@@ -376,10 +390,11 @@ export default function MessageItem({
                     )}
                 </View>
                 {isCurrentUser && (
-                    <Avatar.Image
-                        size={32}
+                    <Image
                         source={{ uri: currentUser?.profileUrl }}
                         style={styles.avatar}
+                        contentFit="cover"
+                        transition={200}
                     />
                 )}
             </TouchableOpacity>
@@ -425,6 +440,9 @@ const styles = StyleSheet.create({
     },
     avatar: {
         marginHorizontal: 8,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
     },
     messageContent: {
         flexShrink: 1,
@@ -563,5 +581,21 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: -12,
         zIndex: 10,
+    },
+    systemMessageContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginVertical: 12,
+        width: '100%',
+    },
+    systemMessageBadge: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 20,
+    },
+    systemMessageText: {
+        fontSize: 12,
+        fontWeight: '500',
+        textAlign: 'center',
     },
 });

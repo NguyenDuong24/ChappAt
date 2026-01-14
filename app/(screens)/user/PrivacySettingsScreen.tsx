@@ -17,9 +17,11 @@ import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
 import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 const PrivacySettingsScreen = () => {
     const { t } = useTranslation();
+    const colors = useThemedColors();
     const router = useRouter();
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
@@ -115,27 +117,27 @@ const PrivacySettingsScreen = () => {
     };
 
     const renderSettingItem = (icon: string, title: string, subtitle: string, isSwitch: boolean, value?: boolean, onToggle?: (val: boolean) => void, onPress?: () => void) => (
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
             <View style={styles.settingLeft}>
-                <View style={styles.settingIcon}>
-                    <MaterialCommunityIcons name={icon as any} size={22} color="#6366F1" />
+                <View style={[styles.settingIcon, { backgroundColor: colors.isDark ? colors.surface : '#F5F3FF' }]}>
+                    <MaterialCommunityIcons name={icon as any} size={22} color={colors.primary} />
                 </View>
                 <View style={styles.settingContent}>
-                    <Text style={styles.settingTitle}>{title}</Text>
-                    <Text style={styles.settingSubtitle}>{subtitle}</Text>
+                    <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
+                    <Text style={[styles.settingSubtitle, { color: colors.subtleText }]}>{subtitle}</Text>
                 </View>
             </View>
             {isSwitch ? (
                 <Switch
                     value={value}
                     onValueChange={onToggle}
-                    trackColor={{ false: '#E2E8F0', true: '#6366F1' }}
+                    trackColor={{ false: colors.isDark ? colors.surface : '#E2E8F0', true: colors.primary }}
                     thumbColor="#FFFFFF"
                     disabled={loading}
                 />
             ) : (
                 <TouchableOpacity onPress={onPress}>
-                    <MaterialCommunityIcons name="chevron-right" size={24} color="#94A3B8" />
+                    <MaterialCommunityIcons name="chevron-right" size={24} color={colors.mutedText} />
                 </TouchableOpacity>
             )}
         </View>
@@ -143,8 +145,8 @@ const PrivacySettingsScreen = () => {
 
     const renderSection = (title: string, items: React.ReactNode) => (
         <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{title}</Text>
-            <View style={styles.sectionContent}>
+            <Text style={[styles.sectionTitle, { color: colors.subtleText }]}>{title}</Text>
+            <View style={[styles.sectionContent, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                 {items}
             </View>
         </View>
@@ -152,24 +154,24 @@ const PrivacySettingsScreen = () => {
 
     if (initialLoading) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#6366F1" />
+            <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <LinearGradient
-                colors={['#F8FAFC', '#EFF6FF']}
+                colors={colors.isDark ? [colors.background, colors.surface] : ['#F8FAFC', '#EFF6FF']}
                 style={styles.background}
             />
 
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialCommunityIcons name="chevron-left" size={28} color="#0F172A" />
+                <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.cardBackground }]}>
+                    <MaterialCommunityIcons name="chevron-left" size={28} color={colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('settings.privacy')}</Text>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings.privacy')}</Text>
                 <View style={styles.headerSpacer} />
             </View>
 
@@ -264,7 +266,6 @@ const PrivacySettingsScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
     },
     background: {
         ...StyleSheet.absoluteFillObject,
@@ -273,7 +274,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#F8FAFC',
     },
     header: {
         flexDirection: 'row',
@@ -287,7 +287,6 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#000',
@@ -299,7 +298,6 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#0F172A',
     },
     headerSpacer: {
         width: 40,
@@ -314,14 +312,12 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#64748B',
         marginBottom: 12,
         marginLeft: 4,
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
     sectionContent: {
-        backgroundColor: '#FFFFFF',
         borderRadius: 20,
         overflow: 'hidden',
         shadowColor: '#000',
@@ -330,7 +326,6 @@ const styles = StyleSheet.create({
         shadowRadius: 12,
         elevation: 2,
         borderWidth: 1,
-        borderColor: '#F1F5F9',
     },
     settingItem: {
         flexDirection: 'row',
@@ -339,7 +334,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
     },
     settingLeft: {
         flexDirection: 'row',
@@ -352,7 +346,6 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#F5F3FF',
         marginRight: 14,
     },
     settingContent: {
@@ -361,12 +354,10 @@ const styles = StyleSheet.create({
     settingTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#0F172A',
         marginBottom: 2,
     },
     settingSubtitle: {
         fontSize: 13,
-        color: '#94A3B8',
         lineHeight: 18,
     },
     bottomPadding: {

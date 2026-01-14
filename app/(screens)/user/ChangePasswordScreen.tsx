@@ -16,9 +16,11 @@ import { useAuth } from '@/context/authContext';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 const ChangePasswordScreen = () => {
     const { t } = useTranslation();
+    const colors = useThemedColors();
     const router = useRouter();
     const { updateUserPassword } = useAuth();
 
@@ -68,83 +70,83 @@ const ChangePasswordScreen = () => {
             style={styles.container}
         >
             <LinearGradient
-                colors={['#F8FAFC', '#EFF6FF']}
+                colors={colors.isDark ? [colors.background, colors.surface] : ['#F8FAFC', '#EFF6FF']}
                 style={styles.background}
             />
 
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialCommunityIcons name="chevron-left" size={28} color="#0F172A" />
+                <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.cardBackground }]}>
+                    <MaterialCommunityIcons name="chevron-left" size={28} color={colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('settings.change_password')}</Text>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings.change_password')}</Text>
                 <View style={styles.headerSpacer} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.iconContainer}>
                     <LinearGradient
-                        colors={['#6366F1', '#4F46E5']}
+                        colors={[colors.primary, colors.tintDark || colors.primary]}
                         style={styles.iconGradient}
                     >
                         <MaterialCommunityIcons name="lock-reset" size={40} color="#FFFFFF" />
                     </LinearGradient>
                 </View>
 
-                <Text style={styles.description}>
+                <Text style={[styles.description, { color: colors.subtleText }]}>
                     {t('settings.change_password_desc')}
                 </Text>
 
                 <View style={styles.form}>
                     <View style={styles.inputContainer}>
-                        <Text style={styles.label}>{t('settings.current_password', { defaultValue: 'Mật khẩu hiện tại' })}</Text>
-                        <View style={styles.inputWrapper}>
-                            <MaterialCommunityIcons name="lock-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                        <Text style={[styles.label, { color: colors.text }]}>{t('settings.current_password', { defaultValue: 'Mật khẩu hiện tại' })}</Text>
+                        <View style={[styles.inputWrapper, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <MaterialCommunityIcons name="lock-outline" size={20} color={colors.subtleText} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder={t('settings.current_password_placeholder', { defaultValue: 'Nhập mật khẩu hiện tại' })}
                                 secureTextEntry={!showCurrent}
                                 value={currentPassword}
                                 onChangeText={setCurrentPassword}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor={colors.mutedText}
                             />
                             <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
-                                <MaterialCommunityIcons name={showCurrent ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
+                                <MaterialCommunityIcons name={showCurrent ? "eye-off-outline" : "eye-outline"} size={20} color={colors.subtleText} />
                             </TouchableOpacity>
                         </View>
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <Text style={styles.label}>{t('settings.new_password', { defaultValue: 'Mật khẩu mới' })}</Text>
-                        <View style={styles.inputWrapper}>
-                            <MaterialCommunityIcons name="lock-plus-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                        <Text style={[styles.label, { color: colors.text }]}>{t('settings.new_password', { defaultValue: 'Mật khẩu mới' })}</Text>
+                        <View style={[styles.inputWrapper, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <MaterialCommunityIcons name="lock-plus-outline" size={20} color={colors.subtleText} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder={t('settings.new_password_placeholder', { defaultValue: 'Nhập mật khẩu mới' })}
                                 secureTextEntry={!showNew}
                                 value={newPassword}
                                 onChangeText={setNewPassword}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor={colors.mutedText}
                             />
                             <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-                                <MaterialCommunityIcons name={showNew ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
+                                <MaterialCommunityIcons name={showNew ? "eye-off-outline" : "eye-outline"} size={20} color={colors.subtleText} />
                             </TouchableOpacity>
                         </View>
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <Text style={styles.label}>{t('settings.confirm_new_password', { defaultValue: 'Xác nhận mật khẩu mới' })}</Text>
-                        <View style={styles.inputWrapper}>
-                            <MaterialCommunityIcons name="lock-check-outline" size={20} color="#64748B" style={styles.inputIcon} />
+                        <Text style={[styles.label, { color: colors.text }]}>{t('settings.confirm_new_password', { defaultValue: 'Xác nhận mật khẩu mới' })}</Text>
+                        <View style={[styles.inputWrapper, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <MaterialCommunityIcons name="lock-check-outline" size={20} color={colors.subtleText} style={styles.inputIcon} />
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { color: colors.text }]}
                                 placeholder={t('settings.confirm_new_password_placeholder', { defaultValue: 'Nhập lại mật khẩu mới' })}
                                 secureTextEntry={!showConfirm}
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
-                                placeholderTextColor="#94A3B8"
+                                placeholderTextColor={colors.mutedText}
                             />
                             <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-                                <MaterialCommunityIcons name={showConfirm ? "eye-off-outline" : "eye-outline"} size={20} color="#64748B" />
+                                <MaterialCommunityIcons name={showConfirm ? "eye-off-outline" : "eye-outline"} size={20} color={colors.subtleText} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -155,7 +157,7 @@ const ChangePasswordScreen = () => {
                         disabled={loading}
                     >
                         <LinearGradient
-                            colors={['#6366F1', '#4F46E5']}
+                            colors={[colors.primary, colors.tintDark || colors.primary]}
                             style={styles.submitGradient}
                         >
                             {loading ? (
@@ -177,7 +179,6 @@ const ChangePasswordScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
     },
     background: {
         ...StyleSheet.absoluteFillObject,
@@ -194,7 +195,6 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#000',
@@ -206,7 +206,6 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#0F172A',
     },
     headerSpacer: {
         width: 40,
@@ -234,7 +233,6 @@ const styles = StyleSheet.create({
     },
     description: {
         fontSize: 15,
-        color: '#64748B',
         textAlign: 'center',
         lineHeight: 22,
         marginBottom: 32,
@@ -249,16 +247,13 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#334155',
         marginLeft: 4,
     },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#E2E8F0',
         paddingHorizontal: 16,
         height: 56,
     },
@@ -268,7 +263,6 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 16,
-        color: '#0F172A',
     },
     submitButton: {
         marginTop: 12,

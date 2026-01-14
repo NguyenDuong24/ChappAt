@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { collection, query, orderBy, limit, getDocs, where, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useUserContext } from '@/context/UserContext';
@@ -31,38 +31,48 @@ export const useOptimizedUsers = (currentUserId: string) => {
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const lastDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
   const { getUsersInfo, preloadUsers } = useUserContext();
 
   // Load users with pagination and caching
   const loadUsers = useCallback(async (refresh: boolean = false, searchTerm?: string) => {
     if (loading) return;
-    
+
     setLoading(true);
     try {
-      let q = query(
-        collection(db, 'users'),
-        orderBy('username'),
-        limit(20)
-      );
+      let q;
+      const USERS_PER_PAGE = 20;
 
-      if (!refresh && lastDoc) {
+      if (refresh || searchTerm) {
+        // Reset for refresh or search
+        lastDocRef.current = null;
+        if (searchTerm) {
+          q = query(
+            collection(db, 'users'),
+            where('username', '>=', searchTerm),
+            where('username', '<=', searchTerm + '\uf8ff'),
+            orderBy('username'),
+            limit(USERS_PER_PAGE)
+          );
+        } else {
+          q = query(
+            collection(db, 'users'),
+            orderBy('username'),
+            limit(USERS_PER_PAGE)
+          );
+        }
+      } else {
+        // Load more
+        if (!lastDocRef.current) {
+          setLoading(false);
+          return;
+        }
+
         q = query(
           collection(db, 'users'),
           orderBy('username'),
-          startAfter(lastDoc),
-          limit(20)
-        );
-      }
-
-      // Add search filter if provided
-      if (searchTerm) {
-        q = query(
-          collection(db, 'users'),
-          where('username', '>=', searchTerm),
-          where('username', '<=', searchTerm + '\uf8ff'),
-          orderBy('username'),
-          limit(20)
+          startAfter(lastDocRef.current),
+          limit(USERS_PER_PAGE)
         );
       }
 
@@ -78,26 +88,32 @@ export const useOptimizedUsers = (currentUserId: string) => {
       });
 
       // Preload user information
+      let enrichedUsers = newUsers;
       if (userIds.length > 0) {
         await preloadUsers(userIds);
         const usersMap = await getUsersInfo(userIds);
-        
-        const enrichedUsers = newUsers.map(user => {
+
+        enrichedUsers = newUsers.map(user => {
           const cachedUser = usersMap.get(user.uid);
           return cachedUser ? { ...user, ...cachedUser } : user;
         });
+      }
 
-        if (refresh) {
-          setUsers(enrichedUsers);
-        } else {
-          setUsers(prev => [...prev, ...enrichedUsers]);
-        }
+      if (refresh || searchTerm) {
+        setUsers(enrichedUsers);
+      } else {
+        setUsers(prev => {
+          // Filter out duplicates just in case
+          const existingIds = new Set(prev.map(u => u.uid));
+          const uniqueNewUsers = enrichedUsers.filter(u => !existingIds.has(u.uid));
+          return [...prev, ...uniqueNewUsers];
+        });
       }
 
       // Update pagination state
       if (querySnapshot.docs.length > 0) {
-        setLastDoc(querySnapshot.docs[querySnapshot.docs.length - 1]);
-        setHasMore(querySnapshot.docs.length === 20);
+        lastDocRef.current = querySnapshot.docs[querySnapshot.docs.length - 1];
+        setHasMore(querySnapshot.docs.length === USERS_PER_PAGE);
       } else {
         setHasMore(false);
       }
@@ -107,12 +123,12 @@ export const useOptimizedUsers = (currentUserId: string) => {
     } finally {
       setLoading(false);
     }
-  }, [currentUserId, lastDoc, loading, getUsersInfo, preloadUsers]);
+  }, [currentUserId, loading, getUsersInfo, preloadUsers]);
 
   // Load friends
   const loadFriends = useCallback(async () => {
     if (!currentUserId) return;
-    
+
     try {
       const friendsQuery = query(
         collection(db, 'friendships'),
@@ -149,7 +165,7 @@ export const useOptimizedUsers = (currentUserId: string) => {
   // Load friend requests
   const loadFriendRequests = useCallback(async () => {
     if (!currentUserId) return;
-    
+
     try {
       // Get pending friend requests where current user is receiver
       const receivedRequestsQuery = query(
@@ -214,7 +230,7 @@ export const useOptimizedUsers = (currentUserId: string) => {
   // Search users
   const searchUsers = useCallback(async (searchTerm: string): Promise<UserProfile[]> => {
     if (!searchTerm.trim()) return [];
-    
+
     try {
       const searchQuery = query(
         collection(db, 'users'),
@@ -237,7 +253,7 @@ export const useOptimizedUsers = (currentUserId: string) => {
       if (userIds.length > 0) {
         await preloadUsers(userIds);
         const usersMap = await getUsersInfo(userIds);
-        
+
         return searchResults.map(user => {
           const cachedUser = usersMap.get(user.uid);
           return cachedUser ? { ...user, ...cachedUser } : user;
@@ -260,7 +276,7 @@ export const useOptimizedUsers = (currentUserId: string) => {
 
   // Refresh all data
   const refreshData = useCallback(() => {
-    setLastDoc(null);
+    lastDocRef.current = null;
     setHasMore(true);
     loadUsers(true);
     loadFriends();
@@ -270,9 +286,14 @@ export const useOptimizedUsers = (currentUserId: string) => {
   // Initial load
   useEffect(() => {
     if (currentUserId) {
-      refreshData();
+      lastDocRef.current = null;
+      setHasMore(true);
+      setUsers([]);
+      loadUsers(true);
+      loadFriends();
+      loadFriendRequests();
     }
-  }, [currentUserId]);
+  }, [currentUserId, loadUsers, loadFriends, loadFriendRequests]);
 
   return {
     users,

@@ -9,6 +9,7 @@ import useHome from './useHome';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DeferredComponent from '@/components/DeferredComponent';
+import { useRefresh } from '@/context/RefreshContext';
 
 // Memoized loading component
 const LoadingView = memo(({ theme, currentThemeColors }) => (
@@ -71,15 +72,23 @@ const Home = memo(function Home() {
   const isFocused = useIsFocused();
 
   // Only fetch data when tab is focused
-  const { getUsers, users, loading, refreshing, handleRefresh, error } = useHome(isFocused);
+  const { getUsers, users, loading, refreshing, handleRefresh, error, loadMore, hasMore } = useHome(isFocused);
 
   // State for back button handling
   const backPressedOnce = useRef(false);
+
+  const { registerRefreshHandler } = useRefresh();
 
   // Memoized retry handler
   const handleRetry = useCallback(() => {
     getUsers(true);
   }, [getUsers]);
+
+  useEffect(() => {
+    if (registerRefreshHandler) {
+      registerRefreshHandler('home', handleRefresh);
+    }
+  }, [registerRefreshHandler, handleRefresh]);
 
   // Back button handler effect
   useEffect(() => {
@@ -124,9 +133,11 @@ const Home = memo(function Home() {
         refreshing={refreshing}
         onRefresh={handleRefresh}
         activeTab="home"
+        loadMore={loadMore}
+        hasMore={hasMore}
       />
     );
-  }, [loading, users, refreshing, handleRefresh, theme, currentThemeColors]);
+  }, [loading, users, refreshing, handleRefresh, theme, currentThemeColors, loadMore, hasMore]);
 
   return (
     <DeferredComponent>

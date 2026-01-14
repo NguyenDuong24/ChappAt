@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Image, Alert, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
@@ -10,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 const CompleteSocialProfileScreen = () => {
   const {
     user, gender, name, age, icon, bio,
-    cancelRegistration, register, updateUserProfile,
+    cancelRegistration, updateUserProfile,
     educationLevel, university, job, email, password,
     signupType, clearSignupState
   } = useAuth();
@@ -73,56 +74,33 @@ const CompleteSocialProfileScreen = () => {
 
       setLoading(true);
 
-      // Check signup type to determine which method to use
-      if (signupType === 'google' || signupType === 'facebook') {
-        // For social login, user is already authenticated - just update profile
-        console.log('📱 Completing social signup profile...');
+      // For both social and email signup, user is already authenticated - just update profile
+      // (Email users are created at PasswordInputScreen now)
+      console.log('📱 Completing signup profile...');
 
-        const profileData = {
-          username: name,
-          gender: normalizedGender,
-          age: age,
-          profileUrl: avatarUri,
-          bio: bio || '',
-          educationLevel: educationLevel || '',
-          university: university || '',
-          job: job || '',
-          profileCompleted: true,
-        };
+      const profileData = {
+        username: name,
+        gender: normalizedGender,
+        age: age,
+        profileUrl: avatarUri,
+        bio: bio || '',
+        educationLevel: educationLevel || '',
+        university: university || '',
+        job: job || '',
+        profileCompleted: true,
+      };
 
-        const response = await updateUserProfile(profileData);
-        if (!response?.success) {
-          Alert.alert('Lỗi', response?.msg || 'Không thể cập nhật hồ sơ');
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ Social profile completed successfully');
-        clearSignupState();
-        router.replace('/(tabs)/home');
-        Alert.alert('Hoàn thành!', 'Hồ sơ của bạn đã được cập nhật thành công!');
-      } else {
-        // For email signup, register the user
-        console.log('📧 Completing email signup...');
-
-        if (!email || !password) {
-          Alert.alert('Lỗi', 'Thiếu thông tin email hoặc mật khẩu');
-          setLoading(false);
-          return;
-        }
-
-        const response = await register();
-        if (!response.success) {
-          Alert.alert('Lỗi', response.msg);
-          setLoading(false);
-          return;
-        }
-
-        console.log('✅ Email user registered successfully');
-        clearSignupState();
-        router.replace('/(tabs)/home');
-        Alert.alert('Hoàn thành!', 'Tài khoản của bạn đã được tạo thành công!');
+      const response = await updateUserProfile(profileData);
+      if (!response?.success) {
+        Alert.alert('Lỗi', response?.msg || 'Không thể cập nhật hồ sơ');
+        setLoading(false);
+        return;
       }
+
+      console.log('✅ Profile completed successfully');
+      clearSignupState();
+      router.replace('/(tabs)/home');
+      Alert.alert('Hoàn thành!', 'Hồ sơ của bạn đã được cập nhật thành công!');
     } catch (error) {
       console.error('Error completing profile:', error);
       Alert.alert('Lỗi', 'Không thể hoàn thành đăng ký. Vui lòng thử lại.');
@@ -182,7 +160,7 @@ const CompleteSocialProfileScreen = () => {
         <View style={styles.header}>
           {logoUrl ? (
             <View style={styles.logoContainer}>
-              <Image source={{ uri: logoUrl }} style={styles.logo} />
+              <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
               <View style={styles.logoGlow} />
             </View>
           ) : (
@@ -204,7 +182,7 @@ const CompleteSocialProfileScreen = () => {
           <View style={styles.avatarSection}>
             {avatarUri ? (
               <View style={styles.avatarWrapper}>
-                <Image source={{ uri: avatarUri }} style={styles.profileImage} />
+                <Image source={{ uri: avatarUri }} style={styles.profileImage} contentFit="cover" />
                 <View style={styles.avatarBorder} />
                 <View style={styles.verifiedBadge}>
                   <Ionicons name="checkmark" size={16} color="#fff" />

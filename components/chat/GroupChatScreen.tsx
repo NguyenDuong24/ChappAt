@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -28,10 +27,10 @@ interface GroupChatScreenProps {
   memberCount?: number;
 }
 
-const GroupChatScreen: React.FC<GroupChatScreenProps> = ({ 
+const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
   groupId = 'test_group_123',
   groupName = 'Nhóm Chat Vui Vẻ',
-  memberCount = 12 
+  memberCount = 12
 }) => {
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<any>(null);
@@ -52,12 +51,12 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
   };
 
   // Use real Firebase hook for group messages
-  const { 
-    messages, 
-    loading, 
-    error, 
-    sendMessage, 
-    sendImageMessage 
+  const {
+    messages,
+    loading,
+    error,
+    sendMessage,
+    sendImageMessage
   } = useGroupMessages(groupId, currentUser);
 
   useEffect(() => {
@@ -83,7 +82,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
-    
+
     try {
       await sendMessage(input, replyTo);
       playMessageSentSound();
@@ -126,7 +125,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
       }
 
       console.log('Selected image:', result.assets[0].uri);
-      
+
       handleSendImageMessage(result.assets[0].uri);
     } catch (error) {
       console.error('Error picking image:', error);
@@ -169,7 +168,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
         <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
           {error}
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.retryButton, { backgroundColor: currentThemeColors.tint }]}
           onPress={() => window.location.reload()}
         >
@@ -192,7 +191,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={[styles.groupName, { color: currentThemeColors.text }]}>{groupName}</Text>
-          <Text 
+          <Text
             style={[styles.memberCount, { color: currentThemeColors.subtleText }]}
             numberOfLines={1}
           >
@@ -254,8 +253,8 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
         <TouchableOpacity style={styles.iconButton} onPress={handleImagePicker}>
           <MaterialCommunityIcons name="attachment" size={24} color={currentThemeColors.tint} />
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.sendButton, { backgroundColor: input.trim() ? currentThemeColors.tint : currentThemeColors.border }]} 
+        <TouchableOpacity
+          style={[styles.sendButton, { backgroundColor: input.trim() ? currentThemeColors.tint : currentThemeColors.border }]}
           onPress={handleSendMessage}
           disabled={!input.trim()}
         >

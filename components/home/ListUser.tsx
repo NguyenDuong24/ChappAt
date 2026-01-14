@@ -12,7 +12,7 @@ import UserCard from './UserCard';
 // Constants for optimization
 const ITEM_HEIGHT = 120; // Approximate height of each user card
 
-function ListUser({ users, onRefresh, refreshing, activeTab = 'home' }: any) {
+function ListUser({ users, onRefresh, refreshing, activeTab = 'home', loadMore, hasMore, loading }: any) {
   const { location } = React.useContext(LocationContext);
   const insets = useSafeAreaInsets();
   const themeContext = useContext(ThemeContext);
@@ -76,6 +76,13 @@ function ListUser({ users, onRefresh, refreshing, activeTab = 'home' }: any) {
     />
   ), [refreshing, onRefresh]);
 
+  // Handle end reached for pagination
+  const handleEndReached = useCallback(() => {
+    if (loadMore && hasMore && !loading && !refreshing) {
+      loadMore();
+    }
+  }, [loadMore, hasMore, loading, refreshing]);
+
   return (
     <FlatList
       data={filteredUsers}
@@ -90,6 +97,8 @@ function ListUser({ users, onRefresh, refreshing, activeTab = 'home' }: any) {
       windowSize={7}
       removeClippedSubviews={true}
       updateCellsBatchingPeriod={100}
+      onEndReached={handleEndReached}
+      onEndReachedThreshold={0.5}
       // Additional optimizations
       maintainVisibleContentPosition={{
         minIndexForVisible: 0,

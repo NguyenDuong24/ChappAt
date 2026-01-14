@@ -9,9 +9,9 @@ import {
   Alert,
   Share,
   Linking,
-  Image,
   Modal,
 } from 'react-native';
+import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import FeedbackModalSimple from '@/components/common/FeedbackModalSimple';
@@ -361,7 +361,7 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* User Info Display */}
         <View style={[styles.userInfo, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Image source={{ uri: user?.profileUrl || 'https://via.placeholder.com/50' }} style={styles.userAvatar} />
+          <Image source={{ uri: user?.profileUrl || 'https://via.placeholder.com/50' }} style={styles.userAvatar} contentFit="cover" />
           <View style={styles.userDetails}>
             <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || user?.username || t('chat.unknown_user')}</Text>
             <Text style={[styles.userEmail, { color: colors.subtleText }]}>{user?.email || t('settings.no_email')}</Text>

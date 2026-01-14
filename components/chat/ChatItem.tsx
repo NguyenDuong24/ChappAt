@@ -12,7 +12,7 @@ import VibeAvatar from '@/components/vibe/VibeAvatar';
 import { useAuth } from '@/context/authContext';
 import { useTranslation } from 'react-i18next';
 
-const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLastMessage = null, unreadCount: externalUnreadCount, chatType, chatRoomId, hotSpotId }: { item: any, noBorder?: boolean, currenUser: any, lastMessage?: DocumentData | null, unreadCount?: number, chatType?: string, chatRoomId?: string, hotSpotId?: string }) => {
+const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLastMessage = null, unreadCount: externalUnreadCount, chatType, chatRoomId, hotSpotId, onLongPress, isPinned = false, roomType, eventId }: { item: any, noBorder?: boolean, currenUser: any, lastMessage?: DocumentData | null, unreadCount?: number, chatType?: string, chatRoomId?: string, hotSpotId?: string, onLongPress?: () => void, isPinned?: boolean, roomType?: string, eventId?: string }) => {
   const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
@@ -37,18 +37,12 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
   // Check if it's a Hot Spot chat from props or room meta
   const isHotSpot = chatType === 'hotspot' || (hasEventMeta && eventActive === true);
 
-  // Subscribe to room meta to detect hotspot/event chats
+  // Use passed props for room meta instead of fetching again
   useEffect(() => {
-    if (!item?.id || !currenUser?.uid) return;
-    const rId = getRoomId(currenUser.uid, item.id);
-    const unsub = onSnapshot(doc(db, 'rooms', rId), (snap) => {
-      const d: any = snap.data();
-      setRoomMeta(d ? { type: d?.type, eventId: d?.eventId } : null);
-    }, (e) => {
-      // swallow
-    });
-    return () => { try { unsub(); } catch { } };
-  }, [item?.id, currenUser?.uid]);
+    if (roomType || eventId) {
+      setRoomMeta({ type: roomType, eventId: eventId });
+    }
+  }, [roomType, eventId]);
 
   // When we know eventId, fetch its end time and auto-expire the badge/card
   useEffect(() => {
@@ -270,6 +264,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
     <TouchableOpacity
       style={[styles.container, { backgroundColor: currentThemeColors.background }]}
       onPress={handlePress}
+      onLongPress={onLongPress}
     >
       <View style={[styles.chatCard, isHotSpot && styles.hotSpotCard, { backgroundColor: isHotSpot ? currentThemeColors.hotSpotsBackground : currentThemeColors.cardBackground }]}>
         {/* Avatar Section */}
@@ -280,6 +275,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
               size={56}
               currentVibe={item.currentVibe || null}
               showAddButton={false}
+              frameType={item.activeFrame}
               storyUser={{ id: item.id, username: item.username, profileUrl: item.profileUrl }}
             />
             {viewerShowOnline && (
@@ -335,6 +331,13 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
                   )}
                 </View>
               )}
+              {/* Vibe Pill in Chat List */}
+              {item.currentVibe?.vibe && (
+                <View style={[styles.vibeBadge, { backgroundColor: item.currentVibe.vibe.color + '20', borderColor: item.currentVibe.vibe.color }]}>
+                  <Text style={styles.vibeBadgeEmoji}>{item.currentVibe.vibe.emoji}</Text>
+                  <Text style={[styles.vibeBadgeText, { color: item.currentVibe.vibe.color }]}>{item.currentVibe.vibe.name}</Text>
+                </View>
+              )}
             </View>
             <View style={styles.rightSection}>
               <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
@@ -346,6 +349,9 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
               <View style={[styles.unreadBadge, { backgroundColor: '#F43F5E', position: 'absolute', top: 30, right: 0 }]}>
                 <Text style={styles.unreadText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
               </View>
+            )}
+            {isPinned && (
+              <MaterialCommunityIcons name="pin" size={16} color={currentThemeColors.tint} style={{ marginLeft: 4 }} />
             )}
           </View>
           <Text style={[styles.lastMessage, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
@@ -472,6 +478,22 @@ const styles = StyleSheet.create({
   unreadText: {
     color: 'white',
     fontSize: 12,
+    fontWeight: '700',
+  },
+  vibeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 2,
+  },
+  vibeBadgeEmoji: {
+    fontSize: 10,
+  },
+  vibeBadgeText: {
+    fontSize: 10,
     fontWeight: '700',
   },
 });

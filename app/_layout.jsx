@@ -30,6 +30,9 @@ import InterstitialAdManager from '@/components/ads/InterstitialAdManager';
 import callTimeoutService from '../services/callTimeoutService.js';
 import CallLogicHandler from '../components/call/CallLogicHandler';
 
+// Import server warmup service
+import serverWarmupService from '../services/serverWarmupService';
+
 // Import auth routing hook
 import { useAuthRouting } from '../hooks/useAuthRouting';
 import { useSound } from '../hooks/useSound';
@@ -54,9 +57,11 @@ const MainLayout = () => {
 
   // Handle splash screen hiding
   useEffect(() => {
+    console.log('📊 MainLayout: fontsLoaded =', fontsLoaded);
     const hideSplashScreen = async () => {
       if (fontsLoaded) {
         try {
+          console.log('🚀 Hiding splash screen...');
           await SplashScreen.hideAsync();
         } catch (error) {
           console.warn('SplashScreen hide error:', error);
@@ -69,6 +74,7 @@ const MainLayout = () => {
 
   // Don't render anything until fonts are loaded
   if (!fontsLoaded) {
+    console.log('⌛ Waiting for fonts to load...');
     return null;
   }
 
@@ -133,6 +139,15 @@ export default function RootLayout() {
   React.useEffect(() => {
     initVideoSDK();
     initCallTimeoutService();
+
+    // Initialize server warmup to prevent cold starts
+    console.log('🔥 Initializing server warmup service...');
+    serverWarmupService.initialize();
+
+    // Cleanup on unmount
+    return () => {
+      serverWarmupService.cleanup();
+    };
   }, []);
 
   return (

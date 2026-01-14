@@ -15,6 +15,8 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { useThemedColors } from '@/hooks/useThemedColors';
+import { useTranslation } from 'react-i18next';
 
 interface HelpSupportModalProps {
   visible: boolean;
@@ -24,6 +26,8 @@ interface HelpSupportModalProps {
 }
 
 const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactForm = false }: HelpSupportModalProps) => {
+  const { t } = useTranslation();
+  const colors = useThemedColors();
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactMessage, setContactMessage] = useState('');
   const [contactEmail, setContactEmail] = useState('');
@@ -106,18 +110,20 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
       } else {
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
-      
+
       Alert.alert(
         '✅ Thành công',
         'Yêu cầu hỗ trợ đã được gửi. Chúng tôi sẽ phản hồi trong 24h.',
-        [{ text: 'OK', onPress: () => {
-          setContactMessage('');
-          setContactEmail('');
-          setSelectedImages([]);
-          setShowContactForm(false);
-          setContactType('support');
-          setImageLoading(false);
-        }}]
+        [{
+          text: 'OK', onPress: () => {
+            setContactMessage('');
+            setContactEmail('');
+            setSelectedImages([]);
+            setShowContactForm(false);
+            setContactType('support');
+            setImageLoading(false);
+          }
+        }]
       );
     } catch (error) {
       console.log('❌ HelpSupportModal handleContactSubmit error:', error);
@@ -197,45 +203,45 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
     return (
       <Modal visible={visible} transparent animationType="slide">
         <View style={styles.overlay}>
-          <View style={styles.container}>
-            <View style={styles.header}>
+          <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <TouchableOpacity onPress={() => setShowContactForm(false)}>
-                <MaterialCommunityIcons name="arrow-left" size={24} color="#0F172A" />
+                <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
               </TouchableOpacity>
-              <Text style={styles.title}>
+              <Text style={[styles.title, { color: colors.text }]}>
                 {contactType === 'bug' ? 'Báo cáo lỗi' : contactType === 'suggestion' ? 'Đề xuất tính năng' : 'Liên hệ hỗ trợ'}
               </Text>
               <TouchableOpacity onPress={onClose}>
-                <MaterialCommunityIcons name="close" size={24} color="#0F172A" />
+                <MaterialCommunityIcons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.content}>
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Mô tả vấn đề *</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Mô tả vấn đề *</Text>
                 <TextInput
                   value={contactMessage}
                   onChangeText={setContactMessage}
                   placeholder="Mô tả chi tiết vấn đề bạn gặp phải..."
-                  placeholderTextColor="#64748B"
-                  style={styles.textArea}
+                  placeholderTextColor={colors.subtleText}
+                  style={[styles.textArea, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
                   multiline
                   maxLength={1000}
                   textAlignVertical="top"
                 />
-                <Text style={styles.charCount}>{contactMessage.length}/1000</Text>
+                <Text style={[styles.charCount, { color: colors.subtleText }]}>{contactMessage.length}/1000</Text>
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Email liên hệ (tùy chọn)</Text>
-                <View style={styles.inputContainer}>
-                  <MaterialCommunityIcons name="email-outline" size={20} color="#6366F1" />
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Email liên hệ (tùy chọn)</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <MaterialCommunityIcons name="email-outline" size={20} color={colors.primary} />
                   <TextInput
                     value={contactEmail}
                     onChangeText={setContactEmail}
                     placeholder="your@email.com"
-                    placeholderTextColor="#64748B"
-                    style={styles.textInput}
+                    placeholderTextColor={colors.subtleText}
+                    style={[styles.textInput, { color: colors.text }]}
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
@@ -244,9 +250,9 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
 
               {/* Image Attachments */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Hình ảnh đính kèm (tùy chọn)</Text>
-                <Text style={styles.sectionSubtitle}>Thêm ảnh để cung cấp bằng chứng chi tiết hơn</Text>
-                
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Hình ảnh đính kèm (tùy chọn)</Text>
+                <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>Thêm ảnh để cung cấp bằng chứng chi tiết hơn</Text>
+
                 {/* Selected Images */}
                 {selectedImages.length > 0 && (
                   <FlatList
@@ -257,7 +263,7 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     style={styles.imagesList}
                     renderItem={({ item, index }) => (
                       <View style={styles.imageItem}>
-                        <Image source={{ uri: item }} style={styles.selectedImage} />
+                        <Image source={{ uri: item }} style={[styles.selectedImage, { borderColor: colors.border }]} />
                         <TouchableOpacity
                           style={styles.removeImageButton}
                           onPress={() => removeImage(index)}
@@ -271,56 +277,54 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
 
                 {/* Image Picker Buttons */}
                 <View style={styles.imageButtonsContainer}>
-                  <TouchableOpacity 
-                    style={[styles.imageButton, imageLoading && styles.imageButtonDisabled]} 
+                  <TouchableOpacity
+                    style={[styles.imageButton, { backgroundColor: colors.surface, borderColor: colors.border }, imageLoading && styles.imageButtonDisabled]}
                     onPress={pickImage}
                     disabled={imageLoading}
                   >
-                    <MaterialCommunityIcons name="image" size={20} color="#6366F1" />
-                    <Text style={styles.imageButtonText}>
+                    <MaterialCommunityIcons name="image" size={20} color={colors.primary} />
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>
                       {imageLoading ? 'Đang tải...' : 'Chọn từ thư viện'}
                     </Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.imageButton, imageLoading && styles.imageButtonDisabled]} 
+
+                  <TouchableOpacity
+                    style={[styles.imageButton, { backgroundColor: colors.surface, borderColor: colors.border }, imageLoading && styles.imageButtonDisabled]}
                     onPress={takePhoto}
                     disabled={imageLoading}
                   >
-                    <MaterialCommunityIcons name="camera" size={20} color="#6366F1" />
-                    <Text style={styles.imageButtonText}>
+                    <MaterialCommunityIcons name="camera" size={20} color={colors.primary} />
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>
                       {imageLoading ? 'Đang tải...' : 'Chụp ảnh'}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={styles.imageLimitText}>
+                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}>
                   {selectedImages.length}/5 hình ảnh (tối đa 5 ảnh)
                 </Text>
               </View>
 
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Loại yêu cầu *</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Loại yêu cầu *</Text>
                 <View style={styles.contactTypeContainer}>
                   <TouchableOpacity
-                    style={[styles.contactTypeButton, contactType === 'support' && styles.contactTypeButtonActive]}
+                    style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'support' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('support')}
                   >
-                    <Text style={styles.contactTypeButtonText}>Hỗ trợ</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'support' && { color: '#FFFFFF' }]}>Hỗ trợ</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
-                    style={[styles.contactTypeButton, contactType === 'bug' && styles.contactTypeButtonActive]}
+                    style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'bug' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('bug')}
                   >
-                    <Text style={styles.contactTypeButtonText}>Báo cáo lỗi</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'bug' && { color: '#FFFFFF' }]}>Báo cáo lỗi</Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
-                    style={[styles.contactTypeButton, contactType === 'suggestion' && styles.contactTypeButtonActive]}
+                    style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'suggestion' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('suggestion')}
                   >
-                    <Text style={styles.contactTypeButtonText}>Đề xuất</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'suggestion' && { color: '#FFFFFF' }]}>Đề xuất</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -330,7 +334,7 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                 onPress={handleContactSubmit}
                 disabled={submitting}
               >
-                <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.submitButtonGradient}>
+                <LinearGradient colors={[colors.primary, colors.tintDark || colors.primary]} style={styles.submitButtonGradient}>
                   {submitting ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
@@ -351,73 +355,73 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
-        <View style={styles.container}>
-          <View style={styles.header}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.headerSpacer} />
-            <Text style={styles.title}>Trợ giúp & Hỗ trợ</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Trợ giúp & Hỗ trợ</Text>
             <TouchableOpacity onPress={onClose}>
-              <MaterialCommunityIcons name="close" size={24} color="#0F172A" />
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Search */}
-            <View style={styles.searchContainer}>
-              <MaterialCommunityIcons name="magnify" size={20} color="#64748B" />
+            <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
+              <MaterialCommunityIcons name="magnify" size={20} color={colors.subtleText} />
               <TextInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 placeholder="Tìm kiếm câu hỏi..."
-                placeholderTextColor="#64748B"
-                style={styles.searchInput}
+                placeholderTextColor={colors.subtleText}
+                style={[styles.searchInput, { color: colors.text }]}
               />
             </View>
 
             {/* Quick Actions */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Hành động nhanh</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Hành động nhanh</Text>
               <View style={styles.actionsGrid}>
-                <TouchableOpacity style={styles.actionCard} onPress={() => { setContactType('support'); setShowContactForm(true); }}>
-                  <MaterialCommunityIcons name="headset" size={24} color="#6366F1" />
-                  <Text style={styles.actionTitle}>Liên hệ hỗ trợ</Text>
-                  <Text style={styles.actionDescription}>Chat trực tiếp với đội ngũ hỗ trợ</Text>
+                <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => { setContactType('support'); setShowContactForm(true); }}>
+                  <MaterialCommunityIcons name="headset" size={24} color={colors.primary} />
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>Liên hệ hỗ trợ</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Chat trực tiếp với đội ngũ hỗ trợ</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.actionCard} onPress={() => Alert.alert('Hướng dẫn', 'Tính năng hướng dẫn đang được phát triển.')}>
-                  <MaterialCommunityIcons name="play-circle" size={24} color="#6366F1" />
-                  <Text style={styles.actionTitle}>Hướng dẫn</Text>
-                  <Text style={styles.actionDescription}>Video và tài liệu hướng dẫn chi tiết</Text>
+                <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => Alert.alert('Hướng dẫn', 'Tính năng hướng dẫn đang được phát triển.')}>
+                  <MaterialCommunityIcons name="play-circle" size={24} color={colors.primary} />
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>Hướng dẫn</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Video và tài liệu hướng dẫn chi tiết</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.actionCard} onPress={() => { setContactType('bug'); setShowContactForm(true); }}>
-                  <MaterialCommunityIcons name="bug" size={24} color="#6366F1" />
-                  <Text style={styles.actionTitle}>Báo cáo lỗi</Text>
-                  <Text style={styles.actionDescription}>Báo cáo lỗi hoặc vấn đề kỹ thuật</Text>
+                <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => { setContactType('bug'); setShowContactForm(true); }}>
+                  <MaterialCommunityIcons name="bug" size={24} color={colors.primary} />
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>Báo cáo lỗi</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Báo cáo lỗi hoặc vấn đề kỹ thuật</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.actionCard} onPress={() => { setContactType('suggestion'); setShowContactForm(true); }}>
-                  <MaterialCommunityIcons name="lightbulb-outline" size={24} color="#6366F1" />
-                  <Text style={styles.actionTitle}>Đề xuất</Text>
-                  <Text style={styles.actionDescription}>Gửi ý tưởng cho tính năng mới</Text>
+                <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => { setContactType('suggestion'); setShowContactForm(true); }}>
+                  <MaterialCommunityIcons name="lightbulb-outline" size={24} color={colors.primary} />
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>Đề xuất</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Gửi ý tưởng cho tính năng mới</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* FAQ */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Câu hỏi thường gặp</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Câu hỏi thường gặp</Text>
               {filteredFAQ.map((item, index) => (
-                <View key={index} style={styles.faqItem}>
-                  <Text style={styles.faqQuestion}>{item.question}</Text>
-                  <Text style={styles.faqAnswer}>{item.answer}</Text>
+                <View key={index} style={[styles.faqItem, { backgroundColor: colors.surface }]}>
+                  <Text style={[styles.faqQuestion, { color: colors.text }]}>{item.question}</Text>
+                  <Text style={[styles.faqAnswer, { color: colors.subtleText }]}>{item.answer}</Text>
                 </View>
               ))}
-              
+
               {filteredFAQ.length === 0 && searchQuery && (
-                <View style={styles.noResults}>
-                  <MaterialCommunityIcons name="help-circle-outline" size={48} color="#64748B" />
-                  <Text style={styles.noResultsText}>Không tìm thấy câu hỏi phù hợp</Text>
-                  <TouchableOpacity style={styles.contactSupportButton} onPress={() => setShowContactForm(true)}>
+                <View style={[styles.noResults, { backgroundColor: colors.surface }]}>
+                  <MaterialCommunityIcons name="help-circle-outline" size={48} color={colors.subtleText} />
+                  <Text style={[styles.noResultsText, { color: colors.subtleText }]}>Không tìm thấy câu hỏi phù hợp</Text>
+                  <TouchableOpacity style={[styles.contactSupportButton, { backgroundColor: colors.primary }]} onPress={() => setShowContactForm(true)}>
                     <Text style={styles.contactSupportText}>Liên hệ hỗ trợ</Text>
                   </TouchableOpacity>
                 </View>

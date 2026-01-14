@@ -5,11 +5,11 @@ import {
   Platform,
   KeyboardAvoidingView,
   ScrollView,
-  Image,
   TouchableOpacity,
   Modal as RNModal,
   SafeAreaView,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Text, TextInput, Switch } from 'react-native-paper';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -37,7 +37,7 @@ const CreateGroupModal = ({
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<string | null>(null);
@@ -71,24 +71,24 @@ const CreateGroupModal = ({
 
   const validateStep1 = () => {
     const newErrors: { name?: string } = {};
-    
+
     if (!name.trim()) {
       newErrors.name = 'Vui lòng nhập tên nhóm';
     } else if (name.length < 3) {
       newErrors.name = 'Tên nhóm phải có ít nhất 3 ký tự';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const validateStep2 = () => {
     const newErrors: { members?: string } = {};
-    
+
     if (selectedFriends.length === 0) {
       newErrors.members = 'Vui lòng chọn ít nhất một thành viên';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -105,10 +105,10 @@ const CreateGroupModal = ({
 
   const handleCreate = async () => {
     if (!validateStep2()) return;
-    
+
     try {
       setLoading(true);
-      
+
       let photoURL = '';
       if (image) {
         const response = await fetch(image);
@@ -133,7 +133,7 @@ const CreateGroupModal = ({
 
       const docRef = await addDoc(collection(db, 'groups'), groupData);
       onGroupCreated({ id: docRef.id, ...groupData });
-      
+
       setName('');
       setDescription('');
       setImage(null);
@@ -142,7 +142,7 @@ const CreateGroupModal = ({
       setErrors({});
       setGroupType('private');
       setIsSearchable(true);
-      
+
       onClose();
     } catch (error) {
       console.error('Error creating group:', error);
@@ -202,27 +202,32 @@ const CreateGroupModal = ({
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
       {/* Image Picker */}
-      <TouchableOpacity 
-        style={styles.imagePickerContainer} 
-        onPress={pickImage} 
+      <TouchableOpacity
+        style={styles.imagePickerContainer}
+        onPress={pickImage}
         activeOpacity={0.7}
       >
         {image ? (
           <View style={styles.imageWrapper}>
-            <Image source={{ uri: image }} style={styles.groupImage} />
+            <Image
+              source={{ uri: image }}
+              style={styles.groupImage}
+              contentFit="cover"
+              transition={200}
+            />
             <View style={styles.imageOverlay}>
               <MaterialCommunityIcons name="camera" size={24} color="#FFF" />
             </View>
           </View>
         ) : (
-          <View style={[styles.imagePlaceholder, { 
+          <View style={[styles.imagePlaceholder, {
             backgroundColor: theme === 'dark' ? '#1F2937' : '#F3F4F6',
             borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
           }]}>
-            <MaterialCommunityIcons 
-              name="camera-plus" 
-              size={40} 
-              color={theme === 'dark' ? '#6B7280' : '#9CA3AF'} 
+            <MaterialCommunityIcons
+              name="camera-plus"
+              size={40}
+              color={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
             />
             <Text style={[styles.placeholderText, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
               Thêm ảnh nhóm
@@ -289,7 +294,7 @@ const CreateGroupModal = ({
           <TouchableOpacity
             style={[
               styles.typeCard,
-              { 
+              {
                 backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
                 borderColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
               },
@@ -302,10 +307,10 @@ const CreateGroupModal = ({
               styles.typeIconContainer,
               { backgroundColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }
             ]}>
-              <MaterialCommunityIcons 
-                name="lock" 
-                size={20} 
-                color={groupType === 'private' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')} 
+              <MaterialCommunityIcons
+                name="lock"
+                size={20}
+                color={groupType === 'private' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')}
               />
             </View>
             <View style={styles.typeContent}>
@@ -324,7 +329,7 @@ const CreateGroupModal = ({
           <TouchableOpacity
             style={[
               styles.typeCard,
-              { 
+              {
                 backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
                 borderColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
               },
@@ -337,10 +342,10 @@ const CreateGroupModal = ({
               styles.typeIconContainer,
               { backgroundColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }
             ]}>
-              <MaterialCommunityIcons 
-                name="earth" 
-                size={20} 
-                color={groupType === 'public' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')} 
+              <MaterialCommunityIcons
+                name="earth"
+                size={20}
+                color={groupType === 'public' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')}
               />
             </View>
             <View style={styles.typeContent}>
@@ -360,7 +365,7 @@ const CreateGroupModal = ({
 
       {/* Searchable Option */}
       {groupType === 'public' && (
-        <View style={[styles.switchCard, { 
+        <View style={[styles.switchCard, {
           backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
           borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
         }]}>
@@ -383,7 +388,7 @@ const CreateGroupModal = ({
       )}
 
       {/* Info Box */}
-      <View style={[styles.infoBox, { 
+      <View style={[styles.infoBox, {
         backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 132, 255, 0.05)',
         borderColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 132, 255, 0.1)'
       }]}>
@@ -426,10 +431,10 @@ const CreateGroupModal = ({
             disabled={uidAdding || loading}
             activeOpacity={0.7}
           >
-            <MaterialCommunityIcons 
-              name={uidAdding ? "loading" : "plus"} 
-              size={22} 
-              color="#FFF" 
+            <MaterialCommunityIcons
+              name={uidAdding ? "loading" : "plus"}
+              size={22}
+              color="#FFF"
             />
           </TouchableOpacity>
         </View>
@@ -447,35 +452,35 @@ const CreateGroupModal = ({
           <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
             Đã chọn ({selectedFriends.length})
           </Text>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.selectedList}
           >
             {selectedFriends.map((uid) => {
               const displayName = selectedDetails[uid]?.displayName || `User ${uid.slice(0, 6)}`;
               return (
-                <View 
-                  key={uid} 
-                  style={[styles.selectedChip, { 
+                <View
+                  key={uid}
+                  style={[styles.selectedChip, {
                     backgroundColor: theme === 'dark' ? '#1F2937' : '#F3F4F6',
                     borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
                   }]}
                 >
-                  <Text 
-                    style={[styles.selectedChipText, { color: currentThemeColors.text }]} 
+                  <Text
+                    style={[styles.selectedChipText, { color: currentThemeColors.text }]}
                     numberOfLines={1}
                   >
                     {displayName}
                   </Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => removeSelected(uid)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <MaterialCommunityIcons 
-                      name="close-circle" 
-                      size={18} 
-                      color={theme === 'dark' ? '#6B7280' : '#9CA3AF'} 
+                    <MaterialCommunityIcons
+                      name="close-circle"
+                      size={18}
+                      color={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
                     />
                   </TouchableOpacity>
                 </View>
@@ -496,7 +501,7 @@ const CreateGroupModal = ({
             <Text style={styles.errorText}>{errors.members}</Text>
           </View>
         )}
-        <View style={[styles.friendListContainer, { 
+        <View style={[styles.friendListContainer, {
           backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
           borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
         }]}>
@@ -535,10 +540,10 @@ const CreateGroupModal = ({
         {/* Step Indicator */}
         <View style={[styles.stepIndicator, { borderBottomColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
           <View style={styles.stepDots}>
-            <View style={[styles.stepDot, step === 1 && styles.stepDotActive, { 
+            <View style={[styles.stepDot, step === 1 && styles.stepDotActive, {
               backgroundColor: step === 1 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
             }]} />
-            <View style={[styles.stepDot, step === 2 && styles.stepDotActive, { 
+            <View style={[styles.stepDot, step === 2 && styles.stepDotActive, {
               backgroundColor: step === 2 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
             }]} />
           </View>
@@ -548,8 +553,8 @@ const CreateGroupModal = ({
         </View>
 
         {/* Content */}
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.content}
         >
           <ScrollView
@@ -562,7 +567,7 @@ const CreateGroupModal = ({
           </ScrollView>
 
           {/* Footer */}
-          <View style={[styles.footer, { 
+          <View style={[styles.footer, {
             backgroundColor: currentThemeColors.background,
             borderTopColor: theme === 'dark' ? '#374151' : '#E5E7EB'
           }]}>
@@ -578,7 +583,7 @@ const CreateGroupModal = ({
             ) : (
               <View style={styles.footerButtons}>
                 <TouchableOpacity
-                  style={[styles.secondaryButton, { 
+                  style={[styles.secondaryButton, {
                     borderColor: theme === 'dark' ? '#374151' : '#E5E7EB',
                     backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB'
                   }]}
@@ -766,6 +771,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  typeTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
   typeDescription: {
     fontSize: 13,
   },
@@ -807,12 +816,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
   uidInputRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
     alignItems: 'center',
   },
   uidInput: {

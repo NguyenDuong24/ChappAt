@@ -5,12 +5,12 @@ import {
   Text,
   TouchableOpacity,
   Alert,
-  Image,
   Dimensions,
   TextInput,
   Share,
   Animated
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
@@ -61,13 +61,13 @@ interface OptimizedPostCardProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 
-const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({ 
-  post, 
+const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
+  post,
   currentUserId,
   currentUserAvatar,
   onDelete,
   onUserPress,
-  isOwner 
+  isOwner
 }) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
@@ -75,7 +75,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   const router = useRouter();
   const { user } = useAuth();
   const viewerShowOnline = user?.showOnlineStatus !== false;
-  
+
   // States
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -97,7 +97,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
           // Use optimized user cache service
           const userMap = await userCacheService.getUsers([post.userID]);
           const userData = userMap.get(post.userID);
-          
+
           if (userData) {
             setUserInfo({
               displayName: userData.displayName || userData.fullName || userData.username,
@@ -111,7 +111,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
         }
       }
     };
-    
+
     fetchUserInfo();
   }, [post.userID]);
 
@@ -121,7 +121,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
     const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-    
+
     if (diff < 60) return 'Vừa xong';
     if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
@@ -174,7 +174,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-    
+
     try {
       // Use optimized social service
       await optimizedSocialService.toggleLike(post.id, user.uid, isLiked);
@@ -241,8 +241,8 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   };
 
   const hashtags = extractHashtags(post.content);
-  const contentPreview = post.content.length > 150 
-    ? post.content.substring(0, 150) + '...' 
+  const contentPreview = post.content.length > 150
+    ? post.content.substring(0, 150) + '...'
     : post.content;
 
   // Handle image press
@@ -261,18 +261,17 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
     <View style={[styles.container, { backgroundColor: colors.surface || '#fff' }]}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.userInfo}
           onPress={() => onUserPress?.(post.userID)}
         >
           <View style={styles.avatarContainer}>
             {userInfo?.profileUrl ? (
-              <Image 
-                source={{ uri: userInfo.profileUrl }} 
+              <Image
+                source={{ uri: userInfo.profileUrl }}
                 style={styles.avatarImage}
-                onError={(error) => {
-                  console.log('Avatar load error:', error);
-                }}
+                contentFit="cover"
+                transition={200}
               />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: Colors.primary + '20' }]}>
@@ -296,8 +295,8 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
                   <Text style={[styles.separator, { color: colors.subtleText || '#999' }]}> • </Text>
                   <Ionicons name="location-outline" size={12} color={colors.subtleText || '#999'} />
                   <Text style={[styles.location, { color: colors.subtleText || '#999' }]}>
-                    {typeof post.address === 'string' 
-                      ? post.address 
+                    {typeof post.address === 'string'
+                      ? post.address
                       : 'Vị trí'
                     }
                   </Text>
@@ -306,15 +305,15 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
             </View>
           </View>
         </TouchableOpacity>
-        
+
         <View style={styles.headerActions}>
           {post.privacy && (
             <View style={styles.privacyBadge}>
-              <Ionicons 
-                name={post.privacy === 'private' ? 'lock-closed' : 
-                      post.privacy === 'friends' ? 'people' : 'globe'} 
-                size={12} 
-                color={colors.subtleText || '#999'} 
+              <Ionicons
+                name={post.privacy === 'private' ? 'lock-closed' :
+                  post.privacy === 'friends' ? 'people' : 'globe'}
+                size={12}
+                color={colors.subtleText || '#999'}
               />
             </View>
           )}
@@ -332,7 +331,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
           {showFullContent ? post.content : contentPreview}
         </Text>
         {post.content.length > 150 && (
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setShowFullContent(!showFullContent)}
             style={styles.readMoreButton}
           >
@@ -341,13 +340,13 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
             </Text>
           </TouchableOpacity>
         )}
-        
+
         {/* Hashtags */}
         {hashtags.length > 0 && (
           <View style={styles.hashtagsContainer}>
             {hashtags.map((hashtag, index) => (
-              <TouchableOpacity 
-                key={index} 
+              <TouchableOpacity
+                key={index}
                 style={styles.hashtagChip}
                 onPress={() => handleHashtagPress(hashtag)}
               >
@@ -365,8 +364,8 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
         <View style={styles.imagesContainer}>
           {post.images.length === 1 ? (
             <TouchableOpacity onPress={() => handleImagePress(0)}>
-              <SimpleImage 
-                source={post.images[0]} 
+              <SimpleImage
+                source={post.images[0]}
                 style={styles.singleImage}
               />
             </TouchableOpacity>
@@ -374,8 +373,8 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
             <View style={styles.imagesRow}>
               {post.images.map((img, idx) => (
                 <TouchableOpacity key={idx} onPress={() => handleImagePress(idx)}>
-                  <SimpleImage 
-                    source={img} 
+                  <SimpleImage
+                    source={img}
                     style={styles.twoImages}
                   />
                 </TouchableOpacity>
@@ -385,17 +384,17 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
             <>
               <View style={styles.imagesRow}>
                 <TouchableOpacity onPress={() => handleImagePress(0)}>
-                  <SimpleImage 
-                    source={post.images[0]} 
+                  <SimpleImage
+                    source={post.images[0]}
                     style={styles.multipleImages}
                   />
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={{ position: 'relative' }} 
+                <TouchableOpacity
+                  style={{ position: 'relative' }}
                   onPress={() => handleImagePress(1)}
                 >
-                  <SimpleImage 
-                    source={post.images[1]} 
+                  <SimpleImage
+                    source={post.images[1]}
                     style={styles.multipleImages}
                   />
                   {post.images.length > 2 && (
@@ -413,17 +412,17 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
       {/* Actions */}
       <View style={styles.actions}>
         <Animated.View style={{ transform: [{ scale: likeAnimation }] }}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
               styles.actionButton,
               isLiked && { backgroundColor: (Colors.error || '#EF4444') + '10' }
             ]}
             onPress={handleLike}
           >
-            <Ionicons 
-              name={isLiked ? "heart" : "heart-outline"} 
-              size={22} 
-              color={isLiked ? (Colors.error || '#EF4444') : (colors.icon || '#666')} 
+            <Ionicons
+              name={isLiked ? "heart" : "heart-outline"}
+              size={22}
+              color={isLiked ? (Colors.error || '#EF4444') : (colors.icon || '#666')}
             />
             <Text style={[styles.actionText, { color: colors.text || '#000' }]}>
               {likeCount}
@@ -431,31 +430,31 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
           </TouchableOpacity>
         </Animated.View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.actionButton,
             showComments && { backgroundColor: Colors.primary + '10' }
           ]}
           onPress={() => setShowComments(!showComments)}
         >
-          <Ionicons 
-            name="chatbubble-outline" 
-            size={22} 
-            color={showComments ? Colors.primary : (colors.icon || '#666')} 
+          <Ionicons
+            name="chatbubble-outline"
+            size={22}
+            color={showComments ? Colors.primary : (colors.icon || '#666')}
           />
           <Text style={[styles.actionText, { color: colors.text || '#000' }]}>
             {commentCount}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={handleShare}
         >
-          <Ionicons 
-            name="share-outline" 
-            size={22} 
-            color={colors.icon || '#666'} 
+          <Ionicons
+            name="share-outline"
+            size={22}
+            color={colors.icon || '#666'}
           />
           <Text style={[styles.actionText, { color: colors.text || '#000' }]}>
             {shareCount}
@@ -469,9 +468,11 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
           {/* Comment Input */}
           <View style={styles.commentInputContainer}>
             {currentUserAvatar ? (
-              <Image 
+              <Image
                 source={{ uri: currentUserAvatar }}
                 style={styles.commentAvatar}
+                contentFit="cover"
+                transition={200}
               />
             ) : (
               <View style={[styles.commentAvatar, { backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' }]}>
@@ -486,15 +487,15 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
               onChangeText={setCommentText}
               multiline
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.sendButton, { backgroundColor: Colors.primary }]}
               onPress={handleComment}
               disabled={!commentText.trim()}
             >
-              <Ionicons 
-                name="send" 
-                size={16} 
-                color="white" 
+              <Ionicons
+                name="send"
+                size={16}
+                color="white"
               />
             </TouchableOpacity>
           </View>
@@ -505,9 +506,11 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
               post.comments.map((comment, idx) => (
                 <View key={idx} style={styles.comment}>
                   {comment.userAvatar ? (
-                    <Image 
+                    <Image
                       source={{ uri: comment.userAvatar }}
                       style={styles.commentAvatar}
+                      contentFit="cover"
+                      transition={200}
                     />
                   ) : (
                     <View style={[styles.commentAvatar, { backgroundColor: Colors.primary + '20', justifyContent: 'center', alignItems: 'center' }]}>
@@ -526,10 +529,10 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
                         {formatTimestamp(comment.timestamp)}
                       </Text>
                       <TouchableOpacity style={styles.commentLike}>
-                        <Ionicons 
-                          name="heart-outline" 
-                          size={12} 
-                          color="#999" 
+                        <Ionicons
+                          name="heart-outline"
+                          size={12}
+                          color="#999"
                         />
                         <Text style={styles.commentTime}>
                           {comment.likes?.length || 0}

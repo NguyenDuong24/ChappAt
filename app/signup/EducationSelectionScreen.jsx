@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, Alert, ImageBackground, ActivityIndicator, SectionList, ScrollView } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -131,7 +132,7 @@ const EducationSelectionScreen = () => {
       finalLevel = customLevel.trim();
     }
 
-    if (selectedUniversity === 'Khác') {
+    if (selectedLevel === 'Cao đẳng/Đại học' && selectedUniversity === 'Khác') {
       if (!customUniversity.trim()) {
         Alert.alert('Lỗi', 'Vui lòng nhập trường đại học nếu chọn "Khác"');
         return;
@@ -149,7 +150,11 @@ const EducationSelectionScreen = () => {
 
     setLoading(true);
     setEducationLevel(finalLevel);
-    setUniversity(finalUniversity);
+    if (selectedLevel === 'Cao đẳng/Đại học' || selectedLevel === 'Khác') {
+      setUniversity(finalUniversity);
+    } else {
+      setUniversity('');
+    }
     if (selectedJob) {
       setJob(finalJob);
     }
@@ -160,22 +165,23 @@ const EducationSelectionScreen = () => {
     }, 1000);
   };
 
-  const isNextEnabled = selectedLevel && selectedUniversity &&
+  const isNextEnabled = selectedLevel &&
+    (selectedLevel !== 'Cao đẳng/Đại học' || selectedUniversity) &&
     (selectedLevel !== 'Khác' || customLevel.trim()) &&
     (selectedUniversity !== 'Khác' || customUniversity.trim()) &&
     (!selectedJob || selectedJob !== 'Khác' || customJob.trim());
 
   return (
-    <ImageBackground 
+    <ImageBackground
       source={require('../../assets/images/cover.png')}
       style={styles.background}
       resizeMode="cover"
     >
-      <LinearGradient 
-        colors={['rgba(147,112,219,0.85)', 'rgba(255,20,147,0.85)']} 
-        style={styles.backdrop} 
+      <LinearGradient
+        colors={['rgba(147,112,219,0.85)', 'rgba(255,20,147,0.85)']}
+        style={styles.backdrop}
       />
-      
+
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -191,122 +197,106 @@ const EducationSelectionScreen = () => {
           </View>
         </View>
 
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
           {/* Education Level Section */}
           <View style={styles.section}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="school" size={24} color="#fff" />
-              <Text style={styles.sectionTitle}>Trình độ học vấn</Text>
-            </View>
-            <View style={styles.gridContainer}>
+            <Text style={styles.sectionTitle}>Trình độ học vấn</Text>
+            <View style={styles.optionsGrid}>
               {educationLevels.map((item) => (
                 <TouchableOpacity
                   key={item.label}
-                  style={[styles.gridItem, selectedLevel === item.label && styles.gridItemSelected]}
+                  style={[
+                    styles.optionButton,
+                    selectedLevel === item.label && styles.selectedOption
+                  ]}
                   onPress={() => handleSelectLevel(item)}
-                  activeOpacity={0.7}
                 >
-                  <View style={[styles.iconContainer, selectedLevel === item.label && styles.iconContainerSelected]}>
-                    <Ionicons 
-                      name={item.icon} 
-                      size={28} 
-                      color={selectedLevel === item.label ? '#fff' : '#9370db'} 
-                    />
-                  </View>
-                  <Text style={[styles.gridItemText, selectedLevel === item.label && styles.gridItemTextSelected]}>
+                  <Ionicons
+                    name={item.icon}
+                    size={24}
+                    color={selectedLevel === item.label ? '#fff' : '#9370db'}
+                  />
+                  <Text style={[
+                    styles.optionText,
+                    selectedLevel === item.label && styles.selectedOptionText
+                  ]}>
                     {item.label}
                   </Text>
-                  {selectedLevel === item.label && (
-                    <View style={styles.checkmark}>
-                      <Ionicons name="checkmark-circle" size={20} color="#00ff88" />
-                    </View>
-                  )}
                 </TouchableOpacity>
               ))}
             </View>
             {selectedLevel === 'Khác' && (
               <TextInput
-                style={styles.input}
-                placeholder="VD: Cử nhân, Kỹ sư..."
-                placeholderTextColor="#999"
+                style={styles.customInput}
+                placeholder="Nhập trình độ học vấn của bạn..."
+                placeholderTextColor="rgba(255,255,255,0.5)"
                 value={customLevel}
                 onChangeText={setCustomLevel}
               />
             )}
           </View>
 
-          {/* University Section - Only show for Cao đẳng or Đại học */}
-          {(selectedLevel === 'Cao đẳng/Đại học') && (
+          {/* University Section - Only if College/University is selected */}
+          {(selectedLevel === 'Cao đẳng/Đại học' || selectedLevel === 'Khác') && (
             <View style={styles.section}>
-              <View style={styles.sectionTitleContainer}>
-                <Ionicons name="business" size={24} color="#fff" />
-                <Text style={styles.sectionTitle}>Trường học</Text>
-              </View>
+              <Text style={styles.sectionTitle}>Trường học</Text>
               <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+                <Ionicons name="search" size={20} color="rgba(255,255,255,0.5)" />
                 <TextInput
                   style={styles.searchInput}
-                  placeholder="Tìm kiếm trường..."
-                  placeholderTextColor="#999"
+                  placeholder="Tìm kiếm trường học..."
+                  placeholderTextColor="rgba(255,255,255,0.5)"
                   value={searchText}
                   onChangeText={handleSearchUniversity}
                 />
-                {searchText.length > 0 && (
-                  <TouchableOpacity onPress={() => handleSearchUniversity('')} style={styles.clearButton}>
-                    <Ionicons name="close-circle" size={20} color="#999" />
-                  </TouchableOpacity>
-                )}
               </View>
 
-              {loadingUniversities ? (
-                <ActivityIndicator size="large" color="#fff" style={styles.loader} />
-              ) : (
-                <View style={styles.universityList}>
+              <View style={styles.schoolListContainer}>
+                {loadingUniversities ? (
+                  <ActivityIndicator color="#fff" style={{ margin: 20 }} />
+                ) : (
                   <SectionList
                     sections={filteredSections}
-                    keyExtractor={(item) => item.code}
+                    keyExtractor={(item, index) => item.label + index}
                     renderItem={({ item }) => (
                       <TouchableOpacity
-                        style={[styles.listItem, selectedUniversity === item.label && styles.listItemSelected]}
+                        style={[
+                          styles.schoolItem,
+                          selectedUniversity === item.label && styles.selectedSchoolItem
+                        ]}
                         onPress={() => handleSelectUniversity(item)}
-                        activeOpacity={0.7}
                       >
-                        <View style={[styles.listIconContainer, selectedUniversity === item.label && styles.listIconContainerSelected]}>
-                          <Ionicons 
-                            name={item.icon} 
-                            size={22} 
-                            color={selectedUniversity === item.label ? '#fff' : '#9370db'} 
-                          />
-                        </View>
-                        <Text style={[styles.listItemText, selectedUniversity === item.label && styles.listItemTextSelected]}>
+                        <Ionicons
+                          name={item.icon}
+                          size={20}
+                          color={selectedUniversity === item.label ? '#fff' : '#9370db'}
+                        />
+                        <Text style={[
+                          styles.schoolItemText,
+                          selectedUniversity === item.label && styles.selectedSchoolItemText
+                        ]}>
                           {item.label}
                         </Text>
-                        {selectedUniversity === item.label && (
-                          <Ionicons name="checkmark-circle" size={24} color="#00ff88" />
-                        )}
                       </TouchableOpacity>
                     )}
                     renderSectionHeader={({ section: { title } }) => (
-                      <View style={styles.listSectionHeader}>
-                        <Text style={styles.listSectionHeaderText}>{title}</Text>
-                      </View>
+                      <Text style={styles.sectionHeader}>{title}</Text>
                     )}
                     stickySectionHeadersEnabled={false}
-                    showsVerticalScrollIndicator={false}
                     scrollEnabled={false}
-                    nestedScrollEnabled={false}
                   />
-                </View>
-              )}
+                )}
+              </View>
+
               {selectedUniversity === 'Khác' && (
                 <TextInput
-                  style={styles.input}
-                  placeholder="VD: Đại học Bách Khoa..."
-                  placeholderTextColor="#999"
+                  style={styles.customInput}
+                  placeholder="Nhập tên trường của bạn..."
+                  placeholderTextColor="rgba(255,255,255,0.5)"
                   value={customUniversity}
                   onChangeText={setCustomUniversity}
                 />
@@ -316,73 +306,60 @@ const EducationSelectionScreen = () => {
 
           {/* Job Section */}
           <View style={styles.section}>
-            <View style={styles.sectionTitleContainer}>
-              <Ionicons name="briefcase" size={24} color="#fff" />
-              <Text style={styles.sectionTitle}>Nghề nghiệp</Text>
-            </View>
-            <View style={styles.gridContainer}>
+            <Text style={styles.sectionTitle}>Nghề nghiệp (Tùy chọn)</Text>
+            <View style={styles.optionsGrid}>
               {jobs.map((item) => (
                 <TouchableOpacity
                   key={item.label}
-                  style={[styles.gridItem, selectedJob === item.label && styles.gridItemSelected]}
+                  style={[
+                    styles.optionButton,
+                    selectedJob === item.label && styles.selectedOption
+                  ]}
                   onPress={() => handleSelectJob(item)}
-                  activeOpacity={0.7}
                 >
-                  <View style={[styles.iconContainer, selectedJob === item.label && styles.iconContainerSelected]}>
-                    <Ionicons 
-                      name={item.icon} 
-                      size={28} 
-                      color={selectedJob === item.label ? '#fff' : '#9370db'} 
-                    />
-                  </View>
-                  <Text style={[styles.gridItemText, selectedJob === item.label && styles.gridItemTextSelected]}>
+                  <Ionicons
+                    name={item.icon}
+                    size={24}
+                    color={selectedJob === item.label ? '#fff' : '#9370db'}
+                  />
+                  <Text style={[
+                    styles.optionText,
+                    selectedJob === item.label && styles.selectedOptionText
+                  ]}>
                     {item.label}
                   </Text>
-                  {selectedJob === item.label && (
-                    <View style={styles.checkmark}>
-                      <Ionicons name="checkmark-circle" size={20} color="#00ff88" />
-                    </View>
-                  )}
                 </TouchableOpacity>
               ))}
             </View>
             {selectedJob === 'Khác' && (
               <TextInput
-                style={styles.input}
-                placeholder="VD: Freelancer, Nghệ sĩ..."
-                placeholderTextColor="#999"
+                style={styles.customInput}
+                placeholder="Nhập nghề nghiệp của bạn..."
+                placeholderTextColor="rgba(255,255,255,0.5)"
                 value={customJob}
                 onChangeText={setCustomJob}
               />
             )}
           </View>
-        </ScrollView>
 
-        {/* Bottom Button */}
-        <View style={styles.bottomContainer}>
+          {/* Next Button */}
           <TouchableOpacity
-            style={[styles.buttonContainer, !isNextEnabled && styles.buttonDisabled]}
-            disabled={!isNextEnabled || loading}
+            style={[styles.nextButton, !isNextEnabled && styles.disabledButton]}
             onPress={validateAndNext}
-            activeOpacity={0.8}
+            disabled={!isNextEnabled || loading}
           >
-            <LinearGradient
-              colors={isNextEnabled ? ['#ff1493', '#9370db'] : ['#ccc', '#999']}
-              style={styles.button}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Text style={styles.buttonText}>Tiếp tục</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#fff" />
-                </>
-              )}
-            </LinearGradient>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.nextButtonText}>Tiếp tục</Text>
+                <Ionicons name="arrow-forward" size={20} color="#fff" />
+              </>
+            )}
           </TouchableOpacity>
-        </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
     </ImageBackground>
   );
@@ -394,233 +371,163 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  backdrop: { 
-    ...StyleSheet.absoluteFillObject 
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
   },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
   backButton: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
   },
   headerTextContainer: {
-    marginLeft: 16,
     flex: 1,
+    marginLeft: 15,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: 'bold',
     color: '#fff',
-    letterSpacing: 0.5,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
+    padding: 20,
   },
   section: {
-    marginBottom: 32,
-  },
-  sectionTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 30,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#fff',
-    marginLeft: 10,
+    marginBottom: 15,
+    opacity: 0.9,
   },
-  gridContainer: {
+  optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -6,
+    gap: 10,
   },
-  gridItem: {
-    width: '31%',
-    marginHorizontal: '1%',
-    marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 16,
-    padding: 16,
+  optionButton: {
+    width: '48%',
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    padding: 15,
+    borderRadius: 15,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
     borderWidth: 2,
     borderColor: 'transparent',
-    minHeight: 110,
   },
-  gridItemSelected: {
-    backgroundColor: 'rgba(255,20,147,0.95)',
+  selectedOption: {
+    backgroundColor: '#9370db',
     borderColor: '#fff',
-    transform: [{ scale: 1.02 }],
   },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(147,112,219,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  iconContainerSelected: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  gridItemText: {
-    fontSize: 13,
+  optionText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#4a4a4a',
     textAlign: 'center',
-    lineHeight: 16,
   },
-  gridItemTextSelected: {
+  selectedOptionText: {
     color: '#fff',
   },
-  checkmark: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
+  customInput: {
+    marginTop: 15,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 12,
+    padding: 15,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  searchIcon: {
-    marginRight: 10,
+    paddingHorizontal: 15,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   searchInput: {
     flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    color: '#fff',
     fontSize: 16,
-    color: '#333',
-    paddingVertical: 14,
   },
-  clearButton: {
-    padding: 4,
-  },
-  universityList: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 16,
+  schoolListContainer: {
+    maxHeight: 300,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderRadius: 15,
     overflow: 'hidden',
-    maxHeight: 400,
   },
-  listSectionHeader: {
-    backgroundColor: 'rgba(147,112,219,0.15)',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  listSectionHeaderText: {
-    fontSize: 16,
-    fontWeight: '700',
+  sectionHeader: {
+    backgroundColor: '#f0f0f0',
+    padding: 10,
+    fontSize: 14,
+    fontWeight: 'bold',
     color: '#9370db',
   },
-  listItem: {
+  schoolItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: '#eee',
+    gap: 10,
   },
-  listItemSelected: {
-    backgroundColor: 'rgba(255,20,147,0.1)',
+  selectedSchoolItem: {
+    backgroundColor: '#9370db',
   },
-  listIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(147,112,219,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  listIconContainerSelected: {
-    backgroundColor: 'rgba(255,20,147,0.2)',
-  },
-  listItemText: {
+  schoolItemText: {
+    fontSize: 14,
+    color: '#4a4a4a',
     flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#333',
   },
-  listItemTextSelected: {
-    color: '#ff1493',
-    fontWeight: '600',
+  selectedSchoolItemText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#333',
-    marginTop: 12,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  loader: {
-    marginVertical: 20,
-  },
-  bottomContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(147,112,219,0.95)',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  buttonContainer: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  button: {
-    paddingVertical: 16,
+  nextButton: {
+    backgroundColor: '#ff1493',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 18,
+    borderRadius: 15,
+    gap: 10,
+    marginTop: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  disabledButton: {
+    backgroundColor: 'rgba(255,20,147,0.5)',
+    opacity: 0.7,
   },
-  buttonText: {
+  nextButtonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '700',
-    marginRight: 8,
+    fontWeight: 'bold',
   },
 });
 

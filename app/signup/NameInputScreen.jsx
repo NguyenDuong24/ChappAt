@@ -1,21 +1,21 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, ImageBackground, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
 import { Colors } from '@/constants/Colors';
+import { TextInput } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import ProgressIndicator from '@/components/signup/ProgressIndicator';
 import { useTranslation } from 'react-i18next';
 
 const NameInputScreen = () => {
   const { t } = useTranslation();
-  const { setName, cancelRegistration, signupType } = useAuth();
-  const [name, setLocalName] = useState('');
-  const [error, setError] = useState('');
+  const { setName: setAuthName, cancelRegistration, signupType } = useAuth();
   const router = useRouter();
   const logoUrl = useLogoState();
-  const currentThemeColors = Colors.dark;
+  const [name, setName] = useState('');
 
   // Dynamic step calculation
   const stepInfo = useMemo(() => {
@@ -25,23 +25,14 @@ const NameInputScreen = () => {
     return { current: 4, total: 6 };
   }, [signupType]);
 
-  const handleNameChange = useCallback((text) => {
-    setLocalName(text);
-    if (text.length > 0 && text.length < 2) {
-      setError(t('signup.name_error'));
-    } else {
-      setError('');
-    }
-  }, [t]);
-
   const handleNext = useCallback(() => {
-    if (name.length < 2) {
-      setError(t('signup.name_error'));
+    if (name.trim().length < 2) {
+      Alert.alert(t('signup.invalid_name_title'), t('signup.invalid_name_message'));
       return;
     }
-    setName(name);
-    router.push('/signup/AgeInputScreen');
-  }, [name, setName, router, t]);
+    setAuthName(name.trim());
+    router.push('/signup/IconSelectionScreen');
+  }, [name, router, setAuthName, t]);
 
   const handleCancel = useCallback(() => {
     Alert.alert(
@@ -54,16 +45,15 @@ const NameInputScreen = () => {
     );
   }, [cancelRegistration, t]);
 
-  const isButtonDisabled = !name || name.length < 2;
-
   return (
     <ImageBackground
       source={require('../../assets/images/cover.png')}
-      style={styles.backgroundImage}
+      style={styles.background}
+      resizeMode="cover"
     >
       <LinearGradient colors={['rgba(15,23,42,0.85)', 'rgba(15,23,42,0.65)']} style={styles.backdrop} />
 
-      <View style={styles.overlay}>
+      <View style={styles.container}>
         <ProgressIndicator
           currentStep={stepInfo.current}
           totalSteps={stepInfo.total}
@@ -71,32 +61,24 @@ const NameInputScreen = () => {
         />
 
         {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logo} />
+          <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
         ) : (
-          <Text style={{ color: currentThemeColors.text }}>{t('common.loading')}</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         )}
-
-        <Text style={[styles.title, { color: currentThemeColors.text }]}>{t('signup.name_title')}</Text>
-        <Text style={styles.subtitle}>{t('signup.name_subtitle')}</Text>
-
+        <Text style={styles.title}>{t('signup.name_title')}</Text>
         <TextInput
-          style={[
-            styles.input,
-            { backgroundColor: currentThemeColors.inputBackground, borderColor: currentThemeColors.inputBorder, color: currentThemeColors.text }
-          ]}
+          label={t('signup.name_label')}
           value={name}
-          onChangeText={handleNameChange}
-          placeholder={t('signup.name_placeholder')}
-          placeholderTextColor={currentThemeColors.placeholderText}
-          autoFocus
+          onChangeText={setName}
+          style={styles.input}
+          mode="outlined"
+          theme={{ colors: { primary: Colors.primary, text: 'white', placeholder: 'rgba(255,255,255,0.7)' } }}
+          textColor="white"
         />
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
         <TouchableOpacity
-          style={[styles.nextButton, isButtonDisabled && styles.disabledButton, { backgroundColor: currentThemeColors.tint }]}
+          style={[styles.nextButton, !name && styles.disabledButton]}
           onPress={handleNext}
-          disabled={isButtonDisabled}
+          disabled={!name}
           activeOpacity={0.85}
         >
           <Text style={styles.nextButtonText}>{t('common.next')}</Text>
@@ -110,69 +92,58 @@ const NameInputScreen = () => {
   );
 };
 
-
 const styles = StyleSheet.create({
-  backgroundImage: {
+  background: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
   },
-  overlay: {
+  container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
+    padding: 20,
     backgroundColor: 'transparent',
-    width: '100%',
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
+    marginBottom: 20,
+  },
+  loadingText: {
+    fontSize: 18,
+    color: 'white',
     marginBottom: 20,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 20,
   },
   input: {
     width: '100%',
-    padding: 15,
-    borderWidth: 1,
-    borderRadius: 25,
     marginBottom: 20,
-    fontSize: 18,
-    fontWeight: '500',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   nextButton: {
+    backgroundColor: Colors.primary,
     paddingVertical: 15,
+    paddingHorizontal: 30,
     borderRadius: 25,
     alignItems: 'center',
     width: '100%',
   },
-  nextButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
   disabledButton: {
     backgroundColor: '#475569',
+  },
+  nextButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 

@@ -1,19 +1,20 @@
 import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { StyleSheet, View, FlatList, RefreshControl, Text, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { collection, getDocs, query, where, doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc, updateDoc, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
 import TopProfileUserProfileScreen from '@/components/profile/TopProfileUserProfileScreen';
-import PostCardStandard from '@/components/profile/PostCardStandard';
+import PostCard from '@/components/profile/PostCard';
 import { convertTimestampToDate } from '@/utils/common';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/context/authContext';
 import ButtonToChat from '../../ButtonToChat';
 import { useBlockStatus } from '@/hooks/useBlockStatus';
+import { profileVisitService } from '@/services/profileVisitService';
+import { followService } from '@/services/followService';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
-// Define a Post shape compatible with PostCardStandard props
+// Define a Post shape compatible with PostCard props
 interface Comment {
     id?: string;
     text: string;
@@ -51,9 +52,7 @@ const UserProfileScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    const themeContext = useContext(ThemeContext);
-    const theme = themeContext?.theme || 'light';
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const colors = useThemedColors();
 
     // Check block status
     const {
@@ -67,6 +66,8 @@ const UserProfileScreen = () => {
         const iso = convertTimestampToDate(p.timestamp ?? (p as any)?.createdAt);
         return iso ? new Date(iso).getTime() : 0;
     };
+
+    const [isFollowing, setIsFollowing] = useState(false);
 
     const fetchUserData = useCallback(async () => {
         if (!userId) {
@@ -89,30 +90,74 @@ const UserProfileScreen = () => {
         }
     }, [userId]);
 
+    const checkFollowingStatus = useCallback(async () => {
+        if (!authUser?.uid || !userId || authUser.uid === userId) return;
+        try {
+            const isFollow = await followService.isFollowing(authUser.uid, userId as string);
+            setIsFollowing(isFollow);
+        } catch (error) {
+            console.error('Error checking follow status:', error);
+        }
+    }, [authUser?.uid, userId]);
+
     const fetchPosts = useCallback(async () => {
         if (!userId) return;
         try {
+            // Determine relationship for privacy
+            const isOwner = authUser?.uid === userId;
+            // We need current isFollowing status. 
+            // Since setState is async, we might want to check it here again or rely on state if it's loaded.
+            // For safety, let's assume if we are not owner, we check following status if not already known?
+            // Actually, let's just fetch it here to be sure if we want strict logic, 
+            // or rely on the effect chain. 
+            // Let's rely on the fact that we can filter *after* fetching.
+
+            // Re-check following status if not owner to be sure (optional but safer)
+            let currentIsFollowing = isFollowing;
+            if (!isOwner && authUser?.uid) {
+                currentIsFollowing = await followService.isFollowing(authUser.uid, userId as string);
+                setIsFollowing(currentIsFollowing);
+            }
+
             const postsCollection = collection(db, 'posts');
-            const userPostsQuery = query(postsCollection, where('userID', '==', userId));
+            // Fetch more to account for filtering
+            const userPostsQuery = query(postsCollection, where('userID', '==', userId), limit(50));
             const postsSnapshot = await getDocs(userPostsQuery);
-            const postsList: PostForCard[] = postsSnapshot.docs.map((docSnap) => {
+
+            const postsList: PostForCard[] = [];
+
+            postsSnapshot.docs.forEach((docSnap) => {
                 const data = docSnap.data() as any;
-                const post: PostForCard = {
-                    id: docSnap.id,
-                    content: typeof data?.content === 'string' ? data.content : '',
-                    hashtags: Array.isArray(data?.hashtags) ? data.hashtags : [],
-                    images: Array.isArray(data?.images) ? data.images : [],
-                    address: typeof data?.address === 'string' ? data.address : undefined,
-                    likes: Array.isArray(data?.likes) ? data.likes : [],
-                    comments: Array.isArray(data?.comments) ? data.comments : [],
-                    shares: typeof data?.shares === 'number' ? data.shares : 0,
-                    timestamp: data?.timestamp ?? data?.createdAt ?? null,
-                    userID: data?.userID ?? data?.userId ?? '',
-                    privacy: data?.privacy ?? 'public',
-                    // keep other fields if any
-                    ...data,
-                };
-                return post;
+                const privacy = data?.privacy ?? 'public';
+
+                // Privacy Filter Logic
+                let isVisible = false;
+                if (isOwner) {
+                    isVisible = true;
+                } else if (privacy === 'public') {
+                    isVisible = true;
+                } else if (privacy === 'friends' && currentIsFollowing) {
+                    isVisible = true;
+                }
+                // 'private' is only visible to owner (handled above)
+
+                if (isVisible) {
+                    const post: PostForCard = {
+                        id: docSnap.id,
+                        content: typeof data?.content === 'string' ? data.content : '',
+                        hashtags: Array.isArray(data?.hashtags) ? data.hashtags : [],
+                        images: Array.isArray(data?.images) ? data.images : [],
+                        address: typeof data?.address === 'string' ? data.address : undefined,
+                        likes: Array.isArray(data?.likes) ? data.likes : [],
+                        comments: Array.isArray(data?.comments) ? data.comments : [],
+                        shares: typeof data?.shares === 'number' ? data.shares : 0,
+                        timestamp: data?.timestamp ?? data?.createdAt ?? null,
+                        userID: data?.userID ?? data?.userId ?? '',
+                        privacy: privacy,
+                        ...data,
+                    };
+                    postsList.push(post);
+                }
             });
 
             const sortedPosts = postsList.sort((a, b) => toMillis(b) - toMillis(a));
@@ -120,12 +165,17 @@ const UserProfileScreen = () => {
         } catch (error) {
             console.error('Error fetching posts:', error);
         }
-    }, [userId]);
+    }, [userId, authUser?.uid, isFollowing]);
 
     useEffect(() => {
         fetchUserData();
         fetchPosts();
-    }, [fetchUserData, fetchPosts]);
+
+        // Record profile visit
+        if (authUser?.uid && userId && authUser.uid !== userId) {
+            profileVisitService.recordVisit(authUser.uid, userId as string);
+        }
+    }, [fetchUserData, fetchPosts, authUser?.uid, userId]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -177,26 +227,28 @@ const UserProfileScreen = () => {
         console.log('Share post:', postId);
     };
 
+    const handlePrivacyChange = useCallback((postId: string, newPrivacy: 'public' | 'friends' | 'private') => {
+        setPosts(currentPosts => currentPosts.map(p =>
+            p.id === postId ? { ...p, privacy: newPrivacy } : p
+        ));
+    }, []);
+
     const renderPost = ({ item }: { item: PostForCard }) => (
-        <PostCardStandard
+        <PostCard
             post={item}
-            currentUserId={authUser?.uid || ''}
-            currentUserAvatar={(authUser as any)?.profileUrl || (authUser as any)?.avatar}
             onLike={handleLike}
-            onComment={handleComment}
-            onShare={handleShare}
-            onDelete={() => { fetchPosts(); }}
-            onUserPress={(uid: string) => router.push(`/(screens)/user/UserProfileScreen?userId=${uid}` as any)}
-            isOwner={false}
+            onDeletePost={() => { fetchPosts(); }}
+            owner={authUser?.uid === item.userID}
+            onPrivacyChange={handlePrivacyChange}
         />
     );
 
     // Show loading while checking block status
     if (blockLoading || loading) {
         return (
-            <View style={[styles.container, styles.loadingContainer, { backgroundColor: currentThemeColors.background }]}>
-                <ActivityIndicator size="large" color="#6366F1" />
-                <Text style={{ color: currentThemeColors.text, marginTop: 12 }}>
+            <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ color: colors.text, marginTop: 12 }}>
                     Đang tải...
                 </Text>
             </View>
@@ -206,7 +258,7 @@ const UserProfileScreen = () => {
     // Show blocked message if blocked relationship exists - but still show profile info
     if (hasBlockRelation) {
         return (
-            <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+            <View style={[styles.container, { backgroundColor: colors.background }]}>
                 <FlatList
                     data={[]}
                     renderItem={() => null}
@@ -222,8 +274,8 @@ const UserProfileScreen = () => {
 
                             {/* Blocked message instead of posts */}
                             <View style={[styles.blockedPostsContainer, {
-                                backgroundColor: theme === 'dark' ? '#1E293B' : '#F8FAFC',
-                                borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border
                             }]}>
                                 <MaterialCommunityIcons
                                     name="block-helper"
@@ -231,10 +283,10 @@ const UserProfileScreen = () => {
                                     color="#EF4444"
                                     style={{ marginBottom: 12 }}
                                 />
-                                <Text style={[styles.blockedPostsTitle, { color: currentThemeColors.text }]}>
+                                <Text style={[styles.blockedPostsTitle, { color: colors.text }]}>
                                     {isBlocked ? 'Bạn đã chặn người dùng này' : 'Không có bài viết'}
                                 </Text>
-                                <Text style={[styles.blockedPostsText, { color: theme === 'dark' ? '#94A3B8' : '#6B7280' }]}>
+                                <Text style={[styles.blockedPostsText, { color: colors.subtleText }]}>
                                     {isBlocked
                                         ? 'Bạn sẽ không thấy bài viết của họ. Bỏ chặn để xem lại nội dung.'
                                         : 'Bạn không thể xem bài viết của người dùng này.'
@@ -253,7 +305,7 @@ const UserProfileScreen = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <FlatList
                 data={posts}
                 renderItem={renderPost}

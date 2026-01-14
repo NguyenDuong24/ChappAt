@@ -14,6 +14,7 @@ interface PostHeaderProps {
     username: string;
     profileUrl?: string;
     currentVibe?: UserVibe | null;
+    activeFrame?: string;
   } | null;
   timestamp: any;
   userId: string;
@@ -64,6 +65,7 @@ const PostHeader: React.FC<PostHeaderProps> = ({
           size={44}
           currentVibe={userInfo?.currentVibe || null}
           showAddButton={false}
+          frameType={userInfo?.activeFrame}
           storyUser={{ id: userId, username: userInfo?.username, profileUrl: userInfo?.profileUrl }}
         />
         <View style={styles.userInfo}>
@@ -85,13 +87,20 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         </View>
       </TouchableOpacity>
 
-      {!isOwner && !isFollowing && (
+      {!isOwner && (
         <TouchableOpacity
-          style={[styles.followButton, { borderColor: Colors.primary }]}
+          style={[
+            styles.followButton,
+            {
+              borderColor: Colors.primary,
+              backgroundColor: isFollowing ? Colors.primary : 'transparent'
+            }
+          ]}
           onPress={onFollowPress}
+          disabled={isFollowing}
         >
-          <Text style={[styles.followText, { color: Colors.primary }]}>
-            Theo dõi
+          <Text style={[styles.followText, { color: isFollowing ? '#fff' : Colors.primary }]}>
+            {isFollowing ? 'Đã theo dõi' : 'Theo dõi'}
           </Text>
         </TouchableOpacity>
       )}
@@ -105,25 +114,26 @@ const PostHeader: React.FC<PostHeaderProps> = ({
               <TouchableOpacity onPress={openMenu} style={styles.menuButton}>
                 <MaterialIcons
                   name="more-vert"
-                  size={28}
+                  size={24}
                   color={currentThemeColors.icon}
                 />
               </TouchableOpacity>
             }
-            contentStyle={[styles.menuContent, { backgroundColor: currentThemeColors.background }]}
-            style={styles.menuPaper}
+            contentStyle={[styles.menuContent, { backgroundColor: currentThemeColors.surface }]}
           >
             <Menu.Item
               onPress={handlePrivacyChange}
               title="Quyền riêng tư"
-              titleStyle={{ color: currentThemeColors.text }}
+              titleStyle={{ fontSize: 14, color: currentThemeColors.text }}
               leadingIcon="shield-account"
+              dense
             />
             <Menu.Item
               onPress={handleDeletePost}
               title="Xóa bài viết"
-              titleStyle={{ color: '#ff4444' }}
+              titleStyle={{ fontSize: 14, color: '#ff4444' }}
               leadingIcon="delete"
+              dense
             />
           </Menu>
         </View>
@@ -135,8 +145,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   userContainer: {
     flexDirection: 'row',
@@ -152,7 +162,7 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
     marginLeft: 12,
-    marginTop: 2, // Thêm marginTop để căn giữa với avatar
+    marginTop: 2,
   },
   username: {
     fontWeight: '600',
@@ -174,23 +184,16 @@ const styles = StyleSheet.create({
   menuWrapper: {
     justifyContent: 'center',
     alignItems: 'flex-end',
-    height: '100%',
     marginLeft: 8,
   },
   menuButton: {
     padding: 4,
-    marginRight: 0,
+    marginRight: -8, // Adjust to align with edge
   },
   menuContent: {
-    borderRadius: 8,
-    marginTop: 8,
-    minWidth: 160,
-  },
-  menuPaper: {
-    position: 'absolute',
-    right: 0,
-    top: 36,
-    zIndex: 999,
+    borderRadius: 12,
+    paddingVertical: 4,
+    minWidth: 150,
   },
   followButton: {
     paddingHorizontal: 12,

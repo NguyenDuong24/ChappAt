@@ -15,7 +15,11 @@ export type EffectType =
     | 'leaves'        // New: Lá rơi mùa thu
     | 'butterflies'   // New: Bướm bay
     | 'neon'          // New: Neon glow
-    | 'galaxy';       // New: Thiên hà
+    | 'galaxy'        // New: Thiên hà
+    | 'balloons'      // New: Bóng bay
+    | 'fireworks'     // New: Pháo hoa
+    | 'music'         // New: Âm nhạc
+    | 'sunlight';     // New: Nắng vàng
 
 interface ChatBackgroundEffectsProps {
     effect: EffectType;
@@ -100,6 +104,18 @@ const getEffectColors = (effect: EffectType, themeColor: string, backgroundColor
 
         case 'galaxy':
             return ['#9B59B6', '#3498DB', '#E74C3C', '#F39C12', '#1ABC9C', '#FFFFFF'];
+
+        case 'balloons':
+            return ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF'];
+
+        case 'fireworks':
+            return ['#FF0000', '#FFFF00', '#00FF00', '#00FFFF', '#FF00FF', '#FFFFFF'];
+
+        case 'music':
+            return ['#000000', '#333333', '#666666', themeColor];
+
+        case 'sunlight':
+            return ['#FFD700', '#FFFACD', '#FAFAD2', '#FFFFE0'];
 
         default:
             return [themeColor];
@@ -450,14 +466,14 @@ const Particle: React.FC<ParticleProps> = React.memo(({ delay, duration, color, 
                     transform: [
                         {
                             translateY: animValue.interpolate({
-                                inputRange: [0, 0.25, 0.5, 0.75, 1],
-                                outputRange: [0, -50, -20, -80, -150],
+                                inputRange: [0, 1],
+                                outputRange: [0, -(SCREEN_HEIGHT + 200)],
                             })
                         },
                         {
                             translateX: animValue.interpolate({
-                                inputRange: [0, 0.25, 0.5, 0.75, 1],
-                                outputRange: [0, 60, -30, 80, 40],
+                                inputRange: [0, 0.2, 0.4, 0.6, 0.8, 1],
+                                outputRange: [0, 100, -50, 120, -30, 80],
                             })
                         },
                         {
@@ -466,10 +482,116 @@ const Particle: React.FC<ParticleProps> = React.memo(({ delay, duration, color, 
                                 outputRange: [0.3, 1],
                             })
                         },
+                        {
+                            rotate: animValue.interpolate({
+                                inputRange: [0, 0.5, 1],
+                                outputRange: ['-20deg', '20deg', '-20deg'],
+                            })
+                        }
                     ],
                     opacity: animValue.interpolate({
                         inputRange: [0, 0.1, 0.9, 1],
-                        outputRange: [0.8, 1, 1, 0],
+                        outputRange: [0, 1, 1, 0],
+                    }),
+                };
+
+            case 'balloons':
+                return {
+                    transform: [
+                        {
+                            translateY: animValue.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, -(SCREEN_HEIGHT + 200)],
+                            })
+                        },
+                        {
+                            translateX: animValue.interpolate({
+                                inputRange: [0, 0.25, 0.5, 0.75, 1],
+                                outputRange: [0, swayAmount, -swayAmount, swayAmount, 0],
+                            })
+                        },
+                        {
+                            rotate: animValue.interpolate({
+                                inputRange: [0, 0.5, 1],
+                                outputRange: ['-10deg', '10deg', '-10deg'],
+                            })
+                        }
+                    ],
+                    opacity: animValue.interpolate({
+                        inputRange: [0, 0.1, 0.9, 1],
+                        outputRange: [0, 1, 1, 0],
+                    }),
+                };
+
+            case 'fireworks':
+                return {
+                    transform: [
+                        {
+                            scale: animValue.interpolate({
+                                inputRange: [0, 0.1, 0.8, 1],
+                                outputRange: [0, 1.5, 1.2, 0],
+                            })
+                        },
+                        {
+                            translateY: animValue.interpolate({
+                                inputRange: [0, 0.1, 1],
+                                outputRange: [0, -20, -40],
+                            })
+                        }
+                    ],
+                    opacity: animValue.interpolate({
+                        inputRange: [0, 0.1, 0.8, 1],
+                        outputRange: [0, 1, 0.8, 0],
+                    }),
+                };
+
+            case 'music':
+                return {
+                    transform: [
+                        {
+                            translateY: animValue.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, -(SCREEN_HEIGHT + 100)],
+                            })
+                        },
+                        {
+                            translateX: animValue.interpolate({
+                                inputRange: [0, 0.3, 0.6, 1],
+                                outputRange: [0, swayAmount * 1.5, -swayAmount, 0],
+                            })
+                        },
+                        {
+                            rotate: animValue.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '360deg'],
+                            })
+                        }
+                    ],
+                    opacity: animValue.interpolate({
+                        inputRange: [0, 0.1, 0.8, 1],
+                        outputRange: [0, 1, 1, 0],
+                    }),
+                };
+
+            case 'sunlight':
+                return {
+                    transform: [
+                        {
+                            scale: glowAnim.interpolate({
+                                inputRange: [0.3, 1],
+                                outputRange: [1, 1.5],
+                            })
+                        },
+                        {
+                            rotate: animValue.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '45deg'],
+                            })
+                        }
+                    ],
+                    opacity: glowAnim.interpolate({
+                        inputRange: [0.3, 1],
+                        outputRange: [0.2, 0.5],
                     }),
                 };
 
@@ -695,6 +817,52 @@ const Particle: React.FC<ParticleProps> = React.memo(({ delay, duration, color, 
                     ]} />
                 );
 
+            case 'balloons':
+                return (
+                    <Animated.Text style={[{ fontSize: size }, getAnimatedStyle()]}>
+                        🎈
+                    </Animated.Text>
+                );
+
+            case 'fireworks':
+                return (
+                    <Animated.View style={[
+                        {
+                            width: size,
+                            height: size,
+                            borderRadius: size / 2,
+                            backgroundColor: color,
+                            shadowColor: color,
+                            shadowOffset: { width: 0, height: 0 },
+                            shadowOpacity: 1,
+                            shadowRadius: size * 2,
+                            elevation: 10,
+                        },
+                        getAnimatedStyle(),
+                    ]} />
+                );
+
+            case 'music':
+                const notes = ['🎵', '🎶', '🎼', '🎹', '🎸'];
+                return (
+                    <Animated.Text style={[{ fontSize: size, color }, getAnimatedStyle()]}>
+                        {notes[index % notes.length]}
+                    </Animated.Text>
+                );
+
+            case 'sunlight':
+                return (
+                    <Animated.View style={[
+                        {
+                            width: SCREEN_WIDTH * 0.2,
+                            height: SCREEN_HEIGHT * 1.5,
+                            backgroundColor: color,
+                            transform: [{ rotate: '25deg' }],
+                        },
+                        getAnimatedStyle(),
+                    ]} />
+                );
+
             default:
                 return null;
         }
@@ -737,8 +905,16 @@ const ChatBackgroundEffects: React.FC<ChatBackgroundEffectsProps> = ({
                 case 'hearts':
                 case 'bubbles':
                 case 'butterflies':
+                case 'balloons':
+                case 'music':
                     // Start from bottom, staggered to ensure continuous flow
                     startY = SCREEN_HEIGHT + (i * (SCREEN_HEIGHT / count));
+                    break;
+                case 'fireworks':
+                case 'sunlight':
+                    // Random positions
+                    startY = Math.random() * SCREEN_HEIGHT;
+                    startX = Math.random() * SCREEN_WIDTH;
                     break;
                 case 'snow':
                 case 'confetti':
@@ -793,6 +969,10 @@ const getParticleCount = (effect: EffectType): number => {
         case 'butterflies': return 15;
         case 'neon': return 25;
         case 'galaxy': return 50;
+        case 'balloons': return 15;
+        case 'fireworks': return 10;
+        case 'music': return 20;
+        case 'sunlight': return 5;
         default: return 0;
     }
 };
@@ -812,6 +992,10 @@ const getParticleSize = (effect: EffectType): number => {
         case 'butterflies': return 24 + Math.random() * 16;
         case 'neon': return 10 + Math.random() * 15;
         case 'galaxy': return 4 + Math.random() * 8;
+        case 'balloons': return 30 + Math.random() * 20;
+        case 'fireworks': return 4 + Math.random() * 6;
+        case 'music': return 20 + Math.random() * 10;
+        case 'sunlight': return 1; // Not used for sunlight
         default: return 10;
     }
 };
@@ -831,6 +1015,10 @@ const getDuration = (effect: EffectType): number => {
         case 'butterflies': return 8000 + Math.random() * 4000;
         case 'neon': return 2000 + Math.random() * 1500;
         case 'galaxy': return 4000 + Math.random() * 3000;
+        case 'balloons': return 7000 + Math.random() * 3000;
+        case 'fireworks': return 2000 + Math.random() * 1000;
+        case 'music': return 5000 + Math.random() * 2000;
+        case 'sunlight': return 4000 + Math.random() * 2000;
         default: return 3000;
     }
 };

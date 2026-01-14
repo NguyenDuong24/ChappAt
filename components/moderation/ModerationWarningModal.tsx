@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Modal, Button } from 'react-native-paper';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
@@ -94,7 +95,7 @@ const ModerationWarningModal: React.FC<ModerationWarningModalProps> = ({
           </View>
         )}
 
-        {imageDetails && (
+        {imageDetails && violationType !== 'image' && (
           <View style={styles.imageDetailsContainer}>
             <Text style={styles.imageDetailsTitle}>📸 Thông tin ảnh bị chặn:</Text>
             <View style={styles.imageInfoRow}>
@@ -128,11 +129,13 @@ const ModerationWarningModal: React.FC<ModerationWarningModalProps> = ({
         {violationType === 'image' && imageDetails && (
           <View style={styles.imageDetailsContainer}>
             <Text style={styles.imageDetailsTitle}>Thông tin ảnh bị chặn:</Text>
-            <Image
-              source={{ uri: imageDetails.imageUri }}
-              style={styles.imagePreview}
-              resizeMode="cover"
-            />
+            {imageDetails.imageUri && (
+              <Image
+                source={{ uri: imageDetails.imageUri }}
+                style={styles.imagePreview}
+                contentFit="cover"
+              />
+            )}
             <Text style={styles.imageDetailsText}>
               • Độ tin cậy: {imageDetails.confidence}%{'\n'}
               • Lý do: {imageDetails.reason}
@@ -336,22 +339,21 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   blockedImageText: {
-    fontSize: 11,
-    color: '#ad1457',
+    fontSize: 12,
+    color: '#c2185b',
     textAlign: 'center',
-    marginTop: 6,
-    fontStyle: 'italic',
+    marginTop: 8,
   },
   imagePreview: {
     width: '100%',
-    height: 200,
+    height: 150,
     borderRadius: 8,
     marginBottom: 8,
   },
   imageDetailsText: {
     fontSize: 13,
-    color: '#ad1457',
-    lineHeight: 20,
+    color: '#880e4f',
+    lineHeight: 18,
   },
 });
 

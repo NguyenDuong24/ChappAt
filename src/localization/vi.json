@@ -20,6 +20,9 @@
         "ok": "OK",
         "you": "Bạn",
         "locale": "vi",
+        "vip_required_title": "Yêu cầu VIP",
+        "vip_required_message": "Tính năng này chỉ dành cho thành viên VIP. Vui lòng nâng cấp để sử dụng!",
+        "upgrade": "Nâng cấp",
         "time": {
             "just_now": "Vừa xong",
             "minutes_ago": "{{count}} phút trước",
@@ -47,6 +50,7 @@
         "age_subtitle": "Bạn phải ít nhất {{minAge}} tuổi để sử dụng ứng dụng",
         "age_error_future": "Vui lòng chọn một ngày trong quá khứ",
         "age_error_min": "Bạn phải ít nhất {{minAge}} tuổi để sử dụng ứng dụng",
+        "age_error_max": "Bạn phải dưới {{maxAge}} tuổi để sử dụng ứng dụng",
         "icon_title": "Chọn ảnh đại diện",
         "password_title": "Tạo mật khẩu",
         "password_subtitle": "Mật khẩu phải có ít nhất 6 ký tự",
@@ -78,6 +82,8 @@
         "age_from": "Từ",
         "age_to": "Đến",
         "distance": "Khoảng cách: {{distance}} km",
+        "distance_title": "Khoảng cách",
+        "summary_distance": "Khoảng cách: {{distance}} km",
         "height": "Chiều cao: {{min}}cm - {{max}}cm",
         "online_only": "Chỉ hiển thị người đang online",
         "education": "Trình độ học vấn",
@@ -204,10 +210,17 @@
         "interests": "Sở thích của tôi",
         "bio_placeholder": "Giới thiệu về bản thân bạn...",
         "bio_empty": "Nhấn chỉnh sửa để thêm giới thiệu",
-        "uid_copied": "Đã sao chép UID vào bộ nhớ tạm"
+        "uid_copied": "Đã sao chép UID vào bộ nhớ tạm",
+        "visitors": "Người ghé thăm",
+        "who_viewed": "Ai đã xem bạn",
+        "no_visitors": "Chưa có ai ghé thăm profile của bạn",
+        "unlock_visitors": "Mở khóa người ghé thăm",
+        "unlock_visitors_desc": "Mua gói VIP để xem ai đã ghé thăm profile của bạn"
     },
     "wallet": {
-        "title": "Ví Xu",
+        "title": "Ví của tôi",
+        "coins": "Coin",
+        "banhMi": "Bánh mì",
         "balance": "Số dư của bạn",
         "topup": "Nạp tiền",
         "spend": "Chi tiêu",
@@ -244,7 +257,69 @@
         "purchased_on": "Đã mua vào",
         "use": "Sử dụng",
         "item_active_desc": "Vật phẩm \"{{name}}\" đang được kích hoạt!",
-        "expires_at": "Hết hạn vào"
+        "expires_at": "Hết hạn vào",
+        "frame_already_equipped": "Khung này đang được sử dụng",
+        "unequip": "Gỡ bỏ",
+        "unequip_success": "Đã gỡ bỏ khung thành công",
+        "equip_success": "Đã áp dụng khung thành công",
+        "active": "Đang dùng",
+        "equip": "Áp dụng",
+        "avatar_frames": "Khung Avatar",
+        "boosts": "Tăng tốc",
+        "items": {
+            "vip_1m": {
+                "name": "VIP 1 Tháng",
+                "description": "Mở khóa tính năng cao cấp trong 30 ngày. Xem ai thích bạn, vuốt không giới hạn và hơn thế nữa!"
+            },
+            "vip_3m": {
+                "name": "VIP 3 Tháng",
+                "description": "Tiết kiệm 20% với gói 3 tháng. Giá trị tốt nhất cho người dùng mới."
+            },
+            "vip_1y": {
+                "name": "VIP 1 Năm",
+                "description": "Trải nghiệm VIP đỉnh cao trong cả năm. Tiết kiệm 33%!"
+            },
+            "boost_profile": {
+                "name": "Tăng tốc hồ sơ",
+                "description": "Đưa hồ sơ lên đầu khu vực của bạn trong 30 phút. Nhận thêm tới 10 lần lượt xem!"
+            },
+            "super_like_pack": {
+                "name": "5 Siêu Thích",
+                "description": "Nổi bật giữa đám đông. Siêu Thích cho họ biết bạn thực sự quan tâm."
+            },
+            "frame_gold": {
+                "name": "Khung Vàng",
+                "description": "Khung vàng sang trọng cho avatar của bạn. Thể hiện đẳng cấp VIP!"
+            },
+            "frame_silver": {
+                "name": "Khung Bạc",
+                "description": "Khung bạc thanh lịch thêm phần đẳng cấp cho hồ sơ của bạn."
+            },
+            "frame_diamond": {
+                "name": "Khung Kim Cương",
+                "description": "Khung đính kim cương độc quyền với hiệu ứng lấp lánh. Cực hiếm!"
+            },
+            "frame_rainbow": {
+                "name": "Khung Cầu Vồng",
+                "description": "Khung cầu vồng hoạt hình đầy màu sắc rực rỡ."
+            },
+            "frame_fire": {
+                "name": "Khung Lửa",
+                "description": "Khung hiệu ứng lửa cháy rực rỡ với ngọn lửa hoạt hình. Cực hot!"
+            },
+            "frame_neon": {
+                "name": "Khung Neon",
+                "description": "Khung neon phát sáng với hiệu ứng ánh sáng nhấp nháy."
+            },
+            "frame_heart": {
+                "name": "Khung Trái Tim",
+                "description": "Khung hình trái tim lãng mạn hoàn hảo để thể hiện tình yêu."
+            },
+            "frame_star": {
+                "name": "Khung Ngôi Sao",
+                "description": "Khung ngôi sao tỏa sáng giúp bạn nổi bật giữa đám đông."
+            }
+        }
     },
     "settings": {
         "title": "Cài đặt",

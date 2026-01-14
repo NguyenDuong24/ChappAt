@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Image,
   Modal,
   TouchableOpacity,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   ScrollView,
   SafeAreaView
 } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -85,17 +85,18 @@ const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
                   console.log('Rendering image in modal:', index, imageUri);
                   return (
                     <View key={index} style={styles.imageWrapper}>
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         style={styles.gestureContainer}
                         activeOpacity={1}
-                        onPress={() => {}}
+                        onPress={() => { }}
                       >
                         <Image
                           source={{ uri: imageUri }}
                           style={styles.image}
-                          resizeMode="contain"
+                          contentFit="contain"
+                          transition={200}
                           onLoad={() => console.log('Modal image loaded:', index)}
-                          onError={(error) => console.log('Modal image error:', index, error.nativeEvent)}
+                          onError={(error) => console.log('Modal image error:', index, error)}
                         />
                       </TouchableOpacity>
                     </View>

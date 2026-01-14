@@ -1,4 +1,4 @@
-import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import React, { useEffect, useState, useContext, useCallback, memo, useMemo, useRef } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
@@ -16,9 +16,11 @@ import {
 } from 'firebase/firestore';
 import ChatItem from './ChatItem';
 import { db } from '@/firebaseConfig';
+import { useRefresh } from '@/context/RefreshContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { roomsService } from '@/services/roomsService';
 
 // Constants
 const ITEM_HEIGHT = 72;
@@ -32,7 +34,11 @@ const MemoizedChatItem = memo(ChatItem, (prevProps, nextProps) => {
         prevProps.lastMessage?.text === nextProps.lastMessage?.text &&
         prevProps.lastMessage?.createdAt?.seconds === nextProps.lastMessage?.createdAt?.seconds &&
         prevProps.unreadCount === nextProps.unreadCount &&
-        prevProps.noBorder === nextProps.noBorder
+        prevProps.noBorder === nextProps.noBorder &&
+        prevProps.isPinned === nextProps.isPinned &&
+        prevProps.roomType === nextProps.roomType &&
+        prevProps.eventId === nextProps.eventId &&
+        prevProps.item?.activeFrame === nextProps.item?.activeFrame
     );
 });
 
@@ -70,9 +76,30 @@ const isValidChat = (chat: any): boolean => {
     }
 
     if (!chat.lastMessage) return false;
-    const hasText = chat.lastMessage.text?.trim().length > 0;
     const hasCreatedAt = chat.lastMessage.createdAt;
-    return hasText && hasCreatedAt;
+    if (!hasCreatedAt) return false;
+
+    const hasText = chat.lastMessage.text?.trim().length > 0;
+    const hasImage = !!chat.lastMessage.imageUrl;
+    const hasAudio = chat.lastMessage.type === 'audio' || !!chat.lastMessage.audioUrl;
+    const hasFile = !!chat.lastMessage.fileUrl;
+
+    return hasText || hasImage || hasAudio || hasFile;
+};
+
+const sortChats = (chats: any[], pinnedIds: string[] = []) => {
+    return chats.sort((a, b) => {
+        const isPinnedA = pinnedIds.includes(a.chatRoomId);
+        const isPinnedB = pinnedIds.includes(b.chatRoomId);
+
+        if (isPinnedA !== isPinnedB) {
+            return isPinnedA ? -1 : 1;
+        }
+
+        const timeA = a?.lastMessage?.createdAt?.seconds || a?.updatedAt?.seconds || 0;
+        const timeB = b?.lastMessage?.createdAt?.seconds || b?.updatedAt?.seconds || 0;
+        return timeB - timeA;
+    });
 };
 
 const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () => void }) => {
@@ -134,14 +161,20 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                     if (!otherUserId) return null;
 
                     // Embed user info directly in room (nếu có)
-                    let userData = roomData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown', profileUrl: null };
+                    let userData = roomData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown', profileUrl: null, activeFrame: null };
 
                     // Fallback: fetch if not embedded
                     if (userData.username === 'Unknown') {
                         try {
                             const userSnap = await getDoc(doc(db, 'users', otherUserId));
                             if (userSnap.exists()) {
-                                userData = { id: otherUserId, ...userSnap.data() };
+                                const data = userSnap.data();
+                                userData = {
+                                    id: otherUserId,
+                                    username: data.username,
+                                    profileUrl: data.profileUrl,
+                                    activeFrame: data.activeFrame
+                                };
                             }
                         } catch (e) {
                             console.warn('Error fetching user:', e);
@@ -157,7 +190,9 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                         user: userData,
                         lastMessage: roomData.lastMessage,
                         unreadCount: roomData.unreadCounts?.[currenUser.uid] || 0,
-                        updatedAt: roomData.updatedAt
+                        updatedAt: roomData.updatedAt,
+                        type: roomData.type,
+                        eventId: roomData.eventId
                     };
                 })
             );
@@ -188,13 +223,19 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                     const otherUserId = chatData.participants?.find((id: string) => id !== currenUser.uid);
                     if (!otherUserId) return null;
 
-                    let userData = chatData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown' };
+                    let userData = chatData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown', profileUrl: null, activeFrame: null };
 
                     if (userData.username === 'Unknown') {
                         try {
                             const userSnap = await getDoc(doc(db, 'users', otherUserId));
                             if (userSnap.exists()) {
-                                userData = { id: otherUserId, ...userSnap.data() };
+                                const data = userSnap.data();
+                                userData = {
+                                    id: otherUserId,
+                                    username: data.username,
+                                    profileUrl: data.profileUrl,
+                                    activeFrame: data.activeFrame
+                                };
                             }
                         } catch (e) { }
                     }
@@ -221,12 +262,8 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
             // Combine and filter
             const allChats = [...roomChats, ...hotspotChats].filter(c => c !== null && isValidChat(c));
 
-            // Sort by time
-            allChats.sort((a, b) => {
-                const timeA = a.lastMessage?.createdAt?.seconds || a.updatedAt?.seconds || 0;
-                const timeB = b.lastMessage?.createdAt?.seconds || b.updatedAt?.seconds || 0;
-                return timeB - timeA;
-            });
+            // Sort by time and pin
+            sortChats(allChats, currenUser?.pinnedChatIds);
 
             setSortedChats(allChats);
             setHasMore(roomsSnapshot.docs.length === INITIAL_LOAD_LIMIT || hotSpotsSnapshot.docs.length === INITIAL_LOAD_LIMIT);
@@ -269,17 +306,15 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                                     ...updated[idx],
                                     lastMessage: roomData.lastMessage,
                                     unreadCount: roomData.unreadCounts?.[currenUser.uid] || 0,
-                                    updatedAt: roomData.updatedAt
+                                    updatedAt: roomData.updatedAt,
+                                    type: roomData.type,
+                                    eventId: roomData.eventId
                                 };
                             }
                         });
 
                         // Re-sort
-                        updated.sort((a, b) => {
-                            const timeA = a.lastMessage?.createdAt?.seconds || a.updatedAt?.seconds || 0;
-                            const timeB = b.lastMessage?.createdAt?.seconds || b.updatedAt?.seconds || 0;
-                            return timeB - timeA;
-                        });
+                        sortChats(updated, currenUser?.pinnedChatIds);
 
                         return updated;
                     });
@@ -321,11 +356,8 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                             }
                         });
 
-                        updated.sort((a, b) => {
-                            const timeA = a.lastMessage?.createdAt?.seconds || a.updatedAt?.seconds || 0;
-                            const timeB = b.lastMessage?.createdAt?.seconds || b.updatedAt?.seconds || 0;
-                            return timeB - timeA;
-                        });
+                        // Re-sort
+                        sortChats(updated, currenUser?.pinnedChatIds);
 
                         return updated;
                     });
@@ -385,7 +417,9 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                             user: userData,
                             lastMessage: roomData.lastMessage,
                             unreadCount: roomData.unreadCounts?.[currenUser.uid] || 0,
-                            updatedAt: roomData.updatedAt
+                            updatedAt: roomData.updatedAt,
+                            type: roomData.type,
+                            eventId: roomData.eventId
                         };
                     })
                 );
@@ -460,11 +494,8 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
             } else {
                 setSortedChats(prev => {
                     const combined = [...prev, ...validChats];
-                    combined.sort((a, b) => {
-                        const timeA = a.lastMessage?.createdAt?.seconds || a.updatedAt?.seconds || 0;
-                        const timeB = b.lastMessage?.createdAt?.seconds || b.updatedAt?.seconds || 0;
-                        return timeB - timeA;
-                    });
+                    // Sort by time and pin
+                    sortChats(combined, currenUser?.pinnedChatIds);
                     return combined;
                 });
             }
@@ -492,6 +523,70 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
         setRefreshing(false);
     }, [onRefresh, loadInitialChats]);
 
+    const { registerRefreshHandler } = useRefresh();
+
+    useEffect(() => {
+        if (registerRefreshHandler) {
+            registerRefreshHandler('chat', handleRefresh);
+        }
+    }, [registerRefreshHandler, handleRefresh]);
+
+    // Re-sort when pinned chats change
+    useEffect(() => {
+        setSortedChats(prev => {
+            const newChats = [...prev];
+            return sortChats(newChats, currenUser?.pinnedChatIds || []);
+        });
+    }, [currenUser?.pinnedChatIds]);
+
+    const handleLongPress = useCallback((item: any) => {
+        const isPinned = currenUser?.pinnedChatIds?.includes(item.chatRoomId);
+        Alert.alert(
+            "Tùy chọn",
+            "Chọn hành động cho cuộc trò chuyện này",
+            [
+                {
+                    text: "Huỷ",
+                    style: "cancel"
+                },
+                {
+                    text: isPinned ? "Bỏ ghim" : "Ghim lên đầu",
+                    onPress: async () => {
+                        try {
+                            if (item.chatRoomId && currenUser?.uid) {
+                                if (isPinned) {
+                                    await roomsService.unpinChat(currenUser.uid, item.chatRoomId);
+                                } else {
+                                    await roomsService.pinChat(currenUser.uid, item.chatRoomId);
+                                }
+                            }
+                        } catch (error) {
+                            console.error("Failed to pin/unpin chat:", error);
+                            Alert.alert("Lỗi", "Không thể thực hiện hành động. Vui lòng thử lại.");
+                        }
+                    }
+                },
+                {
+                    text: "Xoá",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            if (item.chatType === 'regular' && item.chatRoomId && currenUser?.uid) {
+                                await roomsService.deleteChat(item.chatRoomId, currenUser.uid);
+                            } else {
+                                // Handle hotspot or other types if needed
+                                console.warn("Delete not implemented for this chat type or missing data");
+                            }
+                        } catch (error) {
+                            console.error("Failed to delete chat:", error);
+                            Alert.alert("Lỗi", "Không thể xoá cuộc trò chuyện. Vui lòng thử lại.");
+                        }
+                    }
+                }
+            ]
+        );
+    }, [currenUser?.uid, currenUser?.pinnedChatIds]);
+
     const keyExtractor = useCallback((item: any) => item.id, []);
 
     const renderItem = useCallback(({ item, index }: { item: any; index: number }) => (
@@ -504,8 +599,12 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
             hotSpotId={item.hotSpotId}
             lastMessage={item.lastMessage}
             unreadCount={item.unreadCount}
+            onLongPress={() => handleLongPress(item)}
+            isPinned={currenUser?.pinnedChatIds?.includes(item.chatRoomId)}
+            roomType={item.type}
+            eventId={item.eventId}
         />
-    ), [currenUser, sortedChats.length]);
+    ), [currenUser, sortedChats.length, handleLongPress]);
 
     const getItemLayout = useCallback((data: any, index: number) => ({
         length: ITEM_HEIGHT,

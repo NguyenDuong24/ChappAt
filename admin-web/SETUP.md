@@ -1,99 +1,120 @@
-# Admin Web Setup Guide
+# Admin Web - Setup Instructions
 
-## Bước 1: Tạo Admin User
+## Prerequisites
+1. Admin user must be created in Firebase Authentication
+2. Admin custom claim must be set on that user
+3. Server must be running with admin routes enabled
 
-Có 2 cách để tạo admin user:
+## Setup Steps
 
-### Cách 1: Dùng Firebase Console (Khuyến nghị - Đơn giản nhất)
+### 1. Create Admin User
 
-1. Mở [Firebase Console](https://console.firebase.google.com/)
-2. Chọn project: **dating-app-1bb49**
-3. Vào **Authentication** > **Users**
-4. Click **Add User**
-5. Nhập:
-   - Email: `admin@chappat.com`
-   - Password: `Admin@123` (hoặc password bạn muốn)
-6. Click **Add User**
+First, create an admin user in Firebase Console:
+- Navigate to: https://console.firebase.google.com/project/dating-app-1bb49/authentication/users
+- Click "Add user"
+- Email: `admin@chappat.com`
+- Password: `Admin@123`
+- Click "Add user"
 
-### Cách 2: Dùng Script (Cần Service Account Key)
+### 2. Set Admin Custom Claim
 
-1. Download Service Account Key:
-   - Vào Firebase Console > Project Settings > Service Accounts
-   - Click "Generate new private key"
-   - Lưu file JSON vào thư mục admin-web
-   
-2. Cài firebase-admin:
-   ```bash
-   npm install firebase-admin
-   ```
+In the `saigondating-server` directory, run:
 
-3. Chỉnh sửa `create-admin.js` để trỏ đến service account key file
-
-4. Chạy script:
-   ```bash
-   node create-admin.js
-   ```
-
-## Bước 2: Kiểm tra Firestore Rules
-
-Đảm bảo Firestore rules cho phép đọc collection `flagged_content`:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Admin users (authenticated) có thể đọc flagged_content
-    match /flagged_content/{document} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null;
-    }
-  }
-}
+```bash
+cd saigondating-server
+node set-admin-claim.js admin@chappat.com
 ```
 
-## Bước 3: Login vào Admin Web
+You should see:
+```
+✅ Admin claim set successfully for admin@chappat.com
+⚠️  Note: The user must sign out and sign in again for the claim to take effect.
+```
 
-1. Chạy admin web:
-   ```bash
-   npm run dev
-   ```
+### 3. Configure Environment
 
-2. Mở browser: http://localhost:3001
+Create `.env` file in `admin-web` directory:
 
-3. Login với:
-   - Email: `admin@chappat.com`
-   - Password: `Admin@123` (hoặc password bạn đã tạo)
+```env
+VITE_API_URL=http://localhost:3000/api
+```
 
-## Bước 4: Kiểm tra Flagged Content
+For production:
+```env
+VITE_API_URL=https://saigondating-server.onrender.com/api
+```
 
-Sau khi login, navigate đến **Flagged Content** page để xem danh sách nội dung bị flag.
+### 4. Install Dependencies
+
+```bash
+cd admin-web
+npm install
+```
+
+### 5. Start Development Server
+
+```bash
+npm run dev
+```
+
+The admin web will be available at: http://localhost:5173 (or whatever port Vite assigns)
+
+### 6. Login
+
+- Navigate to http://localhost:5173
+- Login with:
+  - Email: `admin@chappat.com`
+  - Password: `Admin@123`
+- You should be redirected to the dashboard
+- Click on "💰 Wallet" in the sidebar to view wallet statistics
+
+## Testing Admin Features
+
+### Test Wallet Overview
+1. Navigate to "💰 Wallet"
+2. Should see:
+   - Total coins
+   - Total bánh mì
+   - Active users
+   - Daily/weekly transaction counts
+3. Stats should auto-refresh every 30 seconds
+
+### Test Admin Authorization
+1. Try accessing `/api/admin/wallet/stats` directly in browser (should fail with 401)
+2. Login to admin web
+3. Open browser DevTools > Network tab
+4. Navigate to Wallet page
+5. Verify requests include `Authorization: Bearer <token>` header
 
 ## Troubleshooting
 
-### Không thấy data trong Flagged Content?
+### "Admin privileges required" error
+- Ensure admin custom claim is set: `node set-admin-claim.js admin@chappat.com`
+- Sign out and sign in again
+- Check token claims in browser console:
+  ```javascript
+  firebase.auth().currentUser.getIdTokenResult().then(r => console.log(r.claims))
+  ```
 
-1. Mở Browser Console (F12) và check logs
-2. Xem có message "Flagged items loaded: []" không
-3. Kiểm tra Firebase Console > Firestore > flagged_content collection có data không
-4. Kiểm tra Firestore Rules có cho phép read không
+### "Authentication required" error
+- Ensure you're logged in
+- Check Firebase Authentication in browser console
+- Clear localStorage and try again
 
-### Login bị lỗi "invalid-credential"?
+### API connection errors
+- Ensure server is running: `cd saigondating-server && npm run dev`
+- Check `VITE_API_URL` in `.env` matches server URL
+- Verify CORS is enabled on server
 
-1. Kiểm tra email/password đã đúng chưa
-2. Kiểm tra user đã được tạo trong Firebase Authentication chưa
-3. Thử reset password trong Firebase Console nếu cần
+### Stats not loading
+- Check server logs for errors
+- Verify Firebase service account credentials are set in server `.env`
+- Test endpoint directly: `curl http://localhost:3000/api/admin/wallet/stats -H "Authorization: Bearer <token>"`
 
-### Không load được ảnh?
+## Next Steps
 
-1. Kiểm tra Storage Rules
-2. Kiểm tra imageUrl trong Firestore có valid không
-3. Kiểm tra CORS settings của Firebase Storage
-
-## Default Admin Credentials
-
-```
-Email: admin@chappat.com
-Password: Admin@123
-```
-
-**⚠️ Lưu ý: Đổi password sau khi login lần đầu!**
+After wallet overview is working, you can:
+1. Add transaction history page
+2. Add user wallet detail modal
+3. Implement manual balance adjustment
+4. Add gift/shop management pages

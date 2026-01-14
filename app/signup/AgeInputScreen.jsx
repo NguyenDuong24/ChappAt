@@ -1,75 +1,53 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ImageBackground, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert, Platform } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '@/constants/Colors';
-import { convertToAge } from '../../utils/common';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import ProgressIndicator from '@/components/signup/ProgressIndicator';
 import { useTranslation } from 'react-i18next';
 
-const MIN_AGE = 18;
-
 const AgeInputScreen = () => {
   const { t } = useTranslation();
-  const { setAge, cancelRegistration, signupType } = useAuth();
+  const { setAge: setAuthAge, cancelRegistration, signupType } = useAuth();
   const router = useRouter();
   const logoUrl = useLogoState();
-
-  const [date, setDate] = useState(new Date());
-  const [showPicker, setShowPicker] = useState(false);
-  const [formattedDate, setFormattedDate] = useState('dd/mm/yyyy');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [date, setDate] = useState(new Date(2000, 0, 1));
+  const [show, setShow] = useState(false);
 
   // Dynamic step calculation
   const stepInfo = useMemo(() => {
     if (signupType === 'google') {
-      return { current: 3, total: 4 };
+      return { current: 1, total: 4 };
     }
-    return { current: 5, total: 6 };
+    return { current: 2, total: 6 };
   }, [signupType]);
 
-  const calculateAge = useCallback((birthDate) => {
-    const today = new Date();
-    let years = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      years--;
-    }
-    return years;
-  }, []);
-
-  const handleDateChange = useCallback((event, selectedDate) => {
+  const onChange = (event, selectedDate) => {
     const currentDate = selectedDate || date;
-    setShowPicker(false);
+    setShow(Platform.OS === 'ios');
     setDate(currentDate);
-    setFormattedDate(currentDate.toLocaleDateString('en-GB'));
-
-    const today = new Date();
-    if (currentDate > today) {
-      setErrorMessage(t('signup.age_error_future'));
-      setFormattedDate('dd/mm/yyyy');
-    } else {
-      const userAge = calculateAge(currentDate);
-      if (userAge < MIN_AGE) {
-        setErrorMessage(t('signup.age_error_min', { minAge: MIN_AGE }));
-      } else {
-        setErrorMessage('');
-        setAge(currentDate);
-      }
-    }
-  }, [date, calculateAge, setAge, t]);
+  };
 
   const handleNext = useCallback(() => {
-    if (errorMessage === '' && date <= new Date()) {
-      const userAge = calculateAge(date);
-      if (userAge >= MIN_AGE) {
-        router.push('/signup/IconSelectionScreen');
-      }
+    const today = new Date();
+    let age = today.getFullYear() - date.getFullYear();
+    const m = today.getMonth() - date.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < date.getDate())) {
+      age--;
     }
-  }, [errorMessage, date, calculateAge, router]);
+
+    if (age < 18) {
+      Alert.alert(t('signup.age_limit_title'), t('signup.age_limit_message'));
+      return;
+    }
+
+    setAuthAge(date);
+    router.push('/signup/GenderSelectionScreen');
+  }, [date, router, setAuthAge, t]);
 
   const handleCancel = useCallback(() => {
     Alert.alert(
@@ -81,8 +59,6 @@ const AgeInputScreen = () => {
       ]
     );
   }, [cancelRegistration, t]);
-
-  const isButtonEnabled = formattedDate !== 'dd/mm/yyyy' && errorMessage === '';
 
   return (
     <ImageBackground
@@ -100,41 +76,27 @@ const AgeInputScreen = () => {
         />
 
         {logoUrl ? (
-          <Image source={{ uri: logoUrl }} style={styles.logo} />
+          <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
         ) : (
           <Text style={styles.loadingText}>{t('common.loading')}</Text>
         )}
         <Text style={styles.title}>{t('signup.age_title')}</Text>
-        <Text style={styles.subtitle}>{t('signup.age_subtitle', { minAge: MIN_AGE })}</Text>
-
-        <TouchableOpacity
-          style={styles.dateInput}
-          onPress={() => setShowPicker(true)}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.dateText}>
-            {formattedDate}
-          </Text>
+        <TouchableOpacity onPress={() => setShow(true)} style={styles.dateButton}>
+          <Text style={styles.dateButtonText}>{date.toLocaleDateString()}</Text>
         </TouchableOpacity>
-
-        {showPicker && (
+        {show && (
           <DateTimePicker
+            testID="dateTimePicker"
             value={date}
             mode="date"
             display="default"
-            onChange={handleDateChange}
+            onChange={onChange}
             maximumDate={new Date()}
           />
         )}
-
-        {errorMessage ? (
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        ) : null}
-
         <TouchableOpacity
-          style={[styles.nextButton, isButtonEnabled ? styles.enabledButton : styles.disabledButton]}
+          style={styles.nextButton}
           onPress={handleNext}
-          disabled={!isButtonEnabled}
           activeOpacity={0.85}
         >
           <Text style={styles.nextButtonText}>{t('common.next')}</Text>
@@ -147,7 +109,6 @@ const AgeInputScreen = () => {
     </ImageBackground>
   );
 };
-
 
 const styles = StyleSheet.create({
   background: {
@@ -166,68 +127,44 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
     marginBottom: 20,
   },
   loadingText: {
     fontSize: 18,
-    color: Colors.light.text,
+    color: 'white',
     marginBottom: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.white,
-    marginBottom: 8,
+    color: 'white',
+    marginBottom: 20,
   },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 24,
-  },
-  dateInput: {
-    backgroundColor: Colors.dark.cardBackground,
+  dateButton: {
+    width: '100%',
     paddingVertical: 15,
     paddingHorizontal: 20,
     borderRadius: 25,
-    marginVertical: 20,
-    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.dark.inputBorder,
   },
-  dateText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: Colors.primary,
-  },
-  errorText: {
-    color: Colors.error,
-    fontSize: 16,
-    marginVertical: 10,
+  dateButtonText: {
+    color: 'white',
+    fontSize: 18,
   },
   nextButton: {
+    backgroundColor: Colors.primary,
     paddingVertical: 15,
     paddingHorizontal: 30,
     borderRadius: 25,
     alignItems: 'center',
     width: '100%',
   },
-  enabledButton: {
-    backgroundColor: Colors.primary,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  disabledButton: {
-    backgroundColor: '#475569',
-  },
   nextButtonText: {
-    color: Colors.white,
+    color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
   },

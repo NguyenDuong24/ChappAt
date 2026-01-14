@@ -18,7 +18,7 @@ import { useAuth } from '@/context/authContext';
 import { useUserContext } from '@/context/UserContext';
 import { Colors } from '@/constants/Colors';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import PostCard from '@/components/profile/PostCardStandard';
+import PostCard from '@/components/profile/PostCard';
 import { db } from '@/firebaseConfig';
 import { collection, query as fsQuery, where, orderBy, limit as fsLimit, startAfter, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 
@@ -41,14 +41,13 @@ const HashtagScreen: React.FC = () => {
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const { user } = useAuth();
-  const { getUserInfo } = useUserContext();
+  const { getUserInfo, preloadUsers } = useUserContext();
   const router = useRouter();
   const params = useLocalSearchParams();
 
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userInfoCache, setUserInfoCache] = useState<{ [key: string]: any }>({});
   const [hasMore, setHasMore] = useState(true);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
 
@@ -108,16 +107,10 @@ const HashtagScreen: React.FC = () => {
       setLastDoc(nextLastDoc);
       setHasMore(snapshot.docs.length === limitCount);
 
-      // Preload user info (cache)
+      // Preload user info
       const userIds = [...new Set(newList.map(p => p.userID).filter(Boolean))];
-      const missing = userIds.filter(uid => !userInfoCache[uid]);
-      if (missing.length) {
-        const results = await Promise.all(missing.map(async uid => {
-          try { const info = await getUserInfo(uid); return { uid, info }; } catch { return { uid, info: null }; }
-        }));
-        const merged = { ...userInfoCache };
-        results.forEach(({ uid, info }) => { if (info) merged[uid] = info; });
-        setUserInfoCache(merged);
+      if (userIds.length > 0) {
+        preloadUsers(userIds);
       }
     } catch (error) {
       console.error('🔍 Error loading hashtag posts:', error);
@@ -145,39 +138,18 @@ const HashtagScreen: React.FC = () => {
 
   const handleDeletePost = () => {
     // Refresh posts after delete
-    loadPosts();
-  };
-
-  const addComment = async (postId: string, comment: any) => {
-    // Implement add comment functionality
-    console.log('Add comment:', postId, comment);
+    loadPosts(true);
   };
 
   const renderPostItem = ({ item: post }: { item: PostData }) => {
-    const userInfo = userInfoCache[post.userID];
     const isOwner = user?.uid === post.userID;
-
-    // Ensure required fields have default values and merge user info
-    const postWithDefaults = {
-      ...post,
-      likes: post.likes || [],
-      shares: post.shares || 0,
-      comments: post.comments || [],
-      username: userInfo?.username || post.username || 'Unknown User',
-      userAvatar: userInfo?.profileUrl || (post as any).userAvatar,
-    };
 
     return (
       <PostCard
-        post={postWithDefaults}
-        currentUserId={user?.uid || ''}
-        currentUserAvatar={user?.profileUrl}
+        post={post}
         onLike={handleLike}
-        onDelete={handleDeletePost}
-        onComment={(postId, comment) => addComment(postId, { text: comment })}
-        onShare={(postId) => console.log('Share post:', postId)}
-        isOwner={isOwner}
-        onUserPress={(userId) => router.push(`/(tabs)/profile/${userId}`)}
+        onDeletePost={handleDeletePost}
+        owner={isOwner}
       />
     );
   };

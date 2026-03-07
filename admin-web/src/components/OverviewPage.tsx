@@ -5,6 +5,7 @@ import {
     Report as ReportIcon,
     People as PeopleIcon,
     Message as MessageIcon,
+    LocalFireDepartment as HotSpotsIcon,
 } from '@mui/icons-material';
 import { collection, query, where, getCountFromServer } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -61,6 +62,7 @@ export default function OverviewPage() {
         reports: 0,
         totalUsers: 0,
         totalMessages: 0,
+        totalHotspots: 0,
     });
 
     useEffect(() => {
@@ -78,11 +80,19 @@ export default function OverviewPage() {
                 const usersQuery = query(collection(db, 'users'));
                 const usersSnapshot = await getCountFromServer(usersQuery);
 
+                // Fetch hotspots count (checking both collections)
+                const hotspotsQuery1 = query(collection(db, 'hotspots'));
+                const hotspotsSnapshot1 = await getCountFromServer(hotspotsQuery1);
+
+                const hotspotsQuery2 = query(collection(db, 'hotSpots'));
+                const hotspotsSnapshot2 = await getCountFromServer(hotspotsQuery2);
+
                 setStats({
                     flaggedContent: flaggedSnapshot.data().count,
                     reports: reportsSnapshot.data().count,
                     totalUsers: usersSnapshot.data().count,
-                    totalMessages: 0, // Would need to aggregate from all rooms
+                    totalMessages: 0,
+                    totalHotspots: hotspotsSnapshot1.data().count + hotspotsSnapshot2.data().count,
                 });
             } catch (error) {
                 console.error('Error fetching stats:', error);
@@ -129,6 +139,14 @@ export default function OverviewPage() {
                         value={stats.totalMessages}
                         icon={<MessageIcon fontSize="large" />}
                         color="#2196f3"
+                    />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <StatCard
+                        title="HotSpots"
+                        value={stats.totalHotspots}
+                        icon={<HotSpotsIcon fontSize="large" />}
+                        color="#ff5722"
                     />
                 </Grid>
             </Grid>

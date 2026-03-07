@@ -1,6 +1,5 @@
-import React, { useContext, useEffect, useRef, useState, useMemo } from 'react';
-import { Tabs, router, useSegments } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
+import React, { useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { router, useSegments } from 'expo-router';
 import {
   Text,
   StyleSheet,
@@ -10,1074 +9,348 @@ import {
   TouchableOpacity,
   Animated,
   Platform,
-  ActivityIndicator,
+  InteractionManager,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { ThemeContext } from '../../../context/ThemeContext';
-import { ExploreHeaderProvider } from '../../../context/ExploreHeaderContext';
-import { Link } from 'expo-router';
-import useExploreData, { formatCount } from '../../../hooks/useExploreData';
+import { ExploreHeaderProvider, HEADER_HEIGHT, SCROLL_DISTANCE } from '../../../context/ExploreHeaderContext';
+import useExploreData from '../../../hooks/useExploreData';
 import NotificationBadge from '../../../components/common/NotificationBadge';
-import { ExploreProvider } from '../../../context/ExploreContext';
-import { useExploreState, useExploreActions } from '../../../context/ExploreContext';
+import { ExploreProvider, useExploreActions } from '../../../context/ExploreContext';
 import { Colors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
-import { useRefresh } from '../../../context/RefreshContext';
 
-const { width, height } = Dimensions.get('window');
+// Import Screens
+import Tab1Screen from './tab1';
+import Tab2Screen from './tab2';
+import Tab3Screen from './tab3';
 
-const SCROLL_DISTANCE = Platform.OS === 'ios' ? 280 - 70 : 260 - 60;
+const { width } = Dimensions.get('window');
+const TAB_WIDTH = 80; // Safer width for all devices
+const TAB_HEIGHT = 40;
+const TAB_PADDING = 4;
+const TAB_GAP = 5; // Clearer separation
 
-const ICON_SIZE = 24;
+const ARTISTIC_GRADIENTS = [
+  ['#8E2DE2', '#4A00E0'],
+  ['#FF512F', '#DD2476'],
+  ['#00B4DB', '#0083B0'],
+  ['#11998e', '#38ef7d'],
+  ['#F093FB', '#F5576C'],
+  ['#4facfe', '#00f2fe'],
+  ['#fa709a', '#fee140'],
+];
 
-const BUTTON_STYLES = {
-  glass: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  glow: (color) => ({
-    shadowColor: color,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
-  }),
-};
+// 🚀 PREMIUM TACTILE BUTTON
+const ImpactButton = React.memo(({ children, onPress, style, glowColor }) => {
+  const scale = useRef(new Animated.Value(1)).current;
 
-const ICON_SHADOW = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.2,
-  shadowRadius: 4,
-  elevation: 4,
-};
+  const onPressIn = () => {
+    Animated.timing(scale, { toValue: 0.94, duration: 80, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+  };
+  const onPressOut = () => {
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 12 }).start();
+  };
 
-const TabButton = React.memo(({ tab, isActive, onPress, style, textStyle, inactiveStyle, activeGradientStyle }) => (
-  <TouchableOpacity
-    style={style}
-    onPress={onPress}
-    activeOpacity={0.8}
-  >
-    {isActive ? (
-      <LinearGradient
-        colors={tab.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={activeGradientStyle || styles.fabTabGradient}
+  return (
+    <TouchableOpacity onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={0.9} style={style}>
+      <Animated.View
+        renderToHardwareTextureAndroid={true}
+        style={[
+          { transform: [{ scale }], flex: 1, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+          glowColor ? { shadowColor: glowColor, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 } : {}
+        ]}
       >
+        {children}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+});
 
-        <Text style={textStyle}>{tab.label}</Text>
-      </LinearGradient>
-    ) : (
-      <View style={inactiveStyle}>
-        <Text style={[styles.fabTextInactive, { color: tab.inactiveColor }]}>{tab.label}</Text>
-      </View>
-    )}
-  </TouchableOpacity>
-));
+const TabButton = React.memo(({ label, isActive, onPress, inactiveColor }) => {
+  return (
+    <ImpactButton onPress={onPress} style={styles.headerTab}>
+      <Text style={[isActive ? styles.tabTextActive : styles.tabTextInactive, { color: isActive ? '#FFF' : inactiveColor }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </ImpactButton>
+  );
+});
 
 const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'dark';
   const colors = theme === 'dark' ? Colors.dark : Colors.light;
 
+  const toggleLanguage = useCallback(() => {
+    const nextLang = i18n.language.startsWith('vi') ? 'en' : 'vi';
+    i18n.changeLanguage(nextLang);
+  }, [i18n]);
+
   const segments = useSegments();
   const [activeTab, setActiveTab] = useState('index');
-  const isFocused = useIsFocused(); // Check if tab is focused
-
-  const {
-    notificationCount,
-    trendingHashtags,
-    loading,
-    error,
-    refresh: refreshData
-  } = useExploreData();
-
-  const { isRefreshing } = useExploreState();
-  const { refresh: refreshPosts } = useExploreActions();
-  const { registerRefreshHandler } = useRefresh();
+  const [mounted, setMounted] = useState({ index: true, tab2: false, tab3: false });
 
   useEffect(() => {
-    if (registerRefreshHandler) {
-      registerRefreshHandler('explore', () => {
-        const typeMap = {
-          'index': 'latest',
-          'tab2': 'trending',
-          'tab3': 'following'
-        };
-        refreshPosts(typeMap[activeTab] || activeTab);
-        refreshData();
-      });
-    }
-  }, [registerRefreshHandler, refreshPosts, refreshData, activeTab]);
-
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  useEffect(() => {
-    const id = scrollY.addListener(({ value }) => {
-      setIsCollapsed(value >= SCROLL_DISTANCE * 0.6);
-    });
-    return () => scrollY.removeListener(id);
-  }, [scrollY]);
-
-  const effectiveHeaderHeight = scrollY.interpolate({
-    inputRange: [0, SCROLL_DISTANCE],
-    outputRange: [Platform.OS === 'ios' ? 280 : 260, Platform.OS === 'ios' ? 70 : 60],
-    extrapolate: 'clamp',
-  });
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      })
-    ]).start();
+    const timer = setTimeout(() => setMounted({ index: true, tab2: true, tab3: true }), 450);
+    return () => clearTimeout(timer);
   }, []);
 
+  const tabRef1 = useRef(null);
+  const tabRef2 = useRef(null);
+  const tabRef3 = useRef(null);
+  const tabAnims = {
+    opacity1: useRef(new Animated.Value(1)).current, opacity2: useRef(new Animated.Value(0)).current, opacity3: useRef(new Animated.Value(0)).current,
+    transX1: useRef(new Animated.Value(0)).current, transX2: useRef(new Animated.Value(20)).current, transX3: useRef(new Animated.Value(20)).current,
+  };
+
+  const slidingAnim = useRef(new Animated.Value(0)).current;
+  const fabSlidingAnim = useRef(new Animated.Value(0)).current;
+
+  const { notificationCount, trendingHashtags, loading, refresh: refreshData } = useExploreData();
+  const { refresh: refreshPosts } = useExploreActions();
+
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  const tabDefs = useMemo(() => [
+    { key: 'index', label: t('social.latest') },
+    { key: 'tab2', label: t('social.trending') },
+    { key: 'tab3', label: t('social.follow') || 'Theo dõi' },
+  ], [t]);
+
+  const handleTabPress = useCallback((tabName, isSyncOnly = false) => {
+    const tabIndex = tabDefs.findIndex(t => t.key === tabName);
+    const currentIndex = tabDefs.findIndex(t => t.key === activeTab);
+    if (tabIndex === -1) return;
+
+    if (!isSyncOnly && activeTab === tabName) {
+      refreshPosts(tabName === 'index' ? 'latest' : tabName === 'tab2' ? 'trending' : 'following');
+      refreshData();
+      return;
+    }
+
+    const slideTo = tabIndex * (TAB_WIDTH + TAB_GAP);
+    const isForward = tabIndex > currentIndex;
+
+    // ⚡️ ZERO-LAG NATIVE SWITCH: Bypass React entirely for the visual change
+    // Using setNativeProps allows us to command the OS to change visibility & depth 
+    // even if the JS thread is 100% blocked by data loading.
+    const updateNativeTab = (ref, isTarget) => {
+      if (ref.current) {
+        ref.current.setNativeProps({
+          style: {
+            zIndex: isTarget ? 10 : 1,
+            // Force hardware acceleration during transition
+            renderToHardwareTextureAndroid: true,
+            shouldRasterizeIOS: true
+          },
+          pointerEvents: isTarget ? 'auto' : 'none'
+        });
+      }
+    };
+
+    updateNativeTab(tabRef1, tabName === 'index');
+    updateNativeTab(tabRef2, tabName === 'tab2');
+    updateNativeTab(tabRef3, tabName === 'tab3');
+
+    const springConfig = { damping: 22, stiffness: 140, mass: 1, useNativeDriver: true };
+    const fadeConfig = { duration: 180, easing: Easing.bezier(0.33, 1, 0.68, 1), useNativeDriver: true };
+
+    Animated.parallel([
+      Animated.spring(slidingAnim, { toValue: slideTo, ...springConfig }),
+      Animated.spring(fabSlidingAnim, { toValue: slideTo, ...springConfig }),
+      Animated.timing(tabAnims.opacity1, { ...fadeConfig, toValue: tabName === 'index' ? 1 : 0 }),
+      Animated.timing(tabAnims.opacity2, { ...fadeConfig, toValue: tabName === 'tab2' ? 1 : 0 }),
+      Animated.timing(tabAnims.opacity3, { ...fadeConfig, toValue: tabName === 'tab3' ? 1 : 0 }),
+      Animated.timing(tabAnims[`transX${currentIndex + 1}`], { toValue: isForward ? -25 : 25, ...fadeConfig }),
+      Animated.timing(tabAnims[`transX${tabIndex + 1}`], { toValue: 0, ...fadeConfig }),
+    ]).start();
+
+    setActiveTab(tabName);
+
+    // 💡 Separation of Concerns: Update UI state first, then navigate in the next tick
+    // This prevents the JS thread from being blocked by the router while trying to update the tab bar visuals.
+    if (!isSyncOnly) {
+      setTimeout(() => {
+        const routeName = tabName === 'index' ? '/(tabs)/explore' : `/(tabs)/explore/${tabName}`;
+        router.push(routeName);
+      }, 0);
+    }
+  }, [activeTab, tabDefs, tabAnims]);
+
   useEffect(() => {
-    const currentSegment = segments[segments.length - 1];
-    if (currentSegment === 'index' || currentSegment === 'tab2' || currentSegment === 'tab3') {
-      setActiveTab(currentSegment || 'index');
+    const lastSegment = segments[segments.length - 1] || 'index';
+    const newTab = (lastSegment === 'tab2' || lastSegment === 'tab3') ? lastSegment : 'index';
+    if (activeTab !== newTab) {
+      handleTabPress(newTab, true);
     }
   }, [segments]);
 
-  const handleTabPress = React.useCallback((tabName) => {
-    if (activeTab === tabName) {
-      // Refresh data if clicking on already active tab
-      const typeMap = {
-        'index': 'latest',
-        'tab2': 'trending',
-        'tab3': 'following'
-      };
-      refreshPosts(typeMap[tabName] || tabName);
-      refreshData();
-    }
-    setActiveTab(tabName);
-    if (tabName === 'index') {
-      router.push('/(tabs)/explore/');
-    } else {
-      router.push(`/(tabs)/explore/${tabName}`);
-    }
-  }, [activeTab, refreshPosts, refreshData]);
+  const headerTranslateY = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE], outputRange: [0, -SCROLL_DISTANCE], extrapolate: 'clamp' });
+  const headerOpacity = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE * 0.4, SCROLL_DISTANCE], outputRange: [1, 0.2, 0], extrapolate: 'clamp' });
+  const collapsedOpacity = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE * 0.7, SCROLL_DISTANCE], outputRange: [0, 0, 1], extrapolate: 'clamp' });
+  const fabOpacity = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE * 0.8, SCROLL_DISTANCE], outputRange: [0, 0, 1], extrapolate: 'clamp' });
+  const fabTranslateY = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE], outputRange: [120, 0], extrapolate: 'clamp' });
 
-  const tabs = useMemo(() => [
-    {
-      key: 'index',
-      label: t('social.latest'),
-      activeColor: colors.primary,
-      gradient: (colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c'],
-      inactiveColor: colors.mutedText,
-    },
-    {
-      key: 'tab2',
-      label: t('social.trending'),
-      activeColor: colors.error,
-      gradient: (colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c'],
-      inactiveColor: colors.mutedText,
-    },
-    {
-      key: 'tab3',
-      label: t('social.following'),
-      activeColor: colors.success,
-      gradient: (colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c'],
-      inactiveColor: colors.mutedText,
-    },
-  ], [colors, t]);
-
-  const gradients = useMemo(() => [
-    Array.isArray(colors.gradientBackground) ? colors.gradientBackground : ['#667eea', '#764ba2'],
-    ['#00c6fb', '#005bea'], // Blue gradient instead of white
-    Array.isArray(colors.gradientHotSpotsPrimary) ? colors.gradientHotSpotsPrimary : ['#FF6B35', '#F7931E'],
-    ['#43e97b', '#38f9d7'],
-  ], [colors, theme]);
-
-  const headerTranslateY = scrollY.interpolate({
-    inputRange: [0, SCROLL_DISTANCE],
-    outputRange: [0, -SCROLL_DISTANCE],
-    extrapolate: 'clamp',
-  });
-
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, SCROLL_DISTANCE * 0.5, SCROLL_DISTANCE],
-    outputRange: [1, 0.5, 0],
-    extrapolate: 'clamp',
-  });
-
-  const collapsedOpacity = scrollY.interpolate({
-    inputRange: [0, SCROLL_DISTANCE * 0.6, SCROLL_DISTANCE],
-    outputRange: [0, 0.3, 1],
-    extrapolate: 'clamp',
-  });
-
-  const iconScale = scrollY.interpolate({
-    inputRange: [0, SCROLL_DISTANCE],
-    outputRange: [1, 0.6],
-    extrapolate: 'clamp',
-  });
-
-  const fabOpacity = scrollY.interpolate({
-    inputRange: [0, SCROLL_DISTANCE * 0.5, SCROLL_DISTANCE],
-    outputRange: [0, 0.5, 1],
-    extrapolate: 'clamp',
-  });
-
-  const fabTranslateY = scrollY.interpolate({
-    inputRange: [0, SCROLL_DISTANCE],
-    outputRange: [200, 0],
-    extrapolate: 'clamp',
-  });
-
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: true }
-  );
+  const renderActionBtn = (icon, iconLib = MaterialIcons, color, glow, onPress, badge = 0) => {
+    const IconComponent = iconLib;
+    return (
+      <ImpactButton onPress={onPress} style={styles.actionBtn} glowColor={glow}>
+        <View style={[styles.notificationGlass, { borderColor: color + '40' }]}>
+          <View style={[styles.notificationInner, { backgroundColor: theme === 'dark' ? '#0f172a' : '#FFF' }]}>
+            <IconComponent name={icon} size={20} color={color} />
+            {badge > 0 && <NotificationBadge count={badge} size="small" backgroundColor={color} style={styles.headerBadge} />}
+          </View>
+        </View>
+      </ImpactButton>
+    );
+  };
 
   return (
-    <ExploreHeaderProvider value={{ scrollY, handleScroll, effectiveHeaderHeight }}>
+    <ExploreHeaderProvider value={{ scrollY, handleScroll: Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true }), effectiveHeaderHeight: HEADER_HEIGHT }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar
-          barStyle={theme === 'dark' ? 'light-content' : 'dark-content'}
-          backgroundColor="transparent"
-          translucent
-        />
+        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-        <Animated.View
-          style={[
-            styles.header,
-            {
-              opacity: fadeAnim,
-              transform: [
-                { scale: scaleAnim },
-                { translateY: headerTranslateY }
-              ]
-            }
-          ]}
-        >
-          <LinearGradient
-            colors={theme === 'dark'
-              ? ['#1a1a2e', '#16213e']
-              : ['#4facfe', '#00f2fe']
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          />
+        <Animated.View style={[styles.header, { transform: [{ translateY: headerTranslateY }] }]} pointerEvents="box-none">
+          <LinearGradient colors={theme === 'dark' ? ['#020617', '#1e293b'] : ['#f1f5f9', '#ffffff']} style={styles.headerGradient} />
 
-          <View
-            style={[
-              styles.glassOverlay,
-              {
-                backgroundColor: theme === 'dark' ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)'
-              }
-            ]}
-            pointerEvents="none"
-          />
-
-          <Animated.View
-            style={[
-              styles.collapsedHeader,
-              {
-                opacity: collapsedOpacity,
-                backgroundColor: colors.surface + '95'
-              }
-            ]}
-            pointerEvents={isCollapsed ? 'auto' : 'none'}
-          >
-            <View style={styles.collapsedContent}>
-              <Animated.View
-                style={{ transform: [{ scale: iconScale }] }}
-              >
-                <View style={styles.collapsedIcon}>
-                  <LinearGradient
-                    colors={colors.gradientBackground}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.collapsedIconGradient}
-                  >
-                    <MaterialIcons name="explore" size={ICON_SIZE} color={colors.headerText} />
-                  </LinearGradient>
-                </View>
-              </Animated.View>
-
-              <View style={styles.collapsedActions}>
-                <TouchableOpacity
-                  style={styles.collapsedActionBtn}
-                  onPress={() => router.push('/(screens)/social/NotificationsScreen')}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.notificationGlass}>
-                    <LinearGradient
-                      colors={(colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.notificationBorder}
-                    >
-                      <View style={[styles.collapsedActionInner, { backgroundColor: colors.cardBackground }]}>
-                        <MaterialIcons name="notifications" size={ICON_SIZE} color={colors.highlightText} />
-                      </View>
-                    </LinearGradient>
-                    <NotificationBadge
-                      count={notificationCount}
-                      size="small"
-                      backgroundColor={colors.highlightText}
-                      style={styles.collapsedBadge}
-                    />
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.collapsedActionBtn}
-                  onPress={() => router.push('/(screens)/hotspots/HotSpotsScreen')}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.notificationGlass}>
-                    <LinearGradient
-                      colors={['#ff7e5f', '#feb47b']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.notificationBorder}
-                    >
-                      <View style={[styles.collapsedActionInner, { backgroundColor: colors.cardBackground }]}>
-                        <MaterialIcons name="local-fire-department" size={ICON_SIZE} color={colors.hotSpotsIcon} />
-                      </View>
-                    </LinearGradient>
-                  </View>
-                </TouchableOpacity>
+          <Animated.View style={[styles.collapsedHeader, { opacity: collapsedOpacity, backgroundColor: theme === 'dark' ? '#0f172aF5' : '#ffffffF5' }]} pointerEvents="box-none">
+            <View style={styles.collapsedContent} pointerEvents="box-none">
+              <View style={[styles.collapsedIcon, { backgroundColor: colors.tint }]}>
+                <MaterialIcons name="explore" size={24} color="#FFF" />
+              </View>
+              <View style={styles.collapsedActions} pointerEvents="box-none">
+                {renderActionBtn('notifications', MaterialIcons, colors.tint, colors.tint, () => router.push('/(screens)/social/NotificationsScreen'), notificationCount)}
+                {renderActionBtn('fire', FontAwesome5, '#f97316', '#f97316', () => router.push('/(screens)/hotspots/HotSpotsScreen'))}
               </View>
             </View>
           </Animated.View>
 
-          <View style={styles.headerContent}>
-            <Animated.View
-              style={{ opacity: headerOpacity }}
-            >
-              <View style={styles.headerTop}>
-                <View style={styles.titleSection}>
-                  <View style={styles.headerTabsContainer}>
-                    {tabs.map((tab) => {
-                      const isActive = activeTab === tab.key;
-
-                      return (
-                        <TabButton
-                          key={tab.key}
-                          tab={tab}
-                          isActive={isActive}
-                          onPress={() => handleTabPress(tab.key)}
-                          style={styles.headerTab}
-                          textStyle={[styles.headerTabTextActive, { color: colors.headerText }]}
-                          inactiveStyle={[styles.headerTabInactive, { backgroundColor: colors.cardBackground + 'CC' }]}
-                          activeGradientStyle={styles.headerTabGradient}
-                        />
-                      );
-                    })}
-                  </View>
+          {useMemo(() => (
+            <Animated.View style={[styles.headerContent, { opacity: headerOpacity }]} pointerEvents="box-none">
+              <View style={styles.headerTop} pointerEvents="box-none">
+                <View style={styles.headerTabsContainer} pointerEvents="auto">
+                  <Animated.View style={[styles.slidingPill, { shadowColor: colors.tint, transform: [{ translateX: slidingAnim }] }]}>
+                    <LinearGradient colors={[colors.tint, '#a855f7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tabGradientFill} />
+                  </Animated.View>
+                  {tabDefs.map(tab => (
+                    <TabButton key={tab.key} label={tab.label} isActive={activeTab === tab.key} onPress={() => handleTabPress(tab.key)} inactiveColor={colors.mutedText} />
+                  ))}
                 </View>
-
-                <View style={styles.headerActions}>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => router.push('/(screens)/social/NotificationsScreen')}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.notificationGlass}>
-                      <LinearGradient
-                        colors={(colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.notificationBorder}
-                      >
-                        <View style={[styles.notificationInner, { backgroundColor: colors.cardBackground }]}>
-                          <MaterialIcons name="notifications" size={ICON_SIZE} color={colors.highlightText} />
-                        </View>
-                      </LinearGradient>
-                    </View>
-                    <NotificationBadge
-                      count={notificationCount}
-                      size="medium"
-                      backgroundColor={colors.highlightText}
-                    />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => router.push('/(screens)/hotspots/HotSpotsScreen')}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.notificationGlass}>
-                      <LinearGradient
-                        colors={['#ff7e5f', '#feb47b']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.notificationBorder}
-                      >
-                        <View style={[styles.notificationInner, { backgroundColor: colors.cardBackground }]}>
-                          <MaterialIcons name="local-fire-department" size={ICON_SIZE} color={colors.hotSpotsIcon} />
-                        </View>
-                      </LinearGradient>
-                    </View>
-                  </TouchableOpacity>
+                <View style={styles.headerActions} pointerEvents="auto">
+                  {renderActionBtn('notifications', MaterialIcons, colors.tint, colors.tint, () => router.push('/(screens)/social/NotificationsScreen'), notificationCount)}
+                  {renderActionBtn('fire', FontAwesome5, '#f97316', '#fb923c', () => router.push('/(screens)/hotspots/HotSpotsScreen'))}
                 </View>
               </View>
-            </Animated.View>
 
-            <Animated.View
-              style={{ opacity: headerOpacity }}
-            >
-              <View style={styles.trendingSection}>
+              <View style={styles.trendingSection} pointerEvents="auto">
                 <View style={styles.trendingHeaderCompact}>
-                  <Text style={[styles.trendingTitleCompact, { color: colors.text }]}>{t('social.trending_now', { defaultValue: 'Trending Now' })}</Text>
-                  <TouchableOpacity
-                    onPress={refreshData}
-                    activeOpacity={0.7}
-                    style={styles.refreshBtnCompact}
-                  >
-                    <MaterialIcons name="refresh" size={18} color={colors.subtleText} />
-                  </TouchableOpacity>
+                  <FontAwesome5 name="fire" size={16} color="#f97316" style={{ marginRight: 8 }} />
+                  <Text style={[styles.trendingTitleCompact, { color: colors.text }]}>{t('social.trending_now')}</Text>
                 </View>
-
-                {error && (
-                  <View style={styles.errorContainer}>
-                    <MaterialIcons name="error-outline" size={16} color={colors.error} />
-                    <Text style={[styles.errorText, { color: colors.error }]} numberOfLines={1}>
-                      {error.includes('storage/retry-limit-exceeded') ? 'Network timeout - tap to retry' : 'Tap to retry'}
-                    </Text>
-                  </View>
-                )}
-
-                <Animated.ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.hashtagScrollContent}
-                  style={styles.hashtagScrollView}
-                >
-                  {loading ? (
-                    [...Array(6)].map((_, i) => (
-                      <View
-                        key={i}
-                        style={[styles.hashtagSkeletonCompact, { backgroundColor: colors.cardBackground }]}
-                      />
-                    ))
-                  ) : (
-                    trendingHashtags.map((item, index) => {
-                      const displayTag = item.tag || '#hashtag';
-                      const cleanTag = displayTag.replace(/^#/, '').trim();
-                      const count = item.count || 0;
-
+                <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hashtagScrollContent}>
+                  {loading ? [...Array(4)].map((_, i) => <View key={i} style={[styles.hashtagSkeletonCompact, { backgroundColor: colors.cardBackground }]} />) :
+                    trendingHashtags.slice(0, 10).map((item, index) => {
+                      const grad = ARTISTIC_GRADIENTS[index % ARTISTIC_GRADIENTS.length];
                       return (
-                        <Link
-                          key={displayTag || `hashtag_${index}`}
-                          href={{ pathname: '/(screens)/social/HashtagScreen', params: { hashtag: cleanTag } }}
-                          asChild
-                        >
-                          <TouchableOpacity
-                            style={styles.hashtagChipCompact}
-                            disabled={!cleanTag}
-                            activeOpacity={0.8}
-                          >
-                            <LinearGradient
-                              colors={gradients[index % gradients.length]}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={styles.hashtagGradientCompact}
-                            >
-                              <Text style={[styles.hashtagTextCompact, { color: '#FFFFFF' }]}>{displayTag}</Text>
-                              <View style={styles.hashtagMetaCompact}>
-                                <MaterialIcons name="trending-up" size={10} color="#FFFFFF" />
-                                <Text style={[styles.hashtagCountCompact, { color: '#FFFFFF' }]}>{formatCount(count)}</Text>
-                              </View>
-                            </LinearGradient>
-                          </TouchableOpacity>
-                        </Link>
+                        <ImpactButton key={item.tag} onPress={() => router.push({ pathname: '/(screens)/social/HashtagScreen', params: { hashtag: item.tag.replace('#', '') } })} style={styles.hashtagChipCompact}>
+                          <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hashtagGradientCompact}>
+                            <FontAwesome5 name="hashtag" size={10} color="#FFF" style={{ opacity: 0.7, marginRight: 4 }} />
+                            <Text style={styles.hashtagText}>{item.tag.replace('#', '')}</Text>
+                          </LinearGradient>
+                        </ImpactButton>
                       );
-                    })
-                  )}
+                    })}
                 </Animated.ScrollView>
               </View>
             </Animated.View>
-          </View>
+          ), [activeTab, notificationCount, loading, trendingHashtags, colors, theme, slidingAnim, tabDefs])}
         </Animated.View>
 
         <View style={styles.content}>
-          <Animated.View style={[styles.contentInner, { backgroundColor: colors.background }]}>
-            <Tabs
-              screenOptions={{
-                tabBarStyle: { display: 'none' },
-                headerShown: false,
-                lazy: true,
-                swipeEnabled: false
-              }}
-            >
-              <Tabs.Screen name="index" options={{ tabBarButton: () => null }} />
-              <Tabs.Screen name="tab1" options={{ tabBarButton: () => null }} />
-              <Tabs.Screen name="tab2" options={{ tabBarButton: () => null }} />
-              <Tabs.Screen name="tab3" options={{ tabBarButton: () => null }} />
-            </Tabs>
+          <Animated.View
+            ref={tabRef1}
+            style={[StyleSheet.absoluteFill, { opacity: tabAnims.opacity1, transform: [{ translateX: tabAnims.transX1 }] }]}
+            renderToHardwareTextureAndroid={true}
+          >
+            <Tab1Screen isActive={activeTab === 'index'} />
+          </Animated.View>
+          <Animated.View
+            ref={tabRef2}
+            style={[StyleSheet.absoluteFill, { opacity: tabAnims.opacity2, transform: [{ translateX: tabAnims.transX2 }] }]}
+            renderToHardwareTextureAndroid={true}
+          >
+            {mounted.tab2 && <Tab2Screen isActive={activeTab === 'tab2'} />}
+          </Animated.View>
+          <Animated.View
+            ref={tabRef3}
+            style={[StyleSheet.absoluteFill, { opacity: tabAnims.opacity3, transform: [{ translateX: tabAnims.transX3 }] }]}
+            renderToHardwareTextureAndroid={true}
+          >
+            {mounted.tab3 && <Tab3Screen isActive={activeTab === 'tab3'} />}
           </Animated.View>
         </View>
 
-        <Animated.View
-          style={[
-            styles.floatingActions,
-            {
-              opacity: fabOpacity,
-              transform: [{ translateY: fabTranslateY }]
-            }
-          ]}
-          pointerEvents="box-none"
-        >
-          <View
-            style={[
-              styles.fabContainer,
-              {
-                backgroundColor: theme === 'dark' ? 'rgba(26, 31, 46, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                borderColor: colors.borderLight
-              }
-            ]}
-            pointerEvents="auto"
-          >
-            {tabs.map((tab) => (
-              <TabButton
-                key={tab.key}
-                tab={tab}
-                isActive={activeTab === tab.key}
-                onPress={() => handleTabPress(tab.key)}
-                style={styles.fabTab}
-                textStyle={[styles.fabTextActive, { color: colors.headerText }]}
-                inactiveStyle={[styles.fabTabInactive, { backgroundColor: colors.cardBackground }]}
-              />
-            ))}
-
-            <TouchableOpacity
-              style={styles.fabIcon}
-              onPress={() => router.push('/(screens)/social/NotificationsScreen')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.notificationGlass}>
-                <LinearGradient
-                  colors={(colors.gradients && colors.gradients.neon) ? colors.gradients.neon : ['#f093fb', '#f5576c']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.notificationBorder}
-                >
-                  <View style={[styles.notificationInner, { backgroundColor: colors.cardBackground }]}>
-                    <MaterialIcons name="notifications" size={ICON_SIZE} color={colors.highlightText} />
-                  </View>
-                </LinearGradient>
+        <Animated.View style={[styles.floatingActions, { opacity: fabOpacity, transform: [{ translateY: fabTranslateY }] }]} pointerEvents="box-none">
+          {useMemo(() => (
+            <View style={[styles.fabContainer, { backgroundColor: theme === 'dark' ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.96)', borderColor: colors.borderLight }]} pointerEvents="auto">
+              <View style={styles.headerTabsContainer} pointerEvents="auto">
+                <Animated.View style={[styles.slidingPill, { shadowColor: colors.tint, transform: [{ translateX: fabSlidingAnim }] }]}>
+                  <LinearGradient colors={[colors.tint, '#a855f7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tabGradientFill} />
+                </Animated.View>
+                {tabDefs.map(tab => <TabButton key={tab.key} label={tab.label} isActive={activeTab === tab.key} onPress={() => handleTabPress(tab.key)} inactiveColor={colors.mutedText} />)}
               </View>
-              <NotificationBadge
-                count={notificationCount}
-                size="medium"
-                backgroundColor={colors.highlightText}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.fabIcon}
-              onPress={() => router.push('/(screens)/hotspots/HotSpotsScreen')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.notificationGlass}>
-                <LinearGradient
-                  colors={['#ff7e5f', '#feb47b']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.notificationBorder}
-                >
-                  <View style={[styles.notificationInner, { backgroundColor: colors.cardBackground }]}>
-                    <MaterialIcons name="local-fire-department" size={ICON_SIZE} color={colors.hotSpotsIcon} />
-                  </View>
-                </LinearGradient>
+              <View style={styles.fabActions} pointerEvents="auto">
+                {renderActionBtn('notifications', MaterialIcons, colors.tint, colors.tint, () => router.push('/(screens)/social/NotificationsScreen'), notificationCount)}
+                {renderActionBtn('fire', FontAwesome5, '#f97316', '#f97316', () => router.push('/(screens)/hotspots/HotSpotsScreen'))}
               </View>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-        {isRefreshing && (
-          <View style={styles.refreshOverlay}>
-            <View style={styles.refreshContent}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={[styles.refreshText, { color: colors.text }]}>
-                {t('common.loading', 'Đang tải...')}
-              </Text>
             </View>
-          </View>
-        )}
+          ), [activeTab, notificationCount, colors, theme, fabSlidingAnim, tabDefs])}
+        </Animated.View>
       </View>
     </ExploreHeaderProvider>
   );
 });
 
 export default function ExploreLayout() {
-  return (
-    <ExploreProvider>
-      <ExploreLayoutContent />
-    </ExploreProvider>
-  );
+  return <ExploreProvider><ExploreLayoutContent /></ExploreProvider>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === 'ios' ? 280 : 260,
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    elevation: 15,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-
-  headerGradient: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.95,
-  },
-
-  glassOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-
-  collapsedHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: Platform.OS === 'ios' ? 70 : 60,
-    zIndex: 5,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-
-  collapsedContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 50 : StatusBar.currentHeight + 10,
-  },
-
-  collapsedIcon: {
-    marginRight: 12,
-  },
-
-  collapsedIconGradient: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-
-  collapsedActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-
-  collapsedActionBtn: {
-    borderRadius: 21,
-    overflow: 'visible',
-  },
-
-  collapsedActionInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  collapsedActionBtnGradient: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.warning,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-
-  collapsedBadge: {
-    position: 'absolute',
-    top: -3,
-    right: -3,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-    borderWidth: 1,
-    borderColor: 'white',
-  },
-
-  headerContent: {
-    flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 68 : (StatusBar.currentHeight || 24) + 28,
-    paddingHorizontal: 24,
-    paddingBottom: 20,
-    position: 'relative',
-    zIndex: 2,
-  },
-
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  titleSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-
-  headerTabsContainer: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-
-  headerTab: {
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-
-  headerTabGradient: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-
-  headerTabInactive: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    backgroundColor: 'transparent',
-  },
-
-  headerTabTextActive: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-
-  headerActions: {
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'center',
-  },
-
-  actionBtn: {
-    borderRadius: 24,
-    overflow: 'visible',
-    position: 'relative',
-  },
-
-  actionBtnGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.warning,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-  },
-
-  trendingSection: {
-    marginBottom: 12,
-  },
-
-  trendingHeaderCompact: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-
-  trendingTitleCompact: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-
-  refreshBtnCompact: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-
-  hashtagScrollView: {
-    marginHorizontal: -24,
-  },
-
-  hashtagScrollContent: {
-    paddingHorizontal: 24,
-    gap: 10,
-    paddingVertical: 4,
-  },
-
-  hashtagChipCompact: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-
-  hashtagGradientCompact: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 100,
-  },
-
-  hashtagTextCompact: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-
-  hashtagMetaCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-    opacity: 0.9,
-  },
-
-  hashtagCountCompact: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-
-  hashtagSkeletonCompact: {
-    borderRadius: 14,
-    height: 48,
-    width: 110,
-    opacity: 0.6,
-  },
-
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    marginBottom: 8,
-    gap: 4,
-  },
-
-  errorText: {
-    fontSize: 11,
-    fontWeight: '500',
-    flex: 1,
-  },
-
-  content: {
-    flex: 1,
-    zIndex: 1,
-  },
-
-  contentInner: {
-    flex: 1,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    overflow: 'hidden',
-  },
-
-  floatingActions: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 34 : 20,
-    right: 20,
-    left: 20,
-    zIndex: 100,
-    elevation: 30,
-  },
-
-  fabContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 12,
-    borderWidth: 1,
-  },
-
-  fabIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'visible',
-    position: 'relative',
-  },
-
-  fabTab: {
-    minWidth: 70,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-
-  fabTabGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  fabTabInactive: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-
-  fabTextActive: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-
-  fabTextInactive: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: -0.3,
-  },
-
-  fabGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.warning,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-
-  notificationGlass: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    position: 'relative',
-    shadowColor: Colors.secondary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    backgroundColor: 'transparent',
-    overflow: 'visible',
-  },
-
-  notificationBorder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    padding: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'visible',
-  },
-
-  notificationInner: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  refreshOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 999,
-  },
-  refreshContent: {
-    padding: 24,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  refreshText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  container: { flex: 1 },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, height: Platform.OS === 'ios' ? 260 : 250, zIndex: 100 },
+  headerGradient: { ...StyleSheet.absoluteFillObject },
+  headerContent: { flex: 1, paddingTop: Platform.OS === 'ios' ? 55 : StatusBar.currentHeight + 15, paddingHorizontal: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  headerTabsContainer: { flexDirection: 'row', gap: TAB_GAP, backgroundColor: 'rgba(148, 163, 184, 0.15)', borderRadius: 30, padding: TAB_PADDING, position: 'relative', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  headerTab: { width: TAB_WIDTH, height: TAB_HEIGHT, borderRadius: TAB_HEIGHT / 2, zIndex: 2, flexShrink: 0 },
+  slidingPill: { position: 'absolute', top: TAB_PADDING, left: TAB_PADDING, width: TAB_WIDTH, height: TAB_HEIGHT, borderRadius: TAB_HEIGHT / 2, zIndex: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+  tabGradientFill: { flex: 1, borderRadius: 20 },
+  tabTextActive: { fontSize: 13, fontWeight: '900', letterSpacing: -0.1, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false },
+  tabTextInactive: { fontSize: 13, fontWeight: '700', letterSpacing: -0.1, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false },
+  headerActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  actionBtn: { width: 40, height: 40, borderRadius: 20, flexShrink: 0, overflow: 'hidden' },
+  notificationGlass: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
+  notificationInner: { width: '100%', height: '100%', borderRadius: 20, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  headerBadge: { position: 'absolute', top: 3, right: 3 },
+  trendingSection: { marginTop: 15 },
+  trendingHeaderCompact: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  trendingTitleCompact: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
+  hashtagScrollContent: { gap: 10, paddingRight: 40, paddingLeft: 4 },
+  hashtagChipCompact: { borderRadius: 22, overflow: 'hidden', height: 40 },
+  hashtagGradientCompact: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 10, height: '100%' },
+  hashtagText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
+  content: { flex: 1 },
+  floatingActions: { position: 'absolute', bottom: 30, left: 0, right: 0, alignItems: 'center', zIndex: 1000 },
+  fabContainer: { flexDirection: 'row', padding: 6, borderRadius: 45, gap: 8, borderWidth: 1, elevation: 35, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 15 }, shadowOpacity: 0.4, shadowRadius: 25 },
+  fabDivider: { width: 1, height: 24, backgroundColor: 'rgba(148, 163, 184, 0.3)', marginHorizontal: 2 },
+  fabActions: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  collapsedHeader: { position: 'absolute', top: 0, left: 0, right: 0, height: Platform.OS === 'ios' ? 105 : 95, zIndex: 150, elevation: 20 },
+  collapsedContent: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: Platform.OS === 'ios' ? 45 : 30 },
+  collapsedIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  collapsedActions: { flexDirection: 'row', gap: 10 },
+  hashtagSkeletonCompact: { width: 95, height: 40, borderRadius: 20 }
 });

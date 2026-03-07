@@ -38,6 +38,9 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
   const viewerShowOnline = user?.showOnlineStatus !== false;
   const [interestedUsers, setInterestedUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
   const [invitingUsers, setInvitingUsers] = useState<{ [key: string]: boolean }>({});
   const [hotSpotData, setHotSpotData] = useState<any>(null);
   const [pendingInvites, setPendingInvites] = useState<{ [key: string]: boolean }>({});
@@ -64,18 +67,41 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
     }
   }, [visible, eventId]);
 
-  const loadInterestedUsers = async () => {
-    setLoading(true);
-    try {
-      const users = await eventInviteService.getInterestedUsers(eventId);
-      // Filter out current user
-      const filteredUsers = users.filter(u => u.id !== user?.uid);
-      setInterestedUsers(filteredUsers);
+  const loadInterestedUsers = async (isLoadMore = false) => {
+    if (isLoadMore) {
+      if (loadingMore || !hasMore) return;
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setInterestedUsers([]);
+      setLastVisible(null);
+      setHasMore(true);
+    }
 
-      // Check for existing pending invites
-      if (user?.uid) {
-        const pendingChecks: { [key: string]: boolean } = {};
-        for (const targetUser of filteredUsers) {
+    try {
+      const result = await eventInviteService.getInterestedUsers(
+        eventId,
+        10,
+        isLoadMore ? lastVisible : null
+      );
+
+      const newUsers = result.users.filter(u => u.id !== user?.uid);
+
+      if (isLoadMore) {
+        setInterestedUsers(prev => [...prev, ...newUsers]);
+      } else {
+        setInterestedUsers(newUsers);
+      }
+
+      setLastVisible(result.lastVisible);
+      setHasMore(result.users.length === 10);
+
+      // Check for existing pending invites for new users in parallel
+      if (user?.uid && newUsers.length > 0) {
+        const pendingChecks: { [key: string]: boolean } = { ...pendingInvites };
+
+        await Promise.all(newUsers.map(async (targetUser) => {
+          if (pendingChecks[targetUser.id] !== undefined) return;
           try {
             const existing = await eventInviteService.checkExistingInvite(
               eventId,
@@ -87,14 +113,18 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
             console.error('Error checking pending invite for user:', targetUser.id, error);
             pendingChecks[targetUser.id] = false;
           }
-        }
+        }));
+
         setPendingInvites(pendingChecks);
       }
     } catch (error) {
       console.error('Error loading interested users:', error);
-      Alert.alert('Lỗi', 'Không thể tải danh sách người quan tâm');
+      if (!isLoadMore) {
+        Alert.alert('Lỗi', 'Không thể tải danh sách người quan tâm');
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -107,6 +137,12 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
       }
     } catch (error) {
       console.error('Error loading hot spot data:', error);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (!loading && !loadingMore && hasMore) {
+      loadInterestedUsers(true);
     }
   };
 
@@ -260,6 +296,15 @@ const InterestedUsersModal: React.FC<InterestedUsersModalProps> = ({
               keyExtractor={item => item.id}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.3}
+              ListFooterComponent={() => (
+                loadingMore ? (
+                  <View style={{ paddingVertical: 20 }}>
+                    <ActivityIndicator size="small" color="#EC4899" />
+                  </View>
+                ) : null
+              )}
             />
           )}
         </View>

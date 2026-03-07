@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useMemo } from 'react';
 import { Image } from 'expo-image';
 import { formatTime, getRoomId } from '../../utils/common';
 import CustomImage from '../common/CustomImage';
@@ -15,6 +15,7 @@ import { useMessageActions } from '@/hooks/useMessageActions';
 import { useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useChatTheme } from '@/context/ChatThemeContext';
+import VibeAvatar from '../vibe/VibeAvatar';
 
 interface MessageItemProps {
     message: any;
@@ -174,11 +175,12 @@ export default function MessageItem({
                 onLayout={onContainerLayout}
             >
                 {!isCurrentUser && (
-                    <Image
-                        source={{ uri: message.profileUrl }}
-                        style={styles.avatar}
-                        contentFit="cover"
-                        transition={200}
+                    <VibeAvatar
+                        avatarUrl={message.profileUrl}
+                        size={32}
+                        frameType={message.activeFrame}
+                        showVibeIcon={false}
+                        showAddButton={false}
                     />
                 )}
                 <View style={[styles.messageContent, { maxWidth: '80%' }]}>
@@ -188,30 +190,34 @@ export default function MessageItem({
                         <View style={[
                             styles.replyContainer,
                             {
-                                backgroundColor: isCurrentUser ? 'rgba(0,0,0,0.05)' : theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                                backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.15)' : theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
                                 alignSelf: isCurrentUser ? 'flex-end' : 'flex-start',
                                 borderTopLeftRadius: 12,
                                 borderTopRightRadius: 12,
                                 borderBottomLeftRadius: isCurrentUser ? 12 : 4,
                                 borderBottomRightRadius: isCurrentUser ? 4 : 12,
-                                marginBottom: -4, // Overlap slightly or just touch
-                                zIndex: -1, // Behind the main bubble if needed, but here just stacked
-                                paddingBottom: 12, // Extra padding at bottom to connect visually
-                                opacity: 0.8,
-                                transform: [{ scale: 0.95 }, { translateY: 4 }], // Slightly smaller and pushed down to look "behind"
+                                marginBottom: -4,
+                                zIndex: -1,
+                                paddingBottom: 12,
+                                opacity: 0.9,
+                                transform: [{ scale: 0.95 }, { translateY: 4 }],
+                                borderLeftWidth: isCurrentUser ? 0 : 3,
+                                borderRightWidth: isCurrentUser ? 3 : 0,
+                                borderLeftColor: chatTheme.sentMessageColor,
+                                borderRightColor: chatTheme.sentMessageColor,
                             }
                         ]}>
                             <View style={styles.replyContent}>
                                 <Text style={[
                                     styles.replySender,
-                                    { color: currentThemeColors.text, fontSize: 12 }
+                                    { color: isCurrentUser ? '#FFFFFF' : chatTheme.sentMessageColor, fontSize: 12, fontWeight: '700' }
                                 ]}>
                                     {message.replyTo.senderName}
                                 </Text>
                                 <Text
                                     style={[
                                         styles.replyText,
-                                        { color: currentThemeColors.subtleText, fontSize: 12 }
+                                        { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText, fontSize: 12 }
                                     ]}
                                     numberOfLines={1}
                                 >
@@ -226,7 +232,7 @@ export default function MessageItem({
                         <View style={[
                             styles.replyContainer,
                             {
-                                backgroundColor: isCurrentUser ? 'rgba(0,0,0,0.05)' : theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                                backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.15)' : theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
                                 alignSelf: isCurrentUser ? 'flex-end' : 'flex-start',
                                 borderTopLeftRadius: 12,
                                 borderTopRightRadius: 12,
@@ -235,21 +241,25 @@ export default function MessageItem({
                                 marginBottom: -4,
                                 zIndex: -1,
                                 paddingBottom: 12,
-                                opacity: 0.8,
+                                opacity: 0.9,
                                 transform: [{ scale: 0.95 }, { translateY: 4 }],
+                                borderLeftWidth: isCurrentUser ? 0 : 3,
+                                borderRightWidth: isCurrentUser ? 3 : 0,
+                                borderLeftColor: chatTheme.sentMessageColor,
+                                borderRightColor: chatTheme.sentMessageColor,
                             }
                         ]}>
                             <View style={styles.replyContent}>
                                 <Text style={[
                                     styles.replySender,
-                                    { color: currentThemeColors.text, fontSize: 12 }
+                                    { color: isCurrentUser ? '#FFFFFF' : chatTheme.sentMessageColor, fontSize: 12, fontWeight: '700' }
                                 ]}>
                                     Trả lời Vibe
                                 </Text>
                                 <Text
                                     style={[
                                         styles.replyText,
-                                        { color: currentThemeColors.subtleText, fontSize: 12 }
+                                        { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText, fontSize: 12 }
                                     ]}
                                     numberOfLines={1}
                                 >
@@ -328,29 +338,62 @@ export default function MessageItem({
                                         </LinearGradient>
                                     </View>
                                 ) : (
-                                    <>
-                                        <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : chatTheme.textColor }]}>
-                                            {message?.text}
-                                        </Text>
-                                        <View style={styles.timeStatusRow}>
-                                            <Text style={[styles.timeText, { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText }]}>
-                                                {formatMessageTime()}
-                                            </Text>
-                                            {isCurrentUser && (
-                                                (() => {
-                                                    switch (message?.status) {
-                                                        case 'read':
-                                                            return <MaterialIcons name="visibility" size={14} color="#FFF" />;
-                                                        case 'sent':
-                                                        case 'delivered':
-                                                            return <MaterialIcons name="done" size={14} color="rgba(255,255,255,0.7)" />;
-                                                        default:
-                                                            return <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.7)" />;
-                                                    }
-                                                })()
-                                            )}
-                                        </View>
-                                    </>
+                                    <View style={{ width: '100%' }}>
+                                        {isCurrentUser && chatTheme.sentMessageGradient ? (
+                                            <LinearGradient
+                                                colors={chatTheme.sentMessageGradient as [string, string, ...string[]]}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 1 }}
+                                                style={[styles.bubbleContent, { padding: 0 }]}
+                                            >
+                                                <View style={{ padding: 12, paddingHorizontal: 16 }}>
+                                                    <Text style={[styles.messageText, { color: '#FFFFFF' }]}>
+                                                        {message?.text}
+                                                    </Text>
+                                                    <View style={styles.timeStatusRow}>
+                                                        <Text style={[styles.timeText, { color: 'rgba(255,255,255,0.8)' }]}>
+                                                            {formatMessageTime()}
+                                                        </Text>
+                                                        {(() => {
+                                                            switch (message?.status) {
+                                                                case 'read':
+                                                                    return <MaterialIcons name="visibility" size={14} color="#FFF" />;
+                                                                case 'sent':
+                                                                case 'delivered':
+                                                                    return <MaterialIcons name="done" size={14} color="rgba(255,255,255,0.7)" />;
+                                                                default:
+                                                                    return <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.7)" />;
+                                                            }
+                                                        })()}
+                                                    </View>
+                                                </View>
+                                            </LinearGradient>
+                                        ) : (
+                                            <View style={{ paddingVertical: 2 }}>
+                                                <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : chatTheme.textColor }]}>
+                                                    {message?.text}
+                                                </Text>
+                                                <View style={styles.timeStatusRow}>
+                                                    <Text style={[styles.timeText, { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText }]}>
+                                                        {formatMessageTime()}
+                                                    </Text>
+                                                    {isCurrentUser && (
+                                                        (() => {
+                                                            switch (message?.status) {
+                                                                case 'read':
+                                                                    return <MaterialIcons name="visibility" size={14} color="#FFF" />;
+                                                                case 'sent':
+                                                                case 'delivered':
+                                                                    return <MaterialIcons name="done" size={14} color="rgba(255,255,255,0.7)" />;
+                                                                default:
+                                                                    return <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.7)" />;
+                                                            }
+                                                        })()
+                                                    )}
+                                                </View>
+                                            </View>
+                                        )}
+                                    </View>
                                 )}
                                 {message.isEdited && (
                                     <Text style={[styles.editedLabel, { color: isCurrentUser ? 'rgba(255,255,255,0.6)' : currentThemeColors.subtleText }]}>
@@ -390,11 +433,12 @@ export default function MessageItem({
                     )}
                 </View>
                 {isCurrentUser && (
-                    <Image
-                        source={{ uri: currentUser?.profileUrl }}
-                        style={styles.avatar}
-                        contentFit="cover"
-                        transition={200}
+                    <VibeAvatar
+                        avatarUrl={currentUser?.profileUrl}
+                        size={32}
+                        frameType={currentUser?.activeFrame}
+                        showVibeIcon={false}
+                        showAddButton={false}
                     />
                 )}
             </TouchableOpacity>
@@ -449,7 +493,7 @@ const styles = StyleSheet.create({
     },
     bubbleContainer: {
         position: 'relative',
-        marginVertical: 2,
+        marginVertical: 1,
     },
     bubbleContainerRight: {
         alignItems: 'flex-end',
@@ -465,30 +509,30 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     bubbleRight: {
-        borderTopLeftRadius: 18,
+        borderTopLeftRadius: 20,
         borderTopRightRadius: 4,
-        borderBottomLeftRadius: 18,
-        borderBottomRightRadius: 18,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
     },
     bubbleLeft: {
         borderTopLeftRadius: 4,
-        borderTopRightRadius: 18,
-        borderBottomLeftRadius: 18,
-        borderBottomRightRadius: 18,
+        borderTopRightRadius: 20,
+        borderBottomLeftRadius: 20,
+        borderBottomRightRadius: 20,
     },
     currentUserBubbleShadow: {
-        shadowColor: '#0084FF',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.2,
-        shadowRadius: 2,
-        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 3,
     },
     otherUserBubbleShadow: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
-        elevation: 1,
+        elevation: 2,
     },
     highlightedBubble: {
         borderWidth: 3,
@@ -502,46 +546,49 @@ const styles = StyleSheet.create({
     },
     messageText: {
         fontSize: 15,
-        lineHeight: 20,
+        lineHeight: 22,
+        letterSpacing: 0.1,
     },
     timeStatusRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        gap: 2,
-        marginTop: 2,
-        opacity: 0.7,
+        gap: 4,
+        marginTop: 4,
+        opacity: 0.8,
     },
     timeText: {
         fontSize: 10,
-        fontWeight: '400',
+        fontWeight: '500',
     },
     editedLabel: {
         fontSize: 10,
         fontStyle: 'italic',
         marginTop: 2,
+        opacity: 0.7,
     },
     detailedTimeContainer: {
-        marginTop: 4,
+        marginTop: 6,
     },
     detailedTimeText: {
         fontSize: 11,
         fontStyle: 'italic',
+        opacity: 0.6,
     },
     replyContainer: {
-        padding: 8,
-        borderLeftWidth: 3,
-        borderRadius: 8,
+        padding: 10,
+        borderRadius: 12,
+        overflow: 'hidden',
     },
     replyContent: {
         gap: 2,
     },
     replySender: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
     },
     replyText: {
-        fontSize: 14,
+        fontSize: 13,
         lineHeight: 18,
     },
     giftBadge: {
@@ -573,8 +620,9 @@ const styles = StyleSheet.create({
         borderBottomRightRadius: 20,
     },
     bubbleContent: {
-        padding: 12,
-        borderRadius: 18,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 20,
         maxWidth: '100%',
     },
     reactionsOverlay: {

@@ -4,6 +4,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Text,
+  Dimensions,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -39,6 +42,8 @@ interface VibeAvatarProps {
   // New: allow hiding the vibe icon entirely (useful when parent draws its own)
   showVibeIcon?: boolean;
   frameType?: string;
+  addButtonIcon?: 'add' | 'camera';
+  onAddPress?: () => void;
 }
 
 const VibeAvatar: React.FC<VibeAvatarProps> = ({
@@ -53,6 +58,8 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
   vibeBadgePosition = 'bottom-right',
   showVibeIcon = true,
   frameType,
+  addButtonIcon = 'add',
+  onAddPress,
 }) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
@@ -135,18 +142,8 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
   const vibePulse = useSharedValue(1);
 
   useEffect(() => {
-    if (hasVibe && !seen) {
-      vibePulse.value = withRepeat(
-        withSequence(
-          withTiming(1.1, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      );
-    } else {
-      vibePulse.value = 1;
-    }
+    // Disabled animation for scroll performance - keep static
+    vibePulse.value = 1;
   }, [hasVibe, seen]);
 
   const animatedRingStyle = useAnimatedStyle(() => ({
@@ -262,10 +259,14 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
                 right: 0,
               }
             ]}
-            onPress={handleVibePress}
+            onPress={onAddPress || handleVibePress}
             activeOpacity={0.8}
           >
-            <MaterialIcons name="add" size={addButtonSize * 0.6} color="white" />
+            <MaterialIcons
+              name={addButtonIcon === 'camera' ? 'photo-camera' : 'add'}
+              size={addButtonSize * (addButtonIcon === 'camera' ? 0.5 : 0.6)}
+              color="white"
+            />
           </TouchableOpacity>
         );
       }
@@ -328,6 +329,8 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
     </>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: {

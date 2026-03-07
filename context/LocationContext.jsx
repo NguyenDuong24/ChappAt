@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useMemo } from 'react';
 import * as Location from 'expo-location';
 import { db } from '../firebaseConfig';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -190,8 +190,12 @@ export const LocationProvider = ({ children }) => {
     };
   }, [user?.uid, isAuthenticated]);
 
+  const value = useMemo(() => ({
+    location, errorMsg, loading, address, nearbyUsers, queryNearbyUsers
+  }), [location, errorMsg, loading, address, nearbyUsers, queryNearbyUsers]);
+
   return (
-    <LocationContext.Provider value={{ location, errorMsg, loading, address, nearbyUsers, queryNearbyUsers }}>
+    <LocationContext.Provider value={value}>
       {children}
     </LocationContext.Provider>
   );

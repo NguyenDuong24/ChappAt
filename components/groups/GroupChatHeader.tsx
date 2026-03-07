@@ -13,13 +13,14 @@ import { useTranslation } from 'react-i18next';
 interface GroupChatHeaderProps {
   group: any;
   onBack?: () => void;
+  currentThemeColors?: any;
 }
 
-const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
+const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors }: GroupChatHeaderProps) => {
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
   const router = useRouter();
   const { user } = useAuth();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -50,43 +51,14 @@ const GroupChatHeader = ({ group, onBack }: GroupChatHeaderProps) => {
     router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
   };
 
-  const handleViewMembers = () => {
-    setMenuVisible(false);
-    router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
-  };
-
-  const handleAddMembers = () => {
-    setMenuVisible(false);
-    router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
-  };
-
-  const handleLeaveGroup = () => {
-    setMenuVisible(false);
-    Alert.alert(
-      t('groups.leave_title'),
-      t('groups.leave_message'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('groups.leave_confirm'),
-          style: 'destructive',
-          onPress: () => {
-            // Implement leave group logic here
-            console.log('Leave group:', group.id);
-          }
-        }
-      ]
-    );
-  };
-
   const handleJoinVoiceChat = () => {
     router.push({ pathname: '/(screens)/groups/GroupVoiceRoom', params: { groupId: group.id } });
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.backgroundHeader, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: currentThemeColors.backgroundHeader || currentThemeColors.background, paddingTop: insets.top }]}>
       {/* Control status bar color when native header is hidden */}
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} backgroundColor={currentThemeColors.backgroundHeader} />
+      <StatusBar style={currentThemeColors.isDarkChatTheme ? 'light' : 'dark'} backgroundColor={currentThemeColors.backgroundHeader || currentThemeColors.background} />
       <View style={styles.header}>
         <View style={styles.leftSection}>
           <TouchableOpacity

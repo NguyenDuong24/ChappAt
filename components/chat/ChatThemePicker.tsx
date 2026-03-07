@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, ImageBackground } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { collection, addDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useChatTheme, ChatTheme, ChatEffect } from '@/context/ChatThemeContext';
@@ -12,9 +13,11 @@ interface ChatThemePickerProps {
   onClose: () => void;
   roomId: string;
   currentUser: any;
+  isGroup?: boolean;
+  isAdmin?: boolean;
 }
 
-const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roomId, currentUser }) => {
+const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roomId, currentUser, isGroup = false, isAdmin = false }) => {
   const { themes, currentTheme, setTheme, effects, currentEffect, setEffect } = useChatTheme();
   const { theme: appTheme } = React.useContext(ThemeContext) || { theme: 'light' };
   const currentThemeColors = (appTheme === 'dark' ? Colors.dark : Colors.light) || {
@@ -27,12 +30,17 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
   const [activeTab, setActiveTab] = useState<'theme' | 'effect'>('theme');
 
   const handleThemeSelect = async (theme: ChatTheme) => {
+    if (isGroup && !isAdmin) {
+      alert('Chỉ quản trị viên mới có thể thay đổi chủ đề nhóm');
+      return;
+    }
     if (theme.id === currentTheme.id) return;
     await setTheme(theme.id, roomId);
 
     // Send system message
     try {
-      const roomRef = doc(db, 'rooms', roomId);
+      const collectionName = isGroup ? 'groups' : 'rooms';
+      const roomRef = doc(db, collectionName, roomId);
       const messagesRef = collection(roomRef, 'messages');
       await addDoc(messagesRef, {
         type: 'system',
@@ -46,12 +54,17 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
   };
 
   const handleEffectSelect = async (effect: ChatEffect) => {
+    if (isGroup && !isAdmin) {
+      alert('Chỉ quản trị viên mới có thể thay đổi hiệu ứng nhóm');
+      return;
+    }
     if (effect.id === currentEffect) return;
     await setEffect(effect.id, roomId);
 
     // Send system message
     try {
-      const roomRef = doc(db, 'rooms', roomId);
+      const collectionName = isGroup ? 'groups' : 'rooms';
+      const roomRef = doc(db, collectionName, roomId);
       const messagesRef = collection(roomRef, 'messages');
       await addDoc(messagesRef, {
         type: 'system',
@@ -63,6 +76,153 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
       console.error('Error sending system message for effect:', error);
     }
   };
+
+  const getBackgroundIcons = (type: string): string[] => {
+    switch (type) {
+      case 'stars':
+      case 'galaxy_premium': return ['✨', '⭐', '🌟', '🌌'];
+      case 'hearts':
+      case 'love': return ['❤️', '💖', '💗', '💓'];
+      case 'sakura':
+      case 'pastel_soft': return ['🌸', '💮', '🌺'];
+      case 'galaxy': return ['🪐', '☄️', '🌠', '🌑'];
+      case 'leaves': return ['🍂', '🍁', '🍃'];
+      case 'butterflies': return ['🦋', '🧚'];
+      case 'balloons': return ['🎈', '🎊'];
+      case 'music': return ['🎵', '🎶', '🎼'];
+      case 'sunlight':
+      case 'sunlight_premium': return ['☀️', '🌤️'];
+      case 'snow': return ['❄️', '☃️'];
+      case 'fireworks': return ['🎆', '🎇'];
+      case 'halloween': return ['🎃', '💀', '👻', '🦇', '🕸️'];
+      case 'underwater': return ['🧜‍♂️', '🐠', '🐡', '🐚', '🌊'];
+      case 'steampunk': return ['⚙️', '🕰️', '📜', '🔧', '🎩'];
+      case 'nature_zen': return ['🧘', '🎋', '🪨', '🍃', '🍵'];
+      case 'neon_night': return ['🌃', '🏮', '🎆', '⚡', '🌆'];
+      case 'blue': return ['☁️', '💧', '🌊'];
+      case 'green': return ['🌿', '🍃', '🌳'];
+      case 'purple': return ['✨', '💜', '🔮'];
+      case 'orange': return ['☀️', '🍊', '🍁'];
+      case 'pink': return ['🌸', '💖', '🎀'];
+      case 'teal': return ['💎', '❄️', '🌊'];
+      case 'lavender': return ['🪻', '🌿', '✨'];
+      case 'ocean': return ['🌊', '🐬', '🐚'];
+      case 'sunset': return ['🌇', '🌅', '☁️'];
+      case 'forest': return ['🌲', '🌳', '🍃'];
+      case 'indigo': return ['🌌', '🌑', '🌊'];
+      case 'brown': return ['☕', '🪵', '🍂'];
+      case 'messenger_blue': return ['💬', '⚡', '✨'];
+      case 'messenger_dark': return ['💬', '⚡', '🌑'];
+      default: return [];
+    }
+  };
+
+  const ThemeDecoration: React.FC<{ theme: ChatTheme }> = ({ theme }) => {
+    const icons = getBackgroundIcons(theme.id);
+    const decorations = useMemo(() => {
+      if (icons.length === 0) return [];
+      return Array.from({ length: 3 }).map((_, i) => ({
+        icon: icons[i % icons.length],
+        size: 25 + Math.random() * 15,
+        left: Math.random() * 100,
+        top: Math.random() * 30,
+        rotate: `${Math.random() * 360}deg`,
+      }));
+    }, [icons]);
+
+    if (decorations.length === 0) return null;
+
+    return (
+      <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+        {decorations.map((dec, i) => (
+          <Text
+            key={i}
+            style={{
+              position: 'absolute',
+              fontSize: dec.size,
+              opacity: 0.1,
+              left: dec.left,
+              top: dec.top,
+              transform: [{ rotate: dec.rotate }],
+              color: '#000',
+            }}
+          >
+            {dec.icon}
+          </Text>
+        ))}
+      </View>
+    );
+  };
+
+  const renderMockMessages = (theme: ChatTheme) => (
+    <View style={styles.mockMessages}>
+      {/* Sent Message */}
+      <View style={styles.mockMessageRow}>
+        <View style={styles.mockMessageSpacer} />
+        {theme.sentMessageGradient ? (
+          <LinearGradient
+            colors={theme.sentMessageGradient as [string, string, ...string[]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              styles.mockMessage,
+              {
+                borderTopLeftRadius: 12,
+                borderTopRightRadius: 4,
+                borderBottomLeftRadius: 12,
+                borderBottomRightRadius: 12,
+                padding: 0,
+              }
+            ]}
+          >
+            <View style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Text style={[styles.mockMessageText, { color: '#FFFFFF' }]}>
+                Hello!
+              </Text>
+            </View>
+          </LinearGradient>
+        ) : (
+          <View
+            style={[
+              styles.mockMessage,
+              {
+                backgroundColor: theme.sentMessageColor,
+                borderTopLeftRadius: 12,
+                borderTopRightRadius: 4,
+                borderBottomLeftRadius: 12,
+                borderBottomRightRadius: 12,
+              }
+            ]}
+          >
+            <Text style={[styles.mockMessageText, { color: '#FFFFFF' }]}>
+              Hello!
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Received Message */}
+      <View style={styles.mockMessageRow}>
+        <View
+          style={[
+            styles.mockMessage,
+            {
+              backgroundColor: theme.receivedMessageColor,
+              borderTopLeftRadius: 4,
+              borderTopRightRadius: 12,
+              borderBottomLeftRadius: 12,
+              borderBottomRightRadius: 12,
+            }
+          ]}
+        >
+          <Text style={[styles.mockMessageText, { color: theme.textColor }]}>
+            Hi there!
+          </Text>
+        </View>
+        <View style={styles.mockMessageSpacer} />
+      </View>
+    </View>
+  );
 
   return (
     <Modal
@@ -150,62 +310,60 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
                   ]}
                 >
                   {/* Theme Preview */}
-                  <View
-                    style={[
-                      styles.themePreview,
-                      { backgroundColor: theme.backgroundColor }
-                    ]}
-                  >
-                    {/* Mock Messages */}
-                    <View style={styles.mockMessages}>
-                      {/* Sent Message */}
-                      <View style={styles.mockMessageRow}>
-                        <View style={styles.mockMessageSpacer} />
-                        <View
-                          style={[
-                            styles.mockMessage,
-                            {
-                              backgroundColor: theme.sentMessageColor,
-                              borderTopLeftRadius: 12,
-                              borderTopRightRadius: 4,
-                              borderBottomLeftRadius: 12,
-                              borderBottomRightRadius: 12,
-                            }
-                          ]}
+                  {theme.backgroundImage ? (
+                    <ImageBackground
+                      source={{ uri: theme.backgroundImage }}
+                      style={styles.themePreview}
+                      resizeMode="cover"
+                    >
+                      {theme.gradientColors ? (
+                        <LinearGradient
+                          colors={theme.gradientColors as [string, string, ...string[]]}
+                          style={[styles.themePreview, { backgroundColor: 'transparent' }]}
                         >
-                          <Text style={[styles.mockMessageText, { color: '#FFFFFF' }]}>
-                            Hello!
-                          </Text>
+                          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                            <ThemeDecoration theme={theme} />
+                            {renderMockMessages(theme)}
+                            <View style={styles.previewIcon}>
+                              <Text style={styles.previewIconText}>{theme.preview}</Text>
+                            </View>
+                          </View>
+                        </LinearGradient>
+                      ) : (
+                        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                          <ThemeDecoration theme={theme} />
+                          {renderMockMessages(theme)}
+                          <View style={styles.previewIcon}>
+                            <Text style={styles.previewIconText}>{theme.preview}</Text>
+                          </View>
                         </View>
+                      )}
+                    </ImageBackground>
+                  ) : theme.gradientColors ? (
+                    <LinearGradient
+                      colors={theme.gradientColors as [string, string, ...string[]]}
+                      style={styles.themePreview}
+                    >
+                      <ThemeDecoration theme={theme} />
+                      {renderMockMessages(theme)}
+                      <View style={styles.previewIcon}>
+                        <Text style={styles.previewIconText}>{theme.preview}</Text>
                       </View>
-
-                      {/* Received Message */}
-                      <View style={styles.mockMessageRow}>
-                        <View
-                          style={[
-                            styles.mockMessage,
-                            {
-                              backgroundColor: theme.receivedMessageColor,
-                              borderTopLeftRadius: 4,
-                              borderTopRightRadius: 12,
-                              borderBottomLeftRadius: 12,
-                              borderBottomRightRadius: 12,
-                            }
-                          ]}
-                        >
-                          <Text style={[styles.mockMessageText, { color: theme.textColor }]}>
-                            Hi there!
-                          </Text>
-                        </View>
-                        <View style={styles.mockMessageSpacer} />
+                    </LinearGradient>
+                  ) : (
+                    <View
+                      style={[
+                        styles.themePreview,
+                        { backgroundColor: theme.backgroundColor }
+                      ]}
+                    >
+                      <ThemeDecoration theme={theme} />
+                      {renderMockMessages(theme)}
+                      <View style={styles.previewIcon}>
+                        <Text style={styles.previewIconText}>{theme.preview}</Text>
                       </View>
                     </View>
-
-                    {/* Theme Icon */}
-                    <View style={styles.previewIcon}>
-                      <Text style={styles.previewIconText}>{theme.preview}</Text>
-                    </View>
-                  </View>
+                  )}
 
                   {/* Theme Name */}
                   <Text style={[styles.itemName, { color: currentThemeColors.text }]}>

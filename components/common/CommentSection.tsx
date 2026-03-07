@@ -45,7 +45,7 @@ interface CommentSectionProps {
   currentUserAvatar?: string;
 }
 
-const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => {
+const CommentItem = React.memo(({ comment, currentUserId }: CommentItemProps) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -55,7 +55,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
       <CustomImage
         source={comment.avatar || 'https://via.placeholder.com/150'}
         style={styles.commentAvatar}
-        onLongPress={() => {}}
+        onLongPress={() => { }}
       />
       <View style={styles.commentContent}>
         <View style={[styles.commentBubble, { backgroundColor: currentThemeColors.commentBackground }]}>
@@ -66,7 +66,7 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
             {comment.text}
           </Text>
         </View>
-        
+
         <View style={styles.commentActions}>
           <Text style={[styles.commentTime, { color: currentThemeColors.subtleText }]}>
             {formatTime(comment.timestamp)}
@@ -75,14 +75,18 @@ const CommentItem: React.FC<CommentItemProps> = ({ comment, currentUserId }) => 
       </View>
     </View>
   );
-};
+}, (prev, next) => (
+  prev.comment.id === next.comment.id &&
+  prev.comment.text === next.comment.text &&
+  prev.comment.avatar === next.comment.avatar
+));
 
-const CommentSection: React.FC<CommentSectionProps> = ({ 
-  comments = [], 
-  onAddComment, 
+const CommentSection = React.memo(({
+  comments = [],
+  onAddComment,
   currentUserId,
-  currentUserAvatar 
-}) => {
+  currentUserAvatar
+}: CommentSectionProps) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -96,7 +100,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({
     }
   };
 
-  const displayedComments = isExpanded ? comments : comments.slice(0, 2);
+  const displayedComments = React.useMemo(() =>
+    isExpanded ? comments : comments.slice(0, 2),
+    [isExpanded, comments]
+  );
 
   return (
     <View style={styles.commentsSection}>
@@ -111,13 +118,13 @@ const CommentSection: React.FC<CommentSectionProps> = ({
 
       {/* View More Comments Button */}
       {comments.length > 2 && (
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => setIsExpanded(!isExpanded)}
           style={styles.viewMoreButton}
         >
           <Text style={[styles.viewMoreText, { color: currentThemeColors.subtleText }]}>
-            {isExpanded 
-              ? 'Hide comments' 
+            {isExpanded
+              ? 'Hide comments'
               : `View ${comments.length - 2} more comments`
             }
           </Text>
@@ -129,13 +136,13 @@ const CommentSection: React.FC<CommentSectionProps> = ({
         <CustomImage
           source={currentUserAvatar || 'https://via.placeholder.com/150'}
           style={styles.commentAvatar}
-          onLongPress={() => {}}
+          onLongPress={() => { }}
         />
         <View style={styles.commentInputContainer}>
           <TextInput
             style={[
               styles.commentInput,
-              { 
+              {
                 backgroundColor: currentThemeColors.commentBackground,
                 color: currentThemeColors.text,
                 borderColor: currentThemeColors.border
@@ -148,7 +155,7 @@ const CommentSection: React.FC<CommentSectionProps> = ({
             multiline
             maxLength={500}
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={handleAddComment}
             disabled={!commentText.trim()}
             style={[
@@ -156,17 +163,17 @@ const CommentSection: React.FC<CommentSectionProps> = ({
               { backgroundColor: commentText.trim() ? currentThemeColors.tint : currentThemeColors.border }
             ]}
           >
-            <Ionicons 
-              name="send" 
-              size={18} 
-              color={commentText.trim() ? 'white' : currentThemeColors.subtleText} 
+            <Ionicons
+              name="send"
+              size={18}
+              color={commentText.trim() ? 'white' : currentThemeColors.subtleText}
             />
           </TouchableOpacity>
         </View>
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   commentsSection: {

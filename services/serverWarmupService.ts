@@ -65,11 +65,7 @@ class ServerWarmupService {
             const duration = Date.now() - startTime;
 
             if (response.ok) {
-                const data = await response.json();
-                console.log(`✅ [ServerWarmup] Server is warm! Response time: ${duration}ms`, {
-                    status: data.status,
-                    uptime: data.uptime,
-                });
+                console.log(`✅ [ServerWarmup] Server is warm! Response time: ${duration}ms`);
             } else {
                 console.warn(`⚠️ [ServerWarmup] Server responded with status ${response.status}`);
             }

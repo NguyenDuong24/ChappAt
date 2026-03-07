@@ -13,6 +13,7 @@ import {
   Platform,
   InteractionManager,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import {
   PanGestureHandler,
@@ -43,6 +44,9 @@ import Animated, {
   withSequence,
   runOnJS
 } from 'react-native-reanimated';
+import { useAuth } from '@/context/authContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
 // Removed DebugMonitor import for performance
 
 const { width, height } = Dimensions.get('window');
@@ -227,9 +231,10 @@ function useRemoteAudio(micStream: any, micOn: boolean, participantId: string) {
 }
 
 // Remote Video Component cho receiver (lớn) - OPTIMIZED with React.memo
-const RemoteVideoView = React.memo(function RemoteVideoView({ participantId, callType }: {
+const RemoteVideoView = React.memo(function RemoteVideoView({ participantId, callType, userName }: {
   participantId: string;
   callType: string;
+  userName?: string | null;
 }) {
   const {
     webcamStream,
@@ -276,7 +281,7 @@ const RemoteVideoView = React.memo(function RemoteVideoView({ participantId, cal
               color="#FFFFFF"
             />
             <Text style={styles.remoteParticipantName}>
-              {displayName || "Remote User"}
+              {userName || displayName || "Remote User"}
             </Text>
             {callType === 'audio' && (
               <Text style={styles.audioCallLabel}>Audio Call</Text>
@@ -299,7 +304,7 @@ const RemoteVideoView = React.memo(function RemoteVideoView({ participantId, cal
         </View>
 
         <Text style={styles.remoteVideoName}>
-          {displayName || "Remote User"}
+          {userName || displayName || "Remote User"}
         </Text>
       </View>
     </View>
@@ -457,6 +462,7 @@ function JoinScreen({ getMeetingId }: { getMeetingId: (id: string | null) => voi
 }
 
 // ControlsContainer Component - Enhanced with BlurView and Reanimated
+// ControlsContainer Component - Enhanced with BlurView and Reanimated
 function ControlsContainer({
   end,
   toggleWebcam,
@@ -489,7 +495,7 @@ function ControlsContainer({
   };
 
   return (
-    <BlurView intensity={30} tint="dark" style={styles.controlsBlur}>
+    <BlurView intensity={40} tint="dark" style={styles.controlsBlur}>
       <View style={styles.controls}>
         {/* Mic Button */}
         <Animated.View style={animatedMicStyle}>
@@ -498,12 +504,7 @@ function ControlsContainer({
             style={[styles.controlButton, micEnabled ? styles.enabledButton : styles.disabledControlButton]}
             activeOpacity={0.8}
           >
-            <LinearGradient
-              colors={micEnabled ? ['#4CAF50', '#388E3C'] : ['#F44336', '#D32F2F']}
-              style={styles.controlButtonGradient}
-            >
-              <Ionicons name={micEnabled ? "mic" : "mic-off"} size={26} color="#FFFFFF" />
-            </LinearGradient>
+            <Ionicons name={micEnabled ? "mic" : "mic-off"} size={24} color={micEnabled ? "#000000" : "#FFFFFF"} />
           </TouchableOpacity>
         </Animated.View>
 
@@ -515,12 +516,7 @@ function ControlsContainer({
               style={[styles.controlButton, webcamEnabled ? styles.enabledButton : styles.disabledControlButton]}
               activeOpacity={0.8}
             >
-              <LinearGradient
-                colors={webcamEnabled ? ['#4CAF50', '#388E3C'] : ['#F44336', '#D32F2F']}
-                style={styles.controlButtonGradient}
-              >
-                <Ionicons name={webcamEnabled ? "videocam" : "videocam-off"} size={26} color="#FFFFFF" />
-              </LinearGradient>
+              <Ionicons name={webcamEnabled ? "videocam" : "videocam-off"} size={24} color={webcamEnabled ? "#000000" : "#FFFFFF"} />
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -532,12 +528,7 @@ function ControlsContainer({
             style={[styles.controlButton, styles.endButton]}
             activeOpacity={0.8}
           >
-            <LinearGradient
-              colors={['#F44336', '#D32F2F']}
-              style={styles.controlButtonGradient}
-            >
-              <Ionicons name="call" size={26} color="#FFFFFF" />
-            </LinearGradient>
+            <Ionicons name="call" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -658,10 +649,11 @@ const ParticipantView = React.memo(function ParticipantView({ participantId, cal
 });
 
 // Modern ParticipantList với Picture-in-Picture layout - OPTIMIZED with React.memo
-const ParticipantList = React.memo(function ParticipantList({ participants, callType, localParticipantId }: {
+const ParticipantList = React.memo(function ParticipantList({ participants, callType, localParticipantId, otherUserName }: {
   participants: string[];
   callType: string;
   localParticipantId?: string;
+  otherUserName?: string | null;
 }) {
   // Memoize filtered participants to prevent recalculation
   const remoteParticipants = useMemo(() =>
@@ -678,6 +670,7 @@ const ParticipantList = React.memo(function ParticipantList({ participants, call
         <RemoteVideoView
           participantId={firstRemoteParticipant}
           callType={callType}
+          userName={otherUserName}
         />
       ) : (
         <View style={styles.waitingContainer}>
@@ -716,6 +709,77 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
   const router = useRouter();
   const [isConnecting, setIsConnecting] = useState(true);
   const isMounted = useRef(true);
+  const [otherUserName, setOtherUserName] = useState<string | null>(null);
+  const [otherUserAvatar, setOtherUserAvatar] = useState<string | null>(null);
+  const { user } = useAuth(); // Get current user
+
+  // Camera switching logic - Use Device ID for robustness
+  const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<any[]>([]);
+  const { getCameras } = useMediaDevice();
+
+  // Loading animation values
+  const loadingScale = useSharedValue(1);
+  const loadingOpacity = useSharedValue(0.5);
+
+  useEffect(() => {
+    loadingScale.value = withRepeat(
+      withSequence(
+        withTiming(1.2, { duration: 1000 }),
+        withTiming(1, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
+    loadingOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.2, { duration: 1000 }),
+        withTiming(0.5, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const loadingStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: loadingScale.value }],
+    opacity: loadingOpacity.value,
+  }));
+
+  // Initial camera fetch and setup
+  useEffect(() => {
+    let mounted = true;
+    const fetchCameras = async () => {
+      try {
+        const cams = await getCameras();
+        if (mounted && cams && cams.length > 0) {
+          setCameras(cams);
+
+          // Try to identify the default (front) camera to sync state
+          // Most apps default to front camera. We try to find it.
+          const frontCam = cams.find((cam: any) =>
+            cam.label?.toLowerCase().includes('front') ||
+            cam.facingMode === 'user' ||
+            cam.deviceId?.toLowerCase().includes('front')
+          );
+
+          if (frontCam) {
+            setCurrentDeviceId(frontCam.deviceId);
+          } else {
+            // If can't determine, assume the first one (or the second if usually front is 2nd)
+            // Often index 1 is front on mobile, but not always.
+            // We'll default to the first one if no label matches, but this might be the "2 clicks" cause if wrong.
+            // Better to assume we are on the one that looks like 'front' or just the first one.
+            setCurrentDeviceId(cams[0].deviceId);
+          }
+        }
+      } catch (e) {
+        console.log("Error fetching cameras:", e);
+      }
+    };
+    fetchCameras();
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     isMounted.current = true;
@@ -724,12 +788,43 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
     };
   }, []);
 
+  // Fetch other user's name and avatar
+  useEffect(() => {
+    const fetchOtherUser = async () => {
+      if (!callId) return;
+      try {
+        // Fetch call document to get callerId and receiverId
+        const callDoc = await getDoc(doc(db, 'calls', callId));
+        if (callDoc.exists()) {
+          const callData = callDoc.data();
+          const otherUserId = callData.callerId === user?.uid ? callData.receiverId : callData.callerId;
+
+          if (otherUserId) {
+            const userDoc = await getDoc(doc(db, 'users', otherUserId));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              setOtherUserName(userData.username || userData.displayName || 'Unknown User');
+              setOtherUserAvatar(userData.profileUrl || userData.photoURL || null);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching other user name:', error);
+      }
+    };
+
+    if (user?.uid) {
+      fetchOtherUser();
+    }
+  }, [callId, user?.uid]);
+
   const {
     join,
     leave,
     end,
     toggleWebcam,
     toggleMic,
+    changeWebcam,
     participants,
     meetingId,
     localMicOn,
@@ -772,6 +867,41 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
     },
   });
 
+  const handleSwitchCamera = async () => {
+    try {
+      // Re-fetch cameras to ensure we have the latest list
+      const currentCameras = await getCameras();
+      if (currentCameras && currentCameras.length > 1) {
+        setCameras(currentCameras); // Update list
+
+        // Find index of current device
+        let currentIndex = currentCameras.findIndex((c: any) => c.deviceId === currentDeviceId);
+
+        // If current not found (e.g. first switch), try to guess or start from 0
+        if (currentIndex === -1) {
+          // Fallback: if we don't know where we are, we might be on Front.
+          // Let's try to switch to Back (usually index 0 or labeled 'back').
+          // Or just pick index 0.
+          currentIndex = 0;
+        }
+
+        const nextIndex = (currentIndex + 1) % currentCameras.length;
+        const nextCamera = currentCameras[nextIndex];
+
+        console.log(`Switching camera: ${currentIndex} -> ${nextIndex} (${nextCamera.label})`);
+
+        if (changeWebcam) {
+          changeWebcam(nextCamera.deviceId);
+          setCurrentDeviceId(nextCamera.deviceId);
+        }
+      } else {
+        console.log("No alternative camera found");
+      }
+    } catch (e) {
+      console.error("Error switching camera:", e);
+    }
+  };
+
   // Get participants từ useMeeting Hook - Memoized to prevent recalculation
   const participantsArrId = useMemo(() => [...participants.keys()], [participants]);
 
@@ -795,7 +925,11 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
 
     // Cleanup on unmount - Proper leave call
     return () => {
-      leave(); // Properly leave meeting on unmount
+      try {
+        leave(); // Properly leave meeting on unmount
+      } catch (e) {
+        console.log('Error leaving meeting:', e);
+      }
       AudioService.cleanup();
     };
   }, []);
@@ -811,32 +945,52 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
     >
       <StatusBar barStyle="light-content" />
 
-      {/* Meeting ID Header */}
-      {meetingId && (
+      {/* Header with Other User Name */}
+      {!isConnecting && (
         <View style={styles.headerContainer}>
-          <Text style={styles.meetingIdText}>Meeting ID: {meetingId}</Text>
-          {isConnecting && (
-            <View style={styles.connectingIndicator}>
-              <Text style={styles.connectingText}>Connecting...</Text>
-            </View>
+          {otherUserName ? (
+            <Text style={styles.meetingIdText}>{otherUserName}</Text>
+          ) : (
+            <Text style={styles.meetingIdText}>Connected</Text>
           )}
         </View>
       )}
 
-      <ParticipantList
-        participants={participantsArrId}
-        callType={callType}
-        localParticipantId={localParticipant?.id}
-      />
+      {/* Loading View */}
+      {isConnecting ? (
+        <View style={styles.loadingContainer}>
+          <View style={styles.loadingContent}>
+            <Animated.View style={[styles.loadingRipple, loadingStyle]} />
+            <View style={styles.loadingAvatarContainer}>
+              {otherUserAvatar ? (
+                <Image source={{ uri: otherUserAvatar }} style={styles.loadingAvatar} />
+              ) : (
+                <Ionicons name="person" size={40} color="#FFF" />
+              )}
+            </View>
+            <Text style={styles.loadingName}>{otherUserName || "Connecting..."}</Text>
+            <Text style={styles.loadingStatus}>Calling...</Text>
+          </View>
+        </View>
+      ) : (
+        <>
+          <ParticipantList
+            participants={participantsArrId}
+            callType={callType}
+            localParticipantId={localParticipant?.id}
+            otherUserName={otherUserName}
+          />
 
-      <ControlsContainer
-        end={end}
-        toggleWebcam={toggleWebcam}
-        toggleMic={toggleMic}
-        callType={callType}
-        micEnabled={localMicOn}
-        webcamEnabled={localWebcamOn}
-      />
+          <ControlsContainer
+            end={end}
+            toggleWebcam={toggleWebcam}
+            toggleMic={toggleMic}
+            callType={callType}
+            micEnabled={localMicOn}
+            webcamEnabled={localWebcamOn}
+          />
+        </>
+      )}
     </LinearGradient>
   );
 }
@@ -1138,24 +1292,26 @@ const styles = StyleSheet.create({
   // Controls Styles
   controlsBlur: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: Platform.OS === 'ios' ? 50 : 40,
-    paddingTop: 20,
+    bottom: 40,
+    alignSelf: 'center',
+    borderRadius: 35,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   controls: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
-    paddingVertical: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     gap: 20,
   },
   controlButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1163,27 +1319,35 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   controlButtonGradient: {
     width: '100%',
     height: '100%',
-    borderRadius: 32,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
   },
   enabledButton: {
-    // Gradient handled in controlButtonGradient
+    backgroundColor: '#FFFFFF',
   },
   disabledControlButton: {
-    // Gradient handled in controlButtonGradient
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  secondaryControlButton: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   leaveButton: {
     // Gradient handled in controlButtonGradient
   },
   endButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 67, 54, 0.5)',
   },
   controlButtonText: {
     color: '#FFFFFF',
@@ -1219,6 +1383,7 @@ const styles = StyleSheet.create({
   modernCallContainer: {
     flex: 1,
     position: 'relative',
+    backgroundColor: '#000',
   },
 
   // Remote Video (Full Screen)
@@ -1243,10 +1408,13 @@ const styles = StyleSheet.create({
   },
   remoteParticipantName: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 16,
+    marginTop: 20,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 10
   },
   audioCallLabel: {
     fontSize: 16,
@@ -1256,7 +1424,7 @@ const styles = StyleSheet.create({
   },
   remoteVideoOverlay: {
     position: 'absolute',
-    top: 20,
+    top: 50,
     left: 20,
     right: 20,
     flexDirection: 'row',
@@ -1268,42 +1436,49 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   remoteStatusIndicator: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   remoteVideoName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
 
   // Local Video (Picture-in-Picture)
   localVideoContainer: {
     position: 'absolute',
-    width: 130,
-    height: 170,
-    borderRadius: 16,
+    width: 120,
+    height: 160,
+    borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.8)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    backgroundColor: '#000',
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    backgroundColor: '#1a1a1a',
+    elevation: 15,
   },
   localVideoStream: {
     flex: 1,
     width: '100%',
     height: '100%',
+    borderRadius: 18,
   },
   localVideoPlaceholder: {
     flex: 1,
@@ -1311,6 +1486,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     height: '100%',
+    backgroundColor: '#2c3e50',
   },
   localVideoOffText: {
     color: '#FFFFFF',
@@ -1320,33 +1496,33 @@ const styles = StyleSheet.create({
   },
   localVideoStatus: {
     position: 'absolute',
-    top: 6,
-    left: 6,
+    top: 8,
+    left: 8,
     flexDirection: 'row',
     gap: 4,
   },
   localStatusIndicator: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   localVideoName: {
     position: 'absolute',
-    bottom: 6,
-    left: 6,
-    right: 6,
-    fontSize: 11,
+    bottom: 8,
+    left: 8,
+    right: 8,
+    fontSize: 10,
     fontWeight: '600',
     color: '#FFFFFF',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
     textAlign: 'center',
     overflow: 'hidden',
   },

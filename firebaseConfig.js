@@ -6,12 +6,12 @@ import { getStorage } from 'firebase/storage';
 import * as Notifications from 'expo-notifications';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB6_mW_v1F-KD8CpNOVgb03RIxxxmFsgJM",
-  authDomain: "dating-app-1bb49.firebaseapp.com",
-  projectId: "dating-app-1bb49",
-  storageBucket: "dating-app-1bb49.appspot.com",
-  messagingSenderId: "256923005911",
-  appId: "1:256923005911:web:2d5db10af299cf70315192"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID
 };
 
 // Initialize (or reuse) Firebase app safely to avoid duplicate init on fast refresh / re-imports

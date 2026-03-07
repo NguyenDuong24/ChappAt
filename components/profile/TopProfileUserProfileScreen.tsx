@@ -3,6 +3,7 @@ import {
   StyleSheet, View, Text, TouchableOpacity, Alert, Clipboard,
   ActivityIndicator, Animated
 } from 'react-native';
+import { Menu } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 import CustomImage from '../common/CustomImage';
@@ -13,8 +14,11 @@ import { useAuth } from '@/context/authContext';
 import { followService } from '@/services/followService';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 
 const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
+  const { t } = useTranslation();
   const { user: currentUser } = useAuth();
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -22,6 +26,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [postsCount, setPostsCount] = useState(0);
+  const [showMenu, setShowMenu] = useState(false);
   const followButtonScale = useState(new Animated.Value(1))[0];
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(30))[0];
@@ -30,123 +35,124 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
-  const uid = user?.uid || user?.id || 'No UID';
+  // Robust name extraction
+  const uid = user?.id || user?.uid || '';
+  const name = user?.displayName || user?.fullname || user?.fullName || user?.username || t('chat.unknown_user');
+  const bio = user?.bio || '';
+  const location = user?.location || '';
+  const educationLevel = user?.educationLevel || '';
+  const university = user?.university || '';
+  const school = user?.school || '';
 
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 800,
         useNativeDriver: true,
       }),
-      Animated.spring(slideAnim, {
+      Animated.timing(slideAnim, {
         toValue: 0,
-        tension: 50,
-        friction: 8,
+        duration: 800,
         useNativeDriver: true,
-      }),
+      })
     ]).start();
   }, []);
 
   useEffect(() => {
-    if (!currentUser?.uid || !uid || uid === 'No UID' || currentUser.uid === uid) return;
-    (async () => {
-      const following = await followService.isFollowing(currentUser.uid, uid);
-      setIsFollowing(following);
-      const blocked = await followService.isBlocked(currentUser.uid, uid);
-      setIsBlocked(blocked);
-    })();
+    if (!currentUser?.uid || !uid) return;
+    const checkStatus = async () => {
+      const isF = await followService.isFollowing(currentUser.uid, uid);
+      setIsFollowing(isF);
+      const isB = await followService.isBlocked(currentUser.uid, uid);
+      setIsBlocked(isB);
+    };
+    checkStatus();
   }, [currentUser?.uid, uid]);
 
   useEffect(() => {
-    if (!uid || uid === 'No UID') return;
-    const unsub1 = onSnapshot(query(collection(db, 'follows'), where('followingId', '==', uid)), (s) => setFollowersCount(s.size));
-    const unsub2 = onSnapshot(query(collection(db, 'follows'), where('followerId', '==', uid)), (s) => setFollowingCount(s.size));
-    const unsub3 = onSnapshot(query(collection(db, 'posts'), where('userID', '==', uid)), (s) => setPostsCount(s.size));
-    return () => { unsub1(); unsub2(); unsub3(); };
+    if (!uid) return;
+    const qFollowers = query(collection(db, 'followers'), where('followingId', '==', uid));
+    const unsubscribeFollowers = onSnapshot(qFollowers, (snapshot) => {
+      setFollowersCount(snapshot.size);
+    });
+    const qFollowing = query(collection(db, 'followers'), where('followerId', '==', uid));
+    const unsubscribeFollowing = onSnapshot(qFollowing, (snapshot) => {
+      setFollowingCount(snapshot.size);
+    });
+    const qPosts = query(collection(db, 'posts'), where('userID', '==', uid));
+    const unsubscribePosts = onSnapshot(qPosts, (snapshot) => {
+      setPostsCount(snapshot.size);
+    });
+    return () => {
+      unsubscribeFollowers();
+      unsubscribeFollowing();
+      unsubscribePosts();
+    };
   }, [uid]);
 
-  const handleCopyUID = () => {
-    if (uid && uid !== 'No UID') {
-      Clipboard.setString(uid);
-      Alert.alert('✓ Đã sao chép', 'UID đã được lưu vào clipboard');
-    }
+  const handleCopyId = () => {
+    Clipboard.setString(uid);
+    Alert.alert('Sao chép', 'Đã sao chép ID người dùng vào bộ nhớ tạm.');
   };
 
   const handleFollowToggle = async () => {
-    if (!currentUser?.uid || !uid || uid === 'No UID') return;
-
+    if (!currentUser?.uid || !uid || followLoading) return;
+    setFollowLoading(true);
     Animated.sequence([
-      Animated.timing(followButtonScale, { toValue: 0.92, duration: 80, useNativeDriver: true }),
-      Animated.spring(followButtonScale, {
-        toValue: 1,
-        friction: 3,
-        tension: 50,
-        useNativeDriver: true
-      }),
+      Animated.spring(followButtonScale, { toValue: 0.9, useNativeDriver: true }),
+      Animated.spring(followButtonScale, { toValue: 1, useNativeDriver: true })
     ]).start();
 
-    setFollowLoading(true);
     try {
-      const success = isFollowing
-        ? await followService.unfollowUser(currentUser.uid, uid)
-        : await followService.followUser(currentUser.uid, uid);
-      if (success) setIsFollowing(!isFollowing);
-    } catch (e) {
-      console.error('Error toggling follow:', e);
+      if (isFollowing) {
+        await followService.unfollow(currentUser.uid, uid);
+        setIsFollowing(false);
+      } else {
+        await followService.follow(currentUser.uid, uid);
+        setIsFollowing(true);
+      }
+    } catch (error) {
+      console.error('Follow error:', error);
     } finally {
       setFollowLoading(false);
     }
   };
 
   const handleBlockToggle = async () => {
-    if (!currentUser?.uid || !uid || uid === 'No UID') return;
+    if (!currentUser?.uid || !uid || followLoading) return;
 
-    if (!isBlocked) {
-      // Show confirmation before blocking
-      Alert.alert(
-        '⚠️ Chặn người dùng',
-        `Bạn có chắc muốn chặn ${displayName}?\n\nKhi chặn:\n• Bạn sẽ không thấy bài viết của họ\n• Họ không thể nhắn tin cho bạn\n• Cả hai sẽ tự động unfollow`,
-        [
-          { text: 'Hủy', style: 'cancel' },
-          {
-            text: 'Chặn',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                const success = await followService.blockUser(currentUser.uid, uid);
-                if (success) {
-                  setIsBlocked(true);
-                  setIsFollowing(false);
-                  Alert.alert('✅ Đã chặn', `Bạn đã chặn ${displayName}`);
-                }
-              } catch (e) {
-                console.error('Error blocking user:', e);
-                Alert.alert('❌ Lỗi', 'Không thể chặn người dùng này');
+    Alert.alert(
+      isBlocked ? t('profile.unblock_confirm_title') : t('profile.block_confirm_title'),
+      isBlocked ? t('profile.unblock_confirm_message') : t('profile.block_confirm_message'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: isBlocked ? t('profile.unblock_user') : t('profile.block_user'),
+          style: 'destructive',
+          onPress: async () => {
+            setFollowLoading(true);
+            try {
+              if (isBlocked) {
+                await followService.unblockUser(currentUser.uid, uid);
+                setIsBlocked(false);
+              } else {
+                await followService.blockUser(currentUser.uid, uid);
+                setIsBlocked(true);
+                setIsFollowing(false);
               }
-            },
-          },
-        ]
-      );
-    } else {
-      // Unblock directly
-      try {
-        const success = await followService.unblockUser(currentUser.uid, uid);
-        if (success) {
-          setIsBlocked(false);
-          Alert.alert('✅ Đã bỏ chặn', `Bạn đã bỏ chặn ${displayName}`);
+            } catch (error) {
+              console.error('Block error:', error);
+            } finally {
+              setFollowLoading(false);
+            }
+          }
         }
-      } catch (e) {
-        console.error('Error unblocking user:', e);
-        Alert.alert('❌ Lỗi', 'Không thể bỏ chặn người dùng này');
-      }
-    }
+      ]
+    );
   };
 
-  if (!user) return null;
-
-  const displayName = user.username || user.displayName || user.name || 'Unknown User';
-  const profileImage = user.profileUrl || user.photoURL || user.avatar;
+  const profileImage = user?.profileUrl || user?.photoURL || user?.avatar;
   const currentVibe = user?.currentVibe || user?.vibe || user?.vibeStatus || null;
 
   return (
@@ -182,16 +188,17 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
           }]}>
             <VibeAvatar
               avatarUrl={profileImage}
-              size={100}
+              size={110}
               currentVibe={currentVibe}
               showAddButton={false}
               frameType={user?.activeFrame}
-              storyUser={{ id: uid, username: displayName, profileUrl: profileImage }}
+              storyUser={{ id: uid, username: name, profileUrl: profileImage }}
             />
           </View>
+
         </View>
 
-        {/* Follow & Block Button - Right Side */}
+        {/* Follow & Menu Button - Right Side */}
         {currentUser?.uid && currentUser.uid !== uid && (
           <Animated.View style={[styles.followButtonContainer, { transform: [{ scale: followButtonScale }] }]}>
             {/* Follow Button */}
@@ -229,54 +236,47 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                     <Text style={[styles.followText, {
                       color: isFollowing ? currentThemeColors.text : 'white'
                     }]}>
-                      {isFollowing ? 'Đang theo dõi' : 'Theo dõi'}
+                      {isFollowing ? t('profile.following') : t('profile.follow')}
                     </Text>
                   </>
                 )}
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Block Button - Styled like Follow Button */}
-            <TouchableOpacity
-              onPress={handleBlockToggle}
-              activeOpacity={0.85}
-              style={styles.followButtonWrapper}
-              disabled={followLoading}
+            {/* Options Menu */}
+            <Menu
+              visible={showMenu}
+              onDismiss={() => setShowMenu(false)}
+              anchor={
+                <TouchableOpacity
+                  onPress={() => setShowMenu(true)}
+                  activeOpacity={0.7}
+                  style={styles.menuButton}
+                >
+                  <Feather name="more-horizontal" size={22} color={currentThemeColors.text} />
+                </TouchableOpacity>
+              }
+              contentStyle={{ backgroundColor: currentThemeColors.background }}
             >
-              <LinearGradient
-                colors={isBlocked
-                  ? ['#a1a1aa', '#6b7280'] // xám khi đã chặn
-                  : ['#d1d5db', '#6b7280']} // xám nhạt khi chưa chặn
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.followButton, {
-                  shadowColor: isBlocked ? '#6b7280' : '#d1d5db',
-                }]}
-              >
-                {followLoading ? (
-                  <ActivityIndicator size="small" color={'#fff'} />
-                ) : (
-                  <>
-                    <View style={[styles.followIconCircle, {
-                      backgroundColor: isBlocked
-                        ? 'rgba(156,163,175,0.15)' // xám nhạt
-                        : 'rgba(209,213,219,0.25)' // xám nhạt
-                    }]}>
-                      <Feather
-                        name={isBlocked ? 'user-x' : 'lock'}
-                        size={16}
-                        color={isBlocked ? '#374151' : '#374151'} // xám đậm cho icon
-                      />
-                    </View>
-                    <Text style={[styles.followText, {
-                      color: '#374151' // xám đậm cho text
-                    }]}>
-                      {isBlocked ? 'Đã chặn' : 'Chặn'}
-                    </Text>
-                  </>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+              <Menu.Item
+                onPress={() => {
+                  setShowMenu(false);
+                  handleBlockToggle();
+                }}
+                title={isBlocked ? t('profile.unblock_user') : t('profile.block_user')}
+                titleStyle={{ color: isBlocked ? '#10B981' : '#EF4444', fontSize: 14 }}
+                leadingIcon={isBlocked ? "lock-open-check-outline" : "block-helper"}
+              />
+              <Menu.Item
+                onPress={() => {
+                  setShowMenu(false);
+                  Alert.alert(t('profile.report'), t('profile.report_not_implemented'));
+                }}
+                title={t('profile.report')}
+                titleStyle={{ color: currentThemeColors.text, fontSize: 14 }}
+                leadingIcon="flag-outline"
+              />
+            </Menu>
           </Animated.View>
         )}
       </Animated.View>
@@ -291,123 +291,110 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
           }
         ]}
       >
-        {/* Blocked State Banner */}
-        {isBlocked && (
-          <View style={[styles.blockedBanner, {
-            backgroundColor: theme === 'dark' ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)',
-            borderColor: '#EF4444'
-          }]}
-          >
-            <Feather name="slash" size={18} color="#EF4444" />
-            <Text style={[styles.blockedText, { color: '#EF4444' }]}>
-              Bạn đã chặn người dùng này
-            </Text>
-          </View>
-        )}
-
-        {/* Name & UID */}
+        {/* Name Section */}
         <View style={styles.nameSection}>
-          <Text style={[styles.userName, { color: currentThemeColors.text }]}>
-            {displayName}
-          </Text>
-
+          <View style={styles.nameAndGenderContainer}>
+            <Text style={[styles.userName, { color: currentThemeColors.text }]}>{name}</Text>
+            {user?.gender && (
+              <View style={[styles.genderIconContainer, {
+                backgroundColor: user.gender === 'female' ? '#F472B620' : (user.gender === 'male' ? '#60A5FA20' : '#8B5CF620')
+              }]}>
+                <MaterialCommunityIcons
+                  name={user.gender === 'male' ? 'gender-male' : user.gender === 'female' ? 'gender-female' : 'gender-male-female'}
+                  size={16}
+                  color={user.gender === 'female' ? '#F472B6' : (user.gender === 'male' ? '#60A5FA' : '#8B5CF6')}
+                />
+              </View>
+            )}
+          </View>
           <TouchableOpacity
-            style={[styles.uidBadge, {
-              backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            }]}
-            onPress={handleCopyUID}
+            style={[styles.uidBadge, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
+            onPress={handleCopyId}
             activeOpacity={0.7}
           >
-            <Feather name="hash" size={10} color={currentThemeColors.subtleText} style={{ opacity: 0.5 }} />
-            <Text style={[styles.uidText, { color: currentThemeColors.subtleText }]}>
-              {uid.slice(0, 8)}
-            </Text>
-            <Feather name="copy" size={10} color={currentThemeColors.subtleText} style={{ opacity: 0.5 }} />
+            <Text style={[styles.uidText, { color: currentThemeColors.text }]}># {uid.slice(0, 8)}</Text>
+            <Feather name="copy" size={10} color={currentThemeColors.text} opacity={0.4} />
           </TouchableOpacity>
         </View>
 
-        {/* Bio */}
-        {user.bio && (
-          <Text style={[styles.bioText, { color: currentThemeColors.text }]} numberOfLines={3}>
-            {user.bio}
-          </Text>
+        {bio ? (
+          <Text style={[styles.bioText, { color: currentThemeColors.text }]}>{bio}</Text>
+        ) : (
+          <View style={{ height: 8 }} />
         )}
 
-        {/* Stats - Premium Grid */}
+        {/* Stats card */}
         <View style={[styles.statsContainer, {
-          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(102,126,234,0.04)',
-          borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(102,126,234,0.1)',
+          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.015)',
+          borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'
         }]}>
-          {([
-            { label: 'Bài viết', count: postsCount, icon: 'grid', gradient: ['#667eea', '#764ba2'] as const },
-            { label: 'Người theo dõi', count: followersCount, icon: 'users', gradient: ['#f093fb', '#f5576c'] as const },
-            { label: 'Theo dõi', count: followingCount, icon: 'user-check', gradient: ['#4facfe', '#00f2fe'] as const },
-          ] as const).map((stat, idx) => (
-            <View key={idx} style={styles.statItem}>
-              <LinearGradient
-                colors={stat.gradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.statIconGradient}
-              >
-                <Feather name={stat.icon as any} size={16} color="white" />
-              </LinearGradient>
-              <Text style={[styles.statCount, { color: currentThemeColors.text }]}>
-                {stat.count}
-              </Text>
-              <Text style={[styles.statLabel, { color: currentThemeColors.subtleText }]}>
-                {stat.label}
-              </Text>
-            </View>
-          ))}
+          <View style={styles.statItem}>
+            <LinearGradient colors={['#667eea', '#764ba2']} style={styles.statIconGradient}>
+              <Feather name="grid" size={14} color="white" />
+            </LinearGradient>
+            <Text style={[styles.statCount, { color: currentThemeColors.text }]}>{postsCount}</Text>
+            <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>Bài viết</Text>
+          </View>
+
+          <View style={styles.statItem}>
+            <LinearGradient colors={['#F472B6', '#EC4899']} style={styles.statIconGradient}>
+              <Feather name="users" size={14} color="white" />
+            </LinearGradient>
+            <Text style={[styles.statCount, { color: currentThemeColors.text }]}>{followersCount}</Text>
+            <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>Người theo dõi</Text>
+          </View>
+
+          <View style={styles.statItem}>
+            <LinearGradient colors={['#60A5FA', '#3B82F6']} style={styles.statIconGradient}>
+              <Feather name="user-check" size={14} color="white" />
+            </LinearGradient>
+            <Text style={[styles.statCount, { color: currentThemeColors.text }]}>{followingCount}</Text>
+            <Text style={[styles.statLabel, { color: currentThemeColors.text }]}>Theo dõi</Text>
+          </View>
         </View>
 
-        {/* Professional Info */}
-        {((user.job || user.occupation) || user.educationLevel || user.university || user.school) && (
+        {/* Professional Info Area */}
+        {(location || educationLevel || university || school) && (
           <View style={styles.professionalSection}>
-            {/* Job/Occupation - Simple Item */}
-            {(user.job || user.occupation) && (
+            {location && (
               <View style={[styles.professionalItem, {
                 backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
               }]}>
-                <Feather name="briefcase" size={14} color="#667eea" style={{ marginRight: 10 }} />
-                <Text style={[styles.professionalText, { color: currentThemeColors.text }]} numberOfLines={2}>
-                  {user.job || user.occupation}
-                </Text>
+                <Feather name="map-pin" size={14} color="#667eea" style={{ marginRight: 10 }} />
+                <Text style={[styles.professionalText, { color: currentThemeColors.text }]}>{location}</Text>
               </View>
             )}
 
-            {/* Education - Concise List */}
-            {(user.educationLevel || user.university || user.school) && (
+            {(educationLevel || university || school) && (
               <View style={styles.professionalList}>
-                {user.educationLevel && (
+                {educationLevel && (
                   <View style={[styles.professionalItem, {
                     backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                   }]}>
                     <View style={styles.educationDot} />
                     <Text style={[styles.professionalText, { color: currentThemeColors.text }]}
                       numberOfLines={2}>
-                      {user.educationLevel}
+                      {educationLevel}
                     </Text>
                   </View>
                 )}
-                {user.university && (
+                {university && (
                   <View style={[styles.professionalItem, {
                     backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                   }]}>
                     <Feather name="book-open" size={13} color="#667eea" style={{ marginRight: 10 }} />
                     <Text style={[styles.professionalText, { color: currentThemeColors.text }]} numberOfLines={2}>
-                      {user.university}
+                      {university}
                     </Text>
                   </View>
                 )}
-                {user.school && (
+                {school && (
                   <View style={[styles.professionalItem, {
                     backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
                   }]}>
                     <Feather name="bookmark" size={13} color="#667eea" style={{ marginRight: 10 }} />
                     <Text style={[styles.professionalText, { color: currentThemeColors.text }]} numberOfLines={2}>
-                      {user.school}
+                      {school}
                     </Text>
                   </View>
                 )}
@@ -417,8 +404,6 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
         )}
       </Animated.View>
 
-      {/* Bottom Divider */}
-      <View style={[styles.divider, { backgroundColor: currentThemeColors.border }]} />
     </View>
   );
 };
@@ -444,106 +429,116 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginTop: -50,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    marginTop: -60,
+    marginBottom: 16,
   },
   avatarWrapper: {
     flex: 1,
   },
   avatarRing: {
-    width: 108,
-    height: 108,
-    borderRadius: 54,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     padding: 4,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
     shadowRadius: 16,
-    elevation: 10,
+    elevation: 8,
   },
   followButtonContainer: {
-    marginLeft: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 40,
+  },
+  menuButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   followButtonWrapper: {
-    borderRadius: 30,
-    marginTop: 8,
+    borderRadius: 22,
+    overflow: 'hidden',
   },
   followButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 30,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    minWidth: 130,
+    justifyContent: 'center',
+    height: 44,
   },
   followIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   followText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   contentSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   nameSection: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    marginTop: 4,
   },
   userName: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.3,
-    marginBottom: 6,
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
   uidBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
   uidText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
     fontFamily: 'monospace',
     opacity: 0.6,
   },
   bioText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
     textAlign: 'center',
-    opacity: 0.7,
-    marginBottom: 16,
+    opacity: 0.8,
+    marginBottom: 20,
+    paddingHorizontal: 10,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 18,
-    borderRadius: 18,
+    paddingVertical: 16,
+    borderRadius: 20,
     marginBottom: 20,
     borderWidth: 1,
   },
   statItem: {
     alignItems: 'center',
-    gap: 6,
+    flex: 1,
   },
   statIconGradient: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 8,
   },
   statCount: {
     fontSize: 20,
@@ -551,64 +546,50 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     opacity: 0.6,
+    marginTop: 2,
   },
   professionalSection: {
-    gap: 16,
-    marginBottom: 20,
+    gap: 12,
+    marginBottom: 24,
   },
   professionalList: {
-    gap: 8,
+    gap: 10,
   },
   professionalItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
   },
   professionalText: {
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
-    lineHeight: 19,
+    lineHeight: 20,
   },
   educationDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#667eea',
     marginRight: 10,
   },
-  divider: {
-    height: 1,
-    marginTop: 8,
-  },
-  blockedBanner: {
+  nameAndGenderContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
+    gap: 8,
+    marginBottom: 4,
   },
-  blockedText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  blockButton: {
-    marginLeft: 12,
+  genderIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
 });
 

@@ -208,4 +208,14 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PostHeader;
+export default React.memo(PostHeader, (prev, next) => {
+  return (
+    prev.userId === next.userId &&
+    prev.timestamp === next.timestamp &&
+    prev.isFollowing === next.isFollowing &&
+    prev.postPrivacy === next.postPrivacy &&
+    prev.userInfo?.profileUrl === next.userInfo?.profileUrl &&
+    prev.userInfo?.username === next.userInfo?.username &&
+    prev.userInfo?.activeFrame === next.userInfo?.activeFrame
+  );
+});

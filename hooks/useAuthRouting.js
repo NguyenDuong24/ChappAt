@@ -52,6 +52,7 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('ChangePasswordScreen') ||
       segments.includes('ProfileVisitorsScreen') ||
       segments.includes('PrivacySettingsScreen') ||
+      segments.includes('CrossingPathsScreen') ||
       segments.includes('subscription');
 
     console.log('🔐 Auth routing check:', { isAuthenticated, segments });

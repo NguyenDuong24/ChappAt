@@ -53,22 +53,24 @@ import {
   Check as CheckIcon,
   Close as CloseIcon,
   Schedule as ScheduleIcon,
+  FilterList as FilterIcon,
+  TrendingUp as TrendingIcon,
 } from '@mui/icons-material';
 import {
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-  getDoc,
-} from 'firebase/firestore';
+  getHotspotInteractions,
+  getHotspotInvitations,
+  getEventPasses,
+  deleteHotspotInteraction,
+  deleteHotspotInvitation,
+  deleteEventPass,
+  updateInvitationStatus,
+  verifyEventPass,
+  getErrorMessage,
+} from '../api/adminApi';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import AvatarFrame from './common/AvatarFrame';
+import { useTranslation } from 'react-i18next';
 
 // Types
 interface HotSpotInteraction {
@@ -81,15 +83,11 @@ interface HotSpotInteraction {
     latitude: number;
     longitude: number;
   };
-  invitationData?: {
-    message?: string;
-    status: 'pending' | 'accepted' | 'declined';
-  };
-  // Additional data for display
   userName?: string;
   userAvatar?: string;
   userFrame?: string;
   hotSpotTitle?: string;
+  hotSpotThumbnail?: string;
 }
 
 interface HotSpotInvitation {
@@ -102,6 +100,7 @@ interface HotSpotInvitation {
   createdAt: any;
   expiresAt: any;
   hotSpotTitle: string;
+  hotSpotThumbnail?: string;
   fromUserName: string;
   fromUserAvatar?: string;
   fromUserFrame?: string;
@@ -118,7 +117,7 @@ interface EventPass {
   badgeType: 'participant' | 'checked_in' | 'organizer' | 'vip';
   earnedAt: any;
   isVerified: boolean;
-  verificationData: {
+  verificationData?: {
     checkInLocation?: {
       latitude: number;
       longitude: number;
@@ -132,24 +131,10 @@ interface EventPass {
 }
 
 export default function HotSpotInteractionsPage() {
+  const { t } = useTranslation();
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userCache, setUserCache] = useState<Record<string, any>>({});
-
-  const fetchUserInfo = async (userId: string) => {
-    if (userCache[userId]) return userCache[userId];
-    try {
-      const userDoc = await getDoc(doc(db, 'users', userId));
-      if (userDoc.exists()) {
-        const userData = { id: userId, ...userDoc.data() };
-        setUserCache(prev => ({ ...prev, [userId]: userData }));
-        return userData;
-      }
-    } catch (err) {
-      console.error('Error fetching user:', err);
-    }
-    return null;
-  };
 
   // Data states
   const [interactions, setInteractions] = useState<HotSpotInteraction[]>([]);
@@ -190,65 +175,68 @@ export default function HotSpotInteractionsPage() {
     verifiedPasses: 0,
   });
 
+  const showSnackbar = (message: string, severity: 'success' | 'error') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
   // Fetch data
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch interactions
-      const interactionsRef = collection(db, 'hotSpotInteractions');
-      const interactionsSnap = await getDocs(interactionsRef);
-      const interactionsData = interactionsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as HotSpotInteraction[];
+      const [interactionsData, invitationsData, passesData] = await Promise.all([
+        getHotspotInteractions(),
+        getHotspotInvitations(),
+        getEventPasses()
+      ]);
 
-      // Enrich with user frames
-      const uniqueUserIds = [...new Set(interactionsData.map(i => i.userId).filter(Boolean))];
-      await Promise.all(uniqueUserIds.map(id => fetchUserInfo(id)));
+      const userIds = new Set<string>();
+      interactionsData.forEach(i => i.userId && userIds.add(i.userId));
+      invitationsData.forEach(i => i.fromUserId && userIds.add(i.fromUserId));
+      passesData.forEach(i => i.userId && userIds.add(i.userId));
+
+      const newUsers: Record<string, any> = { ...userCache };
+      let hasNewUsers = false;
+
+      await Promise.all([...userIds].map(async (id) => {
+        if (!newUsers[id]) {
+          try {
+            const userDoc = await getDoc(doc(db, 'users', id));
+            if (userDoc.exists()) {
+              newUsers[id] = { id, ...userDoc.data() };
+              hasNewUsers = true;
+            }
+          } catch (err) {
+            console.error(`Error fetching user ${id}:`, err);
+          }
+        }
+      }));
+
+      if (hasNewUsers) {
+        setUserCache(newUsers);
+      }
 
       const enrichedInteractions = interactionsData.map(item => ({
         ...item,
-        userFrame: userCache[item.userId]?.activeFrame
+        userFrame: newUsers[item.userId]?.activeFrame,
+        userName: newUsers[item.userId]?.displayName || newUsers[item.userId]?.username || item.userName
       }));
-      setInteractions(enrichedInteractions);
-
-      // Fetch invitations
-      const invitationsRef = collection(db, 'hotSpotInvitations');
-      const invitationsSnap = await getDocs(invitationsRef);
-      const invitationsData = invitationsSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as HotSpotInvitation[];
-
-      // Enrich with user frames
-      const uniqueFromUserIds = [...new Set(invitationsData.map(i => i.fromUserId).filter(Boolean))];
-      await Promise.all(uniqueFromUserIds.map(id => fetchUserInfo(id)));
 
       const enrichedInvitations = invitationsData.map(item => ({
         ...item,
-        fromUserFrame: userCache[item.fromUserId]?.activeFrame
+        fromUserFrame: newUsers[item.fromUserId]?.activeFrame,
+        fromUserName: newUsers[item.fromUserId]?.displayName || newUsers[item.fromUserId]?.username || item.fromUserName
       }));
-      setInvitations(enrichedInvitations);
-
-      // Fetch event passes
-      const passesRef = collection(db, 'eventPasses');
-      const passesSnap = await getDocs(passesRef);
-      const passesData = passesSnap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as EventPass[];
-
-      // Enrich with user frames
-      const uniquePassUserIds = [...new Set(passesData.map(i => i.userId).filter(Boolean))];
-      await Promise.all(uniquePassUserIds.map(id => fetchUserInfo(id)));
 
       const enrichedPasses = passesData.map(item => ({
         ...item,
-        userFrame: userCache[item.userId]?.activeFrame
+        userFrame: newUsers[item.userId]?.activeFrame,
+        userName: newUsers[item.userId]?.displayName || newUsers[item.userId]?.username || item.userName
       }));
-      setEventPasses(enrichedPasses);
 
-      // Calculate stats
+      setInteractions(enrichedInteractions as any);
+      setInvitations(enrichedInvitations as any);
+      setEventPasses(enrichedPasses as any);
+
       setStats({
         totalInteractions: interactionsData.length,
         interested: interactionsData.filter(i => i.type === 'interested').length,
@@ -261,26 +249,23 @@ export default function HotSpotInteractionsPage() {
       });
     } catch (error) {
       console.error('Error fetching data:', error);
-      showSnackbar('Error fetching data', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userCache]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
-
-  const showSnackbar = (message: string, severity: 'success' | 'error') => {
-    setSnackbar({ open: true, message, severity });
-  };
+  }, []);
 
   const formatDate = (date: any) => {
     if (!date) return 'N/A';
+    const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US';
     if (date.toDate) {
-      return date.toDate().toLocaleString('vi-VN');
+      return date.toDate().toLocaleString(locale);
     }
-    return new Date(date).toLocaleString('vi-VN');
+    return new Date(date).toLocaleString(locale);
   };
 
   const handleChangePage = (event: unknown, newPage: number) => {
@@ -294,66 +279,53 @@ export default function HotSpotInteractionsPage() {
 
   const handleDelete = async () => {
     if (!selectedItem) return;
-
     try {
-      let collectionName = '';
-      switch (tabValue) {
-        case 0:
-          collectionName = 'hotSpotInteractions';
-          break;
-        case 1:
-          collectionName = 'hotSpotInvitations';
-          break;
-        case 2:
-          collectionName = 'eventPasses';
-          break;
+      if (tabValue === 0) {
+        await deleteHotspotInteraction(selectedItem.id);
+      } else if (tabValue === 1) {
+        await deleteHotspotInvitation(selectedItem.id);
+      } else if (tabValue === 2) {
+        await deleteEventPass(selectedItem.id);
       }
-
-      await deleteDoc(doc(db, collectionName, selectedItem.id));
-      showSnackbar('Deleted successfully', 'success');
+      showSnackbar(t('common.success'), 'success');
       setOpenDeleteDialog(false);
       fetchData();
     } catch (error) {
       console.error('Error deleting:', error);
-      showSnackbar('Error deleting', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     }
   };
 
   const handleUpdateInvitationStatus = async (invitation: HotSpotInvitation, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'hotSpotInvitations', invitation.id), {
-        status: newStatus,
-      });
-      showSnackbar(`Invitation ${newStatus}`, 'success');
+      await updateInvitationStatus(invitation.id, newStatus);
+      showSnackbar(t('common.success'), 'success');
       fetchData();
     } catch (error) {
       console.error('Error updating invitation:', error);
-      showSnackbar('Error updating invitation', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     }
   };
 
   const handleVerifyPass = async (pass: EventPass) => {
     try {
-      await updateDoc(doc(db, 'eventPasses', pass.id), {
-        isVerified: !pass.isVerified,
-        'verificationData.verifiedBy': pass.isVerified ? null : 'admin',
-      });
-      showSnackbar(`Pass ${pass.isVerified ? 'unverified' : 'verified'}`, 'success');
+      await verifyEventPass(pass.id, !pass.isVerified);
+      showSnackbar(t('common.success'), 'success');
       fetchData();
     } catch (error) {
       console.error('Error verifying pass:', error);
-      showSnackbar('Error verifying pass', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     }
   };
 
-  // Filter functions
   const filteredInteractions = interactions.filter(item => {
     if (filterType !== 'all' && item.type !== filterType) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!item.userId?.toLowerCase().includes(query) &&
-        !item.hotSpotId?.toLowerCase().includes(query) &&
-        !item.userName?.toLowerCase().includes(query)) return false;
+      return item.userId?.toLowerCase().includes(query) ||
+        item.hotSpotId?.toLowerCase().includes(query) ||
+        item.userName?.toLowerCase().includes(query) ||
+        item.hotSpotTitle?.toLowerCase().includes(query);
     }
     return true;
   });
@@ -362,10 +334,10 @@ export default function HotSpotInteractionsPage() {
     if (filterStatus !== 'all' && item.status !== filterStatus) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!item.fromUserId?.toLowerCase().includes(query) &&
-        !item.toUserId?.toLowerCase().includes(query) &&
-        !item.hotSpotTitle?.toLowerCase().includes(query) &&
-        !item.fromUserName?.toLowerCase().includes(query)) return false;
+      return item.fromUserId?.toLowerCase().includes(query) ||
+        item.toUserId?.toLowerCase().includes(query) ||
+        item.hotSpotTitle?.toLowerCase().includes(query) ||
+        item.fromUserName?.toLowerCase().includes(query);
     }
     return true;
   });
@@ -374,53 +346,39 @@ export default function HotSpotInteractionsPage() {
     if (filterBadge !== 'all' && item.badgeType !== filterBadge) return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      if (!item.userId?.toLowerCase().includes(query) &&
-        !item.hotSpotTitle?.toLowerCase().includes(query) &&
-        !item.userName?.toLowerCase().includes(query)) return false;
+      return item.userId?.toLowerCase().includes(query) ||
+        item.hotSpotTitle?.toLowerCase().includes(query) ||
+        item.userName?.toLowerCase().includes(query);
     }
     return true;
   });
 
   const getInteractionIcon = (type: string) => {
     switch (type) {
-      case 'interested':
-        return <FavoriteIcon color="error" />;
-      case 'joined':
-        return <GroupIcon color="primary" />;
-      case 'checked_in':
-        return <LocationIcon color="success" />;
-      default:
-        return <FavoriteIcon />;
+      case 'interested': return <FavoriteIcon color="error" />;
+      case 'joined': return <GroupIcon color="primary" />;
+      case 'checked_in': return <LocationIcon color="success" />;
+      default: return <FavoriteIcon />;
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending':
-        return 'warning';
-      case 'accepted':
-        return 'success';
-      case 'declined':
-        return 'error';
-      case 'expired':
-        return 'default';
-      default:
-        return 'default';
+      case 'pending': return 'warning';
+      case 'accepted': return 'success';
+      case 'declined': return 'error';
+      case 'expired': return 'default';
+      default: return 'default';
     }
   };
 
   const getBadgeColor = (type: string) => {
     switch (type) {
-      case 'participant':
-        return 'primary';
-      case 'checked_in':
-        return 'success';
-      case 'organizer':
-        return 'secondary';
-      case 'vip':
-        return 'warning';
-      default:
-        return 'default';
+      case 'participant': return 'primary';
+      case 'checked_in': return 'success';
+      case 'organizer': return 'secondary';
+      case 'vip': return 'warning';
+      default: return 'default';
     }
   };
 
@@ -428,117 +386,78 @@ export default function HotSpotInteractionsPage() {
     <Box>
       {/* Stats Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={3} md={1.5}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-              <Typography variant="h5" color="primary">{stats.totalInteractions}</Typography>
-              <Typography variant="caption" color="text.secondary">Interactions</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3} md={1.5}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-              <Typography variant="h5" color="error.main">{stats.interested}</Typography>
-              <Typography variant="caption" color="text.secondary">Interested</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3} md={1.5}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-              <Typography variant="h5" color="info.main">{stats.joined}</Typography>
-              <Typography variant="caption" color="text.secondary">Joined</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3} md={1.5}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-              <Typography variant="h5" color="success.main">{stats.checkedIn}</Typography>
-              <Typography variant="caption" color="text.secondary">Checked In</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3} md={1.5}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-              <Typography variant="h5" color="warning.main">{stats.pendingInvitations}</Typography>
-              <Typography variant="caption" color="text.secondary">Pending Invites</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3} md={1.5}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-              <Typography variant="h5" color="secondary.main">{stats.totalPasses}</Typography>
-              <Typography variant="caption" color="text.secondary">Event Passes</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={6} sm={3} md={1.5}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-              <Typography variant="h5" color="success.main">{stats.verifiedPasses}</Typography>
-              <Typography variant="caption" color="text.secondary">Verified</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        {[
+          { label: t('hotspots.stats.totalInteractions'), value: stats.totalInteractions, icon: <TrendingIcon />, color: '#2196F3', bg: 'rgba(33, 150, 243, 0.1)' },
+          { label: t('hotspots.stats.interested'), value: stats.interested, icon: <FavoriteIcon />, color: '#E91E63', bg: 'rgba(233, 30, 99, 0.1)' },
+          { label: t('hotspots.stats.joined'), value: stats.joined, icon: <GroupIcon />, color: '#9C27B0', bg: 'rgba(156, 39, 176, 0.1)' },
+          { label: t('hotspots.stats.checkedIn'), value: stats.checkedIn, icon: <LocationIcon />, color: '#4CAF50', bg: 'rgba(76, 175, 80, 0.1)' },
+          { label: t('hotspots.stats.pendingInvitations'), value: stats.pendingInvitations, icon: <MailIcon />, color: '#FF9800', bg: 'rgba(255, 152, 0, 0.1)' },
+          { label: t('hotspots.stats.totalPasses'), value: stats.totalPasses, icon: <BadgeIcon />, color: '#607D8B', bg: 'rgba(96, 125, 139, 0.1)' },
+          { label: t('hotspots.stats.verifiedPasses'), value: stats.verifiedPasses, icon: <CheckCircleIcon />, color: '#009688', bg: 'rgba(0, 150, 136, 0.1)' },
+        ].map((stat, index) => (
+          <Grid item xs={6} sm={4} md={1.7} key={index}>
+            <Card sx={{
+              height: '100%',
+              borderRadius: 3,
+              boxShadow: '0 4px 20px 0 rgba(0,0,0,0.05)',
+              transition: 'transform 0.2s',
+              '&:hover': { transform: 'translateY(-4px)' }
+            }}>
+              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                  <Box sx={{ p: 1, borderRadius: 2, backgroundColor: stat.bg, color: stat.color, display: 'flex' }}>
+                    {stat.icon}
+                  </Box>
+                </Box>
+                <Typography variant="h4" fontWeight="bold" sx={{ color: stat.color }}>{stat.value}</Typography>
+                <Typography variant="caption" color="text.secondary" fontWeight="medium">{stat.label}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
 
-      <Paper sx={{ p: 2 }}>
-        {/* Header */}
+      <Paper sx={{ p: 2, borderRadius: 3, boxShadow: '0 4px 20px 0 rgba(0,0,0,0.05)' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" fontWeight="bold">
-            HotSpot Activity
-          </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={fetchData}
-          >
-            Refresh
-          </Button>
+          <Typography variant="h5" fontWeight="bold">{t('hotspots.activity')}</Typography>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchData}>{t('hotspots.actions.refresh')}</Button>
         </Box>
 
-        {/* Tabs */}
-        <Tabs value={tabValue} onChange={(e, v) => { setTabValue(v); setPage(0); }} sx={{ mb: 2 }}>
-          <Tab label={`Interactions (${interactions.length})`} />
-          <Tab label={`Invitations (${invitations.length})`} />
-          <Tab label={`Event Passes (${eventPasses.length})`} />
+        <Tabs
+          value={tabValue}
+          onChange={(e, v) => { setTabValue(v); setPage(0); }}
+          sx={{
+            mb: 3,
+            borderBottom: 1,
+            borderColor: 'divider',
+            '& .MuiTab-root': { fontWeight: 'bold', minWidth: 150, fontSize: '0.9rem' }
+          }}
+        >
+          <Tab icon={<TrendingIcon />} iconPosition="start" label={`${t('hotspots.tabs.interactions')} (${interactions.length})`} />
+          <Tab icon={<MailIcon />} iconPosition="start" label={`${t('hotspots.tabs.invitations')} (${invitations.length})`} />
+          <Tab icon={<BadgeIcon />} iconPosition="start" label={`${t('hotspots.tabs.passes')} (${eventPasses.length})`} />
         </Tabs>
 
-        {/* Filters */}
         <Grid container spacing={2} sx={{ mb: 2 }}>
           <Grid item xs={12} md={4}>
             <TextField
               fullWidth
               size="small"
-              placeholder="Search by user, hotspot..."
+              placeholder={t('hotspots.filters.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
+              InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>) }}
             />
           </Grid>
           {tabValue === 0 && (
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel>Type</InputLabel>
-                <Select
-                  value={filterType}
-                  label="Type"
-                  onChange={(e) => setFilterType(e.target.value as any)}
-                >
-                  <MenuItem value="all">All Types</MenuItem>
-                  <MenuItem value="interested">Interested</MenuItem>
-                  <MenuItem value="joined">Joined</MenuItem>
-                  <MenuItem value="checked_in">Checked In</MenuItem>
+                <InputLabel>{t('hotspots.filters.type')}</InputLabel>
+                <Select value={filterType} label={t('hotspots.filters.type')} onChange={(e) => setFilterType(e.target.value as any)}>
+                  <MenuItem value="all">{t('hotspots.filters.all')}</MenuItem>
+                  <MenuItem value="interested">{t('hotspots.stats.interested')}</MenuItem>
+                  <MenuItem value="joined">{t('hotspots.stats.joined')}</MenuItem>
+                  <MenuItem value="checked_in">{t('hotspots.stats.checkedIn')}</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -546,13 +465,9 @@ export default function HotSpotInteractionsPage() {
           {tabValue === 1 && (
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filterStatus}
-                  label="Status"
-                  onChange={(e) => setFilterStatus(e.target.value as any)}
-                >
-                  <MenuItem value="all">All Status</MenuItem>
+                <InputLabel>{t('hotspots.filters.status')}</InputLabel>
+                <Select value={filterStatus} label={t('hotspots.filters.status')} onChange={(e) => setFilterStatus(e.target.value as any)}>
+                  <MenuItem value="all">{t('hotspots.filters.all')}</MenuItem>
                   <MenuItem value="pending">Pending</MenuItem>
                   <MenuItem value="accepted">Accepted</MenuItem>
                   <MenuItem value="declined">Declined</MenuItem>
@@ -564,13 +479,9 @@ export default function HotSpotInteractionsPage() {
           {tabValue === 2 && (
             <Grid item xs={12} md={3}>
               <FormControl fullWidth size="small">
-                <InputLabel>Badge Type</InputLabel>
-                <Select
-                  value={filterBadge}
-                  label="Badge Type"
-                  onChange={(e) => setFilterBadge(e.target.value as any)}
-                >
-                  <MenuItem value="all">All Badges</MenuItem>
+                <InputLabel>{t('hotspots.filters.badgeType')}</InputLabel>
+                <Select value={filterBadge} label={t('hotspots.filters.badgeType')} onChange={(e) => setFilterBadge(e.target.value as any)}>
+                  <MenuItem value="all">{t('hotspots.filters.all')}</MenuItem>
                   <MenuItem value="participant">Participant</MenuItem>
                   <MenuItem value="checked_in">Checked In</MenuItem>
                   <MenuItem value="organizer">Organizer</MenuItem>
@@ -583,328 +494,113 @@ export default function HotSpotInteractionsPage() {
 
         {loading && <LinearProgress sx={{ mb: 2 }} />}
 
-        {/* Interactions Tab */}
-        {tabValue === 0 && (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>User</TableCell>
-                  <TableCell>HotSpot</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Timestamp</TableCell>
-                  <TableCell>Location</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredInteractions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
-                      <Typography color="text.secondary">No interactions found</Typography>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'action.hover' }}>
+                <TableCell sx={{ fontWeight: 'bold' }}>{t('hotspots.table.user')}</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>{t('hotspots.table.hotspot')}</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>{tabValue === 1 ? t('hotspots.table.status') : t('hotspots.table.type')}</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>{t('hotspots.table.time')}</TableCell>
+                <TableCell sx={{ fontWeight: 'bold' }}>{tabValue === 2 ? t('hotspots.table.verification') : t('hotspots.table.details')}</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 'bold' }}>{t('hotspots.table.actions')}</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(tabValue === 0 ? filteredInteractions : tabValue === 1 ? filteredInvitations : filteredPasses)
+                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .map((item: any) => (
+                  <TableRow key={item.id} hover>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AvatarFrame
+                          avatarUrl={item.userAvatar || item.fromUserAvatar || ''}
+                          frameType={item.userFrame || item.fromUserFrame}
+                          size={32}
+                          username={item.userName || item.fromUserName}
+                        />
+                        <Box ml={1}>
+                          <Typography variant="body2" fontWeight="medium">{item.userName || item.fromUserName || 'Unknown'}</Typography>
+                          <Typography variant="caption" color="text.secondary">{(item.userId || item.fromUserId)?.substring(0, 8)}</Typography>
+                        </Box>
+                      </Box>
                     </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredInteractions
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((item) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AvatarFrame
-                              avatarUrl={item.userAvatar || ''}
-                              frameType={item.userFrame}
-                              size={32}
-                              username={item.userName}
-                            />
-                            <Box ml={1}>
-                              <Typography variant="body2">{item.userName || 'Unknown'}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {item.userId?.substring(0, 10)}...
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>
-                            {item.hotSpotTitle || item.hotSpotId?.substring(0, 10) + '...'}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            icon={getInteractionIcon(item.type)}
-                            label={item.type?.replace('_', ' ')}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{formatDate(item.timestamp)}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          {item.checkInLocation ? (
-                            <Tooltip title={`${item.checkInLocation.latitude}, ${item.checkInLocation.longitude}`}>
-                              <Chip icon={<LocationIcon />} label="Has location" size="small" />
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Avatar src={item.hotSpotThumbnail} variant="rounded" sx={{ width: 32, height: 32 }} />
+                        <Typography variant="body2" noWrap sx={{ maxWidth: 150 }}>{item.hotSpotTitle || 'N/A'}</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      {tabValue === 1 ? (
+                        <Chip label={item.status} size="small" color={getStatusColor(item.status) as any} />
+                      ) : (
+                        <Chip
+                          icon={tabValue === 0 ? getInteractionIcon(item.type) : <BadgeIcon />}
+                          label={(item.type || item.badgeType)?.replace('_', ' ')}
+                          size="small"
+                          variant="outlined"
+                          color={tabValue === 2 ? getBadgeColor(item.badgeType) as any : 'default'}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">{formatDate(item.timestamp || item.createdAt || item.earnedAt)}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      {tabValue === 2 ? (
+                        <Chip
+                          icon={item.isVerified ? <CheckCircleIcon /> : <CancelIcon />}
+                          label={item.isVerified ? t('hotspots.actions.verify') : t('hotspots.actions.unverify')}
+                          size="small"
+                          color={item.isVerified ? 'success' : 'default'}
+                          variant="outlined"
+                        />
+                      ) : (
+                        <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 100, display: 'block' }}>
+                          {item.message || (item.checkInLocation ? 'Has Location' : 'N/A')}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Stack direction="row" spacing={1} justifyContent="center">
+                        <Tooltip title={t('hotspots.actions.view')}>
+                          <IconButton size="small" color="primary" onClick={() => { setSelectedItem(item); setOpenViewDialog(true); }}>
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        {tabValue === 1 && item.status === 'pending' && (
+                          <>
+                            <Tooltip title={t('hotspots.actions.accept')}>
+                              <IconButton size="small" color="success" onClick={() => handleUpdateInvitationStatus(item, 'accepted')}><CheckIcon fontSize="small" /></IconButton>
                             </Tooltip>
-                          ) : (
-                            <Typography variant="caption" color="text.secondary">N/A</Typography>
-                          )}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title="Delete">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setOpenDeleteDialog(true);
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-
-        {/* Invitations Tab */}
-        {tabValue === 1 && (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>From</TableCell>
-                  <TableCell>To</TableCell>
-                  <TableCell>HotSpot</TableCell>
-                  <TableCell>Message</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Created</TableCell>
-                  <TableCell>Expires</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredInvitations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                      <Typography color="text.secondary">No invitations found</Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredInvitations
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((item) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AvatarFrame
-                              avatarUrl={item.fromUserAvatar || ''}
-                              frameType={item.fromUserFrame}
-                              size={32}
-                              username={item.fromUserName}
-                            />
-                            <Typography variant="body2" ml={1}>{item.fromUserName || 'Unknown'}</Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{item.toUserId?.substring(0, 10)}...</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
-                            {item.hotSpotTitle}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Tooltip title={item.message}>
-                            <Typography variant="caption" noWrap sx={{ maxWidth: 100, display: 'block' }}>
-                              {item.message || 'No message'}
-                            </Typography>
-                          </Tooltip>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={item.status}
-                            size="small"
-                            color={getStatusColor(item.status) as any}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{formatDate(item.createdAt)}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{formatDate(item.expiresAt)}</Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          {item.status === 'pending' && (
-                            <>
-                              <Tooltip title="Approve">
-                                <IconButton
-                                  size="small"
-                                  color="success"
-                                  onClick={() => handleUpdateInvitationStatus(item, 'accepted')}
-                                >
-                                  <CheckIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Decline">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => handleUpdateInvitationStatus(item, 'declined')}
-                                >
-                                  <CloseIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </>
-                          )}
-                          <Tooltip title="Delete">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setOpenDeleteDialog(true);
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-
-        {/* Event Passes Tab */}
-        {tabValue === 2 && (
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>User</TableCell>
-                  <TableCell>HotSpot</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell>Category</TableCell>
-                  <TableCell>Badge</TableCell>
-                  <TableCell>Earned At</TableCell>
-                  <TableCell align="center">Verified</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredPasses.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                      <Typography color="text.secondary">No event passes found</Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredPasses
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((item) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <AvatarFrame
-                              avatarUrl={item.userAvatar || ''}
-                              frameType={item.userFrame}
-                              size={32}
-                              username={item.userName}
-                            />
-                            <Box ml={1}>
-                              <Typography variant="body2">{item.userName || 'Unknown'}</Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {item.userId?.substring(0, 10)}...
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Avatar src={item.hotSpotThumbnail} variant="rounded" sx={{ width: 40, height: 40 }} />
-                            <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>
-                              {item.hotSpotTitle}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            icon={item.hotSpotType === 'event' ? <EventIcon /> : <PlaceIcon />}
-                            label={item.hotSpotType}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{item.hotSpotCategory}</Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            icon={<BadgeIcon />}
-                            label={item.badgeType?.replace('_', ' ')}
-                            size="small"
-                            color={getBadgeColor(item.badgeType) as any}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Typography variant="caption">{formatDate(item.earnedAt)}</Typography>
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            icon={item.isVerified ? <CheckCircleIcon /> : <CancelIcon />}
-                            label={item.isVerified ? 'Verified' : 'Not Verified'}
-                            size="small"
-                            color={item.isVerified ? 'success' : 'default'}
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="center">
-                          <Tooltip title={item.isVerified ? 'Unverify' : 'Verify'}>
-                            <IconButton
-                              size="small"
-                              color={item.isVerified ? 'warning' : 'success'}
-                              onClick={() => handleVerifyPass(item)}
-                            >
+                            <Tooltip title={t('hotspots.actions.decline')}>
+                              <IconButton size="small" color="error" onClick={() => handleUpdateInvitationStatus(item, 'declined')}><CloseIcon fontSize="small" /></IconButton>
+                            </Tooltip>
+                          </>
+                        )}
+                        {tabValue === 2 && (
+                          <Tooltip title={item.isVerified ? t('hotspots.actions.unverify') : t('hotspots.actions.verify')}>
+                            <IconButton size="small" color={item.isVerified ? 'warning' : 'success'} onClick={() => handleVerifyPass(item)}>
                               {item.isVerified ? <CancelIcon fontSize="small" /> : <CheckCircleIcon fontSize="small" />}
                             </IconButton>
                           </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => {
-                                setSelectedItem(item);
-                                setOpenDeleteDialog(true);
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+                        )}
+                        <Tooltip title={t('hotspots.actions.delete')}>
+                          <IconButton size="small" color="error" onClick={() => { setSelectedItem(item); setOpenDeleteDialog(true); }}><DeleteIcon fontSize="small" /></IconButton>
+                        </Tooltip>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
         <TablePagination
-          rowsPerPageOptions={[5, 10, 25, 50]}
+          rowsPerPageOptions={[5, 10, 25]}
           component="div"
-          count={
-            tabValue === 0 ? filteredInteractions.length :
-              tabValue === 1 ? filteredInvitations.length :
-                filteredPasses.length
-          }
+          count={tabValue === 0 ? filteredInteractions.length : tabValue === 1 ? filteredInvitations.length : filteredPasses.length}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}
@@ -912,31 +608,92 @@ export default function HotSpotInteractionsPage() {
         />
       </Paper>
 
+      {/* View Details Dialog */}
+      <Dialog open={openViewDialog} onClose={() => setOpenViewDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" fontWeight="bold">{t('hotspots.dialog.detailsTitle')}</Typography>
+            <IconButton onClick={() => setOpenViewDialog(false)} size="small"><CloseIcon /></IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedItem && (
+            <Box sx={{ py: 1 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('hotspots.table.user')}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                    <AvatarFrame
+                      avatarUrl={selectedItem.userAvatar || selectedItem.fromUserAvatar || ''}
+                      frameType={selectedItem.userFrame || selectedItem.fromUserFrame}
+                      size={50}
+                      username={selectedItem.userName || selectedItem.fromUserName}
+                    />
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="bold">{selectedItem.userName || selectedItem.fromUserName || 'Unknown'}</Typography>
+                      <Typography variant="caption" color="text.secondary">ID: {selectedItem.userId || selectedItem.fromUserId}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>{t('hotspots.table.hotspot')}</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                    <Avatar src={selectedItem.hotSpotThumbnail} variant="rounded" sx={{ width: 60, height: 60 }} />
+                    <Box>
+                      <Typography variant="subtitle1" fontWeight="bold">{selectedItem.hotSpotTitle || 'N/A'}</Typography>
+                      <Typography variant="caption" color="text.secondary">ID: {selectedItem.hotSpotId}</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">{t('hotspots.table.type')}</Typography>
+                  <Typography variant="body1" fontWeight="medium">{(selectedItem.type || selectedItem.badgeType || 'Invitation').replace('_', ' ')}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">{t('hotspots.table.time')}</Typography>
+                  <Typography variant="body1" fontWeight="medium">{formatDate(selectedItem.timestamp || selectedItem.createdAt || selectedItem.earnedAt)}</Typography>
+                </Grid>
+                {selectedItem.message && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Message</Typography>
+                    <Paper variant="outlined" sx={{ p: 2, mt: 1, bgcolor: 'background.default' }}><Typography variant="body2">{selectedItem.message}</Typography></Paper>
+                  </Grid>
+                )}
+                {selectedItem.checkInLocation && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Check-in Location</Typography>
+                    <Typography variant="body2">Lat: {selectedItem.checkInLocation.latitude}, Lng: {selectedItem.checkInLocation.longitude}</Typography>
+                  </Grid>
+                )}
+                {selectedItem.verificationData?.photosSubmitted && selectedItem.verificationData.photosSubmitted.length > 0 && (
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>Verification Photos</Typography>
+                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                      {selectedItem.verificationData.photosSubmitted.map((photo: string, i: number) => (
+                        <Avatar key={i} src={photo} variant="rounded" sx={{ width: 100, height: 100, cursor: 'pointer' }} onClick={() => window.open(photo, '_blank')} />
+                      ))}
+                    </Box>
+                  </Grid>
+                )}
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions><Button onClick={() => setOpenViewDialog(false)}>{t('hotspots.dialog.close')}</Button></DialogActions>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
-        <DialogTitle>Confirm Delete</DialogTitle>
-        <DialogContent>
-          <Typography>Are you sure you want to delete this item? This action cannot be undone.</Typography>
-        </DialogContent>
+        <DialogTitle>{t('hotspots.dialog.deleteTitle')}</DialogTitle>
+        <DialogContent><Typography>{t('hotspots.dialog.deleteConfirm')}</Typography></DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={handleDelete}>Delete</Button>
+          <Button onClick={() => setOpenDeleteDialog(false)}>{t('hotspots.dialog.cancel')}</Button>
+          <Button onClick={handleDelete} color="error" variant="contained">{t('hotspots.actions.delete')}</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );

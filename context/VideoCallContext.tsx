@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { Alert } from 'react-native';
-import { createMeeting, token } from '@/api';
+import { createMeeting, getToken } from '@/api';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 
@@ -22,7 +22,7 @@ interface VideoCallContextType {
   meetingId: string | null;
   callType: 'audio' | 'video' | null;
   isConnecting: boolean;
-  
+
   // Meeting controls
   createMeeting: () => Promise<string>;
   joinMeeting: (meetingId: string, callType: 'audio' | 'video') => void;
@@ -30,7 +30,7 @@ interface VideoCallContextType {
   toggleMic: () => void;
   toggleCamera: () => void;
   toggleScreenShare: () => void;
-  
+
   // Call management
   initiateCall: (receiverId: string, callType: 'audio' | 'video') => Promise<string>;
   acceptCall: (callData: any) => Promise<void>;
@@ -62,6 +62,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const createNewMeeting = async (): Promise<string> => {
     try {
       console.log('Creating meeting with VideoSDK...');
+      const token = await getToken();
       const meetingId = await createMeeting({ token });
       setMeetingId(meetingId);
       console.log('Meeting created successfully:', meetingId);
@@ -123,7 +124,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       console.log('🚀 Initiating call:', { receiverId, type });
       const newMeetingId = await createNewMeeting();
-      
+
       // Save call information to Firebase
       const callData = {
         meetingId: newMeetingId,
@@ -133,10 +134,10 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         status: 'calling',
         createdAt: new Date(),
       };
-      
+
       console.log('💾 Saving call to Firebase:', callData);
       await addDoc(collection(db, 'calls'), callData);
-      
+
       console.log('✅ Call initiated with meetingId:', newMeetingId);
       joinMeeting(newMeetingId, type);
       return newMeetingId; // Return meeting ID for navigation

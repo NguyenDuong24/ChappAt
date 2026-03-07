@@ -12,7 +12,6 @@ import { convertTimestampToDate } from '@/utils/common';
 import { PrivacyLevel } from '@/utils/postPrivacyUtils';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import DeferredComponent from '@/components/DeferredComponent';
 import { useTranslation } from 'react-i18next';
 import { useRefresh } from '@/context/RefreshContext';
 
@@ -251,12 +250,11 @@ const ProfileScreen = memo(() => {
       post={item}
       user={user as any}
       onLike={handleLike}
-      addComment={handleComment as any}
       onDeletePost={handleDelete}
       onPrivacyChange={handlePrivacyChange}
       owner={true}
     />
-  ), [user, handleLike, handleComment, handleDelete, handlePrivacyChange]);
+  ), [user, handleLike, handleDelete, handlePrivacyChange]);
 
   const keyExtractor = useCallback((item: PostForCard) => item.id, []);
 
@@ -278,29 +276,27 @@ const ProfileScreen = memo(() => {
   ), [refreshing, onRefresh]);
 
   return (
-    <DeferredComponent>
-      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        <AddPostButton isScroll={isScroll} />
-        <FlatList
-          data={posts}
-          renderItem={renderPost}
-          keyExtractor={keyExtractor}
-          ListHeaderComponent={ListHeader}
-          contentContainerStyle={styles.flatListContainer}
-          onScroll={handleScroll}
-          onMomentumScrollEnd={handleScrollEnd}
-          refreshControl={refreshControl}
-          showsVerticalScrollIndicator={false}
-          // Performance optimizations
-          initialNumToRender={3}
-          maxToRenderPerBatch={2}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={100}
-          scrollEventThrottle={16}
-        />
-      </View>
-    </DeferredComponent>
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+      <AddPostButton isScroll={isScroll} />
+      <FlatList
+        data={posts}
+        renderItem={renderPost}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={styles.flatListContainer}
+        onScroll={handleScroll}
+        onMomentumScrollEnd={handleScrollEnd}
+        refreshControl={refreshControl}
+        showsVerticalScrollIndicator={false}
+        // Performance optimizations
+        initialNumToRender={3}
+        maxToRenderPerBatch={2}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={100}
+        scrollEventThrottle={16}
+      />
+    </View>
   );
 });
 

@@ -522,8 +522,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerGradient: {
-    paddingTop: 60,
-    paddingBottom: 30,
+    paddingTop: 64,
+    paddingBottom: 48,
     paddingHorizontal: 20,
   },
   headerContent: {
@@ -534,9 +534,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     borderWidth: 4,
     borderColor: '#FFFFFF',
   },
@@ -581,8 +581,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   displayName: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
   username: {
@@ -621,10 +621,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   profileSection: {
-    margin: 20,
-    borderRadius: 16,
+    margin: 12,
+    borderRadius: 20,
     borderWidth: 1,
-    padding: 20,
+    padding: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -653,8 +653,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   infoValue: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 17,
+    lineHeight: 26,
   },
   editInput: {
     borderWidth: 1,

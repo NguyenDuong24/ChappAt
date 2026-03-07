@@ -5,31 +5,31 @@ import { Colors } from '@/constants/Colors';
 export const useThemedColors = () => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  
+
   // Get theme-specific colors
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  
+
   // Create a unified color object that combines theme colors and semantic colors
   return {
     // Core colors from theme
     ...currentThemeColors,
-    
+
     // Semantic colors (same for both themes)
     success: Colors.success,
     error: Colors.error,
     warning: Colors.warning,
     info: Colors.info,
-    
+
     // Brand colors
     primary: Colors.primary,
     secondary: Colors.secondary,
     accent: Colors.accent,
-    
+
     // Utility colors
     white: Colors.white,
     black: Colors.black,
     transparent: Colors.transparent,
-    
+
     // HotSpots specific colors (theme-aware)
     hotSpots: {
       background: currentThemeColors.hotSpotsBackground,
@@ -42,13 +42,13 @@ export const useThemedColors = () => {
       textSecondary: currentThemeColors.hotSpotsTextSecondary,
       textTertiary: currentThemeColors.hotSpotsTextTertiary,
       gradients: {
-        primary: currentThemeColors.gradientHotSpotsPrimary,
-        secondary: currentThemeColors.gradientHotSpotsSecondary,
-        card: currentThemeColors.gradientHotSpotsCard,
-        overlay: currentThemeColors.gradientHotSpotsOverlay,
+        primary: currentThemeColors.gradientHotSpotsPrimary as readonly [string, string, ...string[]],
+        secondary: currentThemeColors.gradientHotSpotsSecondary as readonly [string, string, ...string[]],
+        card: currentThemeColors.gradientHotSpotsCard as readonly [string, string, ...string[]],
+        overlay: currentThemeColors.gradientHotSpotsOverlay as readonly [string, string, ...string[]],
       }
     },
-    
+
     // Current theme mode
     isDark: theme === 'dark',
     theme,

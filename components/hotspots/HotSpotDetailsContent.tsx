@@ -15,7 +15,7 @@ const HotSpotDetailsContent = ({ hotSpot }: HotSpotDetailsContentProps) => {
 
   const handleHashtagPress = (hashtag: string) => {
     const cleanHashtag = hashtag.replace('#', '');
-    router.push(`/HashtagScreen?hashtag=${cleanHashtag}`);
+    router.push(`/(screens)/social/HashtagScreen?hashtag=${cleanHashtag}` as any);
   };
 
   return (

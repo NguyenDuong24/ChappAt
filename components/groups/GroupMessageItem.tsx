@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState, useContext, useMemo } from 'react';
+import React, { useEffect, useState, useContext, useMemo, useCallback } from 'react';
 import { formatTime } from '@/utils/common';
 import CustomImage from '@/components/common/CustomImage';
 import MessageActionSheet from '@/components/chat/MessageActionSheet';
@@ -13,6 +13,7 @@ import MessageReactions from '@/components/chat/MessageReactions';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import GiftMessage from '@/components/chat/GiftMessage';
 import { useTranslation } from 'react-i18next';
+import VibeAvatar from '../vibe/VibeAvatar';
 
 // Expanded color palette - 20 distinct colors for better distribution
 const AVATAR_COLORS = [
@@ -60,35 +61,18 @@ const getNameColor = (userId: string, theme: string): string => {
   return colors[0]; // Use first color from gradient
 };
 
-const StatusIcon = ({ status, isOverlay = false }: { status: string, isOverlay?: boolean }) => {
-  const color = isOverlay ? '#FFFFFF' : (status === 'read' ? '#4CAF50' : '#999');
-  const iconName = (() => {
-    switch (status) {
-      case 'read':
-      case 'delivered':
-        return 'done-all';
-      case 'sent':
-        return 'done';
-      default:
-        return 'access-time';
-    }
-  })();
-
-  return <MaterialIcons name={iconName} size={12} color={color} />;
-};
-
 const MessageAvatar = ({
   profileUrl,
   senderName,
   userId,
+  activeFrame,
   size = 40,
-  showOnlineIndicator = false
 }: {
   profileUrl: string;
   senderName: string;
   userId: string;
+  activeFrame?: string;
   size?: number;
-  showOnlineIndicator?: boolean;
 }) => {
   const [imageError, setImageError] = useState(false);
   const avatarColors = useMemo(() => getUserColor(userId), [userId]);
@@ -108,29 +92,19 @@ const MessageAvatar = ({
             {initial}
           </Text>
         </LinearGradient>
-        {showOnlineIndicator && (
-          <View style={[styles.onlineIndicator, { width: size * 0.3, height: size * 0.3, right: -2, bottom: -2 }]} />
-        )}
       </View>
     );
   }
 
   return (
     <View style={[styles.avatarContainer, { width: size, height: size }]}>
-      <CustomImage
-        source={profileUrl}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.2)',
-        }}
-        onLongPress={() => { }}
+      <VibeAvatar
+        avatarUrl={profileUrl}
+        size={size}
+        frameType={activeFrame}
+        showVibeIcon={false}
+        showAddButton={false}
       />
-      {showOnlineIndicator && (
-        <View style={[styles.onlineIndicator, { width: size * 0.3, height: size * 0.3, right: -2, bottom: -2 }]} />
-      )}
     </View>
   );
 };
@@ -144,9 +118,10 @@ interface GroupMessageItemProps {
   isHighlighted?: boolean;
   onReport?: (message: any) => void;
   onUserPress?: (userId: string) => void;
+  currentThemeColors?: any;
 }
 
-const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
+const GroupMessageItem: React.FC<GroupMessageItemProps> = React.memo(({
   message,
   currentUser,
   groupId = '',
@@ -155,6 +130,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
   isHighlighted,
   onReport,
   onUserPress,
+  currentThemeColors: chatThemeColors,
 }) => {
   const { t } = useTranslation();
   const isCurrentUser = message.uid === currentUser?.uid;
@@ -163,7 +139,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
   const [showEditModal, setShowEditModal] = useState(false);
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
 
   // Get consistent name color for this user
   const nameColor = useMemo(() =>
@@ -181,119 +157,96 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
     isLoading,
   } = useMessageActions();
 
-  const handlePress = () => {
+  const handlePress = useCallback(() => {
     setShowTime(prev => !prev);
-  };
+  }, []);
 
-  const handleLongPress = () => {
+  const handleLongPress = useCallback(() => {
     setShowActionSheet(true);
-  };
+  }, []);
 
-  const handleReply = () => {
+  const handleReply = useCallback(() => {
     onReply?.(message);
-  };
+  }, [onReply, message]);
 
-  const handleEdit = () => {
+  const handleEdit = useCallback(() => {
     setShowEditModal(true);
-  };
+  }, []);
 
-  const handleEditSave = async (newText: string) => {
+  const handleEditSave = useCallback(async (newText: string) => {
     const msgId = (message?.id || message?.messageId) as string | undefined;
     if (!groupId || !msgId) return;
     await editMessage(groupId, msgId, newText);
     setShowEditModal(false);
-  };
+  }, [groupId, message?.id, message?.messageId, editMessage]);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     const msgId = (message?.id || message?.messageId) as string | undefined;
     if (!groupId || !msgId) return;
     showDeleteConfirm(
       () => deleteMessage(groupId, msgId, isCurrentUser),
       isCurrentUser
     );
-  };
+  }, [groupId, message?.id, message?.messageId, showDeleteConfirm, deleteMessage, isCurrentUser]);
 
-  const handlePin = () => {
+  const handlePin = useCallback(() => {
     const msgId = (message?.id || message?.messageId) as string | undefined;
     if (!groupId || !msgId) return;
     pinMessage(groupId, msgId, !!message?.isPinned);
-  };
+  }, [groupId, message?.id, message?.messageId, message?.isPinned, pinMessage]);
 
-  const handleReaction = (emoji: string) => {
+  const handleReaction = useCallback((emoji: string) => {
     const msgId = (message?.id || message?.messageId) as string | undefined;
     const currentUid = currentUser?.uid ?? currentUser?.id;
     if (!groupId || !msgId || !currentUid) return;
     toggleReaction(groupId, msgId, emoji, currentUid);
-  };
+  }, [groupId, message?.id, message?.messageId, currentUser?.uid, currentUser?.id, toggleReaction]);
 
-  const handleCopy = () => {
+  const handleCopy = useCallback(() => {
     if (message?.text) {
       copyToClipboard(message.text);
     }
-  };
+  }, [message?.text, copyToClipboard]);
 
-  const getLastMessageStatusIcon = () => {
-    if (!message || currentUser?.uid !== message?.uid) return '';
-
-    switch (message?.status) {
-      case 'sent':
-        return '✓';
-      case 'delivered':
-        return '✓✓';
-      case 'read':
-        return '✓✓';
-      default:
-        return '';
-    }
-  };
-
-  const formatMessageTime = () => {
+  const formatMessageTime = useCallback(() => {
     if (!message?.createdAt) return '';
     return formatTime(message.createdAt);
-  };
+  }, [message?.createdAt]);
 
-  const onContainerLayout = (e: any) => {
+  const onContainerLayout = useCallback((e: any) => {
     const y = e?.nativeEvent?.layout?.y;
     const msgId = (message?.id || message?.messageId) as string | undefined;
     if (typeof y === 'number' && msgId && onMessageLayout) {
       onMessageLayout(msgId, y);
     }
-  };
+  }, [message?.id, message?.messageId, onMessageLayout]);
 
   const isImageOnly = message.imageUrl && !message.text;
   const isGiftMessage = message?.type === 'gift' && message?.gift;
 
   // Refined gradients for bubbles
-  const meColors: readonly [string, string] = theme === 'dark'
-    ? ['#1D4ED8', '#1E40AF']
-    : ['#60A5FA', '#3B82F6'];
-  const otherColors: readonly [string, string] = theme === 'dark'
-    ? ['#334155', '#1F2937']
-    : ['#F9FAFB', '#F3F4F6'];
-  const bubbleColors: readonly [string, string] = isImageOnly ? ['transparent', 'transparent'] : (isCurrentUser ? meColors : otherColors);
+  const meColors = currentThemeColors.sentMessageGradient || (theme === 'dark'
+    ? [currentThemeColors.tint || '#1D4ED8', currentThemeColors.tint || '#1E40AF']
+    : [currentThemeColors.tint || '#60A5FA', currentThemeColors.tint || '#3B82F6']);
+
+  const otherColors = theme === 'dark'
+    ? [currentThemeColors.receivedMessageColor || '#334155', currentThemeColors.receivedMessageColor || '#1F2937']
+    : [currentThemeColors.receivedMessageColor || '#F9FAFB', currentThemeColors.receivedMessageColor || '#F3F4F6'];
+
+  const bubbleColors = isCurrentUser ? meColors : otherColors;
 
   // Memoized bubble styles
   const bubbleStyle = useMemo(() => ({
-    borderTopLeftRadius: isCurrentUser ? 18 : 4,
-    borderTopRightRadius: isCurrentUser ? 4 : 18,
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 18,
-    shadowColor: theme === 'dark' ? '#000' : '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: theme === 'dark' ? 0.3 : 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    borderTopLeftRadius: isCurrentUser ? 20 : 4,
+    borderTopRightRadius: isCurrentUser ? 4 : 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: theme === 'dark' ? 0.4 : 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   }), [isCurrentUser, theme]);
-
-  const highlightStyle = useMemo(() => ({
-    borderWidth: 1.5,
-    borderColor: '#FFD700',
-    shadowColor: '#FFD700',
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-  }), []);
-
-  const editedStyle = isCurrentUser ? styles.editedLabel : [styles.editedLabel, { color: currentThemeColors.subtleText }];
 
   return (
     <>
@@ -310,6 +263,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
             profileUrl={message?.senderProfileUrl || message?.profileUrl}
             senderName={message?.senderName || message?.displayName || t('groups.user')}
             userId={message?.uid}
+            activeFrame={message?.activeFrame}
             size={32}
           />
         )}
@@ -327,25 +281,29 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
               styles.replyContainer,
               {
                 backgroundColor: isCurrentUser
-                  ? 'rgba(255,255,255,0.1)'
-                  : theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                borderLeftColor: isCurrentUser ? 'rgba(255,255,255,0.5)' : currentThemeColors.tint,
-                marginBottom: 6,
+                  ? 'rgba(255,255,255,0.15)'
+                  : theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                borderLeftColor: isCurrentUser ? '#FFFFFF' : nameColor,
+                marginBottom: 4,
+                borderTopLeftRadius: 12,
+                borderTopRightRadius: 12,
+                borderBottomLeftRadius: 4,
+                borderBottomRightRadius: 4,
               }
             ]}>
               <View style={styles.replyContent}>
                 <Text style={[
                   styles.replySender,
-                  { color: isCurrentUser ? 'rgba(255,255,255,0.85)' : currentThemeColors.tint }
-                ]}>
+                  { color: isCurrentUser ? '#FFFFFF' : nameColor, fontSize: 12 }
+                ]} numberOfLines={1}>
                   {message.replyTo.senderName}
                 </Text>
                 <Text
                   style={[
                     styles.replyText,
-                    { color: isCurrentUser ? 'rgba(255,255,255,0.65)' : currentThemeColors.subtleText }
+                    { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText, fontSize: 13 }
                   ]}
-                  numberOfLines={2}
+                  numberOfLines={1}
                 >
                   {message.replyTo.imageUrl ? `📷 ${t('groups.image')}` : message.replyTo.text}
                 </Text>
@@ -361,13 +319,16 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
               isHighlighted && styles.highlightedBubble,
               isImageOnly && styles.imageBubble,
             ]}>
-              <View
+              <LinearGradient
+                colors={isImageOnly || isGiftMessage ? ['transparent', 'transparent'] : bubbleColors as unknown as readonly [string, string, ...string[]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={[
                   styles.bubbleContent,
-                  { backgroundColor: isImageOnly || isGiftMessage ? 'transparent' : bubbleColors[0] },
                   isCurrentUser ? styles.currentUserBubbleShadow : styles.otherUserBubbleShadow,
                   isImageOnly && { padding: 0 },
                   isGiftMessage && { padding: 0 },
+                  bubbleStyle,
                 ]}
               >
                 {/* Pinned message badge */}
@@ -453,7 +414,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
                     {t('chat.edited')}
                   </Text>
                 )}
-              </View>
+              </LinearGradient>
             </View>
           </View>
 
@@ -479,6 +440,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
             profileUrl={currentUser?.profileUrl || currentUser?.photoURL}
             senderName={currentUser?.displayName || currentUser?.username}
             userId={currentUser?.uid}
+            activeFrame={currentUser?.activeFrame}
             size={32}
           />
         )}
@@ -508,7 +470,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = ({
       />
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   messageContainer: {
@@ -530,15 +492,17 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   senderName: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 2,
-    marginLeft: 4,
-    letterSpacing: 0.2,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 4,
+    marginLeft: 8,
+    letterSpacing: 0.3,
+    textTransform: 'none',
+    opacity: 0.9,
   },
   bubbleContainer: {
     position: 'relative',
-    marginVertical: 2,
+    marginVertical: 1,
   },
   bubbleContainerRight: {
     alignItems: 'flex-end',
@@ -550,81 +514,88 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   bubbleRight: {
-    borderTopLeftRadius: 18,
+    borderTopLeftRadius: 20,
     borderTopRightRadius: 4,
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 18,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   bubbleLeft: {
     borderTopLeftRadius: 4,
-    borderTopRightRadius: 18,
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 18,
+    borderTopRightRadius: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   currentUserBubbleShadow: {
-    shadowColor: '#0084FF',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   otherUserBubbleShadow: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    elevation: 1,
+    elevation: 2,
   },
   highlightedBubble: {
     borderWidth: 2,
     borderColor: '#FFD700',
     shadowColor: '#FFD700',
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
   },
   messageText: {
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 22,
+    letterSpacing: 0.1,
   },
   timeStatusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 2,
-    marginTop: 2,
-    opacity: 0.7,
+    gap: 4,
+    marginTop: 4,
+    opacity: 0.8,
   },
   timeText: {
     fontSize: 10,
-    fontWeight: '400',
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
   editedLabel: {
     fontSize: 10,
     fontStyle: 'italic',
     marginTop: 2,
+    opacity: 0.7,
   },
   detailedTimeContainer: {
-    marginTop: 4,
+    marginTop: 6,
+    paddingHorizontal: 8,
   },
   detailedTimeText: {
     fontSize: 11,
-    fontStyle: 'italic',
+    fontWeight: '500',
+    opacity: 0.6,
   },
   replyContainer: {
-    padding: 8,
+    padding: 10,
     borderLeftWidth: 3,
-    borderRadius: 8,
+    overflow: 'hidden',
   },
   replyContent: {
     gap: 2,
   },
   replySender: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   replyText: {
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 18,
+    opacity: 0.9,
   },
   pinBadge: {
     flexDirection: 'row',
@@ -662,8 +633,9 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 20,
   },
   bubbleContent: {
-    padding: 12,
-    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
     maxWidth: '100%',
   },
   avatarContainer: {
@@ -677,13 +649,6 @@ const styles = StyleSheet.create({
   avatarFallback: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    backgroundColor: '#4CAF50',
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: '#fff',
   },
 });
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
-import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react';
+import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity, ImageBackground } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -15,16 +15,27 @@ import { useOptimizedGroupMessages } from '@/hooks/useOptimizedGroupMessages';
 import { nsfwService } from '@/services/nsfwService';
 import OptimizedGroupInput from '@/components/groups/OptimizedGroupInput';
 import { useTranslation } from 'react-i18next';
+import { ChatThemeProvider, useChatTheme } from '@/context/ChatThemeContext';
+import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
+import GiftBurst from '@/components/chat/GiftBurst';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const storage = getStorage();
 
 export default function GroupChatScreen() {
+  return (
+    <ChatThemeProvider>
+      <GroupChatContent />
+    </ChatThemeProvider>
+  );
+}
+
+function GroupChatContent() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams();
   const { user } = useAuth();
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
   const router = useRouter();
   const scrollViewRef = useRef<any>(null);
 
@@ -35,10 +46,56 @@ export default function GroupChatScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  // NEW: simple report modal state
   const [reportVisible, setReportVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState<any>(null);
   const [scrollToEndTrigger, setScrollToEndTrigger] = useState(0);
+  const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
+
+  const { currentTheme, currentEffect, loadTheme, loadEffect } = useChatTheme();
+  const chatThemeForUI = useMemo(() => currentTheme?.id === 'default' ? undefined : currentTheme, [currentTheme]);
+
+  // Load theme and effect when entering room
+  useEffect(() => {
+    if (id) {
+      const unsubTheme = loadTheme(id as string);
+      const unsubEffect = loadEffect(id as string);
+      return () => {
+        unsubTheme();
+        unsubEffect();
+      };
+    }
+  }, [id, loadTheme, loadEffect]);
+
+  const currentThemeColors = useMemo(() => {
+    const baseColors = (theme === 'dark' ? Colors.dark : Colors.light) || Colors.light;
+
+    if (!chatThemeForUI) {
+      return baseColors;
+    }
+
+    // Determine if the chat theme is "dark" based on text color or ID
+    const isDarkChatTheme = chatThemeForUI.textColor === '#FFFFFF' ||
+      chatThemeForUI.textColor === '#E4E6EB' ||
+      ['dark', 'messenger_dark', 'galaxy_premium', 'cyberpunk', 'underwater', 'ocean', 'neon_night'].includes(chatThemeForUI.id);
+
+    const hasBgImage = !!chatThemeForUI.backgroundImage;
+
+    return {
+      ...baseColors,
+      background: chatThemeForUI.backgroundColor,
+      backgroundHeader: hasBgImage ? 'rgba(0,0,0,0.1)' : chatThemeForUI.backgroundColor,
+      surface: hasBgImage
+        ? (isDarkChatTheme ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)')
+        : (isDarkChatTheme ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.9)'),
+      text: chatThemeForUI.textColor,
+      tint: chatThemeForUI.sentMessageColor,
+      sentMessageGradient: chatThemeForUI.sentMessageGradient,
+      receivedMessageColor: chatThemeForUI.receivedMessageColor,
+      border: isDarkChatTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+      subtleText: isDarkChatTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)',
+      isDarkChatTheme,
+    };
+  }, [theme, chatThemeForUI]);
 
   // Use optimized group messages hook
   const {
@@ -71,8 +128,6 @@ export default function GroupChatScreen() {
       return;
     }
 
-    console.log(`[DEBUG] Setting up listener for group ID: ${id}`);
-
     const unsubscribe = onSnapshot(doc(db, 'groups', id as string),
       (docSnapshot) => {
         if (docSnapshot.exists()) {
@@ -80,7 +135,6 @@ export default function GroupChatScreen() {
 
           // Check membership
           if (!groupData.members || !Array.isArray(groupData.members) || !groupData.members.includes(user.uid)) {
-            console.warn(`[WARN] User ${user.uid} no longer a member.`);
             setError(t('groups.not_member'));
             setGroup(null);
           } else {
@@ -88,7 +142,6 @@ export default function GroupChatScreen() {
             setError(null);
           }
         } else {
-          console.error(`[ERROR] Group ${id} not found`);
           setError(t('groups.not_found'));
           setGroup(null);
         }
@@ -101,11 +154,8 @@ export default function GroupChatScreen() {
       }
     );
 
-    return () => {
-      console.log('[DEBUG] Unsubscribing from group listener');
-      unsubscribe();
-    };
-  }, [id, user?.uid]);
+    return () => unsubscribe();
+  }, [id, user?.uid, t, router]);
 
   // Timeout effect
   useEffect(() => {
@@ -117,7 +167,7 @@ export default function GroupChatScreen() {
       }
     }, 20000);
     return () => clearTimeout(timeout);
-  }, [loading, group]);
+  }, [loading, group, t]);
 
   // Auto-clear highlight after 2 seconds
   useEffect(() => {
@@ -127,7 +177,7 @@ export default function GroupChatScreen() {
     }
   }, [highlightedMessageId]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!newMessage.trim()) return;
     try {
       const messagesRef = collection(doc(db, 'groups', id as string), 'messages');
@@ -142,9 +192,9 @@ export default function GroupChatScreen() {
         isPinned: false,
         isEdited: false,
         isRecalled: false,
+        activeFrame: user.activeFrame || null,
       };
 
-      // Add reply data if replying to a message
       if (replyTo) {
         messageData.replyTo = {
           id: replyTo.id,
@@ -156,33 +206,30 @@ export default function GroupChatScreen() {
 
       await addDoc(messagesRef, messageData);
       setNewMessage('');
-      setReplyTo(null); // Clear reply after sending
+      setReplyTo(null);
       setHighlightedMessageId(null);
-      // Trigger scroll to end after sending
       setScrollToEndTrigger(prev => prev + 1);
     } catch (error) {
       console.error('[ERROR] Send message failed:', (error as any).message);
       setError(`${t('groups.send_error')}: ${(error as any).message}`);
     }
-  };
+  }, [newMessage, id, user, replyTo, t]);
 
-  const handleReply = (message: any) => {
+  const handleReply = useCallback((message: any) => {
     setReplyTo(message);
     setHighlightedMessageId(message.id);
-  };
+  }, []);
 
-  const cancelReply = () => {
+  const cancelReply = useCallback(() => {
     setReplyTo(null);
     setHighlightedMessageId(null);
-  };
+  }, []);
 
-  // Handle user press to navigate to profile
-  const handleUserPress = (userId: string) => {
+  const handleUserPress = useCallback((userId: string) => {
     router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId } });
-  };
+  }, [router]);
 
-  // NEW: open report modal for a message
-  const openReportForMessage = (message: any) => {
+  const openReportForMessage = useCallback((message: any) => {
     try {
       const messageType = message?.imageUrl ? 'image' : 'text';
       setReportTarget({
@@ -197,9 +244,9 @@ export default function GroupChatScreen() {
     } catch (e) {
       console.warn('openReportForMessage failed', e);
     }
-  };
+  }, [t]);
 
-  const submitMessageReport = async (data: any) => {
+  const submitMessageReport = useCallback(async (data: any) => {
     try {
       const sanitized = {
         ...data,
@@ -219,9 +266,9 @@ export default function GroupChatScreen() {
       console.error('submitMessageReport error', e);
       throw e;
     }
-  };
+  }, [id, reportTarget]);
 
-  const handlePickImage = async () => {
+  const handlePickImage = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -231,22 +278,14 @@ export default function GroupChatScreen() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) {
         const uri = result.assets[0].uri;
-
-        // Check image content with NSFW model via service
         const checkResult = await nsfwService.classifyImage(uri);
-        if (checkResult.isInappropriate) {
-          console.log('⚠️ [uploadImage] NSFW detected, will log to flagged_content');
-          // Image will still be sent, logged to flagged_content below
-          // Continue with upload - will log to flagged_content after getting downloadURL
-        }
-        console.log('✅ [uploadImage] Image passed NSFW check');
 
         const response = await fetch(uri);
         const blob = await response.blob();
         const imgRef = ref(storage, `groups/${id}/messages/${Date.now()}`);
         await uploadBytes(imgRef, blob);
         const downloadURL = await getDownloadURL(imgRef);
-        // Gửi message dạng ảnh
+
         const messagesRef = collection(doc(db, 'groups', id as string), 'messages');
         await addDoc(messagesRef, {
           imageUrl: downloadURL,
@@ -257,10 +296,9 @@ export default function GroupChatScreen() {
           senderName: user.displayName || user.username || '',
           status: 'sent',
           type: 'image',
+          activeFrame: user.activeFrame || null,
         });
 
-
-        // Log NSFW flagged images to flagged_content collection for admin review
         if (checkResult.isInappropriate) {
           try {
             await addDoc(collection(db, 'flagged_content'), {
@@ -275,19 +313,16 @@ export default function GroupChatScreen() {
               status: 'pending',
               type: 'image',
             });
-            console.log('📋 [uploadImage] Flagged content logged');
           } catch (flagErr) {
             console.warn('⚠️ [uploadImage] Failed to log flagged content:', flagErr);
           }
         }
-
       }
-
     } catch (error) {
       console.error('[ERROR] Send image failed:', (error as any).message);
       setError(`${t('groups.send_image_error')}: ${(error as any).message}`);
     }
-  };
+  }, [id, user, t]);
 
   if (loading) {
     return (
@@ -329,13 +364,17 @@ export default function GroupChatScreen() {
     );
   }
 
-  return (
+  const renderContent = () => (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        <GroupChatHeader group={group} onBack={() => router.back()} />
+      <View style={[styles.container, { backgroundColor: chatThemeForUI ? 'transparent' : currentThemeColors.background }]}>
+        <GroupChatHeader
+          group={group}
+          onBack={() => router.back()}
+          currentThemeColors={currentThemeColors}
+        />
         <View style={styles.messagesContainer}>
           <GroupMessageList
             scrollViewRef={scrollViewRef}
@@ -354,13 +393,13 @@ export default function GroupChatScreen() {
             isLoadingMore={isLoadingMore}
             isInitialLoadComplete={isInitialLoadComplete}
             scrollToEndTrigger={scrollToEndTrigger}
+            currentThemeColors={currentThemeColors}
           />
         </View>
 
-        {/* Reply Preview */}
         {replyTo && (
           <View style={[styles.replyContainer, {
-            backgroundColor: currentThemeColors.surface,
+            backgroundColor: currentThemeColors.surface || currentThemeColors.background,
             borderTopColor: currentThemeColors.border,
             borderLeftColor: currentThemeColors.tint
           }]}>
@@ -391,6 +430,19 @@ export default function GroupChatScreen() {
           sendDisabled={newMessage.trim().length === 0}
           currentThemeColors={currentThemeColors}
         />
+
+        <ChatBackgroundEffects
+          effect={currentEffect}
+          themeId={currentTheme.id}
+          themeColor={currentThemeColors.tint}
+          backgroundColor={currentThemeColors.background}
+        />
+
+        <GiftBurst
+          visible={!!burstEmoji}
+          emoji={burstEmoji || '🎁'}
+          onComplete={() => setBurstEmoji(null)}
+        />
       </View>
 
       <ReportModalSimple
@@ -407,6 +459,33 @@ export default function GroupChatScreen() {
       />
     </KeyboardAvoidingView>
   );
+
+  if (currentTheme.backgroundImage) {
+    return (
+      <ImageBackground
+        source={{ uri: currentTheme.backgroundImage }}
+        style={{ flex: 1 }}
+        resizeMode="cover"
+      >
+        {currentTheme.gradientColors && currentTheme.gradientColors.length > 0 ? (
+          <LinearGradient
+            colors={currentTheme.gradientColors as [string, string, ...string[]]}
+            style={{ flex: 1 }}
+          >
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
+              {renderContent()}
+            </View>
+          </LinearGradient>
+        ) : (
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
+            {renderContent()}
+          </View>
+        )}
+      </ImageBackground>
+    );
+  }
+
+  return renderContent();
 }
 
 const styles = StyleSheet.create({
@@ -454,7 +533,6 @@ const styles = StyleSheet.create({
   messagesContainer: {
     flex: 1,
   },
-
   replyContainer: {
     flexDirection: 'row',
     alignItems: 'center',

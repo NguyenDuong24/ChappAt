@@ -13,6 +13,9 @@ import {
     ListItemButton,
     ListItemIcon,
     ListItemText,
+    Menu,
+    MenuItem,
+    Button,
 } from '@mui/material';
 import {
     Menu as MenuIcon,
@@ -29,10 +32,12 @@ import {
     AccountBalance as WalletIcon,
     Store as StoreIcon,
     CardGiftcard,
-    Face as FaceIcon
+    Face as FaceIcon,
+    Language as LanguageIcon,
 } from '@mui/icons-material';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
+import { useTranslation } from 'react-i18next';
 
 import OverviewPage from '../components/OverviewPage';
 import FlaggedContentPage from '../components/FlaggedContentPage';
@@ -49,26 +54,28 @@ import IconManagementPage from './IconManagementPage';
 
 const drawerWidth = 240;
 
-const menuItems = [
-    { text: 'Overview', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: '💰 Wallet', icon: <WalletIcon />, path: '/dashboard/wallet' },
-    { text: '🛍️ Shop', icon: <StoreIcon />, path: '/dashboard/shop' },
-    { text: '🎁 Gifts', icon: <CardGiftcard />, path: '/dashboard/gifts' },
-    { text: '👤 Icons', icon: <FaceIcon />, path: '/dashboard/icons' },
-    { text: '📺 Ad Settings', icon: <SettingsIcon />, path: '/dashboard/ads' },
-    { text: 'HotSpots', icon: <HotSpotsIcon />, path: '/dashboard/hotspots' },
-    { text: 'HotSpot Activity', icon: <ActivityIcon />, path: '/dashboard/hotspots-activity' },
-    { text: 'Flagged Content', icon: <FlagIcon />, path: '/dashboard/flagged' },
-    { text: 'User Reports', icon: <ReportIcon />, path: '/dashboard/reports' },
-    { text: 'Users', icon: <PeopleIcon />, path: '/dashboard/users' },
-    { text: 'Chat Inspector', icon: <ChatIcon />, path: '/dashboard/chat-inspector' },
-    { text: 'Statistics', icon: <BarChartIcon />, path: '/dashboard/stats' },
-];
-
 export default function Dashboard() {
+    const { t, i18n } = useTranslation();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [langAnchorEl, setLangAnchorEl] = useState<null | HTMLElement>(null);
     const navigate = useNavigate();
     const location = useLocation();
+
+    const menuItems = [
+        { text: 'Overview', icon: <DashboardIcon />, path: '/dashboard' },
+        { text: '💰 Wallet', icon: <WalletIcon />, path: '/dashboard/wallet' },
+        { text: '🛍️ Shop', icon: <StoreIcon />, path: '/dashboard/shop' },
+        { text: '🎁 Gifts', icon: <CardGiftcard />, path: '/dashboard/gifts' },
+        { text: '👤 Icons', icon: <FaceIcon />, path: '/dashboard/icons' },
+        { text: '📺 Ad Settings', icon: <SettingsIcon />, path: '/dashboard/ads' },
+        { text: t('hotspots.title'), icon: <HotSpotsIcon />, path: '/dashboard/hotspots' },
+        { text: t('hotspots.activity'), icon: <ActivityIcon />, path: '/dashboard/hotspots-activity' },
+        { text: 'Flagged Content', icon: <FlagIcon />, path: '/dashboard/flagged' },
+        { text: 'User Reports', icon: <ReportIcon />, path: '/dashboard/reports' },
+        { text: 'Users', icon: <PeopleIcon />, path: '/dashboard/users' },
+        { text: 'Chat Inspector', icon: <ChatIcon />, path: '/dashboard/chat-inspector' },
+        { text: 'Statistics', icon: <BarChartIcon />, path: '/dashboard/stats' },
+    ];
 
     const handleDrawerToggle = () => {
         setMobileOpen(!mobileOpen);
@@ -77,6 +84,19 @@ export default function Dashboard() {
     const handleLogout = async () => {
         await signOut(auth);
         navigate('/login');
+    };
+
+    const handleLangMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+        setLangAnchorEl(event.currentTarget);
+    };
+
+    const handleLangMenuClose = () => {
+        setLangAnchorEl(null);
+    };
+
+    const changeLanguage = (lng: string) => {
+        i18n.changeLanguage(lng);
+        handleLangMenuClose();
     };
 
     const drawer = (
@@ -89,7 +109,7 @@ export default function Dashboard() {
             <Divider />
             <List>
                 {menuItems.map((item) => (
-                    <ListItem key={item.text} disablePadding>
+                    <ListItem key={item.path} disablePadding>
                         <ListItemButton
                             selected={location.pathname === item.path}
                             onClick={() => navigate(item.path)}
@@ -135,9 +155,29 @@ export default function Dashboard() {
                     <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
                         ChappAt Admin Dashboard
                     </Typography>
-                    <Typography variant="body2" sx={{ mr: 2 }}>
-                        {auth.currentUser?.email}
-                    </Typography>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Button
+                            color="inherit"
+                            startIcon={<LanguageIcon />}
+                            onClick={handleLangMenuOpen}
+                            sx={{ mr: 2 }}
+                        >
+                            {i18n.language === 'vi' ? 'Tiếng Việt' : 'English'}
+                        </Button>
+                        <Menu
+                            anchorEl={langAnchorEl}
+                            open={Boolean(langAnchorEl)}
+                            onClose={handleLangMenuClose}
+                        >
+                            <MenuItem onClick={() => changeLanguage('vi')}>Tiếng Việt</MenuItem>
+                            <MenuItem onClick={() => changeLanguage('en')}>English</MenuItem>
+                        </Menu>
+
+                        <Typography variant="body2" sx={{ mr: 2 }}>
+                            {auth.currentUser?.email}
+                        </Typography>
+                    </Box>
                 </Toolbar>
             </AppBar>
 

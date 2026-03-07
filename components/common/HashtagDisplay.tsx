@@ -11,7 +11,7 @@ interface HashtagDisplayProps {
   style?: any;
 }
 
-const HashtagDisplay: React.FC<HashtagDisplayProps> = ({
+const HashtagDisplay: React.FC<HashtagDisplayProps> = React.memo(({
   hashtags,
   maxDisplay = 5,
   size = 'medium',
@@ -29,27 +29,23 @@ const HashtagDisplay: React.FC<HashtagDisplayProps> = ({
   return (
     <View style={[styles.container, style]}>
       {displayHashtags.map((hashtag, index) => (
-        <TouchableOpacity
+        <Chip
           key={index}
           onPress={() => onHashtagPress?.(hashtag)}
-          style={styles.chipContainer}
+          style={[
+            styles.chip,
+            { height: chipHeight, backgroundColor: Colors.primary + '15' }
+          ]}
+          textStyle={[
+            styles.chipText,
+            { fontSize, color: Colors.primary }
+          ]}
+          compact
         >
-          <Chip
-            style={[
-              styles.chip,
-              { height: chipHeight, backgroundColor: Colors.primary + '15' }
-            ]}
-            textStyle={[
-              styles.chipText,
-              { fontSize, color: Colors.primary }
-            ]}
-            compact
-          >
-            {hashtag.startsWith('#') ? hashtag : `#${hashtag}`}
-          </Chip>
-        </TouchableOpacity>
+          {hashtag.startsWith('#') ? hashtag : `#${hashtag}`}
+        </Chip>
       ))}
-      
+
       {remainingCount > 0 && (
         <Chip
           style={[
@@ -68,7 +64,7 @@ const HashtagDisplay: React.FC<HashtagDisplayProps> = ({
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

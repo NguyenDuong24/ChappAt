@@ -1,19 +1,21 @@
-import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
   getDocs,
   getDoc,
   serverTimestamp,
   Timestamp,
   setDoc,
-  increment
+  increment,
+  limit as firestoreLimit,
+  startAfter
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { EventInvite, EventInterest, EventMatch, UserProfile } from '@/types/eventInvites';
@@ -30,7 +32,7 @@ class EventInviteService {
         where('userId', '==', userId)
       );
       const existingDocs = await getDocs(existingQuery);
-      
+
       if (existingDocs.empty) {
         await addDoc(collection(db, 'eventInterests'), {
           eventId,
@@ -38,7 +40,7 @@ class EventInviteService {
           createdAt: serverTimestamp(),
           isHidden: false
         });
-        
+
         // Update hotspot stats
         const hotSpotRef = doc(db, 'hotSpots', eventId);
         await updateDoc(hotSpotRef, {
@@ -60,11 +62,11 @@ class EventInviteService {
         where('userId', '==', userId)
       );
       const querySnapshot = await getDocs(q);
-      
+
       if (!querySnapshot.empty) {
         const deletePromises = querySnapshot.docs.map(doc => deleteDoc(doc.ref));
         await Promise.all(deletePromises);
-        
+
         // Update hotspot stats
         const hotSpotRef = doc(db, 'hotSpots', eventId);
         await updateDoc(hotSpotRef, {
@@ -78,47 +80,70 @@ class EventInviteService {
     }
   }
 
-  // Lấy danh sách người quan tâm (không bị ẩn)
-  async getInterestedUsers(eventId: string): Promise<UserProfile[]> {
+  // Lấy danh sách người quan tâm (không bị ẩn) - Hỗ trợ phân trang
+  async getInterestedUsers(
+    eventId: string,
+    limitCount: number = 10,
+    lastDoc: any = null
+  ): Promise<{ users: UserProfile[], lastVisible: any }> {
     try {
-      const q = query(
+      let q = query(
         collection(db, 'eventInterests'),
         where('eventId', '==', eventId),
-        where('isHidden', '==', false)
+        where('isHidden', '==', false),
+        orderBy('createdAt', 'desc'),
+        firestoreLimit(limitCount)
       );
-      
+
+      if (lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+
       const querySnapshot = await getDocs(q);
-      const interests = querySnapshot.docs
-        .map(doc => doc.data())
-        .sort((a, b) => {
-          const aTime = (a.createdAt as any)?.toMillis?.() || (a.createdAt as any)?.getTime?.() || 0;
-          const bTime = (b.createdAt as any)?.toMillis?.() || (b.createdAt as any)?.getTime?.() || 0;
-          return bTime - aTime;
-        });
-      
+      const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+      const interests = querySnapshot.docs.map(doc => doc.data());
       const userIds = interests.map(interest => interest.userId);
-      
-      // Fetch user profiles (normalized)
+
+      if (userIds.length === 0) {
+        return { users: [], lastVisible: null };
+      }
+
+      // Fetch user profiles in batches of 10 (Firestore 'in' limit)
       const userProfiles: UserProfile[] = [];
-      for (const userId of userIds) {
-        const userDocSnap = await getDoc(doc(db, 'users', userId));
-        if (userDocSnap.exists()) {
+      const batches = [];
+      for (let i = 0; i < userIds.length; i += 10) {
+        batches.push(userIds.slice(i, i + 10));
+      }
+
+      for (const batch of batches) {
+        const usersQuery = query(
+          collection(db, 'users'),
+          where('__name__', 'in', batch)
+        );
+        const usersSnapshot = await getDocs(usersQuery);
+        usersSnapshot.docs.forEach(userDocSnap => {
           const d: any = userDocSnap.data();
           userProfiles.push({
-            id: userId,
+            id: userDocSnap.id,
             name: d?.displayName || d?.name || d?.username || 'Người dùng',
             avatar: d?.avatar || d?.photoURL || d?.profileUrl || '',
             age: typeof d?.age === 'number' ? d.age : undefined,
             bio: typeof d?.bio === 'string' ? d.bio : undefined,
-            // pass through other fields if your UserProfile allows
+            location: d?.location,
           } as UserProfile);
-        }
+        });
       }
-      
-      return userProfiles;
+
+      // Re-sort to match interests order (descending createdAt)
+      const sortedProfiles = userIds
+        .map(id => userProfiles.find(p => p.id === id))
+        .filter((p): p is UserProfile => !!p);
+
+      return { users: sortedProfiles, lastVisible };
     } catch (error) {
       console.error('Error getting interested users:', error);
-      return [];
+      return { users: [], lastVisible: null };
     }
   }
 
@@ -132,14 +157,14 @@ class EventInviteService {
         where('eventId', '==', eventId)
       );
       const existingDocs = await getDocs(existingQuery);
-      
+
       // Filter by inviterId and status in code
       const validStatuses = ['pending', 'accepted', 'confirmed'];
       const existingInvite = existingDocs.docs.find(doc => {
         const data = doc.data();
         return data.inviterId === inviterId && validStatuses.includes(data.status);
       });
-      
+
       if (existingInvite) {
         // Idempotent behavior: return existing invite id instead of throwing
         return existingInvite.id;
@@ -157,10 +182,10 @@ class EventInviteService {
       };
 
       const docRef = await addDoc(collection(db, 'eventInvites'), inviteData);
-      
+
       // Send notification to invitee (creates a notification document)
       await this.sendInviteNotification(inviterId, inviteeId, eventId, docRef.id);
-      
+
       return docRef.id;
     } catch (error) {
       console.error('Error sending invite:', error);
@@ -173,18 +198,18 @@ class EventInviteService {
     try {
       const inviteRef = doc(db, 'eventInvites', inviteId);
       const inviteDoc = await getDoc(inviteRef);
-      
+
       if (!inviteDoc.exists()) {
         throw new Error('Lời mời không tồn tại');
       }
 
       const inviteData = inviteDoc.data() as EventInvite;
-      
+
       if (response === 'accepted') {
         // Create chat room
         const chatRoomId = await this.createEventChatRoom(
-          inviteData.inviterId, 
-          inviteData.inviteeId, 
+          inviteData.inviterId,
+          inviteData.inviteeId,
           inviteData.eventId
         );
 
@@ -263,13 +288,13 @@ class EventInviteService {
     try {
       const inviteRef = doc(db, 'eventInvites', inviteId);
       const inviteDoc = await getDoc(inviteRef);
-      
+
       if (!inviteDoc.exists()) {
         throw new Error('Lời mời không tồn tại');
       }
 
       const inviteData = inviteDoc.data() as EventInvite;
-      
+
       // Update invite with confirmation
       const updateData: any = {
         updatedAt: serverTimestamp()
@@ -284,14 +309,14 @@ class EventInviteService {
       // Check if both confirmed
       const currentInviterConfirmed = (inviteData as any).inviterConfirmed || (userId === (inviteData as any).inviterId);
       const currentInviteeConfirmed = (inviteData as any).inviteeConfirmed || (userId === (inviteData as any).inviteeId);
-      
+
       if (currentInviterConfirmed && currentInviteeConfirmed) {
         updateData.status = 'confirmed';
         updateData.mutualConfirmed = true;
-        
+
         // GIAI ĐOẠN 5: Ẩn khỏi danh sách quan tâm
         await this.hideUsersFromInterestList(inviteData.eventId, [inviteData.inviterId, inviteData.inviteeId]);
-        
+
         // Create match record
         await this.createEventMatch(inviteData);
 
@@ -317,7 +342,7 @@ class EventInviteService {
       }
 
       await updateDoc(inviteRef, updateData);
-      
+
       return updateData.mutualConfirmed || false;
     } catch (error) {
       console.error('Error confirming going:', error);
@@ -330,7 +355,7 @@ class EventInviteService {
     try {
       // Create a HotSpot-specific chat room in 'hotSpotChats' collection
       const rId = getRoomId(user1Id, user2Id);
-      
+
       // Create in hotSpotChats collection for HotSpot-specific chat
       await setDoc(
         doc(db, 'hotSpotChats', rId),
@@ -347,7 +372,7 @@ class EventInviteService {
         },
         { merge: true }
       );
-      
+
       // Also create a system message in the chat
       const messagesRef = collection(db, 'hotSpotChats', rId, 'messages');
       await addDoc(messagesRef, {
@@ -357,7 +382,7 @@ class EventInviteService {
         timestamp: serverTimestamp(),
         type: 'system',
       });
-      
+
       return rId;
     } catch (error) {
       console.error('Error creating hot spot chat room:', error);
@@ -374,7 +399,7 @@ class EventInviteService {
           where('userId', '==', userId)
         );
         const querySnapshot = await getDocs(q);
-        
+
         querySnapshot.forEach(async (doc) => {
           await updateDoc(doc.ref, { isHidden: true });
         });
@@ -423,7 +448,7 @@ class EventInviteService {
             eventTitle = d?.title || d?.name || eventTitle;
           }
         }
-      } catch {}
+      } catch { }
 
       const message = `💌 ${inviter?.displayName || inviter?.name || 'Một người dùng'} mời bạn đi cùng sự kiện ${eventTitle}!`;
 
@@ -485,13 +510,13 @@ class EventInviteService {
         where('inviteeId', '==', userId),
         where('status', '==', 'pending')
       );
-      
+
       const querySnapshot = await getDocs(q);
       const invites = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as EventInvite[];
-      
+
       // Sort by createdAt in descending order (latest first)
       return invites.sort((a, b) => {
         const aTime = (a.createdAt as any)?.toMillis?.() || (a.createdAt as any)?.getTime?.() || 0;
@@ -511,15 +536,15 @@ class EventInviteService {
         collection(db, 'eventMatches'),
         where('eventId', '==', eventId)
       );
-      
+
       const querySnapshot = await getDocs(q);
       const matches = querySnapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((match: any) => 
-          match.status === 'matched' && 
+        .filter((match: any) =>
+          match.status === 'matched' &&
           (match.user1Id === userId || match.user2Id === userId)
         );
-      
+
       return matches.length > 0 ? matches[0] as EventMatch : null;
     } catch (error) {
       console.error('Error getting user event match:', error);
@@ -539,7 +564,7 @@ class EventInviteService {
         const d = ev.data() as any;
         return d?.title || d?.name || 'một sự kiện';
       }
-    } catch {}
+    } catch { }
     return 'một sự kiện';
   }
 
@@ -568,7 +593,7 @@ class EventInviteService {
           if (typeof ts?.seconds === 'number') return ts.seconds * 1000;
           if (typeof ts === 'number') return ts;
           if (typeof ts === 'string') return Date.parse(ts) || 0;
-        } catch {}
+        } catch { }
         return 0;
       };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useContext, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Text, Modal, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Text, Modal, ActivityIndicator, ImageBackground } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { TextInput, Appbar } from 'react-native-paper';
@@ -286,6 +287,7 @@ function ChatRoomContent() {
                 createdAt: nowTs,
                 status: 'sent', // sent, delivered, read
                 readBy: [], // array of user IDs who have read this message
+                activeFrame: user?.activeFrame || null
             });
             console.log('ðŸ“¨ [uploadImage] Message document created');
 
@@ -400,7 +402,8 @@ function ChatRoomContent() {
                     senderName: replyTo.senderName,
                     uid: replyTo.uid,
                     messageId: replyTo.messageId
-                } : null
+                } : null,
+                activeFrame: user?.activeFrame || null
             });
 
             await createRoomIfNotExists();
@@ -668,7 +671,8 @@ function ChatRoomContent() {
                     senderName: replyTo.senderName,
                     uid: replyTo.uid,
                     messageId: replyTo.messageId
-                } : null
+                } : null,
+                activeFrame: user?.activeFrame || null
             });
 
             // Ensure room exists then update room metadata: lastMessage, updatedAt, increment peer unread
@@ -870,8 +874,39 @@ function ChatRoomContent() {
     // If still loading permission or messages, show loading
     if (chatPermissionLoading || !isInitialLoadComplete) {
         return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={Colors.primary} />
+            <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+                {/* Header Skeleton */}
+                <View style={{ height: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)' }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: currentThemeColors.border, marginRight: 12, opacity: 0.3 }} />
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: currentThemeColors.border, marginRight: 12, opacity: 0.3 }} />
+                    <View>
+                        <View style={{ width: 100, height: 16, borderRadius: 8, backgroundColor: currentThemeColors.border, marginBottom: 6, opacity: 0.3 }} />
+                        <View style={{ width: 60, height: 12, borderRadius: 6, backgroundColor: currentThemeColors.border, opacity: 0.2 }} />
+                    </View>
+                </View>
+
+                {/* Chat Bubbles Skeleton */}
+                <View style={{ flex: 1, padding: 16, justifyContent: 'flex-end', paddingBottom: 80 }}>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                        <View key={i} style={{
+                            alignSelf: i % 2 === 0 ? 'flex-end' : 'flex-start',
+                            width: i % 2 === 0 ? '60%' : '50%',
+                            height: i % 3 === 0 ? 80 : 50,
+                            borderRadius: 16,
+                            backgroundColor: currentThemeColors.border,
+                            opacity: i % 2 === 0 ? 0.15 : 0.1,
+                            marginBottom: 16,
+                            borderBottomRightRadius: i % 2 === 0 ? 4 : 16,
+                            borderBottomLeftRadius: i % 2 !== 0 ? 4 : 16
+                        }} />
+                    ))}
+                </View>
+
+                {/* Input Skeleton */}
+                <View style={{ height: 60, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 }}>
+                    <View style={{ flex: 1, height: 40, borderRadius: 20, backgroundColor: currentThemeColors.border, opacity: 0.15 }} />
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: currentThemeColors.border, marginLeft: 10, opacity: 0.15 }} />
+                </View>
             </View>
         );
     }
@@ -880,8 +915,7 @@ function ChatRoomContent() {
         return <BlockedChatView reason={reason} onBack={() => router.back()} />;
     }
 
-    return (
-
+    const renderContent = () => (
         <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
             {/* Header */}
             <ChatRoomHeader
@@ -987,6 +1021,7 @@ function ChatRoomContent() {
             {/* Background Effects */}
             <ChatBackgroundEffects
                 effect={currentEffect}
+                themeId={currentTheme.id}
                 themeColor={currentThemeColors.tint}
                 backgroundColor={currentThemeColors.background}
             />
@@ -997,8 +1032,45 @@ function ChatRoomContent() {
                 onComplete={() => setBurstEmoji(null)}
             />
         </View>
-
     );
+
+    if (currentTheme.backgroundImage) {
+        return (
+            <ImageBackground
+                source={{ uri: currentTheme.backgroundImage }}
+                style={styles.container}
+                resizeMode="cover"
+            >
+                {currentTheme.gradientColors && currentTheme.gradientColors.length > 0 ? (
+                    <LinearGradient
+                        colors={currentTheme.gradientColors as [string, string, ...string[]]}
+                        style={[styles.container, { backgroundColor: 'transparent' }]}
+                    >
+                        <View style={[styles.container, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
+                            {renderContent()}
+                        </View>
+                    </LinearGradient>
+                ) : (
+                    <View style={[styles.container, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
+                        {renderContent()}
+                    </View>
+                )}
+            </ImageBackground>
+        );
+    }
+
+    if (currentTheme.gradientColors && currentTheme.gradientColors.length > 0) {
+        return (
+            <LinearGradient
+                colors={currentTheme.gradientColors as [string, string, ...string[]]}
+                style={styles.container}
+            >
+                {renderContent()}
+            </LinearGradient>
+        );
+    }
+
+    return renderContent();
 }
 
 const styles = StyleSheet.create({

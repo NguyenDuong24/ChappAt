@@ -7,9 +7,9 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Dimensions,
-    Image,
     Platform,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { profileVisitService, ProfileVisit } from '@/services/profileVisitService';
@@ -42,8 +42,21 @@ const ProfileVisitorsScreen = () => {
         if (!user?.uid) return;
         try {
             setLoading(true);
-            const data = await profileVisitService.getVisitors(user.uid);
-            setVisitors(data);
+            const data = await profileVisitService.getVisitors(user.uid, 100);
+
+            // Group visitors by visitorId to avoid duplicates
+            const groupedVisitors: { [key: string]: ProfileVisit & { visitCount: number } } = {};
+
+            data.forEach(visit => {
+                if (!groupedVisitors[visit.visitorId]) {
+                    groupedVisitors[visit.visitorId] = { ...visit, visitCount: 1 };
+                } else {
+                    groupedVisitors[visit.visitorId].visitCount += 1;
+                    // Ensure we keep the latest timestamp (they are already sorted by desc timestamp from service)
+                }
+            });
+
+            setVisitors(Object.values(groupedVisitors));
         } catch (error) {
             console.error('Error fetching visitors:', error);
         } finally {
@@ -51,14 +64,21 @@ const ProfileVisitorsScreen = () => {
         }
     };
 
-    const renderVisitor = ({ item, index }: { item: ProfileVisit; index: number }) => {
+    const renderVisitor = ({ item, index }: { item: ProfileVisit & { visitCount?: number }; index: number }) => {
         const visitor = item.visitorData;
         const isBlurred = !isPremium;
 
         return (
-            <Animated.View entering={FadeInDown.delay(index * 100)}>
+            <Animated.View entering={FadeInDown.delay(index * 80).duration(600)}>
                 <TouchableOpacity
-                    style={[styles.visitorCard, { backgroundColor: colors.surface }]}
+                    style={[
+                        styles.visitorCard,
+                        {
+                            backgroundColor: colors.surface,
+                            borderColor: colors.border,
+                            borderWidth: 1,
+                        }
+                    ]}
                     onPress={() => {
                         if (isPremium) {
                             router.push({
@@ -71,32 +91,56 @@ const ProfileVisitorsScreen = () => {
                     }}
                     activeOpacity={0.7}
                 >
-                    <View style={styles.avatarContainer}>
-                        {visitor?.profileUrl ? (
-                            <Image source={{ uri: visitor.profileUrl }} style={styles.avatar} />
-                        ) : (
-                            <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
-                                <Feather name="user" size={24} color={colors.subtleText} />
-                            </View>
-                        )}
+                    <View style={styles.avatarWrapper}>
+                        <View style={styles.avatarContainer}>
+                            {visitor?.profileUrl ? (
+                                <Image
+                                    source={{ uri: visitor.profileUrl }}
+                                    style={styles.avatar}
+                                    contentFit="cover"
+                                    transition={200}
+                                />
+                            ) : (
+                                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.border + '40' }]}>
+                                    <Feather name="user" size={24} color={colors.subtleText} />
+                                </View>
+                            )}
+                            {isBlurred && (
+                                <BlurView intensity={25} style={StyleSheet.absoluteFill} tint={colors.theme === 'dark' ? 'dark' : 'light'} />
+                            )}
+                        </View>
                         {isBlurred && (
-                            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="dark" />
+                            <View style={styles.lockBadge}>
+                                <Feather name="lock" size={10} color="#fff" />
+                            </View>
                         )}
                     </View>
 
                     <View style={styles.visitorInfo}>
-                        {isBlurred ? (
-                            <View style={styles.blurredNameContainer}>
-                                <View style={[styles.blurredNameLine, { backgroundColor: colors.border, width: '60%' }]} />
-                            </View>
-                        ) : (
-                            <Text style={[styles.visitorName, { color: colors.text }]}>
-                                {visitor?.username || visitor?.displayName || t('chat.unknown_user')}
-                            </Text>
-                        )}
+                        <View style={styles.nameRow}>
+                            {isBlurred ? (
+                                <View style={styles.blurredNameContainer}>
+                                    <View style={[styles.blurredNameLine, { backgroundColor: colors.border, width: 100 }]} />
+                                </View>
+                            ) : (
+                                <Text style={[styles.visitorName, { color: colors.text }]} numberOfLines={1}>
+                                    {visitor?.username || visitor?.displayName || t('chat.unknown_user')}
+                                </Text>
+                            )}
+
+                            {!isBlurred && item.visitCount && item.visitCount > 1 && (
+                                <View style={[styles.visitCountBadge, { backgroundColor: colors.primary + '15' }]}>
+                                    <Text style={[styles.visitCountText, { color: colors.primary }]}>
+                                        {t('profile.visit_count', { count: item.visitCount })}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
                         <View style={styles.visitDetails}>
+                            <Feather name="clock" size={12} color={colors.subtleText} style={{ marginRight: 4 }} />
                             <Text style={[styles.visitTime, { color: colors.subtleText }]}>
-                                {format(item.timestamp?.toDate ? item.timestamp.toDate() : item.timestamp, 'HH:mm dd/MM/yyyy')}
+                                {format(item.timestamp?.toDate ? item.timestamp.toDate() : item.timestamp, 'HH:mm • dd/MM')}
                             </Text>
                             {item.distance !== undefined && (
                                 <>
@@ -109,11 +153,9 @@ const ProfileVisitorsScreen = () => {
                         </View>
                     </View>
 
-                    {isBlurred && (
-                        <View style={styles.lockIconContainer}>
-                            <Feather name="lock" size={16} color={colors.primary} />
-                        </View>
-                    )}
+                    <View style={styles.actionIcon}>
+                        <Feather name="chevron-right" size={18} color={colors.border} />
+                    </View>
                 </TouchableOpacity>
             </Animated.View>
         );
@@ -138,26 +180,28 @@ const ProfileVisitorsScreen = () => {
             </View>
 
             {!isPremium && (
-                <LinearGradient
-                    colors={[colors.primary, '#8B5CF6']}
-                    style={styles.premiumBanner}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
+                <TouchableOpacity
+                    onPress={() => router.push('/(screens)/store/StoreScreen')}
+                    activeOpacity={0.9}
                 >
-                    <View style={styles.bannerContent}>
-                        <Feather name="star" size={24} color="#fff" />
-                        <View style={styles.bannerTextContainer}>
-                            <Text style={styles.bannerTitle}>{t('profile.unlock_visitors')}</Text>
-                            <Text style={styles.bannerSubTitle}>{t('profile.unlock_visitors_desc')}</Text>
+                    <LinearGradient
+                        colors={[colors.primary, '#9333EA', '#7C3AED']}
+                        style={styles.premiumBanner}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    >
+                        <View style={styles.bannerContent}>
+                            <View style={[styles.bannerIconCircle, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                                <Feather name="award" size={24} color="#fff" />
+                            </View>
+                            <View style={styles.bannerTextContainer}>
+                                <Text style={styles.bannerTitle}>{t('profile.unlock_visitors')}</Text>
+                                <Text style={styles.bannerSubTitle}>{t('profile.unlock_visitors_desc')}</Text>
+                            </View>
+                            <Feather name="chevron-right" size={20} color="#fff" />
                         </View>
-                        <TouchableOpacity
-                            style={styles.buyButton}
-                            onPress={() => router.push('/(screens)/store/StoreScreen')}
-                        >
-                            <Text style={styles.buyButtonText}>{t('store.buy')}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </LinearGradient>
+                    </LinearGradient>
+                </TouchableOpacity>
             )}
 
             <FlatList
@@ -190,82 +234,100 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
-        paddingBottom: 15,
+        paddingTop: Platform.OS === 'ios' ? 75 : 40,
+        paddingBottom: 20,
         paddingHorizontal: 20,
         borderBottomWidth: 1,
     },
     backButton: {
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.02)',
     },
     headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
+        fontSize: 20,
+        fontWeight: '800',
+        letterSpacing: -0.5,
     },
     premiumBanner: {
-        margin: 20,
-        borderRadius: 16,
-        padding: 16,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        marginHorizontal: 20,
+        marginTop: 10,
+        marginBottom: 20,
+        borderRadius: 24,
+        padding: 20,
+        elevation: 8,
+        shadowColor: '#8B5CF6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+    },
+    bannerIconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     bannerContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 15,
     },
     bannerTextContainer: {
         flex: 1,
     },
     bannerTitle: {
         color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
+        fontSize: 18,
+        fontWeight: '800',
     },
     bannerSubTitle: {
-        color: 'rgba(255,255,255,0.8)',
-        fontSize: 12,
-        marginTop: 2,
-    },
-    buyButton: {
-        backgroundColor: '#fff',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-    },
-    buyButtonText: {
-        color: '#8B5CF6',
-        fontWeight: '700',
+        color: 'rgba(255,255,255,0.9)',
         fontSize: 13,
+        marginTop: 2,
+        lineHeight: 18,
     },
     listContent: {
-        padding: 20,
-        paddingTop: 0,
+        paddingHorizontal: 20,
+        paddingBottom: 40,
     },
     visitorCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 12,
-        borderRadius: 16,
-        marginBottom: 12,
-        elevation: 2,
+        padding: 14,
+        borderRadius: 24,
+        marginBottom: 14,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    avatarWrapper: {
+        position: 'relative',
     },
     avatarContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
         overflow: 'hidden',
-        position: 'relative',
+        backgroundColor: '#f1f1f1',
+    },
+    lockBadge: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: '#8B5CF6',
+        borderWidth: 2,
+        borderColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     avatar: {
         width: '100%',
@@ -279,54 +341,70 @@ const styles = StyleSheet.create({
     },
     visitorInfo: {
         flex: 1,
-        marginLeft: 16,
+        marginLeft: 18,
+    },
+    nameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 2,
     },
     visitorName: {
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 17,
+        fontWeight: '700',
+        letterSpacing: -0.3,
+    },
+    visitCountBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10,
+    },
+    visitCountText: {
+        fontSize: 11,
+        fontWeight: '800',
     },
     visitTime: {
-        fontSize: 12,
+        fontSize: 13,
+        fontWeight: '500',
     },
     visitDetails: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 4,
+        marginTop: 2,
     },
     dot: {
         width: 3,
         height: 3,
         borderRadius: 1.5,
-        marginHorizontal: 6,
+        marginHorizontal: 8,
     },
     distanceText: {
-        fontSize: 12,
+        fontSize: 13,
+        fontWeight: '500',
     },
     blurredNameContainer: {
-        marginBottom: 8,
+        marginBottom: 4,
     },
     blurredNameLine: {
         height: 12,
         borderRadius: 6,
-        opacity: 0.3,
+        opacity: 0.15,
     },
-    lockIconContainer: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
-        justifyContent: 'center',
-        alignItems: 'center',
+    actionIcon: {
+        marginLeft: 10,
+        opacity: 0.3,
     },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 100,
+        paddingHorizontal: 40,
     },
     emptyText: {
-        marginTop: 16,
-        fontSize: 16,
-        fontWeight: '500',
+        marginTop: 20,
+        fontSize: 17,
+        fontWeight: '600',
+        textAlign: 'center',
     },
 });
 

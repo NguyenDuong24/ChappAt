@@ -3,7 +3,7 @@ import { Tabs, useRouter } from 'expo-router';
 import { Entypo, Ionicons, FontAwesome, Feather } from '@expo/vector-icons';
 import { ThemeContext } from '../../context/ThemeContext';
 import { Colors } from '../../constants/Colors';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform } from 'react-native';
 import { RefreshProvider, useRefresh } from '../../context/RefreshContext';
 
 function TabsLayoutContent() {
@@ -23,13 +23,15 @@ function TabsLayoutContent() {
     tabBarStyle: {
       backgroundColor: currentThemeColors.background,
       borderTopColor: currentThemeColors.border || 'transparent',
+      height: Platform.OS === 'ios' ? 88 : 60,
+      paddingBottom: Platform.OS === 'ios' ? 28 : 8,
     },
     tabBarActiveTintColor: Colors.primary,
     tabBarInactiveTintColor: currentThemeColors.text,
-    freezeOnBlur: false, // Keep tabs active for instant switching
-    lazy: false, // Preload all tabs
-    detachInactiveScreens: false, // Keep screens attached for instant switching
-    animationEnabled: false, // Disable animations for faster tab switching
+    freezeOnBlur: true,
+    lazy: true,
+    animation: 'shift',
+    animationEnabled: true,
     tabBarHideOnKeyboard: true,
   }), [currentThemeColors]);
 
@@ -108,8 +110,6 @@ function TabsLayoutContent() {
         options={{
           tabBarIcon: renderHomeIcon,
           headerShown: false,
-          unmountOnBlur: false,
-          freezeOnBlur: true,
         }}
       />
       <Tabs.Screen
@@ -128,8 +128,6 @@ function TabsLayoutContent() {
         options={{
           headerShown: false,
           tabBarIcon: renderExploreIcon,
-          unmountOnBlur: false,
-          freezeOnBlur: true,
         }}
       />
       <Tabs.Screen
@@ -148,8 +146,6 @@ function TabsLayoutContent() {
         options={{
           headerShown: false,
           tabBarIcon: renderChatIcon,
-          unmountOnBlur: false,
-          freezeOnBlur: true,
         }}
       />
       <Tabs.Screen
@@ -168,8 +164,6 @@ function TabsLayoutContent() {
         options={{
           headerShown: false,
           tabBarIcon: renderGroupsIcon,
-          unmountOnBlur: false,
-          freezeOnBlur: true,
         }}
       />
       <Tabs.Screen

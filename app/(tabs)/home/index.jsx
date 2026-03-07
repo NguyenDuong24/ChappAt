@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import React, { useContext, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity, BackHandler, ToastAndroid, Platform } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import ListUser from '@/components/home/ListUser';
@@ -8,156 +8,116 @@ import { Colors } from '@/constants/Colors';
 import useHome from './useHome';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import DeferredComponent from '@/components/DeferredComponent';
-import { useRefresh } from '@/context/RefreshContext';
 
-// Memoized loading component
-const LoadingView = memo(({ theme, currentThemeColors }) => (
-  <View style={styles.loadingContainer}>
-    <LinearGradient
-      colors={theme === 'dark'
-        ? ['#1a1a2e', '#16213e']
-        : ['#f8fafc', '#e2e8f0']
-      }
-      style={styles.loadingGradient}
-    >
-      <View style={styles.loadingContent}>
-        <ActivityIndicator size="large" color="#667eea" />
-        <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>
-          Đang tìm kiếm người dùng...
-        </Text>
-        <View style={styles.loadingDots}>
-          <View style={[styles.dot, styles.dot1]} />
-          <View style={[styles.dot, styles.dot2]} />
-          <View style={[styles.dot, styles.dot3]} />
+// Premium Loading State using Skeletons
+const LoadingView = ({ theme, currentThemeColors }) => (
+  <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background, justifyContent: 'flex-start', paddingTop: 100 }]}>
+    {[1, 2, 3, 4, 5, 6].map((i) => (
+      <View key={i} style={[styles.skeletonCard, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
+        <View style={[styles.skeletonAvatar, { backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E2E8F0' }]} />
+        <View style={styles.skeletonTextContainer}>
+          <View style={[styles.skeletonLine, { width: 140, height: 18, marginBottom: 8, borderRadius: 4, backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E2E8F0' }]} />
+          <View style={[styles.skeletonLine, { width: 220, height: 14, marginBottom: 12, borderRadius: 4, backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E2E8F0' }]} />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={[styles.skeletonLine, { width: 60, height: 26, borderRadius: 13, backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E2E8F0' }]} />
+            <View style={[styles.skeletonLine, { width: 70, height: 26, borderRadius: 13, backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E2E8F0' }]} />
+          </View>
         </View>
+        <View style={[styles.skeletonButton, { backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E2E8F0' }]} />
       </View>
-    </LinearGradient>
+    ))}
   </View>
-));
+);
 
-// Memoized empty state component
-const EmptyView = memo(({ currentThemeColors }) => (
-  <View style={styles.emptyContainer}>
-    <MaterialIcons name="people-outline" size={80} color={currentThemeColors.subtleText} />
-    <Text style={[styles.emptyTitle, { color: currentThemeColors.text }]}>
-      Không tìm thấy người dùng
-    </Text>
-    <Text style={[styles.emptySubtitle, { color: currentThemeColors.subtleText }]}>
-      Thử điều chỉnh bộ lọc hoặc kéo xuống để làm mới
-    </Text>
+// Empty State with Premium Feel
+const EmptyView = ({ theme, currentThemeColors }) => (
+  <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background }]}>
+    <View style={[styles.emptyGlassContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+      <View style={[styles.emptyIconCircle, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+        <MaterialIcons name="person-search" size={60} color={currentThemeColors.subtleText} />
+      </View>
+      <Text style={[styles.emptyText, { color: currentThemeColors.text }]}>Không tìm thấy ai gần đây</Text>
+      <Text style={[styles.emptySubText, { color: currentThemeColors.subtleText }]}>Hãy thử thay đổi bộ lọc hoặc vị trí của bạn!</Text>
+    </View>
   </View>
-));
+);
 
-// Memoized error component
-const ErrorView = memo(({ error, currentThemeColors, onRetry }) => (
-  <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.surface }]}>
-    <MaterialIcons name="error-outline" size={24} color="#ff4757" />
-    <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
-      {error}
-    </Text>
-    <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
-      <Text style={styles.retryText}>Thử lại</Text>
-    </TouchableOpacity>
+// Error State with Retry logic
+const ErrorView = ({ error, onRetry, currentThemeColors }) => (
+  <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background }]}>
+    <View style={[styles.errorGlassContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+      <MaterialIcons name="error-outline" size={50} color={Colors.warning} />
+      <Text style={[styles.errorText, { color: currentThemeColors.text }]}>{error}</Text>
+      <TouchableOpacity onPress={onRetry} style={styles.retryButton} activeOpacity={0.8}>
+        <LinearGradient colors={['#FF5F6D', '#FFC371']} style={styles.retryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+          <Text style={styles.retryText}>Thử lại</Text>
+          <MaterialIcons name="refresh" size={18} color="white" />
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
   </View>
-));
+);
 
-const Home = memo(function Home() {
+function Home() {
   const { user } = useAuth();
   const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = useMemo(() =>
     theme === 'dark' ? Colors.dark : Colors.light,
     [theme]
   );
+
   const isFocused = useIsFocused();
+  const lastPressRef = useRef(0);
+  const { users, loading, refreshing, error, loadMore, hasMore, refresh } = useHome(isFocused);
 
-  // Only fetch data when tab is focused
-  const { getUsers, users, loading, refreshing, handleRefresh, error, loadMore, hasMore } = useHome(isFocused);
-
-  // State for back button handling
-  const backPressedOnce = useRef(false);
-
-  const { registerRefreshHandler } = useRefresh();
-
-  // Memoized retry handler
-  const handleRetry = useCallback(() => {
-    getUsers(true);
-  }, [getUsers]);
-
+  // Handle Android Back Button to exit app
   useEffect(() => {
-    if (registerRefreshHandler) {
-      registerRefreshHandler('home', handleRefresh);
-    }
-  }, [registerRefreshHandler, handleRefresh]);
-
-  // Back button handler effect
-  useEffect(() => {
-    if (Platform.OS !== 'android') return;
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!isFocused) {
-        return false;
-      }
-
-      if (backPressedOnce.current) {
+    const onBackPress = () => {
+      if (!isFocused) return false;
+      const now = Date.now();
+      if (now - lastPressRef.current < 2000) {
         BackHandler.exitApp();
         return true;
       }
-
-      backPressedOnce.current = true;
-      ToastAndroid.show('Nhấn lại lần nữa để thoát', ToastAndroid.SHORT);
-
-      setTimeout(() => {
-        backPressedOnce.current = false;
-      }, 2000);
-
+      lastPressRef.current = now;
+      ToastAndroid.show('Nhấn lần nữa để thoát', ToastAndroid.SHORT);
       return true;
-    });
+    };
 
-    return () => backHandler.remove();
+    BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
   }, [isFocused]);
 
-  // Determine which content to render
-  const content = useMemo(() => {
-    if (loading) {
-      return <LoadingView theme={theme} currentThemeColors={currentThemeColors} />;
-    }
+  const onRefresh = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
 
-    if (users.length === 0) {
-      return <EmptyView currentThemeColors={currentThemeColors} />;
-    }
+  const content = useMemo(() => {
+    if (loading && users.length === 0) return <LoadingView theme={theme} currentThemeColors={currentThemeColors} />;
+    if (error && users.length === 0) return <ErrorView error={error} onRetry={refresh} currentThemeColors={currentThemeColors} />;
+    if (!loading && users.length === 0) return <EmptyView theme={theme} currentThemeColors={currentThemeColors} />;
 
     return (
       <ListUser
         users={users}
         refreshing={refreshing}
-        onRefresh={handleRefresh}
-        activeTab="home"
+        onRefresh={onRefresh}
         loadMore={loadMore}
         hasMore={hasMore}
+        loading={loading}
       />
     );
-  }, [loading, users, refreshing, handleRefresh, theme, currentThemeColors, loadMore, hasMore]);
+  }, [loading, users, error, refreshing, refresh, theme, currentThemeColors, onRefresh, loadMore, hasMore]);
 
   return (
-    <DeferredComponent>
-      <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        {error && (
-          <ErrorView
-            error={error}
-            currentThemeColors={currentThemeColors}
-            onRetry={handleRetry}
-          />
-        )}
-
-        {/* Main Content */}
-        <View style={styles.contentContainer}>
-          {content}
-        </View>
+    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+      {/* Main Content */}
+      <View style={styles.contentContainer}>
+        {content}
       </View>
-    </DeferredComponent>
+    </View>
   );
-});
+};
 
 export default Home;
 
@@ -168,80 +128,97 @@ const styles = StyleSheet.create({
   contentContainer: {
     flex: 1,
   },
-  loadingContainer: {
+  centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
-  loadingGradient: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  skeletonCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 12,
     width: '100%',
-  },
-  loadingContent: {
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  skeletonAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  skeletonTextContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  skeletonLine: {
+    // borderRadius: 4, // defined inline now
+  },
+  skeletonButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginLeft: 10,
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 15,
     fontSize: 16,
     fontWeight: '500',
-    textAlign: 'center',
+    opacity: 0.8,
   },
-  loadingDots: {
-    flexDirection: 'row',
-    marginTop: 12,
+  emptyGlassContainer: {
+    padding: 30,
+    borderRadius: 24,
     alignItems: 'center',
+    width: '85%',
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
-    backgroundColor: '#667eea',
-  },
-  dot1: { opacity: 0.6 },
-  dot2: { opacity: 0.8 },
-  dot3: { opacity: 1 },
-  emptyContainer: {
-    flex: 1,
+  emptyIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
+    marginBottom: 20,
   },
-  emptyTitle: {
+  emptyText: {
     fontSize: 18,
     fontWeight: '700',
-    marginTop: 12,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    marginTop: 6,
     textAlign: 'center',
+    marginBottom: 8,
   },
-  errorContainer: {
-    flexDirection: 'row',
+  emptySubText: {
+    fontSize: 14,
+    textAlign: 'center',
+    opacity: 0.6,
+    lineHeight: 20,
+  },
+  errorGlassContainer: {
+    padding: 30,
+    borderRadius: 24,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
-    margin: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#ff4757',
+    width: '85%',
   },
   errorText: {
-    flex: 1,
-    marginHorizontal: 12,
+    marginVertical: 15,
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 22,
   },
   retryButton: {
-    backgroundColor: '#ff4757',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    marginTop: 5,
+    borderRadius: 25,
+    overflow: 'hidden',
+  },
+  retryGradient: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   retryText: {
-    color: 'white',
-    fontWeight: '600',
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

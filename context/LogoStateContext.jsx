@@ -1,14 +1,12 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/authContext';
-import { getStorage, ref, getDownloadURL } from 'firebase/storage'; 
+import { getStorage, ref, getDownloadURL } from 'firebase/storage';
 const LogoStateContext = createContext();
 
 export const LogoStateProvider = ({ children }) => {
-    const { user } = useAuth(); 
-    const [logo, setLogo] = useState(null);
+  const [logo, setLogo] = useState(null);
+  const storage = getStorage();
 
-    const storage = getStorage();
-    
   useEffect(() => {
     const fetchLogo = async () => {
       try {
@@ -21,13 +19,16 @@ export const LogoStateProvider = ({ children }) => {
 
     fetchLogo();
   }, []);
-    return (
-        <LogoStateContext.Provider value={logo}>
-            {children}
-        </LogoStateContext.Provider>
-    );
+
+  const value = useMemo(() => logo, [logo]);
+
+  return (
+    <LogoStateContext.Provider value={value}>
+      {children}
+    </LogoStateContext.Provider>
+  );
 };
 
 export const useLogoState = () => {
-    return useContext(LogoStateContext);
+  return useContext(LogoStateContext);
 };

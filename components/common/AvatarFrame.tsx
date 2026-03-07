@@ -60,25 +60,9 @@ const AvatarFrame: React.FC<AvatarFrameProps> = ({
     const filterId = useMemo(() => `filter-${Math.random().toString(36).substr(2, 9)}`, []);
 
     useEffect(() => {
-        const normalizedFrame = (frameType || '').toLowerCase();
-        if (['ocean', 'ufo', 'gamer', 'cyberpunk', 'galaxy'].includes(normalizedFrame)) {
-            rotation.value = withRepeat(
-                withTiming(360, { duration: 4000, easing: Easing.linear }),
-                -1,
-                false
-            );
-        }
-
-        if (['money', 'devil', 'elegant', 'japan', 'dragon', 'phoenix'].includes(normalizedFrame)) {
-            pulse.value = withRepeat(
-                withSequence(
-                    withTiming(1.05, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-                    withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-                ),
-                -1,
-                false
-            );
-        }
+        // Disabled animations for scroll performance - keep static
+        rotation.value = 0;
+        pulse.value = 1;
     }, [frameType]);
 
     const animatedRotationStyle = useAnimatedStyle(() => ({
@@ -194,7 +178,7 @@ const AvatarFrame: React.FC<AvatarFrameProps> = ({
                     }
                 ]}
                 contentFit="cover"
-                transition={200}
+                transition={100}
                 cachePolicy="memory-disk"
             />
 
@@ -207,6 +191,8 @@ const AvatarFrame: React.FC<AvatarFrameProps> = ({
         </Container>
     );
 };
+
+
 
 const styles = StyleSheet.create({
     container: {

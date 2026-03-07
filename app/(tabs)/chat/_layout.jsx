@@ -21,8 +21,16 @@ const StackLayout = () => {
       {/* Modern Chat Header with theme-aware gradient */}
       <ChatListHeader />
 
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          animationDuration: 200,
+          gestureEnabled: true,
+          freezeOnBlur: true,
+        }}
+      >
+        <Stack.Screen name="index" options={{ animation: 'fade' }} />
       </Stack>
     </View>
   );

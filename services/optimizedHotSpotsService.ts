@@ -1,9 +1,9 @@
-import { 
-  collection, 
-  doc, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  collection,
+  doc,
+  query,
+  where,
+  orderBy,
   limit as firestoreLimit,
   getDocs,
   onSnapshot,
@@ -52,12 +52,12 @@ class OptimizedHotSpotsService {
 
   // Optimized getHotSpots với aggressive caching
   async getHotSpots(
-    filters: HotSpotFilters = {}, 
-    limit: number = 20, 
+    filters: HotSpotFilters = {},
+    limit: number = 20,
     useCache: boolean = true
   ): Promise<CachedHotSpot[]> {
     const cacheKey = this.generateCacheKey(filters, limit);
-    
+
     // Check cache first
     if (useCache && this.cache.has(cacheKey)) {
       const cached = this.cache.get(cacheKey)!;
@@ -69,47 +69,64 @@ class OptimizedHotSpotsService {
     }
 
     try {
-      // Single optimized query - fetch more, filter client-side
-      const hotSpotsQuery = query(
-        collection(db, 'hotSpots'),
-        where('isActive', '==', true),
-        firestoreLimit(100) // Get more để filter client-side
+      console.log('🔥 Fetching hotspots with filters:', JSON.stringify(filters));
+
+      // Try 'hotSpots' collection first
+      let hotspotsRef = collection(db, 'hotSpots');
+      let hotSpotsQuery = query(
+        hotspotsRef,
+        firestoreLimit(100)
       );
 
-      const snapshot = await getDocs(hotSpotsQuery);
-      let allHotSpots: CachedHotSpot[] = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        _cachedAt: Date.now()
-      } as CachedHotSpot));
+      let snapshot = await getDocs(hotSpotsQuery);
+
+      // If empty, try 'hotspots' (lowercase)
+      if (snapshot.empty) {
+        console.log('⚠️ hotSpots collection empty, trying hotspots...');
+        hotspotsRef = collection(db, 'hotspots');
+        hotSpotsQuery = query(hotspotsRef, firestoreLimit(100));
+        snapshot = await getDocs(hotSpotsQuery);
+      }
+
+      console.log(`🔥 Raw docs fetched: ${snapshot.docs.length}`);
+
+      let allHotSpots: CachedHotSpot[] = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          isActive: data.isActive !== undefined ? data.isActive : true, // Fallback to true if missing
+          _cachedAt: Date.now()
+        } as CachedHotSpot;
+      });
 
       // Client-side filtering (tránh phức tạp index)
       let filteredHotSpots = this.applyClientSideFilters(allHotSpots, filters);
-      
+
       // Client-side sorting
       filteredHotSpots = this.applySorting(filteredHotSpots, filters.sortBy || 'newest');
-      
+
       // Apply limit
       const result = filteredHotSpots.slice(0, limit);
-      
+
       // Cache multiple variations
       this.setCacheMultiple(filters, result, allHotSpots);
-      
-      console.log(`🔥 Loaded ${result.length} hotspots (from ${snapshot.docs.length} docs)`);
+
+      console.log(`🔥 Final filtered hotspots: ${result.length}`);
       return result;
     } catch (error) {
-      console.error('Error loading hotspots:', error);
+      console.error('❌ Error loading hotspots:', error);
       return [];
     }
   }
 
   // Batch get user interactions
   async getBatchUserInteractions(
-    userId: string, 
+    userId: string,
     hotSpotIds: string[]
   ): Promise<Map<string, any>> {
     const cacheKey = `interactions_${userId}`;
-    
+
     // Check cache
     if (this.userInteractionCache.has(cacheKey)) {
       const cached = this.userInteractionCache.get(cacheKey)!;
@@ -143,15 +160,16 @@ class OptimizedHotSpotsService {
       // Cache all user interactions
       this.userInteractionCache.set(cacheKey, interactions);
 
-      // Return only requested hotSpots
-      const result = new Map();
+      // Return only requested hotSpots, merging multiple interaction types
+      const result = new Map<string, any>();
       interactions.forEach((interaction: any) => {
         if (hotSpotIds.includes(interaction.hotSpotId)) {
-          result.set(interaction.hotSpotId, interaction);
+          const existing = result.get(interaction.hotSpotId) || {};
+          result.set(interaction.hotSpotId, { ...existing, ...interaction });
         }
       });
 
-      console.log(`🎯 Loaded ${result.size} interactions for ${hotSpotIds.length} hotspots`);
+      console.log(`🎯 Loaded merged interactions for ${result.size} hotspots`);
       return result;
     } catch (error) {
       console.error('Error loading user interactions:', error);
@@ -161,11 +179,11 @@ class OptimizedHotSpotsService {
 
   // Optimized real-time listener for specific hotspot
   setupHotSpotListener(
-    hotSpotId: string, 
+    hotSpotId: string,
     callback: (hotSpot: any) => void
   ): Unsubscribe {
     const listenerKey = `hotspot_${hotSpotId}`;
-    
+
     // Remove existing listener
     if (this.activeListeners.has(listenerKey)) {
       this.activeListeners.get(listenerKey)!();
@@ -179,7 +197,7 @@ class OptimizedHotSpotsService {
           ...doc.data(),
           _cachedAt: Date.now()
         };
-        
+
         // Update cache
         this.updateCacheItem(hotSpotData);
         callback(hotSpotData);
@@ -206,13 +224,13 @@ class OptimizedHotSpotsService {
 
       // Add to Firebase
       await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
-      
+
       // Update stats
       await this.updateHotSpotStats(hotSpotId, 'join');
-      
+
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
-      
+
       // Push to creator notifying user joined
       try {
         const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
@@ -227,7 +245,7 @@ class OptimizedHotSpotsService {
       } catch (e) {
         console.warn('⚠️ Push joinHotSpot failed:', e);
       }
-      
+
       console.log(`✅ User ${userId} joined hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error joining hotspot:', error);
@@ -247,13 +265,13 @@ class OptimizedHotSpotsService {
       };
 
       await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
-      
+
       // Update stats
       await this.updateHotSpotStats(hotSpotId, 'interested');
-      
+
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
-      
+
       // Push to creator notifying user interested
       try {
         const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
@@ -268,7 +286,7 @@ class OptimizedHotSpotsService {
       } catch (e) {
         console.warn('⚠️ Push markInterested failed:', e);
       }
-      
+
       console.log(`💖 User ${userId} marked interested in hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error marking interested:', error);
@@ -289,13 +307,13 @@ class OptimizedHotSpotsService {
       };
 
       await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
-      
+
       // Update stats
       await this.updateHotSpotStats(hotSpotId, 'checkin');
-      
+
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
-      
+
       // Push to creator notifying user check-in
       try {
         const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
@@ -310,7 +328,7 @@ class OptimizedHotSpotsService {
       } catch (e) {
         console.warn('⚠️ Push checkIn failed:', e);
       }
-      
+
       console.log(`📍 User ${userId} checked in to hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error checking in:', error);
@@ -330,10 +348,10 @@ class OptimizedHotSpotsService {
       };
 
       await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
-      
+
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
-      
+
       // Optional push to creator for favorite
       try {
         const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
@@ -348,7 +366,7 @@ class OptimizedHotSpotsService {
       } catch (e) {
         console.warn('⚠️ Push addFavorite failed:', e);
       }
-      
+
       console.log(`⭐ User ${userId} favorited hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error adding favorite:', error);
@@ -367,18 +385,18 @@ class OptimizedHotSpotsService {
       );
 
       const snapshot = await getDocs(interactionsQuery);
-      
+
       // Delete all favorite interactions for this user-hotspot pair
       const batch = writeBatch(db);
       snapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
       });
-      
+
       await batch.commit();
-      
+
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
-      
+
       console.log(`💔 User ${userId} unfavorited hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error removing favorite:', error);
@@ -395,17 +413,17 @@ class OptimizedHotSpotsService {
         where('hotSpotId', '==', hotSpotId),
         where('type', '==', 'interested')
       );
-      
+
       const snapshot = await getDocs(interactionsQuery);
       const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(deletePromises);
-      
+
       // Update stats (decrement)
       await this.updateHotSpotStats(hotSpotId, 'removeInterested');
-      
+
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
-      
+
       console.log(`💔 User ${userId} removed interest from hotspot ${hotSpotId}`);
     } catch (error) {
       console.error('Error removing interested:', error);
@@ -460,8 +478,8 @@ class OptimizedHotSpotsService {
   }
 
   private setCacheMultiple(
-    baseFilters: HotSpotFilters, 
-    result: CachedHotSpot[], 
+    baseFilters: HotSpotFilters,
+    result: CachedHotSpot[],
     allHotSpots: CachedHotSpot[]
   ) {
     // Cache the specific query
@@ -479,7 +497,7 @@ class OptimizedHotSpotsService {
       const filtered = this.applyClientSideFilters(allHotSpots, variation);
       const sorted = this.applySorting(filtered, variation.sortBy || 'newest');
       const limited = sorted.slice(0, 20);
-      
+
       const varKey = this.generateCacheKey(variation, 20);
       this.setCache(varKey, limited);
     });
@@ -517,12 +535,12 @@ class OptimizedHotSpotsService {
     });
 
     expiredKeys.forEach(key => this.cache.delete(key));
-    
+
     // If still too large, remove oldest
     if (this.cache.size >= this.MAX_CACHE_SIZE) {
       const entries = Array.from(this.cache.entries());
       entries.sort((a, b) => a[1][0]?._cachedAt - b[1][0]?._cachedAt);
-      
+
       const toRemove = entries.slice(0, Math.floor(this.MAX_CACHE_SIZE * 0.3));
       toRemove.forEach(([key]) => this.cache.delete(key));
     }
@@ -567,7 +585,7 @@ class OptimizedHotSpotsService {
   private async updateHotSpotStats(hotSpotId: string, action: 'join' | 'checkin' | 'interested' | 'removeInterested'): Promise<void> {
     try {
       const hotSpotRef = doc(db, 'hotSpots', hotSpotId);
-      
+
       if (action === 'join') {
         await updateDoc(hotSpotRef, {
           'stats.joined': increment(1),
@@ -590,7 +608,7 @@ class OptimizedHotSpotsService {
           updatedAt: new Date()
         });
       }
-      
+
       // Clear cache for this hotspot
       this.cache.forEach((value, key) => {
         if (key.includes(hotSpotId)) {

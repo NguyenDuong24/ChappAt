@@ -26,12 +26,12 @@ interface PostActionsProps {
   onShare: (postId: string) => void;
 }
 
-const PostActions: React.FC<PostActionsProps> = ({ 
-  post, 
-  currentUserId, 
-  onLike, 
-  onComment, 
-  onShare 
+const PostActions: React.FC<PostActionsProps> = ({
+  post,
+  currentUserId,
+  onLike,
+  onComment,
+  onShare
 }) => {
   const { user } = useAuth();
   const themeContext = useContext(ThemeContext);
@@ -45,7 +45,7 @@ const PostActions: React.FC<PostActionsProps> = ({
     try {
       // Call the original like handler
       onLike(postId, userId, wasLiked);
-      
+
       // Handle notifications
       if (user?.uid && post.authorId && post.authorId !== user.uid) {
         if (!wasLiked) {
@@ -113,12 +113,13 @@ const PostActions: React.FC<PostActionsProps> = ({
     } else {
       // Android: simple alert with copy option
       Alert.alert('Chia sẻ bài viết', link, [
-        { text: 'Sao chép', onPress: async () => {
+        {
+          text: 'Sao chép', onPress: async () => {
             try {
               await Clipboard.setStringAsync(link);
               Alert.alert('Đã sao chép', 'Liên kết bài viết đã được sao chép.');
-            } catch {}
-          } 
+            } catch { }
+          }
         },
         { text: 'Chia sẻ...', onPress: () => onShare(post.id) },
         { text: 'Đóng', style: 'cancel' },
@@ -130,20 +131,20 @@ const PostActions: React.FC<PostActionsProps> = ({
     <View style={styles.container}>
       <View style={styles.actionsRow}>
         {/* Like Button */}
-        <TouchableOpacity 
-          onPress={() => handleLikeWithNotification(post.id, currentUserId, isLiked)} 
+        <TouchableOpacity
+          onPress={() => handleLikeWithNotification(post.id, currentUserId, isLiked)}
           style={[
             styles.actionButton,
             isLiked && { backgroundColor: currentThemeColors.tint + '20' }
           ]}
         >
-          <Ionicons 
-            name={isLiked ? "heart" : "heart-outline"} 
-            size={24} 
-            color={isLiked ? currentThemeColors.tint : currentThemeColors.icon} 
+          <Ionicons
+            name={isLiked ? "heart" : "heart-outline"}
+            size={24}
+            color={isLiked ? currentThemeColors.tint : currentThemeColors.icon}
           />
           <Text style={[
-            styles.actionText, 
+            styles.actionText,
             { color: isLiked ? currentThemeColors.tint : currentThemeColors.text }
           ]}>
             {post.likes.length > 0 ? post.likes.length : ''}
@@ -152,10 +153,10 @@ const PostActions: React.FC<PostActionsProps> = ({
 
         {/* Comment Button */}
         <TouchableOpacity onPress={onComment} style={styles.actionButton}>
-          <Ionicons 
-            name="chatbubble-outline" 
-            size={22} 
-            color={currentThemeColors.icon} 
+          <Ionicons
+            name="chatbubble-outline"
+            size={22}
+            color={currentThemeColors.icon}
           />
           <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
             {post.comments ? post.comments.length : 0}
@@ -164,10 +165,10 @@ const PostActions: React.FC<PostActionsProps> = ({
 
         {/* Share Button with long press options */}
         <TouchableOpacity onPress={handleSharePress} onLongPress={handleShareLongPress} style={styles.actionButton}>
-          <Ionicons 
-            name="share-outline" 
-            size={22} 
-            color={currentThemeColors.icon} 
+          <Ionicons
+            name="share-outline"
+            size={22}
+            color={currentThemeColors.icon}
           />
           <Text style={[styles.actionText, { color: currentThemeColors.text }]}>
             {post.shares > 0 ? post.shares : ''}
@@ -177,7 +178,7 @@ const PostActions: React.FC<PostActionsProps> = ({
 
       {/* Like Summary */}
       {post.likes.length > 0 && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.likeSummary}
           onPress={() => setShowLikedByModal(true)}
           activeOpacity={0.7}
@@ -250,4 +251,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PostActions;
+export default React.memo(PostActions);

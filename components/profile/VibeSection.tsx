@@ -113,7 +113,7 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
               <View style={styles.vibeActions}>
                 <TouchableOpacity
                   style={[styles.actionButton, { backgroundColor: colors.background + '80' }]}
-                  onPress={() => router.push('/VibeScreen')}
+                  onPress={() => router.push('/(screens)/user/VibeScreen')}
                   disabled={settingVibe}
                 >
                   <MaterialIcons name="edit" size={16} color={colors.text} />
@@ -144,7 +144,7 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
           borderColor: colors.text + '30',
           backgroundColor: colors.background
         }]}
-        onPress={() => router.push('/VibeScreen')}
+        onPress={() => router.push('/(screens)/user/VibeScreen')}
         disabled={settingVibe}
       >
         <View style={styles.addVibeContent}>

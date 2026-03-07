@@ -1,180 +1,180 @@
 {
-  "expo": {
-    "platforms": [
-      "android",
-      "ios"
-    ],
-    "name": "Chat",
-    "slug": "Chat",
-    "version": "1.0.0",
-    "scheme": "chappat",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
-    "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSBluetoothPeripheralUsageDescription": "We need Bluetooth to detect nearby users.",
-        "NSLocationWhenInUseUsageDescription": "We need location access to find nearby users."
-      },
-      "bitcode": false,
-      "bundleIdentifier": "com.duongnguyen1263.Chat",
-      "entitlements": {
-        "aps-environment": "development"
-      }
-    },
-    "android": {
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "BLUETOOTH",
-        "BLUETOOTH_ADMIN",
-        "WAKE_LOCK",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.CAMERA",
-        "android.permission.INTERNET",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.SYSTEM_ALERT_WINDOW",
-        "android.permission.WAKE_LOCK",
-        "android.permission.BLUETOOTH",
-        "android.permission.VIBRATE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.USE_FULL_SCREEN_INTENT"
-      ],
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "config": {
-        "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
-        }
-      },
-      "package": "com.duongnguyen1263.Chat",
-      "googleServicesFile": "./google-services.json",
-      "notification": {
-        "icon": "./android/app/src/main/res/drawable/notification_icon.png",
-        "color": "#4f8bff",
-        "channelId": "calls",
-        "priority": "max",
-        "sound": true,
-        "channels": [
-          {
-            "id": "calls",
-            "name": "Incoming Calls",
-            "importance": "max",
-            "description": "Notifications for incoming calls",
-            "sound": "./assets/sounds/incoming.mp3",
-            "vibrationPattern": [
-              0,
-              250,
-              250,
-              250
+    "expo": {
+        "platforms": [
+            "android",
+            "ios"
+        ],
+        "name": "Chat",
+        "slug": "Chat",
+        "version": "1.0.0",
+        "scheme": "chappat",
+        "orientation": "portrait",
+        "icon": "./assets/images/icon.png",
+        "userInterfaceStyle": "automatic",
+        "newArchEnabled": false,
+        "ios": {
+            "supportsTablet": true,
+            "infoPlist": {
+                "NSBluetoothPeripheralUsageDescription": "We need Bluetooth to detect nearby users.",
+                "NSLocationWhenInUseUsageDescription": "We need location access to find nearby users."
+            },
+            "bitcode": false,
+            "bundleIdentifier": "com.duongnguyen1263.Chat",
+            "entitlements": {
+                "aps-environment": "development"
+            }
+        },
+        "android": {
+            "permissions": [
+                "ACCESS_FINE_LOCATION",
+                "ACCESS_COARSE_LOCATION",
+                "BLUETOOTH",
+                "BLUETOOTH_ADMIN",
+                "WAKE_LOCK",
+                "android.permission.FOREGROUND_SERVICE",
+                "android.permission.BLUETOOTH_CONNECT",
+                "android.permission.ACCESS_NETWORK_STATE",
+                "android.permission.CAMERA",
+                "android.permission.INTERNET",
+                "android.permission.MODIFY_AUDIO_SETTINGS",
+                "android.permission.RECORD_AUDIO",
+                "android.permission.SYSTEM_ALERT_WINDOW",
+                "android.permission.WAKE_LOCK",
+                "android.permission.BLUETOOTH",
+                "android.permission.VIBRATE",
+                "android.permission.RECEIVE_BOOT_COMPLETED",
+                "android.permission.POST_NOTIFICATIONS",
+                "android.permission.USE_FULL_SCREEN_INTENT"
             ],
-            "lightColor": "#4f8bff",
-            "bypassDnd": true,
-            "showWhen": false,
-            "ongoing": true,
-            "sticky": true
-          }
-        ]
-      }
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      "@videosdk.live/expo-config-plugin",
-      [
-        "@config-plugins/react-native-webrtc",
-        {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
-          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "color": "#4f8bff",
-          "sounds": [
-            "./assets/sounds/join.mp3",
-            "./assets/sounds/calling.mp3",
-            "./assets/sounds/incoming.mp3",
-            "./assets/sounds/notification.mp3"
-          ],
-          "mode": "production",
-          "android": {
-            "color": "#4f8bff",
-            "icon": "./android/app/src/main/res/drawable/notification_icon.png",
-            "channelId": "default",
-            "priority": "max",
-            "sound": true
-          },
-          "ios": {
-            "sound": true,
-            "badge": true,
-            "alert": true,
-            "criticalAlert": true
-          }
-        }
-      ],
-      [
-        "@react-native-google-signin/google-signin",
-        {
-          "iosUrlScheme": "com.googleusercontent.apps.256923005911-m2j0sqfikfi21dor3mjo0rlnehe7p4a1"
-        }
-      ],
-      [
-        "react-native-fbsdk-next",
-        {
-          "appID": "3128658277362764",
-          "clientToken": "727f260d6676a9b07d206e7f42a9a92c",
-          "displayName": "ChappAt",
-          "scheme": "fb3128658277362764",
-          "advertiserIDCollectionEnabled": false,
-          "autoLogAppEventsEnabled": false,
-          "isAutoInitEnabled": true,
-          "iosUserTrackingPermission": "This identifier will be used to deliver personalized ads to you."
-        }
-      ],
-      "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#000000"
-        }
-      ],
-      "expo-secure-store",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-9844251118980104~9150620374",
-          "iosAppId": "ca-app-pub-9844251118980104~9150620374"
-        }
-      ],
-      "expo-localization"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "extra": {
-      "router": {
-        "origin": false
-      },
-      "eas": {
-        "projectId": "517519e7-47e5-475f-b0a6-d22cbebbcf68"
-      }
-    },
-    "owner": "duongnguyen1263"
-  }
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/images/adaptive-icon.png",
+                "backgroundColor": "#ffffff"
+            },
+            "config": {
+                "googleMaps": {
+                    "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+                }
+            },
+            "package": "com.duongnguyen1263.Chat",
+            "googleServicesFile": "./google-services.json",
+            "notification": {
+                "icon": "./android/app/src/main/res/drawable/notification_icon.png",
+                "color": "#4f8bff",
+                "channelId": "calls",
+                "priority": "max",
+                "sound": true,
+                "channels": [
+                    {
+                        "id": "calls",
+                        "name": "Incoming Calls",
+                        "importance": "max",
+                        "description": "Notifications for incoming calls",
+                        "sound": "./assets/sounds/incoming.mp3",
+                        "vibrationPattern": [
+                            0,
+                            250,
+                            250,
+                            250
+                        ],
+                        "lightColor": "#4f8bff",
+                        "bypassDnd": true,
+                        "showWhen": false,
+                        "ongoing": true,
+                        "sticky": true
+                    }
+                ]
+            }
+        },
+        "web": {
+            "bundler": "metro",
+            "output": "static",
+            "favicon": "./assets/images/favicon.png"
+        },
+        "plugins": [
+            "@videosdk.live/expo-config-plugin",
+            [
+                "@config-plugins/react-native-webrtc",
+                {
+                    "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+                    "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone"
+                }
+            ],
+            [
+                "expo-notifications",
+                {
+                    "color": "#4f8bff",
+                    "sounds": [
+                        "./assets/sounds/join.mp3",
+                        "./assets/sounds/calling.mp3",
+                        "./assets/sounds/incoming.mp3",
+                        "./assets/sounds/notification.mp3"
+                    ],
+                    "mode": "production",
+                    "android": {
+                        "color": "#4f8bff",
+                        "icon": "./android/app/src/main/res/drawable/notification_icon.png",
+                        "channelId": "default",
+                        "priority": "max",
+                        "sound": true
+                    },
+                    "ios": {
+                        "sound": true,
+                        "badge": true,
+                        "alert": true,
+                        "criticalAlert": true
+                    }
+                }
+            ],
+            [
+                "@react-native-google-signin/google-signin",
+                {
+                    "iosUrlScheme": "com.googleusercontent.apps.256923005911-m2j0sqfikfi21dor3mjo0rlnehe7p4a1"
+                }
+            ],
+            [
+                "react-native-fbsdk-next",
+                {
+                    "appID": "3128658277362764",
+                    "clientToken": "727f260d6676a9b07d206e7f42a9a92c",
+                    "displayName": "ChappAt",
+                    "scheme": "fb3128658277362764",
+                    "advertiserIDCollectionEnabled": false,
+                    "autoLogAppEventsEnabled": false,
+                    "isAutoInitEnabled": true,
+                    "iosUserTrackingPermission": "This identifier will be used to deliver personalized ads to you."
+                }
+            ],
+            "expo-router",
+            [
+                "expo-splash-screen",
+                {
+                    "image": "./assets/images/splash-icon.png",
+                    "imageWidth": 200,
+                    "resizeMode": "contain",
+                    "backgroundColor": "#000000"
+                }
+            ],
+            "expo-secure-store",
+            [
+                "react-native-google-mobile-ads",
+                {
+                    "androidAppId": "ca-app-pub-9844251118980104~9150620374",
+                    "iosAppId": "ca-app-pub-9844251118980104~9150620374"
+                }
+            ],
+            "expo-localization"
+        ],
+        "experiments": {
+            "typedRoutes": true
+        },
+        "extra": {
+            "router": {
+                "origin": false
+            },
+            "eas": {
+                "projectId": "517519e7-47e5-475f-b0a6-d22cbebbcf68"
+            }
+        },
+        "owner": "duongnguyen1263"
+    }
 }

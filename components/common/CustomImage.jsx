@@ -220,7 +220,7 @@ const CustomImage = ({ source, style, type = 'normal', onLongPress, images = nul
                     source={thumbnailSource}
                     style={{ width: '100%', height: '100%' }}
                     contentFit="cover"
-                    transition={200}
+                    transition={100}
                     cachePolicy="memory-disk"
                 />
             </TouchableOpacity>
@@ -367,4 +367,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default CustomImage;
+export default React.memo(CustomImage);

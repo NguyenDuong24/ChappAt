@@ -200,14 +200,14 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
           icon: 'file-document',
           title: t('settings.terms'),
           subtitle: t('settings.terms_desc'),
-          onPress: () => handleOpenURL('https://example.com/terms'),
+          onPress: () => handleOpenURL('https://nguyenduong24.github.io/ChappAt-Legal-Site/terms.html'),
           color: colors.subtleText,
         },
         {
           icon: 'shield-check',
           title: t('settings.privacy_policy'),
           subtitle: t('settings.privacy_policy_desc'),
-          onPress: () => handleOpenURL('https://example.com/privacy'),
+          onPress: () => handleOpenURL('https://nguyenduong24.github.io/ChappAt-Legal-Site/privacy.html'),
           color: colors.subtleText,
         },
         {

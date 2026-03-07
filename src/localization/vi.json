@@ -109,7 +109,8 @@
         "latest": "Mới nhất",
         "trending": "Xu hướng",
         "trending_now": "Đang hot",
-        "following": "Đang theo dõi",
+        "following": "Theo dõi",
+        "follow": "Theo dõi",
         "following_desc": "Theo dõi người khác để thấy bài viết của họ ở đây",
         "no_posts": "Không có bài viết nào",
         "like": "Thích",
@@ -211,11 +212,29 @@
         "bio_placeholder": "Giới thiệu về bản thân bạn...",
         "bio_empty": "Nhấn chỉnh sửa để thêm giới thiệu",
         "uid_copied": "Đã sao chép UID vào bộ nhớ tạm",
+        "follow": "Theo dõi",
         "visitors": "Người ghé thăm",
         "who_viewed": "Ai đã xem bạn",
         "no_visitors": "Chưa có ai ghé thăm profile của bạn",
         "unlock_visitors": "Mở khóa người ghé thăm",
-        "unlock_visitors_desc": "Mua gói VIP để xem ai đã ghé thăm profile của bạn"
+        "unlock_visitors_desc": "Mua gói VIP để xem ai đã ghé thăm profile của bạn",
+        "profile_insight": "Phân tích hồ sơ",
+        "see_whos_interested": "Xem ai quan tâm đến bạn",
+        "visit_count": "{{count}}x",
+        "block_user": "Chặn người dùng",
+        "unblock_user": "Bỏ chặn",
+        "report": "Báo cáo",
+        "report_not_implemented": "Tính năng báo cáo đang được cập nhật.",
+        "block_confirm_title": "Chặn người dùng",
+        "block_confirm_message": "Người dùng bị chặn sẽ không thể thấy bài viết của bạn. Tiếp tục?",
+        "unblock_confirm_title": "Bỏ chặn",
+        "unblock_confirm_message": "Bạn có chắc chắn muốn bỏ chặn người dùng này?",
+        "add_vibe": "Thêm vibe",
+        "info": "Thông tin",
+        "lives_in": "Sống tại {{city}}",
+        "works_at": "Làm việc tại {{job}}",
+        "studies_at": "Học tại {{school}}",
+        "born_on": "Sinh ngày {{date}}"
     },
     "wallet": {
         "title": "Ví của tôi",
@@ -446,6 +465,14 @@
             "view_profile": "Xem hồ sơ",
             "message": "Nhắn tin"
         }
+    },
+    "crossing_paths": {
+        "title": "Lướt qua nhau",
+        "subtitle": "Lịch sử chạm mặt gần đây",
+        "crossed_distance": "Lướt qua nhau trong khoảng {{distance}}m",
+        "empty_title": "Chưa có cuộc chạm mặt nào được ghi lại.",
+        "empty_desc": "Hãy thử bật Radar khi đi dạo nhé!",
+        "open_radar": "Bật Radar ngay"
     },
     "groups": {
         "invalid_id": "ID nhóm không hợp lệ",

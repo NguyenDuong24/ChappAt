@@ -45,7 +45,15 @@ async function apiRequest<T>(
             },
         });
 
-        const data = await response.json();
+        const contentType = response.headers.get('content-type');
+        let data: any;
+
+        if (contentType && contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = { message: text };
+        }
 
         if (!response.ok) {
             throw {
@@ -235,6 +243,165 @@ export async function updateGift(id: string, gift: Partial<GiftItem>): Promise<v
 export async function deleteGift(id: string): Promise<void> {
     await apiRequest(`/admin/gifts/${id}`, {
         method: 'DELETE',
+    });
+}
+
+// ============== HOTSPOT MANAGEMENT ==============
+
+export interface HotspotItem {
+    id: string;
+    title: string;
+    description: string;
+    type: 'event' | 'place';
+    category: string;
+    location: {
+        address: string;
+        coordinates: {
+            latitude: number;
+            longitude: number;
+        };
+        city: string;
+        district?: string;
+    };
+    images: string[];
+    thumbnail: string;
+    stats?: {
+        interested: number;
+        joined: number;
+        checkedIn: number;
+        rating: number;
+        reviewCount: number;
+    };
+    tags: string[];
+    isActive: boolean;
+    isFeatured: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+    eventInfo?: {
+        startDate: string;
+        endDate: string;
+        organizer: string;
+        price: number;
+        maxParticipants: number;
+        currentParticipants: number;
+    };
+}
+
+export async function getHotspots(): Promise<HotspotItem[]> {
+    const response = await apiRequest<{ success: boolean; hotspots: HotspotItem[] }>('/admin/hotspots');
+    return response.hotspots;
+}
+
+export async function createHotspot(hotspot: HotspotItem): Promise<void> {
+    await apiRequest('/admin/hotspots', {
+        method: 'POST',
+        body: JSON.stringify(hotspot),
+    });
+}
+
+export async function updateHotspot(id: string, hotspot: Partial<HotspotItem>): Promise<void> {
+    await apiRequest(`/admin/hotspots/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(hotspot),
+    });
+}
+
+export async function deleteHotspot(id: string): Promise<void> {
+    await apiRequest(`/admin/hotspots/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+// ============== HOTSPOT ACTIVITY ==============
+
+export interface HotspotInteraction {
+    id: string;
+    userId: string;
+    hotSpotId: string;
+    type: 'interested' | 'joined' | 'checked_in';
+    timestamp: any;
+    checkInLocation?: {
+        latitude: number;
+        longitude: number;
+    };
+    userName?: string;
+    userAvatar?: string;
+    userFrame?: string;
+    hotSpotTitle?: string;
+}
+
+export interface HotspotInvitation {
+    id: string;
+    hotSpotId: string;
+    fromUserId: string;
+    toUserId: string;
+    message: string;
+    status: 'pending' | 'accepted' | 'declined' | 'expired';
+    createdAt: any;
+    expiresAt: any;
+    hotSpotTitle: string;
+    fromUserName: string;
+    fromUserAvatar?: string;
+    fromUserFrame?: string;
+}
+
+export interface EventPass {
+    id: string;
+    userId: string;
+    hotSpotId: string;
+    hotSpotTitle: string;
+    badgeType: 'participant' | 'checked_in' | 'organizer' | 'vip';
+    earnedAt: any;
+    isVerified: boolean;
+    userName?: string;
+    userAvatar?: string;
+    userFrame?: string;
+}
+
+export async function getHotspotInteractions(): Promise<HotspotInteraction[]> {
+    const response = await apiRequest<{ success: boolean; interactions: HotspotInteraction[] }>('/admin/hotspots/interactions');
+    return response.interactions;
+}
+
+export async function getHotspotInvitations(): Promise<HotspotInvitation[]> {
+    const response = await apiRequest<{ success: boolean; invitations: HotspotInvitation[] }>('/admin/hotspots/invitations');
+    return response.invitations;
+}
+
+export async function getEventPasses(): Promise<EventPass[]> {
+    const response = await apiRequest<{ success: boolean; passes: EventPass[] }>('/admin/hotspots/passes');
+    return response.passes;
+}
+
+export async function deleteHotspotInteraction(id: string): Promise<void> {
+    await apiRequest(`/admin/hotspots/interactions/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export async function deleteHotspotInvitation(id: string): Promise<void> {
+    await apiRequest(`/admin/hotspots/invitations/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export async function deleteEventPass(id: string): Promise<void> {
+    await apiRequest(`/admin/hotspots/passes/${id}`, {
+        method: 'DELETE',
+    });
+}
+
+export async function updateInvitationStatus(id: string, status: string): Promise<void> {
+    await apiRequest(`/admin/hotspots/invitations/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+    });
+}
+
+export async function verifyEventPass(id: string, isVerified: boolean): Promise<void> {
+    await apiRequest(`/admin/hotspots/passes/${id}/verify`, {
+        method: 'PUT',
+        body: JSON.stringify({ isVerified }),
     });
 }
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef, useMemo } from 'react';
 import { doc, getDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { UserVibe } from '@/types/vibe';
@@ -145,10 +145,18 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     const result = new Map<string, UserInfo>();
     const uncachedIds: string[] = [];
 
-    userIds.forEach(userId => {
+    // Filter unique IDs and check cache
+    const uniqueIds = Array.from(new Set(userIds)).filter(Boolean);
+
+    uniqueIds.forEach(userId => {
       const userInfo = cacheRef.current.get(userId);
       if (userInfo) {
-        result.set(userId, userInfo);
+        if (userInfo.currentVibe && isVibeExpired(userInfo.currentVibe)) {
+          // If expired, we still need to fetch or handle it
+          uncachedIds.push(userId);
+        } else {
+          result.set(userId, userInfo);
+        }
       } else {
         uncachedIds.push(userId);
       }
@@ -159,35 +167,45 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
 
     try {
-      const promises = uncachedIds.map(async (userId) => {
-        const userRef = doc(db, 'users', userId);
-        const userSnap = await getDoc(userRef);
+      // Firebase 'in' query limit is 10/30 depending on version, safer with 10 for standard cross-platform
+      const BATCH_SIZE = 10;
+      const batches = [];
+      for (let i = 0; i < uncachedIds.length; i += BATCH_SIZE) {
+        batches.push(uncachedIds.slice(i, i + BATCH_SIZE));
+      }
 
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
+      const fetchPromises = batches.map(async (batch) => {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('__name__', 'in', batch));
+        const querySnapshot = await getDocs(q);
+
+        const batchResults: { userId: string, userInfo: UserInfo }[] = [];
+        querySnapshot.forEach((docSnap) => {
+          const userData = docSnap.data();
           let currentVibe = userData.currentVibe || null;
           if (currentVibe && isVibeExpired(currentVibe)) {
             currentVibe = null;
           }
 
           const userInfo: UserInfo = {
-            uid: userId,
+            uid: docSnap.id,
             username: userData.username || 'Unknown User',
             profileUrl: userData.profileUrl,
             email: userData.email,
             currentVibe: currentVibe,
             activeFrame: userData.activeFrame,
           };
-          return { userId, userInfo };
-        }
-        return null;
+          batchResults.push({ userId: docSnap.id, userInfo });
+        });
+        return batchResults;
       });
 
-      const results = await Promise.all(promises);
+      const allBatchResults = await Promise.all(fetchPromises);
+      const flattenedResults = allBatchResults.flat();
 
       setUserCache(prev => {
         const newCache = new Map(prev);
-        results.forEach(item => {
+        flattenedResults.forEach(item => {
           if (item) {
             newCache.set(item.userId, item.userInfo);
             result.set(item.userId, item.userInfo);
@@ -198,7 +216,8 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
       return result;
     } catch (error) {
-      console.error('Error fetching users info:', error);
+      console.error('Error fetching users info batch:', error);
+      // Fallback to individual fetches if batch fails (unlikely)
       return result;
     }
   }, []); // No dependencies!
@@ -222,7 +241,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     });
   }, []);
 
-  const value: UserContextType = {
+  const value: UserContextType = useMemo(() => ({
     userCache,
     getUserInfo,
     getUsersInfo,
@@ -231,7 +250,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     preloadUsers,
     cleanExpiredVibes,
     getVibeTimeRemaining: getVibeTimeRemaining,
-  };
+  }), [userCache, getUserInfo, getUsersInfo, clearCache, invalidateUserCache, preloadUsers, cleanExpiredVibes]);
 
   return (
     <UserContext.Provider value={value}>

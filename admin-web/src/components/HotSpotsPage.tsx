@@ -63,22 +63,17 @@ import {
   TrendingUp as PopularIcon,
   ContentCopy as CopyIcon,
   OpenInNew as OpenIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import {
-  collection,
-  getDocs,
-  doc,
-  updateDoc,
-  deleteDoc,
-  addDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-  getDoc,
-} from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+  getHotspots,
+  createHotspot,
+  updateHotspot,
+  deleteHotspot,
+  getErrorMessage,
+  HotspotItem as HotSpot
+} from '../api/adminApi';
+import { useTranslation } from 'react-i18next';
 
 // Types - Updated to match actual Firestore data structure
 interface HotSpot {
@@ -87,7 +82,7 @@ interface HotSpot {
   description: string;
   type: 'event' | 'place';
   category: string;
-  
+
   // Location
   location: {
     address: string;
@@ -98,7 +93,7 @@ interface HotSpot {
     city: string;
     district?: string;
   };
-  
+
   // Event info (nested)
   eventInfo?: {
     startDate: string;
@@ -108,7 +103,7 @@ interface HotSpot {
     maxParticipants?: number;
     currentParticipants: number;
   };
-  
+
   // Top-level event fields (alternative structure)
   startTime?: string;
   endTime?: string;
@@ -118,12 +113,12 @@ interface HotSpot {
   price?: number;
   maxParticipants?: number;
   participants?: number;
-  
+
   // Media
   images: string[];
   thumbnail: string;
   imageUrl?: string;
-  
+
   // Stats
   stats: {
     interested: number;
@@ -133,16 +128,16 @@ interface HotSpot {
     reviewCount: number;
   };
   rating?: number;
-  
+
   // Tags
   tags: string[];
-  
+
   // Flags
   isActive: boolean;
   isFeatured: boolean;
   isNew?: boolean;
   isPopular?: boolean;
-  
+
   // Timestamps
   createdAt: any;
   updatedAt: any;
@@ -207,7 +202,7 @@ const CATEGORIES = [
 
 const HO_CHI_MINH_DISTRICTS = [
   'Quận 1',
-  'Quận 2', 
+  'Quận 2',
   'Quận 3',
   'Quận 4',
   'Quận 5',
@@ -261,6 +256,7 @@ const initialFormData: HotSpotFormData = {
 };
 
 export default function HotSpotsPage() {
+  const { t, i18n } = useTranslation();
   const [hotSpots, setHotSpots] = useState<HotSpot[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -270,7 +266,7 @@ export default function HotSpotsPage() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterFeatured, setFilterFeatured] = useState<'all' | 'featured' | 'normal'>('all');
-  
+
   // Dialog states
   const [openDialog, setOpenDialog] = useState(false);
   const [openViewDialog, setOpenViewDialog] = useState(false);
@@ -278,16 +274,13 @@ export default function HotSpotsPage() {
   const [selectedHotSpot, setSelectedHotSpot] = useState<HotSpot | null>(null);
   const [formData, setFormData] = useState<HotSpotFormData>(initialFormData);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   // Snackbar
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
     severity: 'success',
   });
-
-  // Tab state
-  const [tabValue, setTabValue] = useState(0);
 
   // Stats
   const [stats, setStats] = useState({
@@ -303,15 +296,8 @@ export default function HotSpotsPage() {
   const fetchHotSpots = useCallback(async () => {
     setLoading(true);
     try {
-      const hotSpotsRef = collection(db, 'hotSpots');
-      const snapshot = await getDocs(hotSpotsRef);
-      
-      const data = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as HotSpot[];
-
-      setHotSpots(data);
+      const data = await getHotspots();
+      setHotSpots(data as any);
 
       // Calculate stats
       setStats({
@@ -324,7 +310,7 @@ export default function HotSpotsPage() {
       });
     } catch (error) {
       console.error('Error fetching hot spots:', error);
-      showSnackbar('Error fetching hot spots', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     } finally {
       setLoading(false);
     }
@@ -449,13 +435,12 @@ export default function HotSpotsPage() {
         },
         thumbnail: formData.thumbnail,
         imageUrl: formData.imageUrl,
-        images: formData.images,
+        images: formData.images.filter(url => url.trim() !== ''),
         tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
         isActive: formData.isActive,
         isFeatured: formData.isFeatured,
         isNew: formData.isNew,
         isPopular: formData.isPopular,
-        updatedAt: Timestamp.now(),
       };
 
       // Add event info if type is event
@@ -472,29 +457,19 @@ export default function HotSpotsPage() {
 
       if (isEditing && selectedHotSpot) {
         // Update existing
-        const docRef = doc(db, 'hotSpots', selectedHotSpot.id);
-        await updateDoc(docRef, hotSpotData);
-        showSnackbar('HotSpot updated successfully', 'success');
+        await updateHotspot(selectedHotSpot.id, hotSpotData);
+        showSnackbar(t('common.success'), 'success');
       } else {
         // Create new
-        hotSpotData.createdAt = Timestamp.now();
-        hotSpotData.createdBy = 'admin';
-        hotSpotData.stats = {
-          interested: 0,
-          joined: 0,
-          checkedIn: 0,
-          rating: 0,
-          reviewCount: 0,
-        };
-        await addDoc(collection(db, 'hotSpots'), hotSpotData);
-        showSnackbar('HotSpot created successfully', 'success');
+        await createHotspot(hotSpotData);
+        showSnackbar(t('common.success'), 'success');
       }
 
       setOpenDialog(false);
       fetchHotSpots();
     } catch (error) {
       console.error('Error saving hot spot:', error);
-      showSnackbar('Error saving hot spot', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     }
   };
 
@@ -502,52 +477,49 @@ export default function HotSpotsPage() {
     if (!selectedHotSpot) return;
 
     try {
-      await deleteDoc(doc(db, 'hotSpots', selectedHotSpot.id));
-      showSnackbar('HotSpot deleted successfully', 'success');
+      await deleteHotspot(selectedHotSpot.id);
+      showSnackbar(t('common.success'), 'success');
       setOpenDeleteDialog(false);
       fetchHotSpots();
     } catch (error) {
       console.error('Error deleting hot spot:', error);
-      showSnackbar('Error deleting hot spot', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     }
   };
 
   const handleToggleActive = async (hotSpot: HotSpot) => {
     try {
-      const docRef = doc(db, 'hotSpots', hotSpot.id);
-      await updateDoc(docRef, {
+      await updateHotspot(hotSpot.id, {
         isActive: !hotSpot.isActive,
-        updatedAt: Timestamp.now(),
       });
-      showSnackbar(`HotSpot ${hotSpot.isActive ? 'deactivated' : 'activated'} successfully`, 'success');
+      showSnackbar(t('common.success'), 'success');
       fetchHotSpots();
     } catch (error) {
       console.error('Error toggling active status:', error);
-      showSnackbar('Error updating status', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     }
   };
 
   const handleToggleFeatured = async (hotSpot: HotSpot) => {
     try {
-      const docRef = doc(db, 'hotSpots', hotSpot.id);
-      await updateDoc(docRef, {
+      await updateHotspot(hotSpot.id, {
         isFeatured: !hotSpot.isFeatured,
-        updatedAt: Timestamp.now(),
       });
-      showSnackbar(`HotSpot ${hotSpot.isFeatured ? 'unfeatured' : 'featured'} successfully`, 'success');
+      showSnackbar(t('common.success'), 'success');
       fetchHotSpots();
     } catch (error) {
       console.error('Error toggling featured status:', error);
-      showSnackbar('Error updating featured status', 'error');
+      showSnackbar(getErrorMessage(error), 'error');
     }
   };
 
-  const formatDate = (date: any) => {
+  const formatDateString = (date: any) => {
     if (!date) return 'N/A';
+    const locale = i18n.language === 'vi' ? 'vi-VN' : 'en-US';
     if (date.toDate) {
-      return date.toDate().toLocaleDateString('vi-VN');
+      return date.toDate().toLocaleDateString(locale);
     }
-    return new Date(date).toLocaleDateString('vi-VN');
+    return new Date(date).toLocaleDateString(locale);
   };
 
   const getCategoryColor = (category: string) => {
@@ -575,54 +547,44 @@ export default function HotSpotsPage() {
     <Box>
       {/* Stats Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" color="primary">{stats.total}</Typography>
-              <Typography variant="body2" color="text.secondary">Total HotSpots</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" color="success.main">{stats.active}</Typography>
-              <Typography variant="body2" color="text.secondary">Active</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" color="error.main">{stats.inactive}</Typography>
-              <Typography variant="body2" color="text.secondary">Inactive</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" color="info.main">{stats.events}</Typography>
-              <Typography variant="body2" color="text.secondary">Events</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" color="secondary.main">{stats.places}</Typography>
-              <Typography variant="body2" color="text.secondary">Places</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={2}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" color="warning.main">{stats.featured}</Typography>
-              <Typography variant="body2" color="text.secondary">Featured</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        {[
+          { label: t('hotspots.stats.total'), value: stats.total, icon: <PlaceIcon />, color: '#2196F3', bg: 'rgba(33, 150, 243, 0.1)' },
+          { label: t('hotspots.stats.active'), value: stats.active, icon: <CheckCircleIcon />, color: '#4CAF50', bg: 'rgba(76, 175, 80, 0.1)' },
+          { label: t('hotspots.stats.inactive'), value: stats.inactive, icon: <CancelIcon />, color: '#F44336', bg: 'rgba(244, 67, 54, 0.1)' },
+          { label: t('hotspots.stats.events'), value: stats.events, icon: <EventIcon />, color: '#9C27B0', bg: 'rgba(156, 39, 176, 0.1)' },
+          { label: t('hotspots.stats.places'), value: stats.places, icon: <LocationIcon />, color: '#00BCD4', bg: 'rgba(0, 188, 212, 0.1)' },
+          { label: t('hotspots.stats.featured'), value: stats.featured, icon: <StarIcon />, color: '#FF9800', bg: 'rgba(255, 152, 0, 0.1)' },
+        ].map((stat, index) => (
+          <Grid item xs={6} sm={4} md={2} key={index}>
+            <Card sx={{
+              height: '100%',
+              borderRadius: 3,
+              boxShadow: '0 4px 20px 0 rgba(0,0,0,0.05)',
+              transition: 'transform 0.2s',
+              '&:hover': { transform: 'translateY(-4px)' }
+            }}>
+              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                  <Box sx={{
+                    p: 1,
+                    borderRadius: 2,
+                    backgroundColor: stat.bg,
+                    color: stat.color,
+                    display: 'flex'
+                  }}>
+                    {stat.icon}
+                  </Box>
+                </Box>
+                <Typography variant="h4" fontWeight="bold" sx={{ color: stat.color }}>
+                  {stat.value}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" fontWeight="medium">
+                  {stat.label}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
 
       {/* Main Content */}
@@ -630,7 +592,7 @@ export default function HotSpotsPage() {
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5" fontWeight="bold">
-            HotSpots Management
+            {t('hotspots.title')}
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
@@ -638,14 +600,14 @@ export default function HotSpotsPage() {
               startIcon={<RefreshIcon />}
               onClick={fetchHotSpots}
             >
-              Refresh
+              {t('hotspots.actions.refresh')}
             </Button>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleOpenCreate}
             >
-              Create HotSpot
+              {t('hotspots.actions.create')}
             </Button>
           </Box>
         </Box>
@@ -656,7 +618,7 @@ export default function HotSpotsPage() {
             <TextField
               fullWidth
               size="small"
-              placeholder="Search by title, description, city..."
+              placeholder={t('hotspots.filters.search')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
@@ -670,57 +632,57 @@ export default function HotSpotsPage() {
           </Grid>
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
-              <InputLabel>Type</InputLabel>
+              <InputLabel>{t('hotspots.filters.type')}</InputLabel>
               <Select
                 value={filterType}
-                label="Type"
+                label={t('hotspots.filters.type')}
                 onChange={(e) => setFilterType(e.target.value as any)}
               >
-                <MenuItem value="all">All Types</MenuItem>
-                <MenuItem value="event">Events</MenuItem>
-                <MenuItem value="place">Places</MenuItem>
+                <MenuItem value="all">{t('hotspots.filters.all')}</MenuItem>
+                <MenuItem value="event">{t('hotspots.stats.events')}</MenuItem>
+                <MenuItem value="place">{t('hotspots.stats.places')}</MenuItem>
               </Select>
             </FormControl>
           </Grid>
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
-              <InputLabel>Category</InputLabel>
+              <InputLabel>{t('hotspots.filters.category')}</InputLabel>
               <Select
                 value={filterCategory}
-                label="Category"
+                label={t('hotspots.filters.category')}
                 onChange={(e) => setFilterCategory(e.target.value)}
               >
-                <MenuItem value="all">All Categories</MenuItem>
+                <MenuItem value="all">{t('hotspots.filters.all')}</MenuItem>
                 {CATEGORIES.map(cat => (
-                  <MenuItem key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</MenuItem>
+                  <MenuItem key={cat} value={cat}>{t(`hotspots.categories.${cat}`)}</MenuItem>
                 ))}
               </Select>
             </FormControl>
           </Grid>
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
+              <InputLabel>{t('hotspots.filters.status')}</InputLabel>
               <Select
                 value={filterStatus}
-                label="Status"
+                label={t('hotspots.filters.status')}
                 onChange={(e) => setFilterStatus(e.target.value as any)}
               >
-                <MenuItem value="all">All Status</MenuItem>
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="inactive">Inactive</MenuItem>
+                <MenuItem value="all">{t('hotspots.filters.all')}</MenuItem>
+                <MenuItem value="active">{t('hotspots.stats.active')}</MenuItem>
+                <MenuItem value="inactive">{t('hotspots.stats.inactive')}</MenuItem>
               </Select>
             </FormControl>
           </Grid>
           <Grid item xs={6} md={2}>
             <FormControl fullWidth size="small">
-              <InputLabel>Featured</InputLabel>
+              <InputLabel>{t('hotspots.filters.featured')}</InputLabel>
               <Select
                 value={filterFeatured}
-                label="Featured"
+                label={t('hotspots.filters.featured')}
                 onChange={(e) => setFilterFeatured(e.target.value as any)}
               >
-                <MenuItem value="all">All</MenuItem>
-                <MenuItem value="featured">Featured</MenuItem>
+                <MenuItem value="all">{t('hotspots.filters.all')}</MenuItem>
+                <MenuItem value="featured">{t('hotspots.stats.featured')}</MenuItem>
                 <MenuItem value="normal">Normal</MenuItem>
               </Select>
             </FormControl>
@@ -732,17 +694,17 @@ export default function HotSpotsPage() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>Thumbnail</TableCell>
-                <TableCell>Title</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Category</TableCell>
-                <TableCell>Location</TableCell>
-                <TableCell align="center">Stats</TableCell>
-                <TableCell align="center">Rating</TableCell>
-                <TableCell align="center">Status</TableCell>
-                <TableCell align="center">Featured</TableCell>
-                <TableCell>Created</TableCell>
-                <TableCell align="center">Actions</TableCell>
+                <TableCell>{t('hotspots.table.thumbnail')}</TableCell>
+                <TableCell>{t('hotspots.table.title')}</TableCell>
+                <TableCell>{t('hotspots.table.type')}</TableCell>
+                <TableCell>{t('hotspots.table.category')}</TableCell>
+                <TableCell>{t('hotspots.table.location')}</TableCell>
+                <TableCell align="center">{t('hotspots.table.stats')}</TableCell>
+                <TableCell align="center">{t('hotspots.table.rating')}</TableCell>
+                <TableCell align="center">{t('hotspots.table.status')}</TableCell>
+                <TableCell align="center">{t('hotspots.table.featured')}</TableCell>
+                <TableCell>{t('hotspots.table.created')}</TableCell>
+                <TableCell align="center">{t('hotspots.table.actions')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -783,7 +745,7 @@ export default function HotSpotsPage() {
                       <TableCell>
                         <Chip
                           icon={hotSpot.type === 'event' ? <EventIcon /> : <PlaceIcon />}
-                          label={hotSpot.type}
+                          label={hotSpot.type === 'event' ? t('hotspots.stats.events') : t('hotspots.stats.places')}
                           size="small"
                           color={hotSpot.type === 'event' ? 'primary' : 'secondary'}
                           variant="outlined"
@@ -791,7 +753,7 @@ export default function HotSpotsPage() {
                       </TableCell>
                       <TableCell>
                         <Chip
-                          label={hotSpot.category}
+                          label={t(`hotspots.categories.${hotSpot.category}`)}
                           size="small"
                           sx={{
                             backgroundColor: getCategoryColor(hotSpot.category),
@@ -842,25 +804,27 @@ export default function HotSpotsPage() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="caption">
-                          {formatDate(hotSpot.createdAt)}
+                          {formatDateString(hotSpot.createdAt)}
                         </Typography>
                       </TableCell>
                       <TableCell align="center">
-                        <Tooltip title="View">
-                          <IconButton size="small" onClick={() => handleOpenView(hotSpot)}>
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit">
-                          <IconButton size="small" onClick={() => handleOpenEdit(hotSpot)}>
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton size="small" color="error" onClick={() => handleOpenDelete(hotSpot)}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                          <Tooltip title={t('hotspots.actions.view')}>
+                            <IconButton size="small" color="primary" onClick={() => handleOpenView(hotSpot)}>
+                              <VisibilityIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title={t('hotspots.actions.edit')}>
+                            <IconButton size="small" color="info" onClick={() => handleOpenEdit(hotSpot)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title={t('hotspots.actions.delete')}>
+                            <IconButton size="small" color="error" onClick={() => handleOpenDelete(hotSpot)}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))
@@ -870,7 +834,7 @@ export default function HotSpotsPage() {
         </TableContainer>
 
         <TablePagination
-          rowsPerPageOptions={[5, 10, 25, 50]}
+          rowsPerPageOptions={[5, 10, 25]}
           component="div"
           count={filteredHotSpots.length}
           rowsPerPage={rowsPerPage}
@@ -883,475 +847,359 @@ export default function HotSpotsPage() {
       {/* Create/Edit Dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="md" fullWidth>
         <DialogTitle>
-          {isEditing ? 'Edit HotSpot' : 'Create New HotSpot'}
+          {isEditing ? t('hotspots.dialog.editTitle') : t('hotspots.dialog.createTitle')}
         </DialogTitle>
         <DialogContent dividers>
-          <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid item xs={12} md={6}>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {/* Basic Info */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                {t('hotspots.dialog.basicInfo')}
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+            </Grid>
+            <Grid item xs={12} md={8}>
               <TextField
                 fullWidth
-                label="Title"
+                label={t('hotspots.form.title')}
                 value={formData.title}
                 onChange={(e) => handleFormChange('title', e.target.value)}
-                required
+                size="small"
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                label={t('hotspots.form.description')}
+                value={formData.description}
+                onChange={(e) => handleFormChange('description', e.target.value)}
+                multiline
+                rows={3}
+                size="small"
               />
             </Grid>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>Type</InputLabel>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+                <InputLabel>{t('hotspots.form.type')}</InputLabel>
                 <Select
                   value={formData.type}
-                  label="Type"
+                  label={t('hotspots.form.type')}
                   onChange={(e) => handleFormChange('type', e.target.value)}
                 >
-                  <MenuItem value="event">Event</MenuItem>
-                  <MenuItem value="place">Place</MenuItem>
+                  <MenuItem value="event">{t('hotspots.stats.events')}</MenuItem>
+                  <MenuItem value="place">{t('hotspots.stats.places')}</MenuItem>
                 </Select>
               </FormControl>
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>Category</InputLabel>
+              <FormControl fullWidth size="small">
+                <InputLabel>{t('hotspots.form.category')}</InputLabel>
                 <Select
                   value={formData.category}
-                  label="Category"
+                  label={t('hotspots.form.category')}
                   onChange={(e) => handleFormChange('category', e.target.value)}
                 >
                   {CATEGORIES.map(cat => (
-                    <MenuItem key={cat} value={cat}>
-                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                    </MenuItem>
+                    <MenuItem key={cat} value={cat}>{t(`hotspots.categories.${cat}`)}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                multiline
-                rows={3}
-                value={formData.description}
-                onChange={(e) => handleFormChange('description', e.target.value)}
-              />
-            </Grid>
 
-            <Grid item xs={12}>
-              <Divider sx={{ my: 1 }}>
-                <Typography variant="caption" color="text.secondary">Location</Typography>
-              </Divider>
+            {/* Location Info */}
+            <Grid item xs={12} sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                {t('hotspots.dialog.locationInfo')}
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Address"
+                label={t('hotspots.form.address')}
                 value={formData.address}
                 onChange={(e) => handleFormChange('address', e.target.value)}
+                size="small"
+                sx={{ mb: 2 }}
               />
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label={t('hotspots.form.city')}
+                    value={formData.city}
+                    onChange={(e) => handleFormChange('city', e.target.value)}
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>{t('hotspots.form.district')}</InputLabel>
+                    <Select
+                      value={formData.district}
+                      label={t('hotspots.form.district')}
+                      onChange={(e) => handleFormChange('district', e.target.value)}
+                    >
+                      {HO_CHI_MINH_DISTRICTS.map(d => (
+                        <MenuItem key={d} value={d}>{d}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="City"
-                value={formData.city}
-                onChange={(e) => handleFormChange('city', e.target.value)}
-              />
+            <Grid item xs={12} md={6}>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label={t('hotspots.form.latitude')}
+                    value={formData.latitude}
+                    onChange={(e) => handleFormChange('latitude', e.target.value)}
+                    size="small"
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label={t('hotspots.form.longitude')}
+                    value={formData.longitude}
+                    onChange={(e) => handleFormChange('longitude', e.target.value)}
+                    size="small"
+                  />
+                </Grid>
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth>
-                <InputLabel>District</InputLabel>
-                <Select
-                  value={formData.district}
-                  label="District"
-                  onChange={(e) => handleFormChange('district', e.target.value)}
-                >
-                  <MenuItem value="">
-                    <em>Select District</em>
-                  </MenuItem>
-                  {HO_CHI_MINH_DISTRICTS.map(district => (
-                    <MenuItem key={district} value={district}>
-                      {district}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+
+            {/* Media & Tags */}
+            <Grid item xs={12} sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                {t('hotspots.dialog.mediaInfo')}
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Latitude"
-                type="number"
-                value={formData.latitude}
-                onChange={(e) => handleFormChange('latitude', e.target.value)}
+                label={t('hotspots.form.thumbnail')}
+                value={formData.thumbnail}
+                onChange={(e) => handleFormChange('thumbnail', e.target.value)}
+                size="small"
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                label={t('hotspots.form.imageUrl')}
+                value={formData.imageUrl}
+                onChange={(e) => handleFormChange('imageUrl', e.target.value)}
+                size="small"
               />
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
-                label="Longitude"
-                type="number"
-                value={formData.longitude}
-                onChange={(e) => handleFormChange('longitude', e.target.value)}
+                label={t('hotspots.form.tags')}
+                value={formData.tags}
+                onChange={(e) => handleFormChange('tags', e.target.value)}
+                size="small"
+                placeholder="music, party, dance..."
               />
             </Grid>
 
+            {/* Event Specific Info */}
             {formData.type === 'event' && (
               <>
-                <Grid item xs={12}>
-                  <Divider sx={{ my: 1 }}>
-                    <Typography variant="caption" color="text.secondary">Event Details</Typography>
-                  </Divider>
+                <Grid item xs={12} sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" color="primary" gutterBottom>
+                    {t('hotspots.dialog.eventInfo')}
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
-                    label="Organizer"
-                    value={formData.organizer}
-                    onChange={(e) => handleFormChange('organizer', e.target.value)}
+                    label={t('hotspots.form.startDate')}
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => handleFormChange('startDate', e.target.value)}
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ mb: 2 }}
+                  />
+                  <TextField
+                    fullWidth
+                    label={t('hotspots.form.endDate')}
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => handleFormChange('endDate', e.target.value)}
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
-                    label="Price (VND)"
+                    label={t('hotspots.form.organizer')}
+                    value={formData.organizer}
+                    onChange={(e) => handleFormChange('organizer', e.target.value)}
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                  <TextField
+                    fullWidth
+                    label={t('hotspots.form.price')}
                     type="number"
                     value={formData.price}
                     onChange={(e) => handleFormChange('price', e.target.value)}
+                    size="small"
                   />
                 </Grid>
                 <Grid item xs={12} md={4}>
                   <TextField
                     fullWidth
-                    label="Max Participants"
+                    label={t('hotspots.form.maxParticipants')}
                     type="number"
                     value={formData.maxParticipants}
                     onChange={(e) => handleFormChange('maxParticipants', e.target.value)}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Start Date"
-                    type="datetime-local"
-                    value={formData.startDate}
-                    onChange={(e) => handleFormChange('startDate', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="End Date"
-                    type="datetime-local"
-                    value={formData.endDate}
-                    onChange={(e) => handleFormChange('endDate', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="Start Time"
-                    type="time"
-                    value={formData.startTime}
-                    onChange={(e) => handleFormChange('startTime', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="End Time"
-                    type="time"
-                    value={formData.endTime}
-                    onChange={(e) => handleFormChange('endTime', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
+                    size="small"
                   />
                 </Grid>
               </>
             )}
 
-            <Grid item xs={12}>
-              <Divider sx={{ my: 1 }}>
-                <Typography variant="caption" color="text.secondary">Media & Tags</Typography>
-              </Divider>
+            {/* Flags */}
+            <Grid item xs={12} sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                {t('hotspots.dialog.flags')}
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
             </Grid>
             <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Thumbnail URL"
-                value={formData.thumbnail}
-                onChange={(e) => handleFormChange('thumbnail', e.target.value)}
-                placeholder="https://example.com/image.jpg"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Image URL"
-                value={formData.imageUrl}
-                onChange={(e) => handleFormChange('imageUrl', e.target.value)}
-                placeholder="https://example.com/image.jpg"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Tags (comma separated)"
-                value={formData.tags}
-                onChange={(e) => handleFormChange('tags', e.target.value)}
-                placeholder="music, concert, live"
-              />
-            </Grid>
-
-            <Grid item xs={12}>
-              <Divider sx={{ my: 1 }}>
-                <Typography variant="caption" color="text.secondary">Settings</Typography>
-              </Divider>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.isActive}
-                    onChange={(e) => handleFormChange('isActive', e.target.checked)}
-                  />
-                }
-                label="Active"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.isFeatured}
-                    onChange={(e) => handleFormChange('isFeatured', e.target.checked)}
-                  />
-                }
-                label="Featured"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.isNew}
-                    onChange={(e) => handleFormChange('isNew', e.target.checked)}
-                  />
-                }
-                label="New"
-              />
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formData.isPopular}
-                    onChange={(e) => handleFormChange('isPopular', e.target.checked)}
-                  />
-                }
-                label="Popular"
-              />
+              <Stack direction="row" spacing={3}>
+                <FormControlLabel
+                  control={<Switch checked={formData.isActive} onChange={(e) => handleFormChange('isActive', e.target.checked)} color="success" />}
+                  label={t('hotspots.form.isActive')}
+                />
+                <FormControlLabel
+                  control={<Switch checked={formData.isFeatured} onChange={(e) => handleFormChange('isFeatured', e.target.checked)} color="warning" />}
+                  label={t('hotspots.form.isFeatured')}
+                />
+                <FormControlLabel
+                  control={<Switch checked={formData.isNew} onChange={(e) => handleFormChange('isNew', e.target.checked)} color="info" />}
+                  label={t('hotspots.form.isNew')}
+                />
+                <FormControlLabel
+                  control={<Switch checked={formData.isPopular} onChange={(e) => handleFormChange('isPopular', e.target.checked)} color="error" />}
+                  label={t('hotspots.form.isPopular')}
+                />
+              </Stack>
             </Grid>
           </Grid>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleSave}>
-            {isEditing ? 'Update' : 'Create'}
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setOpenDialog(false)}>{t('hotspots.actions.cancel')}</Button>
+          <Button variant="contained" onClick={handleSave} disabled={!formData.title}>
+            {t('hotspots.actions.save')}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* View Dialog */}
-      <Dialog open={openViewDialog} onClose={() => setOpenViewDialog(false)} maxWidth="md" fullWidth>
+      {/* View Details Dialog */}
+      <Dialog open={openViewDialog} onClose={() => setOpenViewDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          HotSpot Details
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6" fontWeight="bold">{t('hotspots.dialog.detailsTitle')}</Typography>
+            <IconButton onClick={() => setOpenViewDialog(false)} size="small"><CloseIcon /></IconButton>
+          </Box>
         </DialogTitle>
         <DialogContent dividers>
           {selectedHotSpot && (
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                {selectedHotSpot.thumbnail ? (
-                  <CardMedia
-                    component="img"
-                    image={selectedHotSpot.thumbnail}
-                    alt={selectedHotSpot.title}
-                    sx={{ borderRadius: 2, height: 200, objectFit: 'cover' }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      height: 200,
-                      borderRadius: 2,
-                      backgroundColor: 'grey.200',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <ImageIcon sx={{ fontSize: 60, color: 'grey.400' }} />
+            <Box>
+              <CardMedia
+                component="img"
+                height="200"
+                image={selectedHotSpot.imageUrl || selectedHotSpot.thumbnail}
+                alt={selectedHotSpot.title}
+                sx={{ borderRadius: 2, mb: 2 }}
+              />
+              <Typography variant="h5" fontWeight="bold" gutterBottom>{selectedHotSpot.title}</Typography>
+              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+                <Chip label={t(`hotspots.categories.${selectedHotSpot.category}`)} size="small" sx={{ bgcolor: getCategoryColor(selectedHotSpot.category), color: 'white' }} />
+                <Chip label={selectedHotSpot.type === 'event' ? t('hotspots.stats.events') : t('hotspots.stats.places')} size="small" variant="outlined" />
+                {selectedHotSpot.isFeatured && <Chip label={t('hotspots.stats.featured')} size="small" color="warning" icon={<StarIcon />} />}
+              </Stack>
+
+              <Typography variant="body1" paragraph>{selectedHotSpot.description}</Typography>
+
+              <Divider sx={{ my: 2 }} />
+
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <LocationIcon color="action" />
+                    <Typography variant="body2">{selectedHotSpot.location?.address}, {selectedHotSpot.location?.city}</Typography>
                   </Box>
+                </Grid>
+                {selectedHotSpot.type === 'event' && selectedHotSpot.eventInfo && (
+                  <>
+                    <Grid item xs={6}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <EventIcon color="action" />
+                        <Typography variant="body2">{selectedHotSpot.eventInfo.startDate}</Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <PeopleIcon color="action" />
+                        <Typography variant="body2">{selectedHotSpot.eventInfo.currentParticipants} / {selectedHotSpot.eventInfo.maxParticipants}</Typography>
+                      </Box>
+                    </Grid>
+                  </>
                 )}
               </Grid>
-              <Grid item xs={12} md={8}>
-                <Typography variant="h5" gutterBottom>{selectedHotSpot.title}</Typography>
-                <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                  <Chip
-                    icon={selectedHotSpot.type === 'event' ? <EventIcon /> : <PlaceIcon />}
-                    label={selectedHotSpot.type}
-                    color={selectedHotSpot.type === 'event' ? 'primary' : 'secondary'}
-                  />
-                  <Chip
-                    label={selectedHotSpot.category}
-                    sx={{ backgroundColor: getCategoryColor(selectedHotSpot.category), color: 'white' }}
-                  />
-                  {selectedHotSpot.isActive && <Chip label="Active" color="success" size="small" />}
-                  {selectedHotSpot.isFeatured && <Chip icon={<StarIcon />} label="Featured" color="warning" size="small" />}
-                  {selectedHotSpot.isNew && <Chip label="New" color="info" size="small" icon={<NewIcon />} />}
-                  {selectedHotSpot.isPopular && <Chip label="Popular" color="secondary" size="small" icon={<PopularIcon />} />}
-                </Stack>
-                <Typography variant="body2" color="text.secondary" paragraph>
-                  {selectedHotSpot.description}
-                </Typography>
-              </Grid>
 
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" gutterBottom>Location</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                  <LocationIcon color="action" />
-                  <Box>
-                    <Typography variant="body2">{selectedHotSpot.location?.address}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {selectedHotSpot.location?.district}, {selectedHotSpot.location?.city}
-                    </Typography>
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      Lat: {selectedHotSpot.location?.coordinates?.latitude}, Long: {selectedHotSpot.location?.coordinates?.longitude}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Grid>
-
-              <Grid item xs={12} md={6}>
-                <Typography variant="subtitle2" gutterBottom>Statistics</Typography>
-                <Grid container spacing={1}>
+              <Box sx={{ mt: 3, p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
+                <Grid container spacing={2} textAlign="center">
                   <Grid item xs={4}>
-                    <Typography variant="h6">{selectedHotSpot.stats?.interested || 0}</Typography>
-                    <Typography variant="caption" color="text.secondary">Interested</Typography>
+                    <Typography variant="h6" fontWeight="bold">{selectedHotSpot.stats?.interested || 0}</Typography>
+                    <Typography variant="caption" color="text.secondary">{t('hotspots.stats.interested')}</Typography>
                   </Grid>
                   <Grid item xs={4}>
-                    <Typography variant="h6">{selectedHotSpot.stats?.joined || 0}</Typography>
-                    <Typography variant="caption" color="text.secondary">Joined</Typography>
+                    <Typography variant="h6" fontWeight="bold">{selectedHotSpot.stats?.joined || 0}</Typography>
+                    <Typography variant="caption" color="text.secondary">{t('hotspots.stats.joined')}</Typography>
                   </Grid>
                   <Grid item xs={4}>
-                    <Typography variant="h6">{selectedHotSpot.stats?.checkedIn || 0}</Typography>
-                    <Typography variant="caption" color="text.secondary">Checked In</Typography>
+                    <Typography variant="h6" fontWeight="bold">{selectedHotSpot.stats?.checkedIn || 0}</Typography>
+                    <Typography variant="caption" color="text.secondary">{t('hotspots.stats.checkedIn')}</Typography>
                   </Grid>
                 </Grid>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                  <Rating value={selectedHotSpot.stats?.rating || 0} precision={0.1} readOnly />
-                  <Typography variant="body2">({selectedHotSpot.stats?.reviewCount || 0} reviews)</Typography>
-                </Box>
-              </Grid>
-
-              {selectedHotSpot.type === 'event' && selectedHotSpot.eventInfo && (
-                <>
-                  <Grid item xs={12}>
-                    <Divider sx={{ my: 1 }} />
-                    <Typography variant="subtitle2" gutterBottom>Event Details</Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="caption" color="text.secondary">Organizer</Typography>
-                    <Typography variant="body2">{selectedHotSpot.eventInfo.organizer || 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="caption" color="text.secondary">Price</Typography>
-                    <Typography variant="body2">
-                      {selectedHotSpot.eventInfo.price ? `${selectedHotSpot.eventInfo.price.toLocaleString()} VND` : 'Free'}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="caption" color="text.secondary">Start Date</Typography>
-                    <Typography variant="body2">{selectedHotSpot.eventInfo.startDate || 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Typography variant="caption" color="text.secondary">End Date</Typography>
-                    <Typography variant="body2">{selectedHotSpot.eventInfo.endDate || 'N/A'}</Typography>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="caption" color="text.secondary">Participants</Typography>
-                    <Typography variant="body2">
-                      {selectedHotSpot.eventInfo.currentParticipants || 0} / {selectedHotSpot.eventInfo.maxParticipants || '∞'}
-                    </Typography>
-                  </Grid>
-                </>
-              )}
-
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-                <Typography variant="subtitle2" gutterBottom>Tags</Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {selectedHotSpot.tags?.map((tag, index) => (
-                    <Chip key={index} label={tag} size="small" variant="outlined" />
-                  ))}
-                </Stack>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Divider sx={{ my: 1 }} />
-                <Typography variant="caption" color="text.secondary">
-                  Created: {formatDate(selectedHotSpot.createdAt)} | Updated: {formatDate(selectedHotSpot.updatedAt)} | ID: {selectedHotSpot.id}
-                </Typography>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenViewDialog(false)}>Close</Button>
-          <Button
-            variant="outlined"
-            startIcon={<EditIcon />}
-            onClick={() => {
-              setOpenViewDialog(false);
-              handleOpenEdit(selectedHotSpot!);
-            }}
-          >
-            Edit
-          </Button>
+          <Button onClick={() => setOpenViewDialog(false)}>{t('hotspots.dialog.close')}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
-        <DialogTitle>Delete HotSpot</DialogTitle>
+        <DialogTitle>{t('hotspots.dialog.deleteTitle')}</DialogTitle>
         <DialogContent>
-          <Typography>
-            Are you sure you want to delete "{selectedHotSpot?.title}"? This action cannot be undone.
-          </Typography>
+          <Typography>{t('hotspots.dialog.deleteConfirm')}</Typography>
+          {selectedHotSpot && (
+            <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
+              {selectedHotSpot.title}
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={handleDelete}>
-            Delete
+          <Button onClick={() => setOpenDeleteDialog(false)}>{t('hotspots.dialog.cancel')}</Button>
+          <Button onClick={handleDelete} color="error" variant="contained">
+            {t('hotspots.actions.delete')}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
+      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
           {snackbar.message}
         </Alert>
       </Snackbar>

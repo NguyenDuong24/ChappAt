@@ -25,6 +25,8 @@ interface OptimizedGroupInputProps {
     surface: string;
     border: string;
     tint: string;
+    backgroundHeader?: string;
+    sentMessageGradient?: string[];
   };
   placeholder?: string;
 }
@@ -82,13 +84,13 @@ const OptimizedGroupInput: React.FC<OptimizedGroupInputProps> = memo(({
   // Gradient colors for send button
   const sendGradient = sendDisabled
     ? [currentThemeColors.border, currentThemeColors.border]
-    : ['#6366F1', '#8B5CF6'];
+    : (currentThemeColors.sentMessageGradient || [currentThemeColors.tint, currentThemeColors.tint]);
 
   return (
     <View style={[
       styles.container,
       {
-        backgroundColor: currentThemeColors.background,
+        backgroundColor: currentThemeColors.backgroundHeader || currentThemeColors.background,
         borderTopColor: currentThemeColors.border
       }
     ]}>

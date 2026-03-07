@@ -29,13 +29,14 @@ interface GroupMessageListProps {
   isInitialLoadComplete?: boolean;
   // Scroll control
   scrollToEndTrigger?: number;
+  currentThemeColors?: any;
 }
 
 // Day separator component - Memoized
-const DaySeparator = React.memo(({ date }: { date: string }) => {
+const DaySeparator = React.memo(({ date, currentThemeColors: chatThemeColors }: { date: string, currentThemeColors?: any }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
 
   return (
     <View style={styles.daySeparatorContainer}>
@@ -50,10 +51,10 @@ const DaySeparator = React.memo(({ date }: { date: string }) => {
 });
 
 // Scroll to bottom button - Memoized
-const ScrollToBottomButton = React.memo(({ onPress, visible }: { onPress: () => void, visible: boolean }) => {
+const ScrollToBottomButton = React.memo(({ onPress, visible, currentThemeColors: chatThemeColors }: { onPress: () => void, visible: boolean, currentThemeColors?: any }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
 
   if (!visible) return null;
 
@@ -84,11 +85,12 @@ export default function GroupMessageList({
   isLoadingMore = false,
   isInitialLoadComplete = false,
   scrollToEndTrigger = 0,
+  currentThemeColors: chatThemeColors,
 }: GroupMessageListProps) {
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
   const flatListRef = useRef<FlatList>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
@@ -105,8 +107,11 @@ export default function GroupMessageList({
     const result: any[] = [];
     let lastDate = '';
 
-    messages.forEach((message, index) => {
+    // Process in chronological order (messages is already chronological)
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i];
       let messageDate = '';
+
       if (message.createdAt) {
         const date = message.createdAt.toDate ? message.createdAt.toDate() : new Date(message.createdAt);
         const today = new Date();
@@ -124,7 +129,7 @@ export default function GroupMessageList({
 
       if (messageDate && messageDate !== lastDate) {
         result.push({
-          id: `separator-${messageDate}-${index}`,
+          id: `separator-${messageDate}-${i}`,
           type: 'separator',
           date: messageDate
         });
@@ -132,16 +137,16 @@ export default function GroupMessageList({
       }
 
       result.push({
-        id: message.id || message.messageId || `msg-${index}`,
+        id: message.id || message.messageId || `msg-${i}`,
         type: 'message',
         data: message
       });
-    });
+    }
 
     return result;
-  }, [messages]);
+  }, [messages, t]);
 
-  // Reverse data for inverted list
+  // Reverse data for inverted list - Memoized
   const reversedData = useMemo(() => {
     return [...processedData].reverse();
   }, [processedData]);
@@ -159,7 +164,7 @@ export default function GroupMessageList({
   // Render item - Memoized
   const renderItem = useCallback(({ item }: { item: any }) => {
     if (item.type === 'separator') {
-      return <DaySeparator date={item.date} />;
+      return <DaySeparator date={item.date} currentThemeColors={currentThemeColors} />;
     }
 
     if (item.type === 'message') {
@@ -174,6 +179,7 @@ export default function GroupMessageList({
           isHighlighted={isHighlighted}
           onReport={onReport}
           onUserPress={onUserPress}
+          currentThemeColors={currentThemeColors}
         />
       );
     }
@@ -235,6 +241,7 @@ export default function GroupMessageList({
       <ScrollToBottomButton
         visible={showScrollButton}
         onPress={scrollToBottom}
+        currentThemeColors={currentThemeColors}
       />
     </View>
   );

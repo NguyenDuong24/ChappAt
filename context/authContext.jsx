@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef, useMemo } from "react";
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, deleteDoc, collection, query, where, limit, getDocs } from "firebase/firestore";
@@ -1097,52 +1097,61 @@ export const AuthContextProvider = ({ children }) => {
         }
     };
 
-    return (
+    const contextValue = useMemo(() => ({
+        user, isAuthenticated, login, register, logout, logoutAndForceNextGoogleChooser,
+        loginWithGoogle, loginWithGoogleForceChoose, loginWithFacebook,
+        gender, setGender,
+        name, setName,
+        age, setAge,
+        email, setEmail,
+        icon, setIcon,
+        password, setPassword,
+        bio, setBio,
+        educationLevel, setEducationLevel,
+        university, setUniversity,
+        job, setJob,
+        refreshUser,
+        cancelRegistration,
+        isOnboarding,
+        signupType, setSignupType,
+        clearSignupState,
+        updateUserProfile,
+        // Wallet
+        coins,
+        banhMi,
+        refreshBalance: getWalletBalance,
+        getWalletBalance,
+        topupCoins,
+        spendCoins,
+        purchaseWithCoins,
+        // Vibe functions
+        currentVibe,
+        setUserVibe,
+        removeUserVibe,
+        loadUserVibe,
+        settingVibe,
+        vibeError,
+        debugVibeData,
+        // Expo Push Notifications
+        notificationToken,
+        notificationInitialized,
+        // Thêm hàm mới
+        updateUserPassword,
+        signUpWithEmail,
+        activeFrame,
+        setActiveFrame,
+    }), [
+        user, isAuthenticated, login, register, logout, logoutAndForceNextGoogleChooser,
+        loginWithGoogle, loginWithGoogleForceChoose, loginWithFacebook,
+        gender, name, age, email, icon, password, bio, educationLevel, university, job,
+        refreshUser, cancelRegistration, isOnboarding, signupType,
+        updateUserProfile, coins, banhMi, getWalletBalance, topupCoins, spendCoins, purchaseWithCoins,
+        currentVibe, setUserVibe, removeUserVibe, loadUserVibe, settingVibe, vibeError, debugVibeData,
+        notificationToken, notificationInitialized, updateUserPassword, signUpWithEmail, activeFrame
+    ]);
 
-        <AuthContext.Provider value={{
-            user, isAuthenticated, login, register, logout, logoutAndForceNextGoogleChooser,
-            loginWithGoogle, loginWithGoogleForceChoose, loginWithFacebook,
-            gender, setGender,
-            name, setName,
-            age, setAge,
-            email, setEmail,
-            icon, setIcon,
-            password, setPassword,
-            bio, setBio,
-            educationLevel, setEducationLevel,
-            university, setUniversity,
-            job, setJob,
-            refreshUser,
-            cancelRegistration,
-            isOnboarding,
-            signupType, setSignupType,
-            clearSignupState,
-            updateUserProfile,
-            // Wallet
-            coins,
-            banhMi,
-            refreshBalance: getWalletBalance,
-            getWalletBalance,
-            topupCoins,
-            spendCoins,
-            purchaseWithCoins,
-            // Vibe functions
-            currentVibe,
-            setUserVibe,
-            removeUserVibe,
-            loadUserVibe,
-            settingVibe,
-            vibeError,
-            debugVibeData,
-            // Expo Push Notifications
-            notificationToken,
-            notificationInitialized,
-            // Thêm hàm mới
-            updateUserPassword,
-            signUpWithEmail,
-            activeFrame,
-            setActiveFrame,
-        }}>
+    return (
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );

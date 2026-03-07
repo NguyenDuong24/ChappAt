@@ -21,7 +21,7 @@ interface GroupListProps {
 }
 
 // Memoized Empty State Component
-const EmptyState = memo(({ currentThemeColors }: { currentThemeColors: any }) => (
+const EmptyState = ({ currentThemeColors }: { currentThemeColors: any }) => (
   <Animated.View entering={FadeIn} style={styles.emptyContainer}>
     <Text style={[styles.emptyText, { color: currentThemeColors.subtleText }]}>
       Bạn chưa tham gia nhóm chat nào
@@ -30,21 +30,10 @@ const EmptyState = memo(({ currentThemeColors }: { currentThemeColors: any }) =>
       Tạo nhóm mới hoặc được mời vào nhóm để bắt đầu
     </Text>
   </Animated.View>
-));
+);
 
 // Memoized Group Item wrapper
-const MemoizedGroupItem = memo(EnhancedGroupItem, (prevProps, nextProps) => {
-  return (
-    prevProps.item?.id === nextProps.item?.id &&
-    prevProps.lastMessage?.text === nextProps.lastMessage?.text &&
-    prevProps.lastMessage?.createdAt?.seconds === nextProps.lastMessage?.createdAt?.seconds &&
-    prevProps.unreadCount === nextProps.unreadCount &&
-    prevProps.isTyping === nextProps.isTyping &&
-    prevProps.onlineMembers?.length === nextProps.onlineMembers?.length &&
-    prevProps.isVoiceCallActive === nextProps.isVoiceCallActive &&
-    prevProps.isJoined === nextProps.isJoined
-  );
-});
+const MemoizedGroupItem = EnhancedGroupItem;
 
 const EnhancedGroupList = ({
   groups = [],
@@ -357,4 +346,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default memo(EnhancedGroupList);
+export default EnhancedGroupList;

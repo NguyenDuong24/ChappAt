@@ -35,8 +35,18 @@ import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/firebaseConfig';
 import { nanoid } from 'nanoid';
+import { ChatThemeProvider, useChatTheme } from '@/context/ChatThemeContext';
+import ChatThemePicker from '@/components/chat/ChatThemePicker';
 
 export default function GroupManagementScreen() {
+    return (
+        <ChatThemeProvider>
+            <GroupManagementContent />
+        </ChatThemeProvider>
+    );
+}
+
+function GroupManagementContent() {
     const { id } = useLocalSearchParams();
     const { user } = useAuth();
     const router = useRouter();
@@ -68,6 +78,21 @@ export default function GroupManagementScreen() {
     const [loadingMedia, setLoadingMedia] = useState(false);
     const [followingStatus, setFollowingStatus] = useState<Record<string, boolean>>({});
     const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+    const [showThemePicker, setShowThemePicker] = useState(false);
+
+    const { currentTheme, currentEffect, loadTheme, loadEffect } = useChatTheme();
+
+    // Load theme and effect
+    useEffect(() => {
+        if (id) {
+            const unsubTheme = loadTheme(id as string);
+            const unsubEffect = loadEffect(id as string);
+            return () => {
+                unsubTheme();
+                unsubEffect();
+            };
+        }
+    }, [id]);
 
     useEffect(() => {
         loadGroupData();
@@ -445,10 +470,14 @@ export default function GroupManagementScreen() {
         const canManageThisMember = canManageRole(member.role) && !isCreator && !isCurrentUser;
 
         return (
-            <View key={member.uid} style={[styles.memberCard, {
-                backgroundColor: currentThemeColors.surface,
-                borderColor: theme === 'dark' ? '#374151' : '#E5E7EB',
-            }]}>
+            <TouchableOpacity
+                key={member.uid}
+                style={[styles.memberCard, {
+                    backgroundColor: currentThemeColors.surface,
+                    borderColor: theme === 'dark' ? '#374151' : '#E5E7EB',
+                }]}
+                onPress={() => router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId: member.uid } })}
+            >
                 <Avatar.Image
                     size={48}
                     source={{ uri: member.photoURL || 'https://via.placeholder.com/48' }}
@@ -539,7 +568,7 @@ export default function GroupManagementScreen() {
                         />
                     </Menu>
                 )}
-            </View>
+            </TouchableOpacity>
         );
     };
 
@@ -685,6 +714,48 @@ export default function GroupManagementScreen() {
                 </View>
 
                 <Divider />
+
+                {/* Group Theme Section */}
+                {canManage && (
+                    <>
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                                    Giao diện nhóm
+                                </Text>
+                                <TouchableOpacity
+                                    style={styles.editButton}
+                                    onPress={() => setShowThemePicker(true)}
+                                >
+                                    <MaterialCommunityIcons name="palette" size={16} color={currentThemeColors.tint} />
+                                    <Text style={[styles.editButtonText, { color: currentThemeColors.tint }]}>
+                                        Thay đổi
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={[styles.themePreview, {
+                                backgroundColor: currentTheme.backgroundColor || currentThemeColors.surface,
+                                borderColor: currentTheme.sentMessageColor || currentThemeColors.border,
+                            }]}>
+                                <View style={styles.themeInfo}>
+                                    <Text style={[styles.themeName, { color: currentTheme.textColor || currentThemeColors.text }]}>
+                                        Chủ đề: {currentTheme.name}
+                                    </Text>
+                                    <Text style={[styles.effectName, { color: currentTheme.textColor || currentThemeColors.subtleText }]}>
+                                        Hiệu ứng: {currentEffect === 'none' ? 'Không có' : currentEffect}
+                                    </Text>
+                                </View>
+                                {currentTheme.backgroundImage && (
+                                    <Image
+                                        source={{ uri: currentTheme.backgroundImage }}
+                                        style={styles.themeImagePreview}
+                                    />
+                                )}
+                            </View>
+                        </View>
+                        <Divider />
+                    </>
+                )}
 
                 {/* Your Role */}
                 <View style={styles.section}>
@@ -851,10 +922,14 @@ export default function GroupManagementScreen() {
                                 </View>
                             ) : (
                                 pendingRequests.map((req) => (
-                                    <View key={req.uid} style={[styles.requestItem, {
-                                        backgroundColor: currentThemeColors.surface,
-                                        borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
-                                    }]}>
+                                    <TouchableOpacity
+                                        key={req.uid}
+                                        style={[styles.requestItem, {
+                                            backgroundColor: currentThemeColors.surface,
+                                            borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
+                                        }]}
+                                        onPress={() => router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId: req.uid } })}
+                                    >
                                         <Avatar.Image
                                             size={48}
                                             source={{ uri: req.photoURL || 'https://via.placeholder.com/48' }}
@@ -881,7 +956,7 @@ export default function GroupManagementScreen() {
                                                 <MaterialCommunityIcons name="check" size={20} color="#FFF" />
                                             </TouchableOpacity>
                                         </View>
-                                    </View>
+                                    </TouchableOpacity>
                                 ))
                             )}
                         </View>
@@ -935,6 +1010,15 @@ export default function GroupManagementScreen() {
                     </View>
                 </View>
             )}
+            {/* Theme Picker */}
+            <ChatThemePicker
+                visible={showThemePicker}
+                onClose={() => setShowThemePicker(false)}
+                roomId={id as string}
+                currentUser={user}
+                isGroup={true}
+                isAdmin={canManage}
+            />
         </SafeAreaView>
     );
 }
@@ -1278,5 +1362,31 @@ const styles = StyleSheet.create({
     },
     rejectButton: {
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    },
+    themePreview: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        marginTop: 4,
+    },
+    themeInfo: {
+        flex: 1,
+    },
+    themeName: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    effectName: {
+        fontSize: 14,
+    },
+    themeImagePreview: {
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+        marginLeft: 12,
     },
 });

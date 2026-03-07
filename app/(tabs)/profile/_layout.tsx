@@ -12,11 +12,20 @@ const StackLayout = () => {
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
   return (
-    <Stack>
+    <Stack
+      screenOptions={{
+        animation: 'slide_from_right',
+        animationDuration: 200,
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
+        freezeOnBlur: true,
+      }}
+    >
       <Stack.Screen
         name="index"
         options={{
-          headerShown: false
+          headerShown: false,
+          animation: 'fade',
         }}
       />
       <Stack.Screen

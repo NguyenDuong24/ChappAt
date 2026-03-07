@@ -44,138 +44,149 @@ const VIDEOSDK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlrZXkiOiI5OWY
 SplashScreen.preventAutoHideAsync();
 
 const MainLayout = () => {
-  const { isAuthenticated, user } = useAuth();
-  const themeCtx = useContext(ThemeContext);
-  const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const { playIncomingCallSound, stopCallSounds } = useSound();
+    const { isAuthenticated, user } = useAuth();
+    const themeCtx = useContext(ThemeContext);
+    const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
+    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const { playIncomingCallSound, stopCallSounds } = useSound();
 
-  // Add font loading state
-  const [fontsLoaded] = useFonts({
-    // Add any custom fonts here if needed
-  });
+    // Add font loading state
+    const [fontsLoaded] = useFonts({
+        // Add any custom fonts here if needed
+    });
 
-  // Handle splash screen hiding
-  useEffect(() => {
-    console.log('📊 MainLayout: fontsLoaded =', fontsLoaded);
-    const hideSplashScreen = async () => {
-      if (fontsLoaded) {
-        try {
-          console.log('🚀 Hiding splash screen...');
-          await SplashScreen.hideAsync();
-        } catch (error) {
-          console.warn('SplashScreen hide error:', error);
-        }
-      }
-    };
+    // Handle splash screen hiding
+    useEffect(() => {
+        console.log('📊 MainLayout: fontsLoaded =', fontsLoaded);
+        const hideSplashScreen = async () => {
+            if (fontsLoaded) {
+                try {
+                    console.log('🚀 Hiding splash screen...');
+                    await SplashScreen.hideAsync();
+                } catch (error) {
+                    console.warn('SplashScreen hide error:', error);
+                }
+            }
+        };
 
-    hideSplashScreen();
-  }, [fontsLoaded]);
+        hideSplashScreen();
+    }, [fontsLoaded]);
 
-  // Don't render anything until fonts are loaded
-  if (!fontsLoaded) {
-    console.log('⌛ Waiting for fonts to load...');
-    return null;
-  }
+    // Don't render anything until fonts are loaded
+    if (!fontsLoaded) {
+        console.log('⌛ Waiting for fonts to load...');
+        return null;
+    }
 
-  // Handle authentication routing with call screen protection
-  useAuthRouting(isAuthenticated);
+    // Handle authentication routing with call screen protection
+    useAuthRouting(isAuthenticated);
 
-  return (
-    <>
-      <ThemedStatusBar translucent />
-      <InterstitialAdManager />
-      <CallLogicHandler />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/user/UserProfileScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/user/ProfileEditScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/user/PrivacySettingsScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/user/ChangePasswordScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/call/CallScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/call/IncomingCallScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/call/ListenCallAcceptedScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/social/PostDetailScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/social/HashtagScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/social/NotificationsScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/wallet/CoinWalletScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/hotspots/HotSpotsScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/hotspots/HotSpotDetailScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/hotspots/HotSpotChatScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/groups/GroupManagementScreen" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/groups/GroupVoiceRoom" options={{ headerShown: false }} />
-        <Stack.Screen name="(screens)/store/StoreScreen" options={{ headerShown: false }} />
-      </Stack>
-    </>
-  );
+    return (
+        <>
+            <ThemedStatusBar translucent />
+            <InterstitialAdManager />
+            <CallLogicHandler />
+            <Stack
+                screenOptions={{
+                    headerShown: false,
+                    animation: 'slide_from_right',
+                    animationDuration: 200,
+                    gestureEnabled: true,
+                    fullScreenGestureEnabled: true,
+                    freezeOnBlur: true,
+                }}
+            >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: 'fade' }} />
+                <Stack.Screen name="(screens)/user/UserProfileScreen" />
+                <Stack.Screen name="(screens)/user/ProfileEditScreen" />
+                <Stack.Screen name="(screens)/user/PrivacySettingsScreen" />
+                <Stack.Screen name="(screens)/user/ChangePasswordScreen" />
+                <Stack.Screen name="(screens)/call/CallScreen" options={{ animation: 'fade', gestureEnabled: false }} />
+                <Stack.Screen name="(screens)/call/IncomingCallScreen" options={{ animation: 'fade', gestureEnabled: false }} />
+                <Stack.Screen name="(screens)/call/ListenCallAcceptedScreen" options={{ animation: 'fade', gestureEnabled: false }} />
+                <Stack.Screen name="(screens)/social/PostDetailScreen" />
+                <Stack.Screen name="(screens)/social/HashtagScreen" />
+                <Stack.Screen name="(screens)/social/NotificationsScreen" />
+                <Stack.Screen name="(screens)/social/CrossingPathsScreen" />
+                <Stack.Screen name="(screens)/wallet/CoinWalletScreen" />
+                <Stack.Screen name="(screens)/hotspots/HotSpotsScreen" />
+                <Stack.Screen name="(screens)/hotspots/HotSpotDetailScreen" />
+                <Stack.Screen name="(screens)/hotspots/HotSpotChatScreen" />
+                <Stack.Screen name="(screens)/groups/GroupManagementScreen" />
+                <Stack.Screen name="(screens)/groups/GroupVoiceRoom" />
+                <Stack.Screen name="(screens)/store/StoreScreen" />
+                <Stack.Screen name="(screens)/user/VibeScreen" />
+            </Stack>
+        </>
+    );
 };
 
 export default function RootLayout() {
-  // Initialize VideoSDK
-  const initVideoSDK = () => {
-    try {
-      register();
-    } catch (error) {
-      console.error('❌ VideoSDK registration failed:', error);
-    }
-  };
-
-  // Initialize call timeout service
-  const initCallTimeoutService = () => {
-    try {
-      // Guard against undefined import
-      if (callTimeoutService && typeof callTimeoutService.initialize === 'function') {
-        console.log('⏰ callTimeoutService is available, initializing...');
-        callTimeoutService.initialize();
-      } else {
-        console.error('❌ callTimeoutService is undefined or missing initialize():', callTimeoutService);
-      }
-    } catch (error) {
-      console.error('❌ Call timeout service initialization failed:', error);
-    }
-  };
-
-  // Call init functions on component mount
-  React.useEffect(() => {
-    initVideoSDK();
-    initCallTimeoutService();
-
-    // Initialize server warmup to prevent cold starts
-    console.log('🔥 Initializing server warmup service...');
-    serverWarmupService.initialize();
-
-    // Cleanup on unmount
-    return () => {
-      serverWarmupService.cleanup();
+    // Initialize VideoSDK
+    const initVideoSDK = () => {
+        try {
+            register();
+        } catch (error) {
+            console.error('❌ VideoSDK registration failed:', error);
+        }
     };
-  }, []);
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StateCommonProvider>
-        <UserProvider>
-          {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
-          <AuthContextProvider>
-            <AudioProvider>
-              <VideoCallProvider>
-                <NotificationProvider>
-                  <ThemeProvider>
-                    <AppStateProvider>
-                      <LogoStateProvider>
-                        <LocationProvider>
-                          <PaperProvider>
-                            <MainLayout />
-                          </PaperProvider>
-                        </LocationProvider>
-                      </LogoStateProvider>
-                    </AppStateProvider>
-                  </ThemeProvider>
-                </NotificationProvider>
-              </VideoCallProvider>
-            </AudioProvider>
-          </AuthContextProvider>
-        </UserProvider>
-      </StateCommonProvider>
-    </GestureHandlerRootView>
-  );
+    // Initialize call timeout service
+    const initCallTimeoutService = () => {
+        try {
+            // Guard against undefined import
+            if (callTimeoutService && typeof callTimeoutService.initialize === 'function') {
+                console.log('⏰ callTimeoutService is available, initializing...');
+                callTimeoutService.initialize();
+            } else {
+                console.error('❌ callTimeoutService is undefined or missing initialize():', callTimeoutService);
+            }
+        } catch (error) {
+            console.error('❌ Call timeout service initialization failed:', error);
+        }
+    };
+
+    // Call init functions on component mount
+    React.useEffect(() => {
+        initVideoSDK();
+        initCallTimeoutService();
+
+        // Initialize server warmup to prevent cold starts
+        console.log('🔥 Initializing server warmup service...');
+        serverWarmupService.initialize();
+
+        // Cleanup on unmount
+        return () => {
+            serverWarmupService.cleanup();
+        };
+    }, []);
+
+    return (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <StateCommonProvider>
+                <UserProvider>
+                    {/* Đặt AuthContextProvider bên ngoài để NotificationProvider có thể dùng useAuth */}
+                    <AuthContextProvider>
+                        <AudioProvider>
+                            <VideoCallProvider>
+                                <NotificationProvider>
+                                    <ThemeProvider>
+                                        <AppStateProvider>
+                                            <LogoStateProvider>
+                                                <LocationProvider>
+                                                    <PaperProvider>
+                                                        <MainLayout />
+                                                    </PaperProvider>
+                                                </LocationProvider>
+                                            </LogoStateProvider>
+                                        </AppStateProvider>
+                                    </ThemeProvider>
+                                </NotificationProvider>
+                            </VideoCallProvider>
+                        </AudioProvider>
+                    </AuthContextProvider>
+                </UserProvider>
+            </StateCommonProvider>
+        </GestureHandlerRootView>
+    );
 }

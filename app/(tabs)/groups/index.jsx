@@ -125,14 +125,8 @@ export default function Groups() {
           return bTime - aTime;
         });
 
-        setGroups(prev => {
-          if (JSON.stringify(prev) === JSON.stringify(sortedData)) return prev;
-          return sortedData || [];
-        });
-        setUserGroups(prev => {
-          if (JSON.stringify(prev) === JSON.stringify(userGroupsData)) return prev;
-          return userGroupsData;
-        });
+        setGroups(sortedData || []);
+        setUserGroups(userGroupsData || []);
         setLoading(false);
       }, (error) => {
         console.error('Groups snapshot error', error);

@@ -1,21 +1,27 @@
 import React, { createContext, useContext } from 'react';
+import { Platform } from 'react-native';
+
+export const HEADER_HEIGHT = Platform.OS === 'ios' ? 280 : 260;
+export const COLLAPSED_HEADER_HEIGHT = Platform.OS === 'ios' ? 70 : 60;
+export const SCROLL_DISTANCE = HEADER_HEIGHT - COLLAPSED_HEADER_HEIGHT;
 
 // Create context with default values
 export const ExploreHeaderContext = createContext({
   scrollY: null,
   handleScroll: null,
+  headerHeight: HEADER_HEIGHT,
+  collapsedHeaderHeight: COLLAPSED_HEADER_HEIGHT,
 });
 
 // Custom hook with error handling
 export const useExploreHeader = () => {
   const context = useContext(ExploreHeaderContext);
-  
-  // Return context if available, otherwise return null
+
   if (context === undefined) {
     console.warn('useExploreHeader must be used within ExploreHeaderProvider');
     return null;
   }
-  
+
   return context;
 };
 

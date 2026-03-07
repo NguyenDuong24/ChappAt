@@ -31,6 +31,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import proximityService, { NearbyUser } from '../services/proximityService';
 import { useRouter } from 'expo-router';
+import encounterService from '../services/encounterService';
 
 const { width, height } = Dimensions.get('window');
 const RADAR_SIZE = Math.min(width * 0.95, height * 0.5); // Radar to hơn
@@ -93,7 +94,7 @@ const ProximityRadar = () => {
 
     // Find nearby users
     const findNearbyUsers = useCallback(async () => {
-        if (!myLocation || !user?.uid) return;
+        if (!myLocation || !myLocation.coords || !user?.uid) return;
 
         try {
             setIsLoading(true);
@@ -106,21 +107,20 @@ const ProximityRadar = () => {
                 maxAge: 10 * 60 * 1000, // 10 minutes - more lenient
             });
 
-            const updatedUsers = users.map(u => ({
+            // The service already returns distance and bearing, no need to recalculate
+            // but we add defensive checks just in case
+            const updatedUsers = users.filter(u => u && u.location).map(u => ({
                 ...u,
-                bearing: proximityService.calculateBearing(
-                    myLocation.coords.latitude,
-                    myLocation.coords.longitude,
-                    u.location.latitude,
-                    u.location.longitude
-                ),
-                distance: proximityService.calculateDistance(
-                    myLocation.coords.latitude,
-                    myLocation.coords.longitude,
-                    u.location.latitude,
-                    u.location.longitude
-                ),
+                bearing: u.bearing ?? 0,
+                distance: u.distance ?? 0,
             }));
+
+            // Record encounters for users within 100m
+            updatedUsers.forEach(u => {
+                if (u.distance < 100) {
+                    encounterService.recordEncounter(user.uid, u.id, u.distance, u.location);
+                }
+            });
 
             setNearbyUsers(updatedUsers);
             setLastUpdate(new Date());
@@ -289,7 +289,7 @@ const ProximityRadar = () => {
 
     // Refresh interval
     useEffect(() => {
-        let refreshInterval: NodeJS.Timeout;
+        let refreshInterval: any;
 
         if (scanning && myLocation) {
             refreshInterval = setInterval(() => {
@@ -490,9 +490,9 @@ const ProximityRadar = () => {
                         </Text>
                         {lastUpdate && scanning && (
                             <Text style={styles.lastUpdateText}>
-                                Cập nhật: {typeof lastUpdate === 'string'
-                                    ? lastUpdate
-                                    : lastUpdate.toLocaleTimeString('vi-VN')}
+                                Cập nhật: {lastUpdate instanceof Date
+                                    ? lastUpdate.toLocaleTimeString('vi-VN')
+                                    : String(lastUpdate)}
                             </Text>
                         )}
                     </View>
@@ -593,9 +593,9 @@ const ProximityRadar = () => {
                         <Text style={styles.headingText}>
                             {displayHeading.toFixed(0)}° {proximityService.getCardinalDirection(displayHeading)}
                         </Text>
-                        {myLocation && (
+                        {myLocation && myLocation.coords && (
                             <Text style={styles.coordsText}>
-                                {myLocation.coords.latitude.toFixed(4)}, {myLocation.coords.longitude.toFixed(4)}
+                                {Number(myLocation.coords.latitude).toFixed(4)}, {Number(myLocation.coords.longitude).toFixed(4)}
                             </Text>
                         )}
                     </View>
@@ -776,17 +776,17 @@ const ProximityRadar = () => {
                                         <View style={styles.modalStatItem}>
                                             <Ionicons name="compass" size={22} color="#00ffff" />
                                             <Text style={styles.modalStatValue}>
-                                                {selectedUser.bearing.toFixed(0)}°
+                                                {typeof selectedUser.bearing === 'number' ? selectedUser.bearing.toFixed(0) : '0'}°
                                             </Text>
                                             <Text style={styles.modalStatLabel}>
-                                                {proximityService.getCardinalDirection(selectedUser.bearing)}
+                                                {proximityService.getCardinalDirection(selectedUser.bearing || 0)}
                                             </Text>
                                         </View>
 
                                         <View style={styles.modalStatItem}>
                                             <Ionicons name="navigate" size={22} color="#00ffff" />
                                             <Text style={styles.modalStatValue}>
-                                                {getRelativeAngle(selectedUser.bearing, displayHeading).toFixed(0)}°
+                                                {getRelativeAngle(selectedUser.bearing || 0, displayHeading || 0).toFixed(0)}°
                                             </Text>
                                             <Text style={styles.modalStatLabel}>Tương đối</Text>
                                         </View>

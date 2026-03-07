@@ -5,13 +5,16 @@ import {
   Alert,
   View,
   Text,
-  Image,
   TouchableOpacity,
   Dimensions,
   StatusBar,
   Platform,
   ActivityIndicator,
+  FlatList,
+  Share,
+  Linking,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useHotSpotDetails, useHotSpots } from '@/hooks/useHotSpots';
@@ -24,11 +27,10 @@ import ErrorComponent from '@/components/common/ErrorComponent';
 import HotSpotDetailsContent from '@/components/hotspots/HotSpotDetailsContent';
 import EventDetails from '@/components/hotspots/EventDetails';
 import { Colors } from '@/constants/Colors';
-import { Share, Linking } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 const CHECK_IN_RADIUS_METERS = 200;
-const HEADER_HEIGHT = 350;
+const HEADER_HEIGHT = 400;
 
 const HotSpotDetailScreen = () => {
   const { hotSpotId } = useLocalSearchParams<{ hotSpotId: string }>();
@@ -166,10 +168,45 @@ const HotSpotDetailScreen = () => {
       >
         {/* Hero Section */}
         <View style={styles.heroContainer}>
-          <Image
-            source={{ uri: hotSpot.thumbnail || hotSpot.images[0] }}
-            style={styles.heroImage}
-          />
+          {hotSpot.images && hotSpot.images.length > 1 ? (
+            <View style={{ flex: 1 }}>
+              <FlatList
+                data={hotSpot.images}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(img, index) => `hero-img-${index}`}
+                renderItem={({ item: imgUrl }) => (
+                  <Image
+                    source={{ uri: imgUrl }}
+                    style={styles.heroImage}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                )}
+              />
+              {/* Pagination Dots */}
+              <View style={styles.paginationDots}>
+                {hotSpot.images.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.dot,
+                      { backgroundColor: 'white', opacity: 0.8 }
+                    ]}
+                  />
+                ))}
+              </View>
+            </View>
+          ) : (
+            <Image
+              source={{ uri: hotSpot.thumbnail || hotSpot.images[0] }}
+              style={styles.heroImage}
+              contentFit="cover"
+              transition={200}
+            />
+          )}
+
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
             style={styles.heroGradient}
@@ -266,7 +303,12 @@ const HotSpotDetailScreen = () => {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {hotSpot.images.map((img, index) => (
                   <TouchableOpacity key={index} style={styles.galleryImageWrapper}>
-                    <Image source={{ uri: img }} style={styles.galleryImage} />
+                    <Image
+                      source={{ uri: img }}
+                      style={styles.galleryImage}
+                      contentFit="cover"
+                      transition={200}
+                    />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -305,9 +347,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   heroImage: {
-    width: '100%',
+    width: width,
     height: '100%',
-    resizeMode: 'cover',
   },
   heroGradient: {
     position: 'absolute',
@@ -503,6 +544,20 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  paginationDots: {
+    position: 'absolute',
+    bottom: 60,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });
 

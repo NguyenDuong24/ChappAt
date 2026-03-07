@@ -1,14 +1,14 @@
 import * as Location from 'expo-location';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  updateDoc, 
-  doc, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  doc,
   GeoPoint,
   onSnapshot,
-  Timestamp 
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { getDistance, getGreatCircleBearing } from 'geolib';
@@ -129,6 +129,11 @@ class ProximityService {
     options: ProximityOptions
   ): Promise<NearbyUser[]> {
     try {
+      if (!myLocation || !myLocation.coords) {
+        console.warn('⚠️ findNearbyUsers: myLocation or coords is missing');
+        return [];
+      }
+
       const { radius, userId, includeOffline = false, maxAge = 5 * 60 * 1000 } = options;
 
       // Query all users with location data
@@ -137,60 +142,69 @@ class ProximityService {
 
       const querySnapshot = await getDocs(q);
       const nearbyUsersPromises = querySnapshot.docs.map(async (docSnap) => {
-        if (docSnap.id === userId) return null; // Skip self
+        try {
+          if (docSnap.id === userId) return null; // Skip self
 
-        const userData = docSnap.data();
-        if (!userData.location) return null;
+          const userData = docSnap.data();
+          if (!userData || !userData.location) return null;
 
-        // Check if location data is recent enough
-        if (!includeOffline && userData.lastLocationUpdate) {
-          const lastUpdate = this.convertTimestampToMillis(userData.lastLocationUpdate);
+          // Check if location data is recent enough
+          if (!includeOffline && userData.lastLocationUpdate) {
+            const lastUpdate = this.convertTimestampToMillis(userData.lastLocationUpdate);
 
-          if (lastUpdate && Date.now() - lastUpdate > maxAge) {
-            console.log(`⏱️ User ${docSnap.id} location is too old, skipping`);
+            if (lastUpdate && Date.now() - lastUpdate > maxAge) {
+              return null;
+            }
+          }
+
+          const userLat = userData.location.latitude;
+          const userLon = userData.location.longitude;
+
+          if (userLat === undefined || userLon === undefined) {
+            console.warn(`⚠️ User ${docSnap.id} has invalid location data`);
             return null;
           }
-        }
 
-        const userLat = userData.location.latitude;
-        const userLon = userData.location.longitude;
-
-        // Calculate distance
-        const distance = this.calculateDistance(
-          myLocation.coords.latitude,
-          myLocation.coords.longitude,
-          userLat,
-          userLon
-        );
-
-        // Only include users within radius
-        if (distance <= radius) {
-          // Calculate bearing
-          const bearing = this.calculateBearing(
+          // Calculate distance
+          const distance = this.calculateDistance(
             myLocation.coords.latitude,
             myLocation.coords.longitude,
             userLat,
             userLon
           );
 
-          const photoURL = await this.resolvePhotoUrl(userData);
+          // Only include users within radius
+          if (distance <= radius) {
+            // Calculate bearing
+            const bearing = this.calculateBearing(
+              myLocation.coords.latitude,
+              myLocation.coords.longitude,
+              userLat,
+              userLon
+            );
 
-          return {
-            id: docSnap.id,
-            name: userData.name || userData.username || 'Unknown',
-            photoURL,
-            distance: Math.round(distance),
-            bearing,
-            location: {
-              latitude: userLat,
-              longitude: userLon,
-            },
-            bio: typeof userData?.bio === 'string' ? userData.bio : undefined,
-            age: typeof userData?.age === 'number' ? userData.age : undefined,
-            lastLocationUpdate: this.convertTimestampToString(userData.lastLocationUpdate),
-          } as NearbyUser;
+            const photoURL = await this.resolvePhotoUrl(userData);
+
+            return {
+              id: docSnap.id,
+              name: userData.name || userData.username || 'Unknown',
+              photoURL,
+              distance: Math.round(distance),
+              bearing: bearing || 0,
+              location: {
+                latitude: userLat,
+                longitude: userLon,
+              },
+              bio: typeof userData?.bio === 'string' ? userData.bio : undefined,
+              age: typeof userData?.age === 'number' ? userData.age : undefined,
+              lastLocationUpdate: this.convertTimestampToString(userData.lastLocationUpdate),
+            } as NearbyUser;
+          }
+          return null;
+        } catch (err) {
+          console.error(`❌ Error processing user ${docSnap.id}:`, err);
+          return null;
         }
-        return null;
       });
 
       const nearbyUsersResolved = (await Promise.all(nearbyUsersPromises)).filter(Boolean) as NearbyUser[];
@@ -201,7 +215,7 @@ class ProximityService {
       console.log(`✅ Found ${nearbyUsersResolved.length} nearby users within ${radius}m`);
       return nearbyUsersResolved;
     } catch (error) {
-      console.error('Error finding nearby users:', error);
+      console.error('❌ Error in findNearbyUsers:', error);
       throw error;
     }
   }
@@ -229,7 +243,7 @@ class ProximityService {
         },
         async (location) => {
           console.log('📍 Location updated:', location.coords);
-          
+
           // Update in Firestore
           await this.updateUserLocation(userId, location);
 
@@ -322,6 +336,9 @@ class ProximityService {
    * Format distance for display
    */
   formatDistance(distanceInMeters: number): string {
+    if (distanceInMeters === undefined || distanceInMeters === null || isNaN(distanceInMeters)) {
+      return 'Unknown';
+    }
     if (distanceInMeters < 1000) {
       return `${Math.round(distanceInMeters)}m`;
     } else {
@@ -372,8 +389,10 @@ class ProximityService {
     longitude: number
   ): Promise<string> {
     // Return coordinate string as fallback
-    const coordString = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-    
+    const lat = typeof latitude === 'number' ? latitude.toFixed(4) : '0.0000';
+    const lon = typeof longitude === 'number' ? longitude.toFixed(4) : '0.0000';
+    const coordString = `${lat}, ${lon}`;
+
     try {
       const addresses = await safeReverseGeocodeAsync({ latitude, longitude });
       if (addresses && addresses.length > 0) {
@@ -437,10 +456,10 @@ class ProximityService {
    */
   private convertTimestampToString(timestamp: any): string | undefined {
     if (!timestamp) return undefined;
-    
+
     // If it's already a string, return it
     if (typeof timestamp === 'string') return timestamp;
-    
+
     // If it has toDate method (Firestore Timestamp), use it
     if (timestamp.toDate && typeof timestamp.toDate === 'function') {
       try {
@@ -449,7 +468,7 @@ class ProximityService {
         console.warn('Failed to convert Timestamp to Date:', error);
       }
     }
-    
+
     // If it has seconds/nanoseconds (Firestore Timestamp object)
     if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
       try {
@@ -459,7 +478,7 @@ class ProximityService {
         console.warn('Failed to convert timestamp object to Date:', error);
       }
     }
-    
+
     // Fallback: try to convert to string
     try {
       return new Date(timestamp).toISOString();
@@ -474,7 +493,7 @@ class ProximityService {
    */
   private convertTimestampToMillis(timestamp: any): number | undefined {
     if (!timestamp) return undefined;
-    
+
     // If it has toMillis method (Firestore Timestamp), use it
     if (timestamp.toMillis && typeof timestamp.toMillis === 'function') {
       try {
@@ -483,7 +502,7 @@ class ProximityService {
         console.warn('Failed to get millis from Timestamp:', error);
       }
     }
-    
+
     // If it has seconds/nanoseconds (Firestore Timestamp object)
     if (timestamp.seconds !== undefined && timestamp.nanoseconds !== undefined) {
       try {
@@ -492,7 +511,7 @@ class ProximityService {
         console.warn('Failed to convert timestamp object to millis:', error);
       }
     }
-    
+
     // Try to convert as date
     try {
       const date = new Date(timestamp);
@@ -502,7 +521,7 @@ class ProximityService {
     } catch (error) {
       console.warn('Failed to convert timestamp to millis:', error);
     }
-    
+
     return undefined;
   }
 }

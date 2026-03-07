@@ -246,11 +246,61 @@ const UserProfileScreen = () => {
     // Show loading while checking block status
     if (blockLoading || loading) {
         return (
-            <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={{ color: colors.text, marginTop: 12 }}>
-                    Đang tải...
-                </Text>
+            <View style={[styles.container, { backgroundColor: colors.background }]}>
+                {/* Cover Skeleton */}
+                <View style={{ width: '100%', height: 180, backgroundColor: colors.border, opacity: 0.3 }} />
+
+                {/* Avatar & Info Skeleton */}
+                <View style={{ paddingHorizontal: 20, marginTop: -50 }}>
+                    <View style={{ width: 108, height: 108, borderRadius: 54, backgroundColor: colors.border, opacity: 0.3, marginBottom: 16 }} />
+
+                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                        <View style={{ width: 140, height: 24, borderRadius: 12, backgroundColor: colors.border, opacity: 0.3, marginBottom: 8 }} />
+                        <View style={{ width: 80, height: 16, borderRadius: 8, backgroundColor: colors.border, opacity: 0.2, marginBottom: 16 }} />
+                        <View style={{ width: 180, height: 14, borderRadius: 7, backgroundColor: colors.border, opacity: 0.2, marginBottom: 16 }} />
+                    </View>
+
+                    {/* Stats Skeleton */}
+                    <View style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-around',
+                        paddingVertical: 18,
+                        borderRadius: 18,
+                        backgroundColor: colors.border,
+                        opacity: 0.15,
+                        marginBottom: 20
+                    }}>
+                        {[1, 2, 3].map((i) => (
+                            <View key={i} style={{ alignItems: 'center' }}>
+                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.border, opacity: 0.3, marginBottom: 6 }} />
+                                <View style={{ width: 40, height: 16, borderRadius: 8, backgroundColor: colors.border, opacity: 0.2 }} />
+                            </View>
+                        ))}
+                    </View>
+
+                    {/* Posts Skeleton */}
+                    {[1, 2].map((i) => (
+                        <View key={i} style={{
+                            backgroundColor: colors.surface || colors.background,
+                            borderRadius: 16,
+                            padding: 16,
+                            marginBottom: 16,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            opacity: 0.5
+                        }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.border, marginRight: 12 }} />
+                                <View style={{ flex: 1 }}>
+                                    <View style={{ width: 100, height: 14, borderRadius: 7, backgroundColor: colors.border, marginBottom: 6 }} />
+                                    <View style={{ width: 60, height: 12, borderRadius: 6, backgroundColor: colors.border }} />
+                                </View>
+                            </View>
+                            <View style={{ width: '80%', height: 12, borderRadius: 6, backgroundColor: colors.border, marginBottom: 8 }} />
+                            <View style={{ width: '60%', height: 12, borderRadius: 6, backgroundColor: colors.border }} />
+                        </View>
+                    ))}
+                </View>
             </View>
         );
     }
@@ -267,22 +317,31 @@ const UserProfileScreen = () => {
                         <>
                             {/* Show profile header */}
                             {profileUser && (
-                                <View style={{ marginHorizontal: -16, marginVertical: -20 }}>
+                                <View style={{ marginTop: -20, marginBottom: 12 }}>
                                     <TopProfileUserProfileScreen user={profileUser} />
                                 </View>
                             )}
 
                             {/* Blocked message instead of posts */}
                             <View style={[styles.blockedPostsContainer, {
-                                backgroundColor: colors.surface,
-                                borderColor: colors.border
+                                backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                borderColor: 'rgba(239, 68, 68, 0.2)'
                             }]}>
-                                <MaterialCommunityIcons
-                                    name="block-helper"
-                                    size={32}
-                                    color="#EF4444"
-                                    style={{ marginBottom: 12 }}
-                                />
+                                <View style={{
+                                    width: 64,
+                                    height: 64,
+                                    borderRadius: 32,
+                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginBottom: 16
+                                }}>
+                                    <MaterialCommunityIcons
+                                        name="block-helper"
+                                        size={32}
+                                        color="#EF4444"
+                                    />
+                                </View>
                                 <Text style={[styles.blockedPostsTitle, { color: colors.text }]}>
                                     {isBlocked ? 'Bạn đã chặn người dùng này' : 'Không có bài viết'}
                                 </Text>
@@ -295,7 +354,7 @@ const UserProfileScreen = () => {
                             </View>
                         </>
                     }
-                    contentContainerStyle={[styles.flatListContainer, { paddingHorizontal: 16 }]}
+                    contentContainerStyle={[styles.flatListContainer]}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                     showsVerticalScrollIndicator={false}
                 />
@@ -312,12 +371,12 @@ const UserProfileScreen = () => {
                 keyExtractor={(item) => item.id}
                 ListHeaderComponent={
                     profileUser && (
-                        <View style={{ marginHorizontal: -16, marginVertical: -20 }}>
+                        <View style={{ marginTop: -20, marginBottom: 12 }}>
                             <TopProfileUserProfileScreen user={profileUser} />
                         </View>
                     )
                 }
-                contentContainerStyle={[styles.flatListContainer, { paddingHorizontal: 16 }]}
+                contentContainerStyle={[styles.flatListContainer]}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                 showsVerticalScrollIndicator={false}
             />
@@ -364,23 +423,25 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     blockedPostsContainer: {
-        padding: 24,
-        borderRadius: 12,
-        borderWidth: 1,
+        padding: 32,
+        borderRadius: 20,
+        borderWidth: 1.5,
         alignItems: 'center',
-        marginTop: 20,
+        marginTop: 24,
         marginHorizontal: 16,
     },
     blockedPostsTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 6,
+        fontSize: 17,
+        fontWeight: '700',
+        marginBottom: 8,
         textAlign: 'center',
+        letterSpacing: -0.3,
     },
     blockedPostsText: {
-        fontSize: 13,
+        fontSize: 14,
         textAlign: 'center',
-        lineHeight: 18,
+        lineHeight: 20,
+        opacity: 0.8,
     },
 });
 

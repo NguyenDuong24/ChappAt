@@ -150,10 +150,7 @@ export const useOptimizedChatMessages = ({
       const newMessages: Message[] = [];
       const modifiedMessages: Message[] = [];
 
-      console.log('🔥 [setupRealtimeListener] Snapshot received. Changes:', snapshot.docChanges().length);
-
       snapshot.docChanges().forEach((change) => {
-        console.log('👉 Change type:', change.type, 'ID:', change.doc.id);
         if (change.type === 'added') {
           const messageData = {
             id: change.doc.id,

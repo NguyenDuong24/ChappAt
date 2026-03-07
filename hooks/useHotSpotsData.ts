@@ -75,7 +75,7 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
   const [hasMore, setHasMore] = useState(true);
   const [filters, setFilters] = useState<HotSpotFilters>({});
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   const PAGE_SIZE = 20;
 
   // Helper function to safely convert any value to string
@@ -84,7 +84,7 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
     if (typeof value === 'string') return value;
     if (typeof value === 'number') return value.toString();
     if (typeof value === 'boolean') return value.toString();
-    
+
     // For objects, try to extract meaningful string representation
     if (typeof value === 'object') {
       // If it has a toString method that's not the default Object.prototype.toString
@@ -98,7 +98,7 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
           console.warn('Error converting object to string:', error);
         }
       }
-      
+
       // Try to serialize as JSON (but limit length)
       try {
         const jsonString = JSON.stringify(value);
@@ -107,84 +107,69 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
         console.warn('Error serializing object:', error);
       }
     }
-    
+
     return fallback;
   };
 
   // Helper function to safely extract location string
   const extractLocationString = (locationData: any): string => {
     if (!locationData) return 'Chưa rõ';
-    
+
     // If it's already a string, return it
     if (typeof locationData === 'string') {
       return locationData;
     }
-    
+
     // If it's an object, try to extract meaningful location info
     if (typeof locationData === 'object') {
       // Try different possible fields
       const address = locationData.address || locationData.fullAddress || locationData.street;
       const city = locationData.city || locationData.cityName;
       const district = locationData.district || locationData.ward;
-      
+
       // Build location string from available components
       const parts = [];
       if (address && typeof address === 'string') parts.push(address);
       if (district && typeof district === 'string') parts.push(district);
       if (city && typeof city === 'string') parts.push(city);
-      
+
       if (parts.length > 0) {
         return parts.join(', ');
       }
-      
+
       // If we have coordinates, show them as fallback
       if (locationData.latitude && locationData.longitude) {
         return `${locationData.latitude.toFixed(4)}, ${locationData.longitude.toFixed(4)}`;
       }
     }
-    
+
     return 'Chưa rõ';
   };
 
   // Helper function to safely extract address string
   const extractAddressString = (addressData: any): string | undefined => {
     if (!addressData) return undefined;
-    
+
     if (typeof addressData === 'string') {
       return addressData;
     }
-    
+
     if (typeof addressData === 'object') {
       return addressData.address || addressData.fullAddress || addressData.street || undefined;
     }
-    
+
     return undefined;
   };
 
   // Convert Firebase HotSpot to UI HotSpot
-  const convertToUIHotSpot = async (firebaseSpot: any): Promise<UIHotSpot> => {
+  const convertToUIHotSpot = (firebaseSpot: any, userInteractions?: Map<string, any>): UIHotSpot => {
     // Safely extract location and address
     const locationString = extractLocationString(firebaseSpot.location || firebaseSpot.address);
     const addressString = extractAddressString(firebaseSpot.address);
-    
-    // Check if user is interested via eventInterests collection
-    let isInterested = false;
-    if (user?.uid) {
-      try {
-        const { collection: firestoreCollection, query: firestoreQuery, where, getDocs } = await import('firebase/firestore');
-        const { db } = await import('@/firebaseConfig');
-        const q = firestoreQuery(
-          firestoreCollection(db, 'eventInterests'),
-          where('eventId', '==', firebaseSpot.id),
-          where('userId', '==', user.uid)
-        );
-        const snapshot = await getDocs(q);
-        isInterested = !snapshot.empty;
-      } catch (error) {
-        console.warn('Error checking interested status:', error);
-      }
-    }
-    
+
+    // Get interaction data from batch map
+    const interaction = userInteractions?.get(firebaseSpot.id) || {};
+
     return {
       id: safeString(firebaseSpot.id, 'unknown'),
       title: safeString(firebaseSpot.title, 'Hot Spot'),
@@ -192,8 +177,8 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
       category: safeString(firebaseSpot.category, 'general'),
       type: firebaseSpot.type === 'event' || firebaseSpot.type === 'place' ? firebaseSpot.type : 'place',
       imageUrl: safeString(firebaseSpot.imageUrl || firebaseSpot.images?.[0], undefined),
-      images: Array.isArray(firebaseSpot.images) ? firebaseSpot.images.filter((img: any) => typeof img === 'string') : 
-               (firebaseSpot.imageUrl && typeof firebaseSpot.imageUrl === 'string' ? [firebaseSpot.imageUrl] : []),
+      images: Array.isArray(firebaseSpot.images) ? firebaseSpot.images.filter((img: any) => typeof img === 'string') :
+        (firebaseSpot.imageUrl && typeof firebaseSpot.imageUrl === 'string' ? [firebaseSpot.imageUrl] : []),
       location: locationString,
       address: addressString,
       coordinates: firebaseSpot.coordinates,
@@ -212,11 +197,11 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
       createdAt: firebaseSpot.createdAt,
       updatedAt: firebaseSpot.updatedAt,
       creatorId: safeString(firebaseSpot.creatorId, undefined),
-      // User interactions
-      isJoined: false, // TODO: implement if needed
-      isInterested: isInterested,
-      isFavorited: false, // TODO: implement if needed
-      hasCheckedIn: false, // TODO: implement if needed
+      // User interactions from batch data
+      isJoined: Boolean(interaction.isJoined),
+      isInterested: Boolean(interaction.isInterested),
+      isFavorited: Boolean(interaction.isFavorited),
+      hasCheckedIn: Boolean(interaction.hasCheckedIn),
     };
   };
 
@@ -231,18 +216,18 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
       category: safeString(hotSpot.category, 'general'),
       location: safeString(hotSpot.location, 'Chưa rõ'),
       address: hotSpot.address ? safeString(hotSpot.address) : undefined,
-      
+
       // Ensure numeric fields are valid numbers
       participants: Math.max(0, parseInt(hotSpot.participants?.toString() || '0')),
       maxParticipants: hotSpot.maxParticipants ? Math.max(0, parseInt(hotSpot.maxParticipants.toString())) : undefined,
       interestedCount: Math.max(0, parseInt(hotSpot.interestedCount?.toString() || '0')),
       price: hotSpot.price ? Math.max(0, parseFloat(hotSpot.price.toString())) : undefined,
       rating: Math.max(0, Math.min(5, parseFloat(hotSpot.rating?.toString() || '0'))),
-      
+
       // Ensure arrays are valid
       images: Array.isArray(hotSpot.images) ? hotSpot.images.filter((img: any) => typeof img === 'string' && img.length > 0) : [],
       tags: Array.isArray(hotSpot.tags) ? hotSpot.tags.filter((tag: any) => typeof tag === 'string' && tag.length > 0) : [],
-      
+
       // Ensure booleans
       isPopular: Boolean(hotSpot.isPopular),
       isNew: Boolean(hotSpot.isNew),
@@ -289,27 +274,33 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
         }
       }
 
-      // Convert to UI format
-      const uiSpots = await Promise.all(firebaseSpots.map(spot => convertToUIHotSpot(spot)));
+      // Convert to UI format using batch interactions
+      const uiSpots = firebaseSpots.map(spot => convertToUIHotSpot(spot, userInteractions));
 
-      if (isRefresh) {
+      console.log(`📊 Loaded ${uiSpots.length} UI spots. isRefresh: ${isRefresh}, currentPage: ${currentPage}`);
+
+      if (isRefresh || currentPage === 1) {
         setHotSpots(uiSpots);
       } else {
-        setHotSpots(prev => currentPage === 1 ? uiSpots : [...prev, ...uiSpots]);
+        // If we are appending, we should only append NEW items.
+        // But since getHotSpots currently fetches from the start with a larger limit,
+        // we can just replace the whole list or filter out duplicates.
+        setHotSpots(uiSpots);
       }
 
       // Update featured spots
       const featured = uiSpots.filter(spot => spot.isFeatured).slice(0, 5);
       setFeaturedSpots(featured);
+      console.log(`🌟 Featured spots: ${featured.length}`);
 
       // Update pagination
-      setHasMore(firebaseSpots.length === PAGE_SIZE);
+      setHasMore(firebaseSpots.length >= (isRefresh ? PAGE_SIZE : PAGE_SIZE * currentPage));
 
     } catch (error: any) {
-      console.error('Error loading hot spots:', error);
+      console.error('❌ Error loading hot spots:', error);
       const errorMessage = FirebaseErrorHandler.getUserFriendlyMessage(error);
       setError(errorMessage);
-      
+
       // Set fallback data if it's first load
       if (hotSpots.length === 0) {
         setHotSpots([]);
@@ -319,7 +310,7 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filters, currentPage, user?.uid, hotSpots.length]);
+  }, [filters, currentPage, user?.uid]);
 
   // Refresh data
   const refresh = useCallback(async () => {
@@ -329,7 +320,7 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
   // Load more data
   const loadMore = useCallback(async () => {
     if (!hasMore || loading || refreshing) return;
-    
+
     setCurrentPage(prev => prev + 1);
   }, [hasMore, loading, refreshing]);
 
@@ -345,16 +336,16 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
 
     try {
       await optimizedHotSpotsService.joinHotSpot(user.uid, hotSpotId);
-      
+
       // Update local state optimistically
-      setHotSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+      setHotSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isJoined: true, participants: spot.participants + 1 }
           : spot
       ));
-      
-      setFeaturedSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+
+      setFeaturedSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isJoined: true, participants: spot.participants + 1 }
           : spot
       ));
@@ -370,16 +361,16 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
 
     try {
       await optimizedHotSpotsService.markInterested(user.uid, hotSpotId);
-      
+
       // Update local state optimistically
-      setHotSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+      setHotSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isInterested: !spot.isInterested }
           : spot
       ));
-      
-      setFeaturedSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+
+      setFeaturedSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isInterested: !spot.isInterested }
           : spot
       ));
@@ -395,16 +386,16 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
 
     try {
       await optimizedHotSpotsService.removeInterested(user.uid, hotSpotId);
-      
+
       // Update local state optimistically
-      setHotSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+      setHotSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isInterested: false }
           : spot
       ));
-      
-      setFeaturedSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+
+      setFeaturedSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isInterested: false }
           : spot
       ));
@@ -420,16 +411,16 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
 
     try {
       await optimizedHotSpotsService.checkIn(user.uid, hotSpotId, location);
-      
+
       // Update local state optimistically
-      setHotSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+      setHotSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, hasCheckedIn: true }
           : spot
       ));
-      
-      setFeaturedSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+
+      setFeaturedSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, hasCheckedIn: true }
           : spot
       ));
@@ -452,16 +443,16 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
       } else {
         await optimizedHotSpotsService.addFavorite(user.uid, hotSpotId);
       }
-      
+
       // Update local state optimistically
-      setHotSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+      setHotSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isFavorited: !spot.isFavorited }
           : spot
       ));
-      
-      setFeaturedSpots(prev => prev.map(spot => 
-        spot.id === hotSpotId 
+
+      setFeaturedSpots(prev => prev.map(spot =>
+        spot.id === hotSpotId
           ? { ...spot, isFavorited: !spot.isFavorited }
           : spot
       ));
@@ -472,10 +463,10 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
     }
   }, [user?.uid, hotSpots]);
 
-  // Load data when filters change
+  // Load data when filters or user changes
   useEffect(() => {
     loadHotSpots(true);
-  }, [filters]);
+  }, [filters, user?.uid]);
 
   // Load more when currentPage changes
   useEffect(() => {
@@ -483,11 +474,6 @@ export const useHotSpotsData = (): UseHotSpotsDataReturn => {
       loadHotSpots(false);
     }
   }, [currentPage]);
-
-  // Initial load
-  useEffect(() => {
-    loadHotSpots(true);
-  }, [user?.uid]);
 
   return {
     hotSpots,

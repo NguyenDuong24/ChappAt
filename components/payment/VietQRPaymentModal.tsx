@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { getAuth } from 'firebase/auth';
 import { PaymentResult, PaymentStatus, vietqrPaymentService, startPaymentPolling, startRealTimePaymentListener } from '../../services/vietqrPaymentService';
+import { diagnosticService } from '../../services/diagnosticService';
 
 interface VietQRPaymentModalProps {
     visible: boolean;
@@ -289,6 +290,29 @@ export default function VietQRPaymentModal({
         }
     };
 
+    // Debug: Run diagnostic
+    const handleRunDiagnostic = async () => {
+        if (!paymentResult?.orderId) {
+            Alert.alert('Lỗi', 'Không có orderId');
+            return;
+        }
+
+        Alert.alert('🔍 Running Diagnostic', 'Đang kiểm tra...');
+        const results = await diagnosticService.runFullDiagnostic(paymentResult.orderId);
+        await diagnosticService.analyzeProblem(paymentResult.orderId);
+
+        const summaryText = `
+Firestore: ${results.checks.firestore ? '✅' : '❌'}
+Status: ${results.checks.firestoreStatus || 'N/A'}
+Server: ${results.checks.server ? '✅' : '❌'}
+Backend: ${results.checks.backend ? '✅' : '❌'}
+
+Chi tiết xem logs ở console (F12)
+        `;
+
+        Alert.alert('📊 Diagnostic Results', summaryText.trim());
+    };
+
     const renderContent = () => {
         if (status === 'success') {
             return (
@@ -409,8 +433,18 @@ export default function VietQRPaymentModal({
 
                     {/* Close option */}
                     <View style={styles.section}>
+                        {/* Debug button */}
                         <TouchableOpacity
-                            style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#eee' }}
+                            style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#eee', borderBottomWidth: 1, borderBottomColor: '#eee' }}
+                            onPress={handleRunDiagnostic}
+                        >
+                            <Text style={{ textAlign: 'center', color: '#999', fontSize: 12, fontWeight: '500' }}>
+                                🔍 Chẩn đoán vấn đề
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={{ paddingVertical: 12 }}
                             onPress={onClose}
                         >
                             <Text style={{ textAlign: 'center', color: '#666', fontSize: 14, fontWeight: '600' }}>

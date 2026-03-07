@@ -54,119 +54,151 @@ export default function VietQRPaymentModal({
 
             // Auto-start real-time listener after 2 seconds
             const autoStartTimer = setTimeout(() => {
-                if (autoMode) {
-                    startAutoConfirmation();
-                }
+                startAutoConfirmation();
             }, 2000);
 
             return () => clearTimeout(autoStartTimer);
         }
-    }, [visible, paymentResult, autoMode]);
+    }, [visible, paymentResult]);
 
     const startAutoConfirmation = () => {
-        if (!paymentResult?.orderId) return;
+        if (!paymentResult?.orderId) {
+            console.warn('[VietQRModal] No orderId found');
+            return;
+        }
 
         const auth = getAuth();
         const uid = auth.currentUser?.uid;
         if (!uid) {
             setStatus('failed');
-            setMessage('Lỗi: Không thể xác định người dùng');
+            setMessage('Lỗi: Không xác định được người dùng. Vui lòng đăng nhập lại');
+            console.warn('[VietQRModal] No uid found');
             return;
         }
 
-        console.log('[VietQRModal] Starting real-time listener for SMS Banking');
+        console.log('[VietQRModal] Starting real-time listener for SMS Banking, orderId:', paymentResult.orderId);
         setStatus('polling');
         setMessage('⏳ Chờ xác nhận từ SMS Banking...');
         setVerificationMethod('sms_banking');
 
-        // Start real-time listener (listens for SMS Banking confirmation)
-        const listeningController = startRealTimePaymentListener(
-            paymentResult.orderId,
-            uid,
-            (newStatus) => {
-                // Status changed (but not completed yet)
-                console.log('[VietQRModal] Status update:', newStatus.status);
-            },
-            (completedStatus) => {
-                // Payment completed!
-                const method = completedStatus.verificationMethod || 'polling';
-                setVerificationMethod(method as any);
-                
-                if (method === 'sms_banking') {
-                    setMessage('✅ Thanh toán thành công (SMS Banking)!');
-                    console.log('[VietQRModal] ✅ SMS Banking confirmed!');
-                } else if (method === 'manual') {
-                    setMessage('✅ Thanh toán thành công (Xác nhận thủ công)!');
-                } else {
-                    setMessage('✅ Thanh toán thành công!');
-                }
-                
-                setStatus('success');
-                setPollingController(null);
-                onPaymentSuccess(completedStatus);
-            },
-            (error) => {
-                console.log('[VietQRModal] Real-time listener failed, fallback to polling');
-                // If real-time fails, fallback to polling
-                startFallbackPolling();
-            },
-            10 * 60 * 1000
-        );
+        try {
+            // Start real-time listener (listens for SMS Banking confirmation)
+            const listeningController = startRealTimePaymentListener(
+                paymentResult.orderId,
+                uid,
+                (newStatus) => {
+                    // Status changed (but not completed yet)
+                    console.log('[VietQRModal] Status update:', newStatus.status);
+                },
+                (completedStatus) => {
+                    // Payment completed!
+                    const method = completedStatus.verificationMethod || 'polling';
+                    setVerificationMethod(method as any);
+                    
+                    if (method === 'sms_banking') {
+                        setMessage('✅ Thanh toán thành công (SMS Banking)!');
+                        console.log('[VietQRModal] ✅ SMS Banking confirmed!');
+                    } else if (method === 'manual') {
+                        setMessage('✅ Thanh toán thành công (Xác nhận thủ công)!');
+                    } else {
+                        setMessage('✅ Thanh toán thành công!');
+                    }
+                    
+                    setStatus('success');
+                    setPollingController(null);
+                    onPaymentSuccess(completedStatus);
+                },
+                (error) => {
+                    console.log('[VietQRModal] Real-time listener error:', error);
+                    // If real-time fails, fallback to polling
+                    startFallbackPolling();
+                },
+                10 * 60 * 1000
+            );
 
-        setPollingController(listeningController);
+            setPollingController(listeningController);
+        } catch (error) {
+            console.error('[VietQRModal] Error starting real-time listener:', error);
+            // Fallback to polling on error
+            startFallbackPolling();
+        }
     };
 
     const startFallbackPolling = () => {
-        console.log('[VietQRModal] Starting fallback polling');
-        setMessage('⏳ Chờ xác nhận (Polling)...');
-        
-        const pollingController = startPaymentPolling(
-            paymentResult!.orderId,
-            (newStatus) => {
-                setPollCounter((prev) => prev + 1);
-            },
-            (completedStatus) => {
-                const method = completedStatus.verificationMethod || 'polling';
-                setVerificationMethod(method as any);
-                
-                if (method === 'sms_banking') {
-                    setMessage('✅ Thanh toán thành công (SMS Banking)!');
-                } else if (method === 'manual') {
-                    setMessage('✅ Thanh toán thành công (Xác nhận thủ công)!');
-                } else {
-                    setMessage('✅ Thanh toán thành công!');
-                }
-                
-                setStatus('success');
-                setPollingController(null);
-                onPaymentSuccess(completedStatus);
-            },
-            (error) => {
-                setStatus('failed');
-                setMessage(error);
-                setPollingController(null);
-                onPaymentFailed(error);
-            },
-            3000,
-            10 * 60 * 1000
-        );
+        if (!paymentResult?.orderId) {
+            console.warn('[VietQRModal] No orderId for fallback polling');
+            return;
+        }
 
-        setPollingController(pollingController);
+        console.log('[VietQRModal] Starting fallback polling');
+        setMessage('⏳ Chờ xác nhận (Polling mode)...');
+        
+        try {
+            const pollingController = startPaymentPolling(
+                paymentResult.orderId,
+                (newStatus) => {
+                    setPollCounter((prev) => prev + 1);
+                    console.log('[VietQRModal] Poll attempt:', newStatus.status);
+                },
+                (completedStatus) => {
+                    const method = completedStatus.verificationMethod || 'polling';
+                    setVerificationMethod(method as any);
+                    
+                    if (method === 'sms_banking') {
+                        setMessage('✅ Thanh toán thành công (SMS Banking)!');
+                    } else if (method === 'manual') {
+                        setMessage('✅ Thanh toán thành công (Xác nhận thủ công)!');
+                    } else {
+                        setMessage('✅ Thanh toán thành công!');
+                    }
+                    
+                    setStatus('success');
+                    setPollingController(null);
+                    onPaymentSuccess(completedStatus);
+                },
+                (error) => {
+                    console.error('[VietQRModal] Polling failed:', error);
+                    setStatus('failed');
+                    setMessage(error);
+                    setPollingController(null);
+                    onPaymentFailed(error);
+                },
+                3000,
+                10 * 60 * 1000
+            );
+
+            setPollingController(pollingController);
+        } catch (error: any) {
+            console.error('[VietQRModal] Error starting fallback polling:', error);
+            setStatus('failed');
+            setMessage(error?.message || 'Lỗi khi khởi động polling');
+            onPaymentFailed(error?.message || 'Polling initialization failed');
+        }
     };
 
     useEffect(() => {
         return () => {
+            // Cleanup: Stop listening/polling when component unmounts or modal closes
             if (pollingController) {
-                pollingController.stop();
+                try {
+                    pollingController.stop();
+                    console.log('[VietQRModal] Cleanup: Stopped polling/listening');
+                } catch (error) {
+                    console.warn('[VietQRModal] Cleanup error:', error);
+                }
             }
         };
     }, [pollingController]);
 
     const handleCopyDescription = async () => {
-        if (!paymentResult?.description) return;
+        if (!paymentResult?.description) {
+            Alert.alert('Lỗi', 'Không có nội dung để copy');
+            return;
+        }
 
         try {
             await Clipboard.setString(paymentResult.description);
+            console.log('[VietQRModal] Copied to clipboard:', paymentResult.description);
             // Show feedback with actual content
             Alert.alert(
                 '✅ Đã copy', 
@@ -175,45 +207,56 @@ export default function VietQRPaymentModal({
                 { cancelable: true }
             );
         } catch (error) {
-            console.warn('[Copy Error]', error);
+            console.warn('[VietQRModal] Copy error:', error);
             Alert.alert('Lỗi', 'Không thể copy. Vui lòng thử lại');
         }
     };
 
     const handleDirectPayment = () => {
-        if (!paymentResult) return;
+        if (!paymentResult) {
+            Alert.alert('Lỗi', 'Không có thông tin thanh toán');
+            return;
+        }
 
         const { amount, description, accountNumber } = paymentResult;
         
+        if (!amount || !description || !accountNumber) {
+            Alert.alert('Lỗi', 'Thông tin thanh toán không đầy đủ');
+            return;
+        }
+
         // Deep link to Vietcombank app with pre-filled payment info
         const bankingLink = `vietcombank://pay?amount=${amount}&account=${accountNumber}&description=${encodeURIComponent(description)}`;
         
+        console.log('[VietQRModal] Opening banking link:', bankingLink);
+
         Linking.canOpenURL(bankingLink)
             .then((supported) => {
                 if (supported) {
                     return Linking.openURL(bankingLink);
                 } else {
                     // Fallback: Show error and keep modal open
+                    console.warn('[VietQRModal] Banking link not supported');
                     Alert.alert('Lỗi', 'Vui lòng quét mã QR hoặc chuyển khoản thủ công');
                 }
             })
             .catch((error) => {
-                console.error('[Banking Link Error]', error);
+                console.error('[VietQRModal] Banking link error:', error);
                 Alert.alert('Lỗi', 'Không thể mở app ngân hàng. Vui lòng quét mã QR.');
             });
     };
 
     const handleVerifyPayment = async () => {
         if (!paymentResult) {
-            Alert.alert('Lỗi', 'Không có thông tin thanh toán');
+            Alert.alert('Lỗi', 'Không có thông tin thanh toán. Vui lòng thử lại');
             return;
         }
 
         // ✅ Use pre-filled description from modal (no user input needed)
         const descriptionToVerify = paymentResult.description;
         
-        if (!descriptionToVerify.trim()) {
-            Alert.alert('Lỗi', 'Không có nội dung thanh toán');
+        if (!descriptionToVerify?.trim()) {
+            Alert.alert('Lỗi', 'Không có nội dung thanh toán. Vui lòng liên hệ hỗ trợ');
             return;
         }
 
@@ -222,6 +265,7 @@ export default function VietQRPaymentModal({
         setMessage('Đang xác nhận thanh toán...');
 
         try {
+            console.log('[VietQRModal] Verifying payment with description:', descriptionToVerify);
             const result = await vietqrPaymentService.verifyPayment(
                 paymentResult.orderId,
                 descriptionToVerify,
@@ -229,13 +273,16 @@ export default function VietQRPaymentModal({
             );
 
             setStatus('success');
+            setVerificationMethod('manual');
             setMessage('✅ Thanh toán đã xác nhận!');
+            console.log('[VietQRModal] Manual verification success:', result);
             onPaymentSuccess(result as PaymentStatus);
         } catch (error: any) {
             // ⚠️ IMPORTANT: Keep modal open on failure - user can retry
             setStatus('failed');
-            const errorMsg = error?.message || 'Xác nhận thanh toán thất bại. Vui lòng thử lại';
+            const errorMsg = error?.message || 'Xác nhận thanh toán thất bại. Vui lòng thử lại hoặc liên hệ hỗ trợ';
             setMessage(errorMsg);
+            console.error('[VietQRModal] Manual verification failed:', error);
             // Don't call onPaymentFailed - let user retry within modal
         } finally {
             setIsVerifying(false);

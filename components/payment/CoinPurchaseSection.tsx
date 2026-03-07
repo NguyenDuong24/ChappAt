@@ -10,16 +10,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import MoMoPaymentModal from './MoMoPaymentModal';
+import VietQRPaymentModal from './VietQRPaymentModal';
 import {
-    momoPaymentService,
+    vietqrPaymentService,
     COIN_PACKAGES,
     CoinPackage,
     PaymentResult,
     PaymentStatus,
-    formatVND,
     getPaymentErrorMessage,
-} from '../../services/momoPaymentService';
+} from '../../services/vietqrPaymentService';
 
 interface CoinPurchaseSectionProps {
     onPurchaseSuccess: (newBalance: number) => void;
@@ -37,7 +36,7 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
             setLoading(true);
             setSelectedPackage(pkg);
 
-            const result = await momoPaymentService.createCoinPurchase(pkg);
+            const result = await vietqrPaymentService.createCoinPurchase(pkg);
             setPaymentResult(result);
             setShowPaymentModal(true);
         } catch (error) {
@@ -70,6 +69,11 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
         router.push('/(screens)/subscription/ProUpgradeScreen');
     };
 
+    // Helper to format VND
+    const formatVND = (value: number): string => {
+        return value.toLocaleString('vi-VN');
+    };
+
     return (
         <View style={styles.container}>
             {/* Pro Upgrade Banner */}
@@ -99,18 +103,42 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
                 </LinearGradient>
             </TouchableOpacity>
 
-            {/* Section Title */}
+            {/* Section Title with SMS Banking Badge */}
             <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Mua Coin bằng MoMo</Text>
-                <View style={styles.momoLogo}>
+                <View style={styles.sectionTitleContainer}>
+                    <Text style={styles.sectionTitle}>Mua Coin bằng VietQR</Text>
+                    <View style={styles.smsBankingBadge}>
+                        <Ionicons name="phone-portrait" size={12} color="#fff" />
+                        <Text style={styles.smsBankingBadgeText}>SMS Banking</Text>
+                    </View>
+                </View>
+                <View style={styles.vietqrLogo}>
                     <LinearGradient
-                        colors={['#A50064', '#D82D8B']}
-                        style={styles.momoLogoGradient}
+                        colors={['#1976D2', '#1565C0']}
+                        style={styles.vietqrLogoGradient}
                     >
-                        <Text style={styles.momoLogoText}>MoMo</Text>
+                        <Text style={styles.vietqrLogoText}>QR</Text>
                     </LinearGradient>
                 </View>
             </View>
+
+            {/* SMS Banking Info Banner */}
+            <LinearGradient
+                colors={['#E8F5E9', '#C8E6C9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.smsBankingInfoBanner}
+            >
+                <View style={styles.smsBankingIconContainer}>
+                    <Ionicons name="phone-portrait" size={20} color="#2E7D32" />
+                </View>
+                <View style={styles.smsBankingTextContainer}>
+                    <Text style={styles.smsBankingInfoTitle}>⚡ Xác nhận tự động qua SMS Banking</Text>
+                    <Text style={styles.smsBankingInfoText}>
+                        Chuyển khoản để thanh toán. App tự động nhận SMS từ Vietcombank và xác nhận trong &lt;1 phút
+                    </Text>
+                </View>
+            </LinearGradient>
 
             {/* Coin Packages */}
             <View style={styles.packagesGrid}>
@@ -156,13 +184,13 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
             {/* Loading overlay */}
             {loading && (
                 <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color="#A50064" />
+                    <ActivityIndicator size="large" color="#1976D2" />
                     <Text style={styles.loadingText}>Đang tạo đơn hàng...</Text>
                 </View>
             )}
 
             {/* Payment Modal */}
-            <MoMoPaymentModal
+            <VietQRPaymentModal
                 visible={showPaymentModal}
                 onClose={() => setShowPaymentModal(false)}
                 paymentResult={paymentResult}
@@ -217,22 +245,70 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 12,
+    },
+    sectionTitleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: 'bold',
         color: '#1A1A1A',
     },
-    momoLogo: {
+    smsBankingBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#2E7D32',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+    },
+    smsBankingBadgeText: {
+        fontSize: 10,
+        fontWeight: '600',
+        color: '#fff',
+    },
+    smsBankingInfoBanner: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        borderRadius: 12,
+        marginBottom: 16,
+        borderLeftWidth: 4,
+        borderLeftColor: '#2E7D32',
+    },
+    smsBankingIconContainer: {
+        marginRight: 12,
+        marginTop: 2,
+    },
+    smsBankingTextContainer: {
+        flex: 1,
+    },
+    smsBankingInfoTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1B5E20',
+        marginBottom: 4,
+    },
+    smsBankingInfoText: {
+        fontSize: 12,
+        color: '#2E7D32',
+        lineHeight: 18,
+        fontWeight: '500',
+    },
+    vietqrLogo: {
         borderRadius: 8,
         overflow: 'hidden',
     },
-    momoLogoGradient: {
+    vietqrLogoGradient: {
         paddingHorizontal: 10,
         paddingVertical: 4,
     },
-    momoLogoText: {
+    vietqrLogoText: {
         fontSize: 12,
         fontWeight: 'bold',
         color: '#fff',
@@ -299,7 +375,7 @@ const styles = StyleSheet.create({
     packagePrice: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#A50064',
+        color: '#1976D2',
     },
     discountBadge: {
         position: 'absolute',

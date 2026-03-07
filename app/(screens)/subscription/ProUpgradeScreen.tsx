@@ -13,15 +13,14 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../../context/authContext';
-import MoMoPaymentModal from '../../../components/payment/MoMoPaymentModal';
+import VietQRPaymentModal from '../../../components/payment/VietQRPaymentModal';
 import {
-    momoPaymentService,
+    vietqrPaymentService,
     PRO_PACKAGE,
-    formatVND,
     PaymentResult,
     PaymentStatus,
     getPaymentErrorMessage,
-} from '../../../services/momoPaymentService';
+} from '../../../services/vietqrPaymentService';
 
 export default function ProUpgradeScreen() {
     const router = useRouter();
@@ -42,7 +41,7 @@ export default function ProUpgradeScreen() {
 
     const loadProStatus = async () => {
         try {
-            const status = await momoPaymentService.getProStatus();
+            const status = await vietqrPaymentService.getProStatus();
             setProStatus(status);
         } catch (error) {
             console.error('Error loading pro status:', error);
@@ -57,7 +56,7 @@ export default function ProUpgradeScreen() {
 
         try {
             setLoading(true);
-            const result = await momoPaymentService.createProUpgrade();
+            const result = await vietqrPaymentService.createProUpgrade();
             setPaymentResult(result);
             setShowPaymentModal(true);
         } catch (error) {
@@ -199,18 +198,36 @@ export default function ProUpgradeScreen() {
                     </View>
                 </View>
 
-                {/* MoMo info */}
-                <View style={styles.momoInfo}>
+                {/* VietQR info */}
+                <View style={styles.vietqrInfo}>
                     <LinearGradient
-                        colors={['#A50064', '#D82D8B']}
-                        style={styles.momoLogo}
+                        colors={['#1976D2', '#1565C0']}
+                        style={styles.vietqrLogo}
                     >
-                        <Text style={styles.momoLogoText}>MoMo</Text>
+                        <Text style={styles.vietqrLogoText}>QR</Text>
                     </LinearGradient>
-                    <Text style={styles.momoInfoText}>
-                        Thanh toán nhanh chóng và an toàn qua ví MoMo
+                    <Text style={styles.vietqrInfoText}>
+                        Thanh toán an toàn qua chuyển khoản VietQR
                     </Text>
                 </View>
+
+                {/* SMS Banking Auto-Confirmation Info */}
+                <LinearGradient
+                    colors={['#E8F5E9', '#C8E6C9']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.smsBankingInfoBanner}
+                >
+                    <View style={styles.smsBankingIconContainer}>
+                        <Ionicons name="phone-portrait" size={20} color="#2E7D32" />
+                    </View>
+                    <View style={styles.smsBankingTextContainer}>
+                        <Text style={styles.smsBankingInfoTitle}>📱 Xác nhận tự động qua SMS Banking</Text>
+                        <Text style={styles.smsBankingInfoText}>
+                            Chuyển khoản để nâng cấp Pro. App tự động nhận SMS từ Vietcombank và xác nhận trong &lt;1 phút. Không cần xác nhận thủ công!
+                        </Text>
+                    </View>
+                </LinearGradient>
 
                 <View style={{ height: 120 }} />
             </ScrollView>
@@ -245,7 +262,7 @@ export default function ProUpgradeScreen() {
             </View>
 
             {/* Payment Modal */}
-            <MoMoPaymentModal
+            <VietQRPaymentModal
                 visible={showPaymentModal}
                 onClose={() => setShowPaymentModal(false)}
                 paymentResult={paymentResult}
@@ -428,7 +445,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#555',
     },
-    momoInfo: {
+    vietqrInfo: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#fff',
@@ -436,17 +453,17 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         gap: 12,
     },
-    momoLogo: {
+    vietqrLogo: {
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 8,
     },
-    momoLogoText: {
+    vietqrLogoText: {
         fontSize: 14,
         fontWeight: 'bold',
         color: '#fff',
     },
-    momoInfoText: {
+    vietqrInfoText: {
         flex: 1,
         fontSize: 13,
         color: '#666',
@@ -479,5 +496,33 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
         color: '#fff',
+    },
+    smsBankingInfoBanner: {
+        flexDirection: 'row',
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 12,
+        marginHorizontal: 0,
+        borderLeftWidth: 4,
+        borderLeftColor: '#2E7D32',
+        alignItems: 'flex-start',
+        gap: 12,
+    },
+    smsBankingIconContainer: {
+        marginTop: 2,
+    },
+    smsBankingTextContainer: {
+        flex: 1,
+        gap: 4,
+    },
+    smsBankingInfoTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1B5E20',
+    },
+    smsBankingInfoText: {
+        fontSize: 12,
+        color: '#2E7D32',
+        lineHeight: 18,
     },
 });

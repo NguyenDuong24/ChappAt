@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useMemo, memo } from 'react';
 import {
     StyleSheet,
     View,
@@ -25,15 +25,7 @@ import { BlurView } from 'expo-blur';
 import { useTranslation } from 'react-i18next';
 import AvatarFrame from '@/components/common/AvatarFrame';
 import { useUserContext } from '@/context/UserContext';
-import Animated, {
-    FadeInDown,
-    FadeInRight,
-    Layout,
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
-    withTiming
-} from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 2;
@@ -49,6 +41,158 @@ const ITEM_ICONS: { [key: string]: any } = {
     super_like_pack: require('@/assets/images/store/super_like.png'),
     incognito_mode: require('@/assets/images/store/incognito.png'),
 };
+
+// ─── MEMO'd sub-components (defined OUTSIDE StoreScreen to avoid recreation) ───
+
+const ShopItemCard = memo(({ item, isOwned, theme, currentThemeColors, user, purchasing, onPurchase, t }: any) => {
+    const currencyType = item.currencyType || 'coins';
+    return (
+        <View style={styles.itemCardContainer}>
+            <TouchableOpacity
+                style={[styles.itemCard, { backgroundColor: currentThemeColors.cardBackground }]}
+                onPress={() => !isOwned && onPurchase(item)}
+                disabled={isOwned || purchasing === item.id}
+                activeOpacity={0.8}
+            >
+                <View style={styles.itemImageContainer}>
+                    {item.category === 'avatar_frame' ? (
+                        <View style={styles.framePreviewContainer}>
+                            <AvatarFrame
+                                avatarUrl={user?.profileUrl || user?.icon}
+                                frameType={item.frameType}
+                                size={ITEM_WIDTH * 0.6}
+                            />
+                        </View>
+                    ) : ITEM_ICONS[item.id] ? (
+                        <Image source={ITEM_ICONS[item.id]} style={styles.itemImage} />
+                    ) : item.imageUrl ? (
+                        <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
+                    ) : (
+                        <LinearGradient
+                            colors={theme === 'dark' ? ['#333', '#111'] : ['#F8F9FA', '#E9ECEF']}
+                            style={styles.itemPlaceholder}
+                        >
+                            <View style={styles.emojiContainer}>
+                                <Text style={styles.itemEmoji}>{item.emoji || '🎁'}</Text>
+                            </View>
+                        </LinearGradient>
+                    )}
+                    {isOwned && (
+                        <BlurView intensity={80} style={styles.ownedBadge}>
+                            <Feather name="check" size={12} color="#4CAF50" />
+                            <Text style={[styles.ownedText, { color: '#4CAF50' }]}>{t('store.owned')}</Text>
+                        </BlurView>
+                    )}
+                </View>
+
+                <View style={styles.itemInfo}>
+                    <Text style={[styles.itemName, { color: currentThemeColors.text }]} numberOfLines={1}>
+                        {item.name}
+                    </Text>
+                    <Text style={[styles.itemDesc, { color: currentThemeColors.subtleText }]} numberOfLines={2}>
+                        {item.description || t('store.special_item')}
+                    </Text>
+
+                    <View style={styles.priceRow}>
+                        <View style={styles.priceTag}>
+                            {currencyType === 'coins' ? (
+                                <Text style={styles.coinIcon}>🪙</Text>
+                            ) : (
+                                <MaterialCommunityIcons name="baguette" size={16} color="#FFD700" />
+                            )}
+                            <Text style={styles.priceText}>{item.price}</Text>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.buyButton,
+                                isOwned && styles.buyButtonDisabled,
+                                { backgroundColor: isOwned ? 'rgba(76, 175, 80, 0.1)' : '#8A2BE2' }
+                            ]}
+                            onPress={() => !isOwned && onPurchase(item)}
+                            disabled={isOwned || purchasing === item.id}
+                        >
+                            {purchasing === item.id ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Text style={[styles.buyButtonText, { color: isOwned ? '#4CAF50' : '#fff' }]}>
+                                    {isOwned ? t('store.owned') : t('store.buy')}
+                                </Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </TouchableOpacity>
+        </View>
+    );
+});
+
+const MyItemCard = memo(({ item, isEquipped, theme, currentThemeColors, user, onUse, t, i18n }: any) => {
+    const isFrame = item.item?.category === 'avatar_frame' || item.category === 'avatar_frame';
+    const frameType = item.item?.frameType || item.frameType;
+    return (
+        <View style={styles.itemCardContainer}>
+            <View style={[styles.itemCard, { backgroundColor: currentThemeColors.cardBackground }]}>
+                <View style={styles.itemImageContainer}>
+                    {isFrame ? (
+                        <View style={styles.framePreviewContainer}>
+                            <AvatarFrame
+                                avatarUrl={user?.profileUrl || user?.icon}
+                                frameType={frameType}
+                                size={ITEM_WIDTH * 0.6}
+                            />
+                        </View>
+                    ) : ITEM_ICONS[item.itemId] ? (
+                        <Image source={ITEM_ICONS[item.itemId]} style={styles.itemImage} />
+                    ) : item.item?.imageUrl ? (
+                        <Image source={{ uri: item.item.imageUrl }} style={styles.itemImage} />
+                    ) : (
+                        <LinearGradient
+                            colors={theme === 'dark' ? ['#2A2A2A', '#1A1A1A'] : ['#F5F5F5', '#E0E0E0']}
+                            style={styles.itemPlaceholder}
+                        >
+                            <Text style={styles.itemEmoji}>{item.item?.emoji || '🎁'}</Text>
+                        </LinearGradient>
+                    )}
+                    {isEquipped && (
+                        <BlurView intensity={80} style={styles.ownedBadge}>
+                            <Feather name="star" size={12} color="#8A2BE2" />
+                            <Text style={[styles.ownedText, { color: '#8A2BE2' }]}>{t('store.active')}</Text>
+                        </BlurView>
+                    )}
+                </View>
+                <View style={styles.itemInfo}>
+                    <Text style={[styles.itemName, { color: currentThemeColors.text }]} numberOfLines={1}>
+                        {item.item?.name || item.itemName || t('store.item')}
+                    </Text>
+                    <Text style={[styles.itemDesc, { color: currentThemeColors.subtleText }]}>
+                        {t('store.purchased_on')}: {new Date(item.purchasedAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
+                    </Text>
+
+                    {item.expiresAt && (
+                        <Text style={[styles.expiryText, { color: '#FF6347' }]}>
+                            {t('store.expires_at')}: {new Date(item.expiresAt).toLocaleDateString()}
+                        </Text>
+                    )}
+
+                    <TouchableOpacity
+                        style={[
+                            styles.useButton,
+                            isEquipped && { backgroundColor: 'rgba(138, 43, 226, 0.1)', borderWidth: 1, borderColor: '#8A2BE2' }
+                        ]}
+                        onPress={() => onUse(item)}
+                    >
+                        <Text style={[styles.useButtonText, isEquipped && { color: '#8A2BE2' }]}>
+                            {isEquipped ? t('store.active') : (isFrame ? t('store.equip') : t('store.use'))}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </View>
+    );
+});
+
+// ─── MAIN SCREEN ───
 
 const StoreScreen = () => {
     const { t, i18n } = useTranslation();
@@ -71,14 +215,13 @@ const StoreScreen = () => {
         fetchData();
     }, []);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             const [shopData, myItemsData] = await Promise.all([
                 coinServerApi.getShopItems(),
                 coinServerApi.getMyItems()
             ]);
-
             setItems(shopData.items || []);
             setMyItems(myItemsData.items || []);
         } catch (error) {
@@ -87,12 +230,11 @@ const StoreScreen = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [t]);
 
-    const handlePurchase = async (item: any) => {
+    const handlePurchase = useCallback(async (item: any) => {
         const currencyType = item.currencyType || 'coins';
         const userBalance = currencyType === 'coins' ? coins : banhMi;
-        const currencyLabel = currencyType === 'coins' ? t('wallet.coins') : t('wallet.banhMi');
 
         if (userBalance < item.price) {
             Alert.alert(
@@ -116,10 +258,10 @@ const StoreScreen = () => {
                     onPress: async () => {
                         try {
                             setPurchasing(item.id);
-                            const result = await coinServerApi.purchaseItem(item.id);
+                            await coinServerApi.purchaseItem(item.id);
                             Alert.alert(t('common.success'), t('store.purchase_success'));
                             refreshBalance();
-                            fetchData(); // Refresh items and my items
+                            fetchData();
                         } catch (error: any) {
                             Alert.alert(t('common.error'), getErrorMessage(error));
                         } finally {
@@ -129,35 +271,30 @@ const StoreScreen = () => {
                 }
             ]
         );
-    };
+    }, [coins, banhMi, t, router, refreshBalance, fetchData]);
 
-    const handleUseItem = async (item: any) => {
+    const handleUseItem = useCallback(async (item: any) => {
         if (item.item?.category === 'avatar_frame' || item.category === 'avatar_frame') {
             const frameType = item.item?.frameType || item.frameType;
             if (!frameType) return;
 
             if (activeFrame === frameType) {
-                // Already equipped, maybe offer to unequip?
-                Alert.alert(
-                    t('common.info'),
-                    t('store.frame_already_equipped'),
-                    [
-                        { text: t('common.ok') },
-                        {
-                            text: t('store.unequip'),
-                            onPress: async () => {
-                                try {
-                                    await coinServerApi.equipFrame('', null);
-                                    setActiveFrame(null);
-                                    if (user?.uid) invalidateUserCache(user.uid);
-                                    Alert.alert(t('common.success'), t('store.unequip_success'));
-                                } catch (error: any) {
-                                    Alert.alert(t('common.error'), getErrorMessage(error));
-                                }
+                Alert.alert(t('common.info'), t('store.frame_already_equipped'), [
+                    { text: t('common.ok') },
+                    {
+                        text: t('store.unequip'),
+                        onPress: async () => {
+                            try {
+                                await coinServerApi.equipFrame('', null);
+                                setActiveFrame(null);
+                                if (user?.uid) invalidateUserCache(user.uid);
+                                Alert.alert(t('common.success'), t('store.unequip_success'));
+                            } catch (error: any) {
+                                Alert.alert(t('common.error'), getErrorMessage(error));
                             }
                         }
-                    ]
-                );
+                    }
+                ]);
                 return;
             }
 
@@ -171,185 +308,54 @@ const StoreScreen = () => {
             }
             return;
         }
-
-        // For other items
         Alert.alert(t('common.success'), t('store.item_active_desc', { name: item.item?.name || item.name }));
-    };
+    }, [activeFrame, t, user?.uid, invalidateUserCache, setActiveFrame]);
 
-    const renderShopItem = ({ item, index }: { item: any, index: number }) => {
-        const isOwned = myItems.some(myI => myI.itemId === item.id);
-        const currencyType = item.currencyType || 'coins';
+    // ✅ Memoized render functions
+    const renderShopItem = useCallback(({ item }: { item: any }) => (
+        <ShopItemCard
+            item={item}
+            isOwned={myItems.some(myI => myI.itemId === item.id)}
+            theme={theme}
+            currentThemeColors={currentThemeColors}
+            user={user}
+            purchasing={purchasing}
+            onPurchase={handlePurchase}
+            t={t}
+            i18n={i18n}
+        />
+    ), [myItems, theme, currentThemeColors, user, purchasing, handlePurchase, t, i18n]);
 
-        return (
-            <Animated.View
-                entering={FadeInDown.delay(index * 100).springify()}
-                style={[styles.itemCardContainer]}
-            >
-                <TouchableOpacity
-                    style={[styles.itemCard, { backgroundColor: currentThemeColors.cardBackground }]}
-                    onPress={() => !isOwned && handlePurchase(item)}
-                    disabled={isOwned || purchasing === item.id}
-                    activeOpacity={0.8}
-                >
-                    <View style={styles.itemImageContainer}>
-                        {item.category === 'avatar_frame' ? (
-                            <View style={styles.framePreviewContainer}>
-                                <AvatarFrame
-                                    avatarUrl={user?.profileUrl || user?.icon}
-                                    frameType={item.frameType}
-                                    size={ITEM_WIDTH * 0.6}
-                                />
-                            </View>
-                        ) : ITEM_ICONS[item.id] ? (
-                            <Image source={ITEM_ICONS[item.id]} style={styles.itemImage} />
-                        ) : item.imageUrl ? (
-                            <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
-                        ) : (
-                            <LinearGradient
-                                colors={theme === 'dark' ? ['#333', '#111'] : ['#F8F9FA', '#E9ECEF']}
-                                style={styles.itemPlaceholder}
-                            >
-                                <View style={styles.emojiContainer}>
-                                    <Text style={styles.itemEmoji}>{item.emoji || '🎁'}</Text>
-                                </View>
-                            </LinearGradient>
-                        )}
-                        {isOwned && (
-                            <BlurView intensity={80} style={styles.ownedBadge}>
-                                <Feather name="check" size={12} color="#4CAF50" />
-                                <Text style={[styles.ownedText, { color: '#4CAF50' }]}>{t('store.owned')}</Text>
-                            </BlurView>
-                        )}
-                    </View>
+    const renderMyItem = useCallback(({ item }: { item: any }) => (
+        <MyItemCard
+            item={item}
+            isEquipped={item.item?.frameType === activeFrame || item.frameType === activeFrame}
+            theme={theme}
+            currentThemeColors={currentThemeColors}
+            user={user}
+            activeFrame={activeFrame}
+            onUse={handleUseItem}
+            t={t}
+            i18n={i18n}
+        />
+    ), [activeFrame, theme, currentThemeColors, user, handleUseItem, t, i18n]);
 
-                    <View style={styles.itemInfo}>
-                        <Text style={[styles.itemName, { color: currentThemeColors.text }]} numberOfLines={1}>
-                            {item.name}
-                        </Text>
-                        <Text style={[styles.itemDesc, { color: currentThemeColors.subtleText }]} numberOfLines={2}>
-                            {item.description || t('store.special_item')}
-                        </Text>
-
-                        <View style={styles.priceRow}>
-                            <View style={styles.priceTag}>
-                                {currencyType === 'coins' ? (
-                                    <Text style={styles.coinIcon}>🪙</Text>
-                                ) : (
-                                    <MaterialCommunityIcons name="baguette" size={16} color="#FFD700" />
-                                )}
-                                <Text style={styles.priceText}>{item.price}</Text>
-                            </View>
-
-                            <TouchableOpacity
-                                style={[
-                                    styles.buyButton,
-                                    isOwned && styles.buyButtonDisabled,
-                                    { backgroundColor: isOwned ? 'rgba(76, 175, 80, 0.1)' : '#8A2BE2' }
-                                ]}
-                                onPress={() => !isOwned && handlePurchase(item)}
-                                disabled={isOwned || purchasing === item.id}
-                            >
-                                {purchasing === item.id ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                    <Text style={[styles.buyButtonText, { color: isOwned ? '#4CAF50' : '#fff' }]}>
-                                        {isOwned ? t('store.owned') : t('store.buy')}
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </TouchableOpacity>
-            </Animated.View>
-        );
-    };
-
-    const renderMyItem = ({ item, index }: { item: any, index: number }) => {
-        const isFrame = item.item?.category === 'avatar_frame' || item.category === 'avatar_frame';
-        const frameType = item.item?.frameType || item.frameType;
-        const isEquipped = isFrame && activeFrame === frameType;
-
-        return (
-            <Animated.View
-                entering={FadeInDown.delay(index * 100).springify()}
-                style={styles.itemCardContainer}
-            >
-                <View style={[styles.itemCard, { backgroundColor: currentThemeColors.cardBackground }]}>
-                    <View style={styles.itemImageContainer}>
-                        {isFrame ? (
-                            <View style={styles.framePreviewContainer}>
-                                <AvatarFrame
-                                    avatarUrl={user?.profileUrl || user?.icon}
-                                    frameType={frameType}
-                                    size={ITEM_WIDTH * 0.6}
-                                />
-                            </View>
-                        ) : ITEM_ICONS[item.itemId] ? (
-                            <Image source={ITEM_ICONS[item.itemId]} style={styles.itemImage} />
-                        ) : item.item?.imageUrl ? (
-                            <Image source={{ uri: item.item.imageUrl }} style={styles.itemImage} />
-                        ) : (
-                            <LinearGradient
-                                colors={theme === 'dark' ? ['#2A2A2A', '#1A1A1A'] : ['#F5F5F5', '#E0E0E0']}
-                                style={styles.itemPlaceholder}
-                            >
-                                <Text style={styles.itemEmoji}>{item.item?.emoji || '🎁'}</Text>
-                            </LinearGradient>
-                        )}
-                        {isEquipped && (
-                            <BlurView intensity={80} style={styles.ownedBadge}>
-                                <Feather name="star" size={12} color="#8A2BE2" />
-                                <Text style={[styles.ownedText, { color: '#8A2BE2' }]}>{t('store.active')}</Text>
-                            </BlurView>
-                        )}
-                    </View>
-                    <View style={styles.itemInfo}>
-                        <Text style={[styles.itemName, { color: currentThemeColors.text }]} numberOfLines={1}>
-                            {item.item?.name || item.itemName || t('store.item')}
-                        </Text>
-                        <Text style={[styles.itemDesc, { color: currentThemeColors.subtleText }]}>
-                            {t('store.purchased_on')}: {new Date(item.purchasedAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
-                        </Text>
-
-                        {item.expiresAt && (
-                            <Text style={[styles.expiryText, { color: '#FF6347' }]}>
-                                {t('store.expires_at')}: {new Date(item.expiresAt).toLocaleDateString()}
-                            </Text>
-                        )}
-
-                        <TouchableOpacity
-                            style={[
-                                styles.useButton,
-                                isEquipped && { backgroundColor: 'rgba(138, 43, 226, 0.1)', borderWidth: 1, borderColor: '#8A2BE2' }
-                            ]}
-                            onPress={() => handleUseItem(item)}
-                        >
-                            <Text style={[styles.useButtonText, isEquipped && { color: '#8A2BE2' }]}>
-                                {isEquipped ? t('store.active') : (isFrame ? t('store.equip') : t('store.use'))}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Animated.View>
-        );
-    };
-
-    const filteredItems = (activeTab === 'shop' ? items : myItems).filter(item => {
+    // ✅ Memoized computed values
+    const filteredItems = useMemo(() => (activeTab === 'shop' ? items : myItems).filter(item => {
         const category = activeTab === 'shop' ? item.category : (item.item?.category || item.category);
-
         if (selectedCategory === 'all') return true;
         if (selectedCategory === 'frames') return category === 'avatar_frame';
         if (selectedCategory === 'vip') return category === 'vip';
         if (selectedCategory === 'boosts') return category === 'boost';
         return true;
-    });
+    }), [activeTab, items, myItems, selectedCategory]);
 
-    const categories = [
+    const categories = useMemo(() => [
         { id: 'all', label: t('common.all') },
         { id: 'frames', label: t('store.avatar_frames') },
         { id: 'vip', label: 'VIP' },
         { id: 'boosts', label: t('store.boosts') },
-    ];
+    ], [t]);
 
     return (
         <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
@@ -394,10 +400,7 @@ const StoreScreen = () => {
                                 style={styles.addCoinsButton}
                                 onPress={() => router.push('/(screens)/wallet/CoinWalletScreen')}
                             >
-                                <LinearGradient
-                                    colors={['#FFD700', '#FFA500']}
-                                    style={styles.plusIconGradient}
-                                >
+                                <LinearGradient colors={['#FFD700', '#FFA500']} style={styles.plusIconGradient}>
                                     <Feather name="plus" size={16} color="#fff" />
                                 </LinearGradient>
                             </TouchableOpacity>
@@ -415,7 +418,7 @@ const StoreScreen = () => {
                     <Text style={[styles.tabText, activeTab === 'shop' && styles.activeTabText, { color: activeTab === 'shop' ? '#8A2BE2' : currentThemeColors.text }]}>
                         {t('store.shop')}
                     </Text>
-                    {activeTab === 'shop' && <Animated.View layout={Layout} style={styles.tabIndicator} />}
+                    {activeTab === 'shop' && <View style={styles.tabIndicator} />}
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={[styles.tab, activeTab === 'my-items' && styles.activeTab]}
@@ -424,7 +427,7 @@ const StoreScreen = () => {
                     <Text style={[styles.tabText, activeTab === 'my-items' && styles.activeTabText, { color: activeTab === 'my-items' ? '#8A2BE2' : currentThemeColors.text }]}>
                         {t('store.my_items')} ({myItems.length})
                     </Text>
-                    {activeTab === 'my-items' && <Animated.View layout={Layout} style={styles.tabIndicator} />}
+                    {activeTab === 'my-items' && <View style={styles.tabIndicator} />}
                 </TouchableOpacity>
             </View>
 
@@ -461,11 +464,16 @@ const StoreScreen = () => {
                 <FlatList
                     data={filteredItems}
                     renderItem={activeTab === 'shop' ? renderShopItem : renderMyItem}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item.id || item.itemId || String(Math.random())}
                     numColumns={COLUMN_COUNT}
                     contentContainerStyle={styles.listContent}
                     columnWrapperStyle={styles.columnWrapper}
                     showsVerticalScrollIndicator={false}
+                    initialNumToRender={6}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    updateCellsBatchingPeriod={50}
                     ListEmptyComponent={
                         <Animated.View entering={FadeInDown} style={styles.emptyContainer}>
                             <Text style={styles.emptyEmoji}>{activeTab === 'shop' ? '🏪' : '📦'}</Text>
@@ -486,9 +494,7 @@ const StoreScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
+    container: { flex: 1 },
     header: {
         paddingTop: Platform.OS === 'ios' ? 60 : 40,
         paddingBottom: 30,
@@ -501,319 +507,63 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 15,
     },
-    headerTop: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 25,
-    },
-    backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    historyButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    headerTitle: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: '#fff',
-        letterSpacing: 0.5,
-    },
-    balanceContainer: {
-        borderRadius: 24,
-        overflow: 'hidden',
-    },
-    balanceBlur: {
-        padding: 20,
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
-    },
-    balanceLabel: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.7)',
-        marginBottom: 6,
-        fontWeight: '600',
-        textTransform: 'uppercase',
-        letterSpacing: 1.5,
-    },
-    balancesWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 15,
-    },
-    balanceItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    balanceDivider: {
-        width: 1,
-        height: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-    },
-    balanceCoinIcon: {
-        fontSize: 24,
-        marginRight: 4,
-    },
-    balanceValue: {
-        fontSize: 24,
-        fontWeight: '900',
-        color: '#fff',
-    },
-    addCoinsButton: {
-        marginLeft: 12,
-    },
-    plusIconGradient: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    tabContainer: {
-        flexDirection: 'row',
-        paddingHorizontal: 20,
-        marginTop: 25,
-        marginBottom: 15,
-        gap: 15,
-    },
-    tab: {
-        paddingVertical: 10,
-        paddingHorizontal: 18,
-        borderRadius: 25,
-        position: 'relative',
-    },
-    activeTab: {
-        backgroundColor: 'rgba(138, 43, 226, 0.08)',
-    },
-    tabText: {
-        fontSize: 15,
-        fontWeight: '700',
-        opacity: 0.5,
-    },
-    activeTabText: {
-        opacity: 1,
-    },
-    tabIndicator: {
-        position: 'absolute',
-        bottom: 0,
-        left: '50%',
-        marginLeft: -10,
-        width: 20,
-        height: 3,
-        backgroundColor: '#8A2BE2',
-        borderRadius: 2,
-    },
-    listContent: {
-        padding: 16,
-        paddingBottom: 40,
-    },
-    columnWrapper: {
-        justifyContent: 'space-between',
-        marginBottom: 16,
-    },
-    itemCardContainer: {
-        width: ITEM_WIDTH,
-    },
-    itemCard: {
-        borderRadius: 24,
-        overflow: 'hidden',
-        elevation: 5,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-    },
-    itemImageContainer: {
-        width: '100%',
-        height: ITEM_WIDTH,
-        position: 'relative',
-    },
-    itemImage: {
-        width: '100%',
-        height: '100%',
-        resizeMode: 'cover',
-    },
-    itemPlaceholder: {
-        width: '100%',
-        height: '100%',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    emojiContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-    },
-    framePreviewContainer: {
-        width: '100%',
-        height: '100%',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.03)',
-    },
-    itemEmoji: {
-        fontSize: 64,
-    },
-    ownedBadge: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 15,
-        gap: 4,
-        overflow: 'hidden',
-    },
-    ownedText: {
-        fontSize: 11,
-        fontWeight: '800',
-    },
-    itemInfo: {
-        padding: 15,
-    },
-    itemName: {
-        fontSize: 17,
-        fontWeight: '800',
-        marginBottom: 6,
-    },
-    itemDesc: {
-        fontSize: 12,
-        marginBottom: 15,
-        lineHeight: 18,
-        height: 36,
-    },
-    categoryContainer: {
-        marginBottom: 15,
-    },
-    categoryScroll: {
-        paddingHorizontal: 20,
-        gap: 10,
-    },
-    categoryTab: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(138, 43, 226, 0.2)',
-    },
-    activeCategoryTab: {
-        borderColor: '#8A2BE2',
-    },
-    categoryTabText: {
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    priceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: 'auto',
-    },
-    priceTag: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    coinIcon: {
-        fontSize: 16,
-    },
-    priceText: {
-        fontSize: 18,
-        fontWeight: '900',
-        color: '#FFD700',
-    },
-    buyButton: {
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 14,
-        minWidth: 70,
-        alignItems: 'center',
-    },
-    buyButtonDisabled: {
-        borderWidth: 1,
-        borderColor: 'rgba(76, 175, 80, 0.3)',
-    },
-    buyButtonText: {
-        fontSize: 13,
-        fontWeight: '800',
-    },
-    useButton: {
-        marginTop: 10,
-        backgroundColor: '#8A2BE2',
-        paddingVertical: 8,
-        borderRadius: 12,
-        alignItems: 'center',
-    },
-    useButtonText: {
-        color: '#fff',
-        fontSize: 13,
-        fontWeight: '700',
-    },
-    expiryText: {
-        fontSize: 11,
-        fontWeight: '600',
-        marginTop: 4,
-    },
-    loadingCenter: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    loadingText: {
-        marginTop: 15,
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    emptyContainer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 80,
-        paddingHorizontal: 40,
-    },
-    emptyEmoji: {
-        fontSize: 80,
-        marginBottom: 20,
-    },
-    emptyText: {
-        fontSize: 17,
-        textAlign: 'center',
-        fontWeight: '600',
-        lineHeight: 24,
-    },
-    refreshButton: {
-        marginTop: 25,
-        paddingHorizontal: 30,
-        paddingVertical: 12,
-        backgroundColor: '#8A2BE2',
-        borderRadius: 25,
-    },
-    refreshButtonText: {
-        color: '#fff',
-        fontWeight: '700',
-        fontSize: 15,
-    },
+    headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 25 },
+    backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    historyButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+    balanceContainer: { borderRadius: 24, overflow: 'hidden' },
+    balanceBlur: { padding: 20, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+    balanceLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 6, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1.5 },
+    balancesWrapper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 15 },
+    balanceItem: { flexDirection: 'row', alignItems: 'center' },
+    balanceDivider: { width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.2)' },
+    balanceCoinIcon: { fontSize: 24, marginRight: 4 },
+    balanceValue: { fontSize: 24, fontWeight: '900', color: '#fff' },
+    addCoinsButton: { marginLeft: 12 },
+    plusIconGradient: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    tabContainer: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 25, marginBottom: 15, gap: 15 },
+    tab: { paddingVertical: 10, paddingHorizontal: 18, borderRadius: 25, position: 'relative' },
+    activeTab: { backgroundColor: 'rgba(138, 43, 226, 0.08)' },
+    tabText: { fontSize: 15, fontWeight: '700', opacity: 0.5 },
+    activeTabText: { opacity: 1 },
+    tabIndicator: { position: 'absolute', bottom: 0, left: '50%', marginLeft: -10, width: 20, height: 3, backgroundColor: '#8A2BE2', borderRadius: 2 },
+    listContent: { padding: 16, paddingBottom: 40 },
+    columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
+    itemCardContainer: { width: ITEM_WIDTH },
+    itemCard: { borderRadius: 24, overflow: 'hidden', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8 },
+    itemImageContainer: { width: '100%', height: ITEM_WIDTH, position: 'relative' },
+    itemImage: { width: '100%', height: '100%', resizeMode: 'cover' },
+    itemPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+    emojiContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+    framePreviewContainer: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.03)' },
+    itemEmoji: { fontSize: 64 },
+    ownedBadge: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 15, gap: 4, overflow: 'hidden' },
+    ownedText: { fontSize: 11, fontWeight: '800' },
+    itemInfo: { padding: 15 },
+    itemName: { fontSize: 17, fontWeight: '800', marginBottom: 6 },
+    itemDesc: { fontSize: 12, marginBottom: 15, lineHeight: 18, height: 36 },
+    categoryContainer: { marginBottom: 15 },
+    categoryScroll: { paddingHorizontal: 20, gap: 10 },
+    categoryTab: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(138, 43, 226, 0.2)' },
+    activeCategoryTab: { borderColor: '#8A2BE2' },
+    categoryTabText: { fontSize: 13, fontWeight: '700' },
+    priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' as any },
+    priceTag: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    coinIcon: { fontSize: 16 },
+    priceText: { fontSize: 18, fontWeight: '900', color: '#FFD700' },
+    buyButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, minWidth: 70, alignItems: 'center' },
+    buyButtonDisabled: { borderWidth: 1, borderColor: 'rgba(76, 175, 80, 0.3)' },
+    buyButtonText: { fontSize: 13, fontWeight: '800' },
+    useButton: { marginTop: 10, backgroundColor: '#8A2BE2', paddingVertical: 8, borderRadius: 12, alignItems: 'center' },
+    useButtonText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    expiryText: { fontSize: 11, fontWeight: '600', marginTop: 4 },
+    loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    loadingText: { marginTop: 15, fontSize: 15, fontWeight: '600' },
+    emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 80, paddingHorizontal: 40 },
+    emptyEmoji: { fontSize: 80, marginBottom: 20 },
+    emptyText: { fontSize: 17, textAlign: 'center', lineHeight: 24, fontWeight: '500' },
+    refreshButton: { marginTop: 20, backgroundColor: '#8A2BE2', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 25 },
+    refreshButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });
 
 export default StoreScreen;
-

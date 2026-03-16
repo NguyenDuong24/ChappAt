@@ -37,11 +37,15 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
 }) => {
   const [session, setSession] = useState<MeetupSession | null>(null);
   const [tracking, setTracking] = useState(false);
-  const [currentDistance, setCurrentDistance] = useState<number | null>(null);
+  const [distanceToHotSpot, setDistanceToHotSpot] = useState<number | null>(null);
+  const [distanceToUser, setDistanceToUser] = useState<number | null>(null);
+  const [canCheckIn, setCanCheckIn] = useState(false);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [locationPermission, setLocationPermission] = useState(false);
-  
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const locationWatcherRef = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
@@ -78,11 +82,25 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
     ).start();
   }, []);
 
+  useEffect(() => {
+    if (canCheckIn) {
+      Animated.spring(scaleAnim, {
+        toValue: 1.05,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [canCheckIn]);
+
   const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       setLocationPermission(status === 'granted');
-      
+
       if (status !== 'granted') {
         Alert.alert(
           'Cần quyền truy cập vị trí',
@@ -160,32 +178,46 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
         hotSpotLocation
       );
 
-      setCurrentDistance(result.distance);
+      setDistanceToHotSpot(result.distanceToHotSpot);
+      setDistanceToUser(result.distanceToUser);
+      setCanCheckIn(result.canCheckIn);
 
-      // If both users are in radius, auto check-in
-      if (result.canCheckIn) {
-        stopTracking();
-        
-        // Complete meetup and get reward
-        const reward = await hotSpotInviteService.completeMeetup(session.id);
-        
-        Alert.alert(
-          '🎉 Check-in thành công!',
-          `${reward.message}\n\nBạn nhận được ${reward.points} điểm!`,
-          [
-            {
-              text: 'Tuyệt vời!',
-              onPress: () => {
-                if (onCheckInComplete) {
-                  onCheckInComplete(reward);
-                }
-              },
-            },
-          ]
-        );
-      }
+      // Removed auto check-in as per user's request for manual button
     } catch (error) {
       console.error('Error updating location:', error);
+    }
+  };
+
+  const handleCheckIn = async () => {
+    if (!session || !canCheckIn || isCheckingIn) return;
+
+    setIsCheckingIn(true);
+    try {
+      stopTracking();
+
+      // Complete meetup and get reward
+      const reward = await hotSpotInviteService.completeMeetup(session.id);
+
+      Alert.alert(
+        '🎉 Check-in thành công!',
+        `${reward.message}\n\nBạn nhận được ${reward.points} điểm!`,
+        [
+          {
+            text: 'Tuyệt vời!',
+            onPress: () => {
+              if (onCheckInComplete) {
+                onCheckInComplete(reward);
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error during check-in:', error);
+      Alert.alert('Lỗi', 'Có lỗi xảy ra khi check-in. Vui lòng thử lại.');
+      startTracking(); // Restart tracking if failed
+    } finally {
+      setIsCheckingIn(false);
     }
   };
 
@@ -230,77 +262,113 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
   const userCheckIn = session.checkInData[userId];
   const otherCheckIn = session.checkInData[otherUser || ''];
 
+  const getGradientColors = (): [string, string] => {
+    if (canCheckIn) return ['#FFD700', '#FFA500']; // Gold/Orange for highlight
+    if (tracking) return ['#10B981', '#059669']; // Green for active tracking
+    return ['rgba(139, 92, 246, 0.1)', 'rgba(236, 72, 153, 0.1)']; // Default
+  };
+
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={tracking ? ['#10B981', '#059669'] : ['rgba(139, 92, 246, 0.1)', 'rgba(236, 72, 153, 0.1)']}
-        style={styles.banner}
-      >
-        <Animated.View style={[styles.iconContainer, tracking && { transform: [{ scale: pulseAnim }] }]}>
-          <Ionicons
-            name={tracking ? 'location' : 'location-outline'}
-            size={28}
-            color={tracking ? 'white' : '#8B5CF6'}
-          />
-        </Animated.View>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <LinearGradient
+          colors={getGradientColors()}
+          style={[styles.banner, canCheckIn && styles.bannerHighlighted]}
+        >
+          <Animated.View style={[styles.iconContainer, tracking && { transform: [{ scale: pulseAnim }] }]}>
+            <Ionicons
+              name={canCheckIn ? 'star' : tracking ? 'location' : 'location-outline'}
+              size={28}
+              color={canCheckIn ? 'white' : tracking ? 'white' : '#8B5CF6'}
+            />
+          </Animated.View>
 
-        <View style={styles.content}>
-          <Text style={[styles.title, tracking && styles.titleActive]}>
-            {tracking ? '📍 Đang theo dõi vị trí' : 'Sẵn sàng gặp mặt'}
-          </Text>
-          
-          {currentDistance !== null && (
-            <Text style={[styles.distanceText, tracking && styles.distanceTextActive]}>
-              Khoảng cách: {currentDistance}m
+          <View style={styles.content}>
+            <Text style={[styles.title, (tracking || canCheckIn) && styles.titleActive]}>
+              {canCheckIn
+                ? '✨ Đã có thể Check-in!'
+                : tracking ? '📍 Đang theo dõi vị trí' : 'Sẵn sàng gặp mặt'}
             </Text>
-          )}
 
-          <Text style={[styles.subtitle, tracking && styles.subtitleActive]}>
-            Khi cả hai đến gần {hotSpotTitle} (trong vòng 200m), hệ thống sẽ tự động check-in
-          </Text>
+            {distanceToUser !== null && distanceToUser <= 500 && (
+              <View style={styles.distanceContainer}>
+                <Text style={[styles.distanceLabel, (tracking || canCheckIn) && styles.subtitleActive]}>
+                  Khoảng cách giữa 2 người:
+                </Text>
+                <Text style={[styles.distanceText, (tracking || canCheckIn) && styles.distanceTextActive]}>
+                  {distanceToUser}m
+                </Text>
+              </View>
+            )}
 
-          <View style={styles.statusGrid}>
-            <View style={styles.statusCard}>
-              <MaterialIcons
-                name={userCheckIn?.isWithinRadius ? 'check-circle' : 'radio-button-unchecked'}
-                size={20}
-                color={userCheckIn?.isWithinRadius ? '#10B981' : '#9CA3AF'}
-              />
-              <Text style={styles.statusLabel}>Bạn</Text>
-              <Text style={[styles.statusValue, userCheckIn?.isWithinRadius && styles.statusValueActive]}>
-                {userCheckIn?.isWithinRadius ? 'Đã đến' : 'Chưa đến'}
-              </Text>
+            <Text style={[styles.subtitle, (tracking || canCheckIn) && styles.subtitleActive]}>
+              {canCheckIn
+                ? 'Hai bạn đã ở rất gần nhau! Hãy bấm nút Check-In để hoàn thành.'
+                : `Khi cả hai đến gần ${hotSpotTitle} (trong vòng 200m) và gần nhau (dưới 50m), nút check-in sẽ xuất hiện.`}
+            </Text>
+
+            <View style={styles.statusGrid}>
+              <View style={[styles.statusCard, (tracking || canCheckIn) && styles.statusCardActive]}>
+                <MaterialIcons
+                  name={userCheckIn?.isWithinRadius ? 'check-circle' : 'radio-button-unchecked'}
+                  size={20}
+                  color={userCheckIn?.isWithinRadius ? '#10B981' : (tracking || canCheckIn) ? 'rgba(0,0,0,0.3)' : '#9CA3AF'}
+                />
+                <Text style={[styles.statusLabel, (tracking || canCheckIn) && styles.statusLabelActive]}>Bạn</Text>
+                <Text style={[styles.statusValue, userCheckIn?.isWithinRadius && styles.statusValueActive]}>
+                  {userCheckIn?.isWithinRadius ? 'Đã đến' : 'Chưa đến'}
+                </Text>
+              </View>
+
+              <View style={[styles.statusCard, (tracking || canCheckIn) && styles.statusCardActive]}>
+                <MaterialIcons
+                  name={otherCheckIn?.isWithinRadius ? 'check-circle' : 'radio-button-unchecked'}
+                  size={20}
+                  color={otherCheckIn?.isWithinRadius ? '#10B981' : (tracking || canCheckIn) ? 'rgba(0,0,0,0.3)' : '#9CA3AF'}
+                />
+                <Text style={[styles.statusLabel, (tracking || canCheckIn) && styles.statusLabelActive]}>Bạn bè</Text>
+                <Text style={[styles.statusValue, otherCheckIn?.isWithinRadius && styles.statusValueActive]}>
+                  {otherCheckIn?.isWithinRadius ? 'Đã đến' : 'Chưa đến'}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.statusCard}>
-              <MaterialIcons
-                name={otherCheckIn?.isWithinRadius ? 'check-circle' : 'radio-button-unchecked'}
-                size={20}
-                color={otherCheckIn?.isWithinRadius ? '#10B981' : '#9CA3AF'}
-              />
-              <Text style={styles.statusLabel}>Bạn bè</Text>
-              <Text style={[styles.statusValue, otherCheckIn?.isWithinRadius && styles.statusValueActive]}>
-                {otherCheckIn?.isWithinRadius ? 'Đã đến' : 'Chưa đến'}
-              </Text>
-            </View>
+            {canCheckIn && (
+              <TouchableOpacity
+                style={styles.checkInButton}
+                onPress={handleCheckIn}
+                disabled={isCheckingIn}
+              >
+                <LinearGradient colors={['#FF4B2B', '#FF416C']} style={styles.checkInButtonGradient}>
+                  {isCheckingIn ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="touch-app" size={24} color="white" />
+                      <Text style={styles.checkInButtonText}>CHECK-IN CÙNG NHAU</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+
+            {!tracking && !canCheckIn && (
+              <TouchableOpacity style={styles.startButton} onPress={startTracking}>
+                <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.startButtonGradient}>
+                  <Ionicons name="play-circle-outline" size={20} color="white" />
+                  <Text style={styles.startButtonText}>Bắt đầu theo dõi</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+
+            {tracking && !canCheckIn && (
+              <TouchableOpacity style={styles.stopButton} onPress={stopTracking}>
+                <Text style={styles.stopButtonText}>Dừng theo dõi</Text>
+              </TouchableOpacity>
+            )}
           </View>
-
-          {!tracking && (
-            <TouchableOpacity style={styles.startButton} onPress={startTracking}>
-              <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.startButtonGradient}>
-                <Ionicons name="play-circle-outline" size={20} color="white" />
-                <Text style={styles.startButtonText}>Bắt đầu theo dõi</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-
-          {tracking && (
-            <TouchableOpacity style={styles.stopButton} onPress={stopTracking}>
-              <Text style={styles.stopButtonText}>Dừng theo dõi</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </Animated.View>
     </View>
   );
 };
@@ -314,6 +382,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     gap: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  bannerHighlighted: {
+    borderColor: '#FFD700',
+    borderWidth: 2,
+    elevation: 8,
+    shadowColor: '#FFA500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   iconContainer: {
     width: 56,
@@ -335,6 +414,20 @@ const styles = StyleSheet.create({
   },
   titleActive: {
     color: 'white',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  distanceContainer: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    padding: 8,
+    borderRadius: 12,
+  },
+  distanceLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
   },
   distanceText: {
     fontSize: 24,
@@ -367,10 +460,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  statusCardActive: {
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
   statusLabel: {
     fontSize: 12,
     color: '#6B7280',
     fontWeight: '600',
+  },
+  statusLabelActive: {
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   statusValue: {
     fontSize: 13,
@@ -379,6 +478,25 @@ const styles = StyleSheet.create({
   },
   statusValueActive: {
     color: '#10B981',
+  },
+  checkInButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 12,
+    elevation: 4,
+  },
+  checkInButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 10,
+  },
+  checkInButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: 'white',
+    letterSpacing: 0.5,
   },
   startButton: {
     borderRadius: 12,

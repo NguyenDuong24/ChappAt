@@ -227,6 +227,29 @@ const VibeScreen = () => {
                             </Animated.View>
                         )}
 
+                        {/* Custom Status Message (Moved from footer) */}
+                        <View style={styles.headerStatusContainer}>
+                            <Text style={[styles.messageLabel, { color: colors.text }]}>Chia sẻ trạng thái (Status)</Text>
+                            <TextInput
+                                style={[
+                                    styles.messageInput,
+                                    {
+                                        backgroundColor: colors.cardBackground,
+                                        borderColor: colors.border,
+                                        color: colors.text,
+                                        minHeight: 60, // Smaller in header
+                                    }
+                                ]}
+                                placeholder="Bạn đang nghĩ gì?"
+                                placeholderTextColor={colors.text + '40'}
+                                value={customMessage}
+                                onChangeText={setCustomMessage}
+                                maxLength={100}
+                                multiline
+                            />
+                            <Text style={[styles.charCount, { color: colors.text + '40' }]}>{customMessage.length}/100</Text>
+                        </View>
+
                         {renderCategoryTabs()}
                     </View>
                 }
@@ -239,25 +262,6 @@ const VibeScreen = () => {
                 showsVerticalScrollIndicator={false}
                 ListFooterComponent={
                     <View style={styles.footerComponent}>
-                        <Text style={[styles.messageLabel, { color: colors.text }]}>Chia sẻ cảm nghĩ</Text>
-                        <TextInput
-                            style={[
-                                styles.messageInput,
-                                {
-                                    backgroundColor: colors.cardBackground,
-                                    borderColor: colors.border,
-                                    color: colors.text,
-                                }
-                            ]}
-                            placeholder="Bạn đang thấy thế nào?"
-                            placeholderTextColor={colors.text + '40'}
-                            value={customMessage}
-                            onChangeText={setCustomMessage}
-                            maxLength={100}
-                            multiline
-                        />
-                        <Text style={[styles.charCount, { color: colors.text + '40' }]}>{customMessage.length}/100</Text>
-
                         {currentVibe && (
                             <TouchableOpacity onPress={handleRemoveVibe} style={styles.removeBtn}>
                                 <MaterialIcons name="delete-outline" size={20} color={Colors.error} />
@@ -415,6 +419,10 @@ const styles = StyleSheet.create({
     },
     footerComponent: {
         padding: 16,
+        paddingBottom: 40,
+    },
+    headerStatusContainer: {
+        marginBottom: 20,
     },
     messageLabel: {
         fontSize: 16,

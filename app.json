@@ -44,7 +44,9 @@
                 "android.permission.VIBRATE",
                 "android.permission.RECEIVE_BOOT_COMPLETED",
                 "android.permission.POST_NOTIFICATIONS",
-                "android.permission.USE_FULL_SCREEN_INTENT"
+                "android.permission.USE_FULL_SCREEN_INTENT",
+                "android.permission.READ_EXTERNAL_STORAGE",
+                "android.permission.WRITE_EXTERNAL_STORAGE"
             ],
             "adaptiveIcon": {
                 "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -56,34 +58,7 @@
                 }
             },
             "package": "com.duongnguyen1263.Chat",
-            "googleServicesFile": "./google-services.json",
-            "notification": {
-                "icon": "./android/app/src/main/res/drawable/notification_icon.png",
-                "color": "#4f8bff",
-                "channelId": "calls",
-                "priority": "max",
-                "sound": true,
-                "channels": [
-                    {
-                        "id": "calls",
-                        "name": "Incoming Calls",
-                        "importance": "max",
-                        "description": "Notifications for incoming calls",
-                        "sound": "./assets/sounds/incoming.mp3",
-                        "vibrationPattern": [
-                            0,
-                            250,
-                            250,
-                            250
-                        ],
-                        "lightColor": "#4f8bff",
-                        "bypassDnd": true,
-                        "showWhen": false,
-                        "ongoing": true,
-                        "sticky": true
-                    }
-                ]
-            }
+            "googleServicesFile": "./google-services.json"
         },
         "web": {
             "bundler": "metro",
@@ -162,7 +137,8 @@
                     "iosAppId": "ca-app-pub-9844251118980104~9150620374"
                 }
             ],
-            "expo-localization"
+            "expo-localization",
+            "expo-media-library"
         ],
         "experiments": {
             "typedRoutes": true

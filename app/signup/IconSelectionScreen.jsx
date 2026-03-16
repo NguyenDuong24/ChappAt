@@ -5,7 +5,7 @@ import { Image } from 'expo-image';
 import { BlurView } from 'expo-blur';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/authContext';
-import { getStorage, ref, list, getDownloadURL } from 'firebase/storage';
+import { getAuth } from 'firebase/auth';
 import { useLogoState } from '@/context/LogoStateContext';
 import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -111,7 +111,7 @@ const IconSelectionScreen = () => {
     isLoadingRef.current = true;
 
     try {
-      // First load: try from cache to instant show
+      // First load: try from cache for instant display
       if (pageToken === undefined) {
         const cached = await AsyncStorage.getItem(CACHE_KEY);
         if (cached) {
@@ -120,36 +120,70 @@ const IconSelectionScreen = () => {
             setIcons(items);
             setNextPageToken(token);
             setInitialLoading(false);
-            // Background refresh could happen here if needed, but icons rarely change
             isLoadingRef.current = false;
             return;
           }
         }
       }
 
-      const storage = getStorage();
-      const iconRef = ref(storage, 'Icons/');
-      const result = await list(iconRef, { maxResults: PAGE_SIZE, pageToken });
-      const urls = await Promise.all(result.items.map((item) => getDownloadURL(item)));
+      // ✅ Use Firebase Storage REST API directly (avoids XMLHttpRequest issues in React Native)
+      const BUCKET = 'dating-app-1bb49.appspot.com';
+      const PREFIX = 'Icons/';
+      let apiUrl = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o?prefix=${encodeURIComponent(PREFIX)}&delimiter=%2F&maxResults=${PAGE_SIZE}`;
+      if (pageToken) {
+        apiUrl += `&pageToken=${encodeURIComponent(pageToken)}`;
+      }
+
+      // Try to get auth token for authenticated requests (Storage rules may require auth)
+      let headers = {};
+      try {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const idToken = await currentUser.getIdToken();
+          headers['Authorization'] = `Firebase ${idToken}`;
+        }
+      } catch (authErr) {
+        console.log('No auth token available for storage, trying unauthenticated...');
+      }
+
+      console.log('📡 Fetching icons via REST API...');
+      const response = await fetch(apiUrl, { headers });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Storage REST API error ${response.status}: ${errorBody}`);
+      }
+
+      const data = await response.json();
+      console.log(`✅ Found ${data.items?.length || 0} icons.`);
+
+      const items = data.items || [];
+      const urls = items.map(item => {
+        const encodedName = encodeURIComponent(item.name);
+        return `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodedName}?alt=media`;
+      });
 
       let newIcons;
       if (pageToken === undefined) {
         newIcons = ['GALLERY_PICKER', ...urls];
-
-        // Save first batch to cache for next time
         AsyncStorage.setItem(CACHE_KEY, JSON.stringify({
           items: newIcons,
-          token: result.nextPageToken
-        })).catch(e => console.log('Cache save err:', e));
+          token: data.nextPageToken
+        })).catch(() => { });
       } else {
         newIcons = [...icons, ...urls];
       }
 
       setIcons(newIcons);
-      setNextPageToken(result.nextPageToken);
+      setNextPageToken(data.nextPageToken);
 
     } catch (error) {
-      console.error('Error fetching icons:', error);
+      console.error('❌ Error fetching icons:', error.message);
+      // Show gallery picker at minimum so user isn't stuck
+      if (icons.length === 0) {
+        setIcons(['GALLERY_PICKER']);
+      }
     } finally {
       isLoadingRef.current = false;
       setInitialLoading(false);

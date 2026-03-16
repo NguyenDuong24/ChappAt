@@ -189,7 +189,7 @@ class HotSpotInviteService {
       if (meetupDetails.senderConfirmed && meetupDetails.receiverConfirmed) {
         meetupDetails.confirmedAt = serverTimestamp();
         await this.createMeetupSession(invite);
-        
+
         await updateDoc(inviteRef, {
           status: 'confirmed_going',
           meetupDetails,
@@ -241,7 +241,7 @@ class HotSpotInviteService {
     latitude: number,
     longitude: number,
     hotSpotLocation: { latitude: number; longitude: number }
-  ): Promise<{ canCheckIn: boolean; distance: number }> {
+  ): Promise<{ canCheckIn: boolean; distanceToHotSpot: number; distanceToUser: number | null }> {
     try {
       const sessionRef = doc(db, 'meetupSessions', sessionId);
       const sessionSnap = await getDoc(sessionRef);
@@ -252,16 +252,16 @@ class HotSpotInviteService {
 
       const session = sessionSnap.data() as MeetupSession;
 
-      // Tính khoảng cách
-      const distance = getDistance(
+      // Tính khoảng cách đến HotSpot
+      const distanceToHotSpot = getDistance(
         { latitude, longitude },
         { latitude: hotSpotLocation.latitude, longitude: hotSpotLocation.longitude }
       );
 
-      const isWithinRadius = distance <= MEETUP_RADIUS_METERS;
+      const isWithinRadius = distanceToHotSpot <= MEETUP_RADIUS_METERS;
 
-      // Cập nhật location data
-      const updateData = {
+      // Cập nhật location data của current user
+      const updateData: any = {
         [`checkInData.${userId}.location`]: { latitude, longitude },
         [`checkInData.${userId}.isWithinRadius`]: isWithinRadius,
         updatedAt: serverTimestamp(),
@@ -273,19 +273,37 @@ class HotSpotInviteService {
 
       await updateDoc(sessionRef, updateData);
 
-      // Kiểm tra xem cả hai có trong radius không
+      // Lấy data mới nhất để so sánh với person còn lại
       const updatedSessionSnap = await getDoc(sessionRef);
       const updatedSession = updatedSessionSnap.data() as MeetupSession;
 
-      const allWithinRadius = session.participants.every(
+      const otherUserId = session.participants.find(id => id !== userId);
+      const otherUserLocation = otherUserId ? updatedSession.checkInData[otherUserId]?.location : null;
+
+      let distanceToUser = null;
+      if (otherUserLocation) {
+        distanceToUser = getDistance(
+          { latitude, longitude },
+          { latitude: otherUserLocation.latitude, longitude: otherUserLocation.longitude }
+        );
+      }
+
+      // Kiểm tra điều kiện check-in:
+      // 1. Cả hai cùng có mặt trong bán kính HotSpot
+      // 2. Cả hai cách nhau dưới 50m
+      const bothInRadius = session.participants.every(
         (participantId) => updatedSession.checkInData[participantId]?.isWithinRadius
       );
 
-      if (allWithinRadius) {
-        await this.completeMeetup(sessionId);
-      }
+      const nearEachOther = distanceToUser !== null && distanceToUser <= 50;
 
-      return { canCheckIn: allWithinRadius, distance };
+      const canCheckIn = bothInRadius && nearEachOther;
+
+      return {
+        canCheckIn,
+        distanceToHotSpot,
+        distanceToUser
+      };
     } catch (error) {
       console.error('Error updating location:', error);
       throw error;

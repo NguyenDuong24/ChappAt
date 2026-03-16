@@ -1,5 +1,5 @@
 import React, { useContext, useRef, useState, useCallback, useMemo, useEffect } from 'react';
-import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated, Platform, StyleSheet, InteractionManager, Dimensions, FlatList } from 'react-native';
+import { View, ActivityIndicator, Alert, Text, RefreshControl, Animated, Platform, StyleSheet, InteractionManager, Dimensions } from 'react-native';
 import { useFollowingPosts, useExploreActions, useExploreState, useExploreLoading } from '@/context/ExploreContext';
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
-const ShimmerPlaceholder = ({ style }) => {
+const ShimmerPlaceholder = React.memo(({ style }) => {
     const shimmerAnim = useRef(new Animated.Value(0.3)).current;
     useEffect(() => {
         Animated.loop(
@@ -21,9 +21,9 @@ const ShimmerPlaceholder = ({ style }) => {
         ).start();
     }, []);
     return <Animated.View style={[style, { opacity: shimmerAnim }]} />;
-};
+});
 
-const PostSkeleton = ({ cardBackground }) => (
+const PostSkeleton = React.memo(({ cardBackground }) => (
     <View style={[styles.skeletonCard, { backgroundColor: cardBackground }]}>
         <View style={styles.skeletonHeader}>
             <ShimmerPlaceholder style={styles.skeletonAvatar} />
@@ -39,9 +39,9 @@ const PostSkeleton = ({ cardBackground }) => (
             <ShimmerPlaceholder style={styles.skeletonAction} />
         </View>
     </View>
-);
+));
 
-const LoadingView = ({ backgroundColor, cardBackground, effectiveHeaderHeight }) => (
+const LoadingView = React.memo(({ backgroundColor, cardBackground, effectiveHeaderHeight }) => (
     <View style={[styles.container, { backgroundColor }]}>
         <View style={{ paddingTop: effectiveHeaderHeight }}>
             <PostSkeleton cardBackground={cardBackground} />
@@ -49,9 +49,9 @@ const LoadingView = ({ backgroundColor, cardBackground, effectiveHeaderHeight })
             <PostSkeleton cardBackground={cardBackground} />
         </View>
     </View>
-);
+));
 
-const SkeletonFooter = ({ cardBackground, primaryColor, hasMore }) => {
+const SkeletonFooter = React.memo(({ cardBackground, primaryColor, hasMore }) => {
     if (!hasMore) return <View style={styles.endReachedContainer}><Text style={[styles.endReachedText, { color: primaryColor }]}>Đã xem hết bài viết ✨</Text></View>;
     return (
         <View style={styles.footerContainer}>
@@ -62,7 +62,7 @@ const SkeletonFooter = ({ cardBackground, primaryColor, hasMore }) => {
             <PostSkeleton cardBackground={cardBackground} />
         </View>
     );
-};
+});
 
 const Tab3Screen = ({ isActive }) => {
     const { t } = useTranslation();
@@ -114,27 +114,52 @@ const Tab3Screen = ({ isActive }) => {
         />
     ), [user, toggleLike, deletePost, updatePostPrivacy, t]);
 
+    // ⚡️ Stabilized keyExtractor
+    const keyExtractor = useCallback((item) => item.id, []);
+
+    // ⚡️ Stabilized onEndReached
+    const onEndReached = useCallback(() => {
+        if (hasMore && !loadingFollowing && loadMoreFollowing) loadMoreFollowing();
+    }, [hasMore, loadingFollowing, loadMoreFollowing]);
+
+    // ⚡️ Stabilized footer
+    const listFooter = useMemo(() => (
+        <SkeletonFooter cardBackground={colors.cardBackground} primaryColor={colors.tint} hasMore={hasMore} />
+    ), [colors.cardBackground, colors.tint, hasMore]);
+
+    // ⚡️ Stabilized refreshControl
+    const refreshControl = useMemo(() => (
+        <RefreshControl refreshing={isRefreshing} onRefresh={() => refresh && refresh('following')} tintColor={colors.tint} colors={[colors.tint]} />
+    ), [isRefreshing, refresh, colors.tint]);
+
+    // ⚡️ Stabilized contentContainerStyle
+    const contentContainerStyle = useMemo(() => ({
+        paddingTop: effectiveHeaderHeight || HEADER_HEIGHT,
+        paddingBottom: 120,
+        backgroundColor: colors.background,
+    }), [effectiveHeaderHeight, colors.background]);
+
     if (!canRender || (loadingInitial && followingPosts.length === 0)) {
         return <LoadingView backgroundColor={colors.background} cardBackground={colors.cardBackground} effectiveHeaderHeight={effectiveHeaderHeight || HEADER_HEIGHT} />;
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background, display: canRender ? 'flex' : 'none' }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <Animated.FlatList
                 data={followingPosts}
-                keyExtractor={(item) => item.id}
+                keyExtractor={keyExtractor}
                 renderItem={renderItem}
-                contentContainerStyle={{ paddingTop: effectiveHeaderHeight || HEADER_HEIGHT, paddingBottom: 120, backgroundColor: colors.background }}
-                refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => refresh && refresh('following')} tintColor={colors.tint} colors={[colors.tint]} />}
+                contentContainerStyle={contentContainerStyle}
+                refreshControl={refreshControl}
                 onScroll={onScroll}
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 onEndReachedThreshold={0.5}
-                onEndReached={() => { if (hasMore && !loadingFollowing && loadMoreFollowing) loadMoreFollowing(); }}
-                ListFooterComponent={() => <SkeletonFooter cardBackground={colors.cardBackground} primaryColor={colors.tint} hasMore={hasMore} />}
-                initialNumToRender={3}
-                maxToRenderPerBatch={3}
-                windowSize={5}
+                onEndReached={onEndReached}
+                ListFooterComponent={listFooter}
+                initialNumToRender={4}
+                maxToRenderPerBatch={4}
+                windowSize={7}
                 updateCellsBatchingPeriod={50}
                 removeClippedSubviews={Platform.OS === 'android'}
                 maintainVisibleContentPosition={{ minIndexForVisible: 0 }}

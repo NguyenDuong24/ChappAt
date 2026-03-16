@@ -53,7 +53,8 @@ const EditProfile = () => {
 
     useEffect(() => {
         if (user) {
-            setProfile({
+            setProfile(prev => ({
+                ...prev,
                 name: user.username || '',
                 email: user.email || '',
                 age: (() => {
@@ -71,9 +72,9 @@ const EditProfile = () => {
                 city: user.city || '',
                 address: user.address || '',
                 birthday: user.birthday || '',
-            });
+            }));
         }
-    }, [user?.uid]);
+    }, [user?.uid, icon]);
 
     const handleChange = (field: string, value: any) => setProfile((prev) => ({ ...prev, [field]: value }));
     const toggleArrayItem = (array: string[], item: string) => array.includes(item) ? array.filter((i) => i !== item) : [...array, item];

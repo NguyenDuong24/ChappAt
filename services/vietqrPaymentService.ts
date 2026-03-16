@@ -222,6 +222,22 @@ export const vietqrPaymentService = {
             return null;
         }
     },
+
+    /**
+     * Report an issue with payment
+     */
+    async reportIssue(orderId: string, amount: number, description: string): Promise<any> {
+        return await apiRequest('/vietqr/report-issue', {
+            method: 'POST',
+            body: JSON.stringify({
+                orderId,
+                amount,
+                description,
+                issueType: 'payment_not_received',
+                message: 'User reported: Payment transferred but not received automaticaly',
+            }),
+        });
+    },
 };
 
 /**
@@ -286,7 +302,7 @@ export function startRealTimePaymentListener(
                     completed = true;
                     if (unsubscribe) unsubscribe();
                     if (timeoutId) clearTimeout(timeoutId);
-                    
+
                     if (orderData.verificationMethod === 'sms_banking') {
                         console.log('[VIETQR Real-time] ✅ SMS Banking confirmed!');
                     }
@@ -320,7 +336,7 @@ export function startRealTimePaymentListener(
     } catch (error: any) {
         console.error('[VIETQR Real-time] Setup error:', error);
         onError('Setup listener failed');
-        return { stop: () => {} };
+        return { stop: () => { } };
     }
 }
 

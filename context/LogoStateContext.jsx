@@ -13,7 +13,9 @@ export const LogoStateProvider = ({ children }) => {
         const url = await getDownloadURL(ref(storage, 'Logos/logo.png'));
         setLogo(url);
       } catch (error) {
-        console.error('Error fetching logo:', error);
+        console.warn('⚠️ Logo not found in Firebase Storage:', error.code);
+        // Fallback: Use placeholder or skip logo
+        setLogo(null); // This won't break the app
       }
     };
 

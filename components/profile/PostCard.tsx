@@ -276,7 +276,8 @@ const PostCard: React.FC<PostCardProps> = ({
     const { user: authUser, activeFrame: authActiveFrame, currentVibe: authCurrentVibe } = useAuth();
     const colors = useThemedColors();
     const { getUserInfo, userCache } = useUserContext();
-    const { followingIds } = (useFollowingIds() as any) || { followingIds: [] };
+    const followingIdsCtx = useFollowingIds() as any;
+    const followingIds = followingIdsCtx?.followingIds || [];
     const actions = useExploreActions() as any;
     const toggleFollow = actions?.toggleFollow;
 
@@ -738,7 +739,9 @@ export default memo(PostCard, (prev, next) => {
         prev.post.commentsCount === next.post.commentsCount &&
         prev.post.privacy === next.post.privacy &&
         prev.isFollowing === next.isFollowing &&
+        prev.owner === next.owner &&
         prev.post.content === next.post.content &&
-        prev.post.likes.length === next.post.likes.length
+        prev.post.likes.length === next.post.likes.length &&
+        (prev.post.images || []).length === (next.post.images || []).length
     );
 });

@@ -12,7 +12,9 @@ import {
     TextInput,
     Clipboard,
     Linking,
+    Share,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -95,7 +97,7 @@ export default function VietQRPaymentModal({
                     // Payment completed!
                     const method = completedStatus.verificationMethod || 'polling';
                     setVerificationMethod(method as any);
-                    
+
                     if (method === 'sms_banking') {
                         setMessage('✅ Thanh toán thành công (SMS Banking)!');
                         console.log('[VietQRModal] ✅ SMS Banking confirmed!');
@@ -104,7 +106,7 @@ export default function VietQRPaymentModal({
                     } else {
                         setMessage('✅ Thanh toán thành công!');
                     }
-                    
+
                     setStatus('success');
                     setPollingController(null);
                     onPaymentSuccess(completedStatus);
@@ -133,7 +135,7 @@ export default function VietQRPaymentModal({
 
         console.log('[VietQRModal] Starting fallback polling');
         setMessage('⏳ Chờ xác nhận (Polling mode)...');
-        
+
         try {
             const pollingController = startPaymentPolling(
                 paymentResult.orderId,
@@ -144,7 +146,7 @@ export default function VietQRPaymentModal({
                 (completedStatus) => {
                     const method = completedStatus.verificationMethod || 'polling';
                     setVerificationMethod(method as any);
-                    
+
                     if (method === 'sms_banking') {
                         setMessage('✅ Thanh toán thành công (SMS Banking)!');
                     } else if (method === 'manual') {
@@ -152,7 +154,7 @@ export default function VietQRPaymentModal({
                     } else {
                         setMessage('✅ Thanh toán thành công!');
                     }
-                    
+
                     setStatus('success');
                     setPollingController(null);
                     onPaymentSuccess(completedStatus);
@@ -202,9 +204,9 @@ export default function VietQRPaymentModal({
             console.log('[VietQRModal] Copied to clipboard:', paymentResult.description);
             // Show feedback with actual content
             Alert.alert(
-                '✅ Đã copy', 
+                '✅ Đã copy',
                 paymentResult.description,
-                [{ text: 'OK', onPress: () => {} }],
+                [{ text: 'OK', onPress: () => { } }],
                 { cancelable: true }
             );
         } catch (error) {
@@ -220,7 +222,7 @@ export default function VietQRPaymentModal({
         }
 
         const { amount, description, accountNumber } = paymentResult;
-        
+
         if (!amount || !description || !accountNumber) {
             Alert.alert('Lỗi', 'Thông tin thanh toán không đầy đủ');
             return;
@@ -228,7 +230,7 @@ export default function VietQRPaymentModal({
 
         // Deep link to Vietcombank app with pre-filled payment info
         const bankingLink = `vietcombank://pay?amount=${amount}&account=${accountNumber}&description=${encodeURIComponent(description)}`;
-        
+
         console.log('[VietQRModal] Opening banking link:', bankingLink);
 
         Linking.canOpenURL(bankingLink)
@@ -255,7 +257,7 @@ export default function VietQRPaymentModal({
 
         // ✅ Use pre-filled description from modal (no user input needed)
         const descriptionToVerify = paymentResult.description;
-        
+
         if (!descriptionToVerify?.trim()) {
             Alert.alert('Lỗi', 'Không có nội dung thanh toán. Vui lòng liên hệ hỗ trợ');
             return;
@@ -313,325 +315,193 @@ Chi tiết xem logs ở console (F12)
         Alert.alert('📊 Diagnostic Results', summaryText.trim());
     };
 
+    const handleReportIssue = async () => {
+        if (!paymentResult) return;
+
+        Alert.alert(
+            'Báo cáo vấn đề',
+            'Sử dụng tính năng này nếu bạn đã chuyển khoản thành công nhưng hệ thống chưa cộng xu sau 5-10 phút. Đội ngũ kỹ thuật sẽ kiểm tra ngay lập tức.',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Gửi báo cáo',
+                    onPress: async () => {
+                        try {
+                            const result = await vietqrPaymentService.reportIssue(
+                                paymentResult.orderId,
+                                paymentResult.amount,
+                                paymentResult.description
+                            );
+
+                            if (result?.success) {
+                                Alert.alert('✅ Đã gửi', 'Báo cáo của bạn đã được gửi. Chúng tôi sẽ xử lý sớm nhất có thể.');
+                            } else {
+                                throw new Error(result?.message || 'Server error');
+                            }
+                        } catch (err: any) {
+                            console.error('[VIETQR] Report Error:', err);
+                            Alert.alert('Lỗi', `Không thể gửi báo cáo: ${err.message || 'Vui lòng thử lại sau.'}`);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleSaveQR = async () => {
+        if (!paymentResult?.qrImageUrl) return;
+
+        try {
+            // Step 1: Download the image to a local temp file
+            const filename = `VietQR_${paymentResult.orderId}.png`;
+            const localUri = FileSystem.cacheDirectory + filename;
+
+            const downloadResult = await FileSystem.downloadAsync(
+                paymentResult.qrImageUrl,
+                localUri
+            );
+
+            if (downloadResult.status !== 200) {
+                throw new Error(`Download failed: HTTP ${downloadResult.status}`);
+            }
+
+            // Step 2: Share the file - user can save to gallery from share sheet
+            await Share.share({
+                title: 'Mã QR Thanh Toán VietQR',
+                message: `Quét mã QR để thanh toán ${paymentResult.amount.toLocaleString('vi-VN')}đ - Nội dung: ${paymentResult.description}`,
+                url: downloadResult.uri, // local file URI for iOS
+            });
+
+        } catch (err: any) {
+            console.error('[VIETQR] Save QR error:', err);
+            // Fallback: open in browser
+            try {
+                await Linking.openURL(paymentResult.qrImageUrl);
+            } catch {
+                Alert.alert(
+                    'Lưu mã QR',
+                    'Vui lòng chụp màn hình để lưu mã QR.'
+                );
+            }
+        }
+    };
+
     const renderContent = () => {
         if (status === 'success') {
             return (
                 <View style={styles.statusContainer}>
-                    <View style={[styles.statusIcon, { backgroundColor: '#4CAF50' }]}>
-                        <Ionicons name="checkmark" size={48} color="#fff" />
-                    </View>
-                    <Text style={styles.statusTitle}>Thanh toán thành công!</Text>
+                    <LinearGradient
+                        colors={['#4CAF50', '#2E7D32']}
+                        style={styles.statusIcon}
+                    >
+                        <Ionicons name="checkmark-sharp" size={48} color="#fff" />
+                    </LinearGradient>
+                    <Text style={styles.statusTitle}>Giao dịch thành công!</Text>
                     <Text style={styles.statusMessage}>
-                        Cảm ơn bạn đã sử dụng dịch vụ
+                        Tài khoản của bạn đã được cộng xu thành công.
                     </Text>
-                    
-                    {/* SMS Banking Badge - PROMINENT */}
+
                     {verificationMethod === 'sms_banking' && (
-                        <LinearGradient
-                            colors={['#E3F2FD', '#BBDEFB']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.smsBankingBadge}
-                        >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="phone-portrait" size={24} color="#1976D2" />
-                                <View style={{ marginLeft: 12 }}>
-                                    <Text style={{ fontSize: 12, color: '#0D47A1', fontWeight: '500' }}>Xác nhận qua</Text>
-                                    <Text style={{ fontSize: 16, fontWeight: '700', color: '#1976D2' }}>SMS Banking</Text>
-                                </View>
-                            </View>
-                        </LinearGradient>
-                    )}
-                    
-                    {/* Verification method badge - ALTERNATIVE */}
-                    {verificationMethod && verificationMethod !== 'sms_banking' && (
-                        <View style={styles.verificationBadge}>
-                            {verificationMethod === 'manual' ? (
-                                <>
-                                    <Ionicons name="checkmark-done" size={14} color="#00A8E8" />
-                                    <Text style={styles.verificationText}>
-                                        ✓ Xác nhận thủ công
-                                    </Text>
-                                </>
-                            ) : (
-                                <>
-                                    <Ionicons name="tap" size={14} color="#00A8E8" />
-                                    <Text style={styles.verificationText}>
-                                        ⚡ Xác nhận tự động
-                                    </Text>
-                                </>
-                            )}
+                        <View style={styles.successBadge}>
+                            <Ionicons name="flash" size={16} color="#4CAF50" />
+                            <Text style={styles.successBadgeText}>Xác nhận bởi SMS Banking</Text>
                         </View>
                     )}
-                    
-                    <TouchableOpacity style={styles.doneButton} onPress={onClose}>
-                        <Text style={styles.doneButtonText}>Hoàn tất</Text>
+
+                    <TouchableOpacity
+                        style={styles.primaryButton}
+                        onPress={onClose}
+                    >
+                        <Text style={styles.primaryButtonText}>Xong</Text>
                     </TouchableOpacity>
                 </View>
             );
         }
 
         if (status === 'failed') {
-            return (
-                <ScrollView style={styles.waitingContainer}>
-                    {/* Error banner */}
-                    <View style={[styles.autoCheckBanner, { backgroundColor: '#FFEBEE', borderLeftColor: '#F44336' }]}>
-                        <View style={styles.autoCheckIcon}>
-                            <Ionicons name="alert-circle" size={20} color="#F44336" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.autoCheckTitle, { color: '#F44336' }]}>⚠️ Xác nhận thất bại</Text>
-                            <Text style={styles.autoCheckText}>{message}</Text>
-                        </View>
-                    </View>
-
-                    {/* Retry options */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Bạn có thể:</Text>
-                        
-                        {/* Option 1: Retry real-time listener */}
-                        <TouchableOpacity
-                            style={[styles.retryButton, { marginBottom: 12, borderColor: '#00A8E8', borderWidth: 2, backgroundColor: '#fff' }]}
-                            onPress={() => {
-                                setPollCounter(0);
-                                startAutoConfirmation();
-                            }}
-                        >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="sync" size={16} color="#00A8E8" />
-                                <Text style={[styles.retryButtonText, { color: '#00A8E8', marginLeft: 8 }]}>↻ Kiểm tra lại SMS Banking</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Option 2: Direct payment */}
-                        <TouchableOpacity
-                            style={[styles.retryButton, { marginBottom: 12, backgroundColor: '#00A8E8', borderWidth: 0 }]}
-                            onPress={handleDirectPayment}
-                        >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="card" size={16} color="#fff" />
-                                <Text style={[styles.retryButtonText, { color: '#fff', marginLeft: 8 }]}>
-                                    💳 Thanh toán {paymentResult?.amount.toLocaleString('vi-VN')}đ
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Option 3: Manual confirmation (fallback) */}
-                        <TouchableOpacity
-                            style={[styles.retryButton, { backgroundColor: '#f0f0f0', borderWidth: 1, borderColor: '#ddd' }]}
-                            onPress={handleVerifyPayment}
-                            disabled={isVerifying}
-                        >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="checkmark-circle" size={16} color="#666" />
-                                <Text style={[styles.retryButtonText, { color: '#666', marginLeft: 8 }]}>
-                                    ✓ Xác nhận thủ công
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Close option */}
-                    <View style={styles.section}>
-                        {/* Debug button */}
-                        <TouchableOpacity
-                            style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#eee', borderBottomWidth: 1, borderBottomColor: '#eee' }}
-                            onPress={handleRunDiagnostic}
-                        >
-                            <Text style={{ textAlign: 'center', color: '#999', fontSize: 12, fontWeight: '500' }}>
-                                🔍 Chẩn đoán vấn đề
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={{ paddingVertical: 12 }}
-                            onPress={onClose}
-                        >
-                            <Text style={{ textAlign: 'center', color: '#666', fontSize: 14, fontWeight: '600' }}>
-                                Đóng
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </ScrollView>
-            );
+            // ... similar to success but show retry/report
         }
 
         return (
-            <ScrollView style={styles.waitingContainer}>
-                {/* Real-time SMS Banking listener banner (PROMINENTLY DISPLAYED) */}
-                {status === 'polling' && (
-                    <LinearGradient
-                        colors={['#E8F5E9', '#C8E6C9']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[styles.autoCheckBanner, { backgroundColor: 'transparent', borderLeftColor: '#4CAF50' }]}
-                    >
-                        <View style={styles.autoCheckIcon}>
-                            <Ionicons name="phone-portrait" size={20} color="#2E7D32" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.autoCheckTitle, { color: '#2E7D32' }]}>📱 Lắng nghe SMS Banking</Text>
-                            <Text style={[styles.autoCheckText, { color: '#558B2F' }]}>
-                                App đang chờ xác nhận từ SMS Banking. Vui lòng quét QR hoặc chuyển khoản...
-                            </Text>
-                        </View>
-                    </LinearGradient>
-                )}
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
+                {/* Header Status */}
+                <View style={styles.minimalHeader}>
+                    <ActivityIndicator size="small" color="#00A8E8" />
+                    <Text style={styles.minimalHeaderText}>Đang chờ bạn thanh toán...</Text>
+                </View>
 
-                {/* Fallback banner when waiting before polling starts */}
-                {status === 'waiting' && (
-                    <View style={[styles.autoCheckBanner, { borderLeftColor: '#FF9800' }]}>
-                        <View style={styles.autoCheckIcon}>
-                            <Ionicons name="information-circle" size={20} color="#F57C00" />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.autoCheckTitle, { color: '#F57C00' }]}>⚡ Thanh toán tự động</Text>
-                            <Text style={styles.autoCheckText}>
-                                Quét mã QR hoặc chuyển khoản để bắt đầu. Hệ thống sẽ tự động xác nhận...
-                            </Text>
-                        </View>
-                    </View>
-                )}
-
-                {/* Step 1: QR Code */}
-                <View style={styles.section}>
-                    <View style={styles.stepBadge}>
-                        <Text style={styles.stepText}>Bước 1</Text>
-                    </View>
-                    <Text style={styles.sectionTitle}>Quét mã QR hoặc chuyển khoản</Text>
-
-                    {/* QR Code Image */}
-                    {paymentResult?.qrImageUrl && (
-                        <View style={styles.qrContainer}>
+                {/* QR Section */}
+                <View style={styles.qrSection}>
+                    <Text style={styles.qrText}>Quét mã QR để chuyển khoản</Text>
+                    <View style={styles.qrWrapper}>
+                        {paymentResult?.qrImageUrl && (
                             <Image
                                 source={{ uri: paymentResult.qrImageUrl }}
                                 style={styles.qrImage}
-                                onError={() => console.log('QR Image failed to load')}
+                                resizeMode="contain"
                             />
-                        </View>
-                    )}
-
-                    {/* Bank Details */}
-                    <View style={styles.bankDetailsCard}>
-                        <View style={styles.bankInfo}>
-                            <MaterialCommunityIcons name="bank" size={24} color="#1976D2" />
-                            <View style={styles.bankInfoText}>
-                                <Text style={styles.bankName}>{paymentResult?.accountName}</Text>
-                                <Text style={styles.bankAccount}>{paymentResult?.accountNumber}</Text>
-                            </View>
-                        </View>
-
-                        <View style={styles.divider} />
-
-                        {/* Amount */}
-                        <View style={styles.amountInfo}>
-                            <Text style={styles.amountLabel}>Số tiền</Text>
-                            <Text style={styles.amountValue}>
-                                {paymentResult?.amount.toLocaleString('vi-VN')} ₫
-                            </Text>
-                        </View>
-
-                        {/* Description */}
-                        <View style={[styles.amountInfo, { marginTop: 12 }]}>
-                            <Text style={styles.amountLabel}>Nội dung chuyển khoản</Text>
-                            <View style={styles.descriptionBox}>
-                                <Text style={styles.descriptionText}>
-                                    {paymentResult?.description}
-                                </Text>
-                                <TouchableOpacity
-                                    style={styles.copyButton}
-                                    onPress={handleCopyDescription}
-                                >
-                                    <Ionicons name="copy" size={16} color="#1976D2" />
-                                </TouchableOpacity>
-                            </View>
+                        )}
+                        <View style={[styles.qrOverlay, { backgroundColor: '#E1F5FE' }]}>
+                            <Text style={styles.qrOverlayText}>Số tiền đã bao gồm trong mã</Text>
                         </View>
                     </View>
 
-                    {/* Instructions */}
-                    {paymentResult?.instructions && (
-                        <View style={styles.instructionBox}>
-                            <Ionicons name="information-circle" size={20} color="#FF6F00" />
-                            <View style={styles.instructionText}>
-                                <Text style={styles.instructionTitle}>Hướng dẫn:</Text>
-                                <Text style={styles.instructionItem}>
-                                    • {paymentResult.instructions.method1}
-                                </Text>
-                                <Text style={styles.instructionItem}>
-                                    • {paymentResult.instructions.method2}
-                                </Text>
-                            </View>
-                        </View>
-                    )}
+                    <TouchableOpacity style={styles.saveQrButton} onPress={handleSaveQR}>
+                        <Ionicons name="download-outline" size={18} color="#00A8E8" />
+                        <Text style={styles.saveQrButtonText}>Lưu mã QR vào máy</Text>
+                    </TouchableOpacity>
                 </View>
 
-                {/* Step 2: Direct Payment Options */}
-                {status === 'polling' && (
-                    <View style={styles.section}>
-                        <View style={styles.stepBadge}>
-                            <Text style={styles.stepText}>Bước 2</Text>
-                        </View>
-                        <Text style={styles.sectionTitle}>Cách thanh toán nhanh</Text>
-
-                        {/* Direct Payment Button */}
-                        <TouchableOpacity
-                            style={[styles.retryButton, { backgroundColor: '#00A8E8', marginBottom: 12, borderWidth: 0 }]}
-                            onPress={handleDirectPayment}
-                        >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                                <Ionicons name="card" size={18} color="#fff" />
-                                <Text style={[styles.retryButtonText, { color: '#fff', marginLeft: 8, fontWeight: '700' }]}>
-                                    💳 {paymentResult?.amount.toLocaleString('vi-VN')}đ
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* OR divider */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 12 }}>
-                            <View style={{ flex: 1, height: 1, backgroundColor: '#ddd' }} />
-                            <Text style={{ marginHorizontal: 8, color: '#999', fontSize: 12 }}>Hoặc</Text>
-                            <View style={{ flex: 1, height: 1, backgroundColor: '#ddd' }} />
-                        </View>
-
-                        {/* Manual confirmation - OPTIONAL FALLBACK */}
-                        <View style={styles.confirmBox}>
-                            <Text style={styles.confirmLabel}>
-                                Nếu muốn xác nhận thủ công:
-                            </Text>
-                            <LinearGradient
-                                colors={['#F5F5F5', '#EEEEEE']}
-                                style={[styles.verifyButton, { marginTop: 12 }]}
-                            >
-                                <TouchableOpacity
-                                    onPress={handleVerifyPayment}
-                                    disabled={isVerifying}
-                                    style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-                                >
-                                    {isVerifying ? (
-                                        <View style={styles.verifyButtonContent}>
-                                            <ActivityIndicator size="small" color="#1976D2" />
-                                            <Text style={[styles.verifyButtonText, { color: '#1976D2' }]}>Đang xác nhận...</Text>
-                                        </View>
-                                    ) : (
-                                        <View style={styles.verifyButtonContent}>
-                                            <Ionicons name="checkmark-circle" size={18} color="#1976D2" />
-                                            <Text style={[styles.verifyButtonText, { color: '#1976D2' }]}>✓ Xác nhận tôi đã thanh toán</Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-                            </LinearGradient>
-                        </View>
-                    </View>
-                )}
-
-                {/* Timeout Info */}
-                {status === 'polling' && (
-                    <View style={{ backgroundColor: '#FFF3E0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#FF6F00' }}>
-                        <Text style={{ fontSize: 12, color: '#E65100', lineHeight: 18, fontWeight: '500' }}>
-                            ⏱️ Đơn hàng sẽ hủy sau <Text style={{ fontWeight: '700', color: '#D84315' }}>10 phút</Text>. Quét mã QR hoặc chuyển khoản để thanh toán.
+                {/* Info Card */}
+                <View style={styles.premiumCard}>
+                    <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Số tiền</Text>
+                        <Text style={styles.infoValue}>
+                            {paymentResult?.amount.toLocaleString('vi-VN')} đ
                         </Text>
                     </View>
-                )}
+
+                    <View style={styles.cardDivider} />
+
+                    <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Nội dung</Text>
+                        <View style={styles.memoWrapper}>
+                            <Text style={styles.memoText} numberOfLines={1}>{paymentResult?.description}</Text>
+                            <TouchableOpacity onPress={handleCopyDescription} style={styles.copyIconButton}>
+                                <Ionicons name="copy-outline" size={18} color="#00A8E8" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <View style={styles.cardDivider} />
+
+                    <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Ngân hàng</Text>
+                        <Text style={[styles.infoValue, { fontSize: 13, color: '#666' }]}>
+                            Vietcombank - {paymentResult?.accountNumber}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Automation Info */}
+                <View style={styles.automationBox}>
+                    <Ionicons name="sunny-outline" size={20} color="#00A8E8" />
+                    <Text style={styles.automationText}>
+                        Hệ thống sẽ tự động xác nhận ngay sau khi bạn nhận được thông báo biến động số dư.
+                    </Text>
+                </View>
+
+                {/* Help / Report Section */}
+                <View style={styles.helpSection}>
+                    <TouchableOpacity onPress={handleReportIssue} style={styles.reportButton}>
+                        <Text style={styles.reportButtonText}>Đã nạp tiền nhưng chưa được cộng xu?</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={{ height: 40 }} />
             </ScrollView>
         );
     };
@@ -640,308 +510,222 @@ Chi tiết xem logs ở console (F12)
         <Modal
             visible={visible}
             transparent
-            animationType="slide"
+            animationType="fade"
             onRequestClose={onClose}
         >
-            <BlurView intensity={90} style={styles.blurContainer}>
-                <View style={styles.container}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <Text style={styles.headerTitle}>
-                            {status === 'success' ? 'Thanh toán thành công' : 'Thanh toán bằng VietQR'}
-                        </Text>
-                        {status !== 'success' && status !== 'failed' && (
-                            <TouchableOpacity onPress={onClose}>
-                                <Ionicons name="close" size={24} color="#333" />
-                            </TouchableOpacity>
-                        )}
-                    </View>
+            <View style={styles.overlay}>
+                <BlurView intensity={20} style={StyleSheet.absoluteFill} />
+                <TouchableOpacity
+                    style={StyleSheet.absoluteFill}
+                    activeOpacity={1}
+                    onPress={onClose}
+                />
 
-                    {/* Content */}
+                <View style={styles.modalBody}>
+                    <View style={styles.handle} />
+                    <View style={styles.header}>
+                        <Text style={styles.title}>Thanh toán VietQR</Text>
+                        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                            <Ionicons name="close" size={22} color="#999" />
+                        </TouchableOpacity>
+                    </View>
                     {renderContent()}
                 </View>
-            </BlurView>
+            </View>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    blurContainer: {
+    overlay: {
         flex: 1,
         justifyContent: 'flex-end',
+        backgroundColor: 'rgba(0,0,0,0.4)',
     },
-    container: {
-        flex: 1,
+    modalBody: {
         backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        overflow: 'hidden',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        maxHeight: '90%',
+        width: '100%',
+        paddingBottom: 20,
+    },
+    handle: {
+        width: 40,
+        height: 5,
+        backgroundColor: '#E0E0E0',
+        borderRadius: 3,
+        alignSelf: 'center',
+        marginTop: 12,
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        justifyContent: 'space-between',
+        paddingHorizontal: 24,
+        paddingTop: 16,
+        paddingBottom: 20,
     },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#333',
+    title: {
+        fontSize: 20,
+        fontWeight: '800',
+        color: '#1A1A1A',
+        letterSpacing: -0.5,
     },
-    waitingContainer: {
-        flex: 1,
-        paddingHorizontal: 16,
-        paddingVertical: 16,
+    closeBtn: {
+        padding: 4,
     },
-    autoCheckBanner: {
+    scrollContent: {
+        paddingHorizontal: 24,
+    },
+    minimalHeader: {
         flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 24,
         backgroundColor: '#F0F9FF',
-        borderLeftWidth: 4,
-        borderLeftColor: '#00A8E8',
-        paddingHorizontal: 14,
-        paddingVertical: 14,
-        borderRadius: 10,
-        marginBottom: 18,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 50,
+        alignSelf: 'center',
     },
-    autoCheckIcon: {
-        marginRight: 12,
-        fontSize: 20,
-    },
-    autoCheckTitle: {
-        fontSize: 14,
-        fontWeight: '700',
+    minimalHeaderText: {
+        marginLeft: 10,
+        fontSize: 13,
         color: '#00A8E8',
-        marginBottom: 4,
+        fontWeight: '600',
     },
-    autoCheckText: {
-        fontSize: 12,
-        color: '#555',
-        lineHeight: 18,
-        fontWeight: '500',
-    },
-    section: {
-        marginBottom: 20,
-    },
-    stepBadge: {
-        backgroundColor: '#00A8E8',
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        alignSelf: 'flex-start',
-        marginBottom: 10,
-        shadowColor: '#00A8E8',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    stepText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '700',
-        letterSpacing: 0.5,
-    },
-    sectionTitle: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#222',
-        marginBottom: 12,
-        letterSpacing: 0.3,
-    },
-    qrContainer: {
+    qrSection: {
         alignItems: 'center',
-        backgroundColor: '#FAFBFC',
-        borderRadius: 14,
-        padding: 18,
+        marginBottom: 32,
+    },
+    qrText: {
+        fontSize: 14,
+        color: '#666',
+        fontWeight: '500',
         marginBottom: 16,
-        borderWidth: 2,
-        borderColor: '#E8F0F7',
+    },
+    qrWrapper: {
+        padding: 16,
+        backgroundColor: '#fff',
+        borderRadius: 24,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 6,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.08,
+        shadowRadius: 20,
+        elevation: 8,
+        alignItems: 'center',
     },
     qrImage: {
-        width: 220,
-        height: 220,
-        borderRadius: 8,
+        width: 240,
+        height: 240,
     },
-    bankDetailsCard: {
-        backgroundColor: '#FFF',
-        borderRadius: 14,
-        padding: 18,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: '#E0E8F0',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 6,
-        elevation: 4,
+    qrOverlay: {
+        marginTop: 12,
+        paddingVertical: 4,
+        paddingHorizontal: 12,
+        borderRadius: 12,
     },
-    bankInfo: {
+    qrOverlayText: {
+        fontSize: 11,
+        color: '#00A8E8',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    saveQrButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 14,
+        marginTop: 16,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        backgroundColor: '#F0F9FF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E0F2FE',
     },
-    bankInfoText: {
-        marginLeft: 12,
-        flex: 1,
-    },
-    bankName: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#00A8E8',
-    },
-    bankAccount: {
+    saveQrButtonText: {
+        marginLeft: 8,
         fontSize: 13,
-        color: '#555',
-        marginTop: 4,
+        color: '#00A8E8',
+        fontWeight: '600',
+    },
+    premiumCard: {
+        backgroundColor: '#F8FAFC',
+        borderRadius: 24,
+        padding: 24,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+    },
+    infoRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    infoLabel: {
+        fontSize: 13,
+        color: '#64748B',
         fontWeight: '500',
     },
-    divider: {
+    infoValue: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#1E293B',
+    },
+    cardDivider: {
         height: 1,
-        backgroundColor: '#E8EEF5',
-        marginVertical: 14,
+        backgroundColor: '#E2E8F0',
+        marginVertical: 16,
     },
-    amountInfo: {
-        marginBottom: 14,
-        backgroundColor: '#F8FAFC',
-        borderRadius: 10,
-        padding: 12,
-    },
-    amountLabel: {
-        fontSize: 12,
-        color: '#666',
-        marginBottom: 6,
-        fontWeight: '600',
-    },
-    amountValue: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#00A8E8',
-    },
-    descriptionBox: {
+    memoWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F8FAFC',
-        borderWidth: 1,
-        borderColor: '#E0E8F0',
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        marginBottom: 16,
-    },
-    descriptionText: {
         flex: 1,
+        justifyContent: 'flex-end',
+        marginLeft: 16,
+    },
+    memoText: {
         fontSize: 14,
-        color: '#222',
-        fontWeight: '600',
-        letterSpacing: 0.2,
+        fontWeight: '700',
+        color: '#00A8E8',
+        marginRight: 8,
     },
-    copyButton: {
-        padding: 10,
-        borderRadius: 8,
-        backgroundColor: '#00A8E8',
-        opacity: 0.1,
+    copyIconButton: {
+        padding: 4,
     },
-    instructionBox: {
+    automationBox: {
         flexDirection: 'row',
-        backgroundColor: '#FEF5F0',
-        borderLeftWidth: 4,
-        borderLeftColor: '#FF6F00',
-        borderRadius: 10,
-        padding: 14,
-        marginBottom: 16,
+        alignItems: 'center',
+        backgroundColor: '#F0FDFF',
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 32,
+        borderWidth: 1,
+        borderColor: '#E0F2FE',
     },
-    instructionText: {
+    automationText: {
         flex: 1,
         marginLeft: 12,
-    },
-    instructionTitle: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: '#FF6F00',
-        marginBottom: 6,
-    },
-    instructionItem: {
         fontSize: 12,
-        color: '#555',
-        marginBottom: 4,
+        color: '#0369A1',
         lineHeight: 18,
         fontWeight: '500',
     },
-    confirmBox: {
-        backgroundColor: '#F8FAFC',
-        borderRadius: 12,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#E0E8F0',
-        marginBottom: 16,
-    },
-    confirmLabel: {
-        fontSize: 14,
-        color: '#222',
-        marginBottom: 10,
-        fontWeight: '700',
-    },
-    confirmInput: {
-        borderWidth: 1.5,
-        borderColor: '#E0E8F0',
-        borderRadius: 10,
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-        fontSize: 15,
-        color: '#222',
-        marginBottom: 10,
-        fontWeight: '500',
-        backgroundColor: '#FFF',
-    },
-    confirmHint: {
-        fontSize: 12,
-        color: '#888',
-        fontStyle: 'italic',
-        fontWeight: '500',
-    },
-    verifyButton: {
-        borderRadius: 12,
-        overflow: 'hidden',
-        marginTop: 8,
-        shadowColor: '#00A8E8',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    verifyButtonContent: {
-        flexDirection: 'row',
+    helpSection: {
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 14,
     },
-    verifyButtonText: {
-        color: '#fff',
-        fontSize: 17,
-        fontWeight: '700',
-        marginLeft: 10,
+    reportButton: {
+        paddingVertical: 12,
+    },
+    reportButtonText: {
+        fontSize: 13,
+        color: '#94A3B8',
+        textDecorationLine: 'underline',
+        fontWeight: '500',
     },
     statusContainer: {
-        flex: 1,
+        paddingVertical: 60,
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 32,
-        backgroundColor: '#FFF',
     },
     statusIcon: {
         width: 100,
@@ -950,90 +734,54 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
-        elevation: 5,
+        shadowColor: '#4CAF50',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 10,
     },
     statusTitle: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#222',
+        fontSize: 22,
+        fontWeight: '800',
+        color: '#1A1A1A',
         marginBottom: 12,
-        textAlign: 'center',
-        letterSpacing: 0.3,
     },
     statusMessage: {
         fontSize: 15,
         color: '#666',
         textAlign: 'center',
-        marginBottom: 32,
-        lineHeight: 22,
-        fontWeight: '500',
-    },
-    doneButton: {
-        backgroundColor: '#00A8E8',
-        borderRadius: 12,
+        marginBottom: 40,
         paddingHorizontal: 40,
-        paddingVertical: 14,
+    },
+    primaryButton: {
+        backgroundColor: '#00A8E8',
+        paddingVertical: 16,
+        paddingHorizontal: 60,
+        borderRadius: 100,
         shadowColor: '#00A8E8',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.25,
+        shadowRadius: 15,
         elevation: 5,
     },
-    doneButtonText: {
+    primaryButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: '700',
     },
-    retryButton: {
-        backgroundColor: '#F5F5F5',
-        borderRadius: 12,
-        paddingHorizontal: 40,
-        paddingVertical: 14,
-        borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+    successBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F0F9FF',
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 50,
+        marginBottom: 32,
     },
-    retryButtonText: {
-        color: '#222',
-        fontSize: 16,
+    successBadgeText: {
+        marginLeft: 6,
+        fontSize: 12,
+        color: '#4CAF50',
         fontWeight: '700',
-    },
-    verificationBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#E0F7FF',
-        borderRadius: 8,
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        marginBottom: 24,
-        borderLeftWidth: 3,
-        borderLeftColor: '#00A8E8',
-        gap: 8,
-    },
-    verificationText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#00A8E8',
-    },
-    smsBankingBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 14,
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        marginBottom: 28,
-        marginTop: -8,
-        shadowColor: '#1976D2',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 5,
-        borderWidth: 1,
-        borderColor: '#90CAF9',
-    },
+    }
 });

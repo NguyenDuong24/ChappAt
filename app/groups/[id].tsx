@@ -9,7 +9,6 @@ import { db } from '@/firebaseConfig';
 import GroupChatHeader from '@/components/groups/GroupChatHeader';
 import GroupMessageList from '@/components/groups/GroupMessageList';
 import * as ImagePicker from 'expo-image-picker';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import ReportModalSimple from '@/components/common/ReportModalSimple';
 import { useOptimizedGroupMessages } from '@/hooks/useOptimizedGroupMessages';
 import { nsfwService } from '@/services/nsfwService';
@@ -19,8 +18,7 @@ import { ChatThemeProvider, useChatTheme } from '@/context/ChatThemeContext';
 import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
 import GiftBurst from '@/components/chat/GiftBurst';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const storage = getStorage();
+import { uploadLocalFileToStorage } from '@/utils/storageUpload';
 
 export default function GroupChatScreen() {
   return (
@@ -280,11 +278,11 @@ function GroupChatContent() {
         const uri = result.assets[0].uri;
         const checkResult = await nsfwService.classifyImage(uri);
 
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        const imgRef = ref(storage, `groups/${id}/messages/${Date.now()}`);
-        await uploadBytes(imgRef, blob);
-        const downloadURL = await getDownloadURL(imgRef);
+        const downloadURL = await uploadLocalFileToStorage({
+          uri,
+          path: `group-images/${id}/${Date.now()}.jpg`,
+          contentType: 'image/jpeg',
+        });
 
         const messagesRef = collection(doc(db, 'groups', id as string), 'messages');
         await addDoc(messagesRef, {

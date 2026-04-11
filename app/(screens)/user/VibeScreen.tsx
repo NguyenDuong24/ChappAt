@@ -20,10 +20,12 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors, PRIMARY_COLOR } from '@/constants/Colors';
 import { Vibe, PREDEFINED_VIBES, VIBE_CATEGORIES } from '@/types/vibe';
 import { useAuth } from '@/context/authContext';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
 const VibeScreen = () => {
+    const { t } = useTranslation();
     const router = useRouter();
     const themeContext = useContext(ThemeContext);
     const theme = themeContext?.theme || 'light';
@@ -55,7 +57,7 @@ const VibeScreen = () => {
 
     const handleSave = async () => {
         if (!selectedVibe) {
-            Alert.alert('Thông báo', 'Vui lòng chọn một vibe!');
+            Alert.alert(t('common.info'), t('vibe_screen.select_required'));
             return;
         }
 
@@ -64,25 +66,25 @@ const VibeScreen = () => {
             router.back();
         } catch (error) {
             console.error('Error saving vibe:', error);
-            Alert.alert('Lỗi', 'Không thể lưu vibe. Vui lòng thử lại!');
+            Alert.alert(t('common.error'), t('vibe_screen.save_error'));
         }
     };
 
     const handleRemoveVibe = () => {
         Alert.alert(
-            'Xóa vibe',
-            'Bạn có chắc muốn xóa vibe hiện tại?',
+            t('vibe_screen.remove_title'),
+            t('vibe_screen.remove_confirm'),
             [
-                { text: 'Hủy', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Xóa',
+                    text: t('common.delete'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
                             await removeUserVibe();
                             router.back();
                         } catch (e) {
-                            Alert.alert('Lỗi', 'Không thể xóa vibe.');
+                            Alert.alert(t('common.error'), t('vibe_screen.remove_error'));
                         }
                     }
                 }
@@ -168,7 +170,7 @@ const VibeScreen = () => {
                     <MaterialIcons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.title, { color: colors.text }]}>
-                    Chọn Vibe của bạn
+                    {t('vibe_screen.title')}
                 </Text>
                 <TouchableOpacity
                     onPress={handleSave}
@@ -184,7 +186,7 @@ const VibeScreen = () => {
                     {settingVibe ? (
                         <ActivityIndicator size="small" color="white" />
                     ) : (
-                        <Text style={styles.saveButtonText}>Lưu</Text>
+                        <Text style={styles.saveButtonText}>{t('common.save')}</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -198,7 +200,7 @@ const VibeScreen = () => {
                             <TextInput
                                 value={search}
                                 onChangeText={setSearch}
-                                placeholder="Tìm cảm hứng, tâm trạng..."
+                                placeholder={t('vibe_screen.search_placeholder')}
                                 placeholderTextColor={colors.text + '50'}
                                 style={[styles.searchInput, { color: colors.text }]}
                             />
@@ -229,7 +231,7 @@ const VibeScreen = () => {
 
                         {/* Custom Status Message (Moved from footer) */}
                         <View style={styles.headerStatusContainer}>
-                            <Text style={[styles.messageLabel, { color: colors.text }]}>Chia sẻ trạng thái (Status)</Text>
+                            <Text style={[styles.messageLabel, { color: colors.text }]}>{t('vibe_screen.status_label')}</Text>
                             <TextInput
                                 style={[
                                     styles.messageInput,
@@ -240,7 +242,7 @@ const VibeScreen = () => {
                                         minHeight: 60, // Smaller in header
                                     }
                                 ]}
-                                placeholder="Bạn đang nghĩ gì?"
+                                placeholder={t('vibe_screen.status_placeholder')}
                                 placeholderTextColor={colors.text + '40'}
                                 value={customMessage}
                                 onChangeText={setCustomMessage}
@@ -265,7 +267,7 @@ const VibeScreen = () => {
                         {currentVibe && (
                             <TouchableOpacity onPress={handleRemoveVibe} style={styles.removeBtn}>
                                 <MaterialIcons name="delete-outline" size={20} color={Colors.error} />
-                                <Text style={styles.removeText}>Xóa vibe hiện tại</Text>
+                                <Text style={styles.removeText}>{t('vibe_screen.remove_action')}</Text>
                             </TouchableOpacity>
                         )}
                     </View>

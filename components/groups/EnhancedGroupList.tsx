@@ -7,6 +7,7 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Text } from 'react-native-paper';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useTranslation } from 'react-i18next';
 
 // Constants for FlatList optimization
 const ITEM_HEIGHT = 80;
@@ -18,17 +19,16 @@ interface GroupListProps {
   listHeader?: React.ReactNode;
   onJoinGroup?: (groupId: string) => void;
   isSearchMode?: boolean;
+  pinnedGroupIds?: string[];
+  hiddenGroupIds?: string[];
+  onLongPressGroup?: (group: any) => void;
 }
 
 // Memoized Empty State Component
-const EmptyState = ({ currentThemeColors }: { currentThemeColors: any }) => (
+const EmptyState = ({ currentThemeColors, t }: { currentThemeColors: any; t: (key: string) => string }) => (
   <Animated.View entering={FadeIn} style={styles.emptyContainer}>
-    <Text style={[styles.emptyText, { color: currentThemeColors.subtleText }]}>
-      Bạn chưa tham gia nhóm chat nào
-    </Text>
-    <Text style={[styles.emptySubtext, { color: currentThemeColors.subtleText }]}>
-      Tạo nhóm mới hoặc được mời vào nhóm để bắt đầu
-    </Text>
+    <Text style={[styles.emptyText, { color: currentThemeColors.subtleText }]}>{t('groups.empty_title')}</Text>
+    <Text style={[styles.emptySubtext, { color: currentThemeColors.subtleText }]}>{t('groups.empty_subtitle')}</Text>
   </Animated.View>
 );
 
@@ -41,8 +41,12 @@ const EnhancedGroupList = ({
   onRefresh,
   listHeader,
   onJoinGroup,
-  isSearchMode = false
+  isSearchMode = false,
+  pinnedGroupIds = [],
+  hiddenGroupIds = [],
+  onLongPressGroup
 }: GroupListProps) => {
+  const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = (themeContext && typeof themeContext === 'object' && 'theme' in themeContext)
     ? themeContext.theme
@@ -76,20 +80,30 @@ const EnhancedGroupList = ({
 
   // Only show joined groups (unless in search mode)
   const displayGroups = useMemo(() => {
-    if (isSearchMode) return groups;
-    return (groups || []).filter(g =>
+    const source = (groups || []).filter(g => !hiddenGroupIds.includes(g?.id));
+    if (isSearchMode) return source;
+    return source.filter(g =>
       g?.isJoined || (g?.members && g.members.includes(currentUser?.uid))
     );
-  }, [groups, isSearchMode, currentUser?.uid]);
+  }, [groups, hiddenGroupIds, isSearchMode, currentUser?.uid]);
 
   useEffect(() => {
     if (!displayGroups || !Array.isArray(displayGroups) || displayGroups.length === 0 || !currentUser?.uid) {
+      groupsMapRef.current.clear();
       setSortedGroups(prev => prev.length === 0 ? prev : []);
       return;
     }
 
     const unsubscribes: (() => void)[] = [];
     const groupsWithMessagesMap = groupsMapRef.current;
+    const currentGroupIds = new Set(displayGroups.map((g: any) => g?.id).filter(Boolean));
+
+    // Clear stale cached groups that are no longer in the source list
+    Array.from(groupsWithMessagesMap.keys()).forEach((groupId) => {
+      if (!currentGroupIds.has(groupId)) {
+        groupsWithMessagesMap.delete(groupId);
+      }
+    });
 
     const updateGroupsList = () => {
       if (!isMountedRef.current) return;
@@ -98,6 +112,10 @@ const EnhancedGroupList = ({
       const validGroups = groupsList.filter(item => item?.group?.id);
 
       const sorted = validGroups.sort((a, b) => {
+        const isPinnedA = pinnedGroupIds.includes(a.group.id);
+        const isPinnedB = pinnedGroupIds.includes(b.group.id);
+        if (isPinnedA !== isPinnedB) return isPinnedA ? -1 : 1;
+
         const aTime = a.lastMessage?.createdAt?.seconds || a.group.updatedAt?.seconds || 0;
         const bTime = b.lastMessage?.createdAt?.seconds || b.group.updatedAt?.seconds || 0;
         return bTime - aTime;
@@ -242,7 +260,7 @@ const EnhancedGroupList = ({
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [displayGroups, currentUser?.uid]);
+  }, [displayGroups, currentUser?.uid, pinnedGroupIds]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -274,9 +292,11 @@ const EnhancedGroupList = ({
         isJoined={!!item.group.isJoined}
         onJoinGroup={() => onJoinGroup?.(groupId)}
         isSearchResult={isSearchMode}
+        onLongPress={() => onLongPressGroup?.(item.group)}
+        isPinned={pinnedGroupIds.includes(groupId)}
       />
     );
-  }, [currentUser, typingUsers, onlineUsers, unreadCounts, onJoinGroup, isSearchMode]);
+  }, [currentUser, typingUsers, onlineUsers, unreadCounts, onJoinGroup, isSearchMode, onLongPressGroup, pinnedGroupIds]);
 
   const keyExtractor = useCallback((item: any) => item.group?.id || Math.random().toString(), []);
 
@@ -296,8 +316,8 @@ const EnhancedGroupList = ({
   ), [refreshing, handleRefresh, currentThemeColors.text]);
 
   const renderEmptyState = useCallback(() => (
-    <EmptyState currentThemeColors={currentThemeColors} />
-  ), [currentThemeColors]);
+    <EmptyState currentThemeColors={currentThemeColors} t={t} />
+  ), [currentThemeColors, t]);
 
   return (
     <View style={styles.container}>
@@ -347,3 +367,4 @@ const styles = StyleSheet.create({
 });
 
 export default EnhancedGroupList;
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/authContext';
 import VietQRPaymentModal from '../../../components/payment/VietQRPaymentModal';
 import {
@@ -23,6 +24,7 @@ import {
 } from '../../../services/vietqrPaymentService';
 
 export default function ProUpgradeScreen() {
+    const { t, i18n } = useTranslation();
     const router = useRouter();
     const { user, refreshUser } = useAuth();
 
@@ -34,6 +36,13 @@ export default function ProUpgradeScreen() {
     } | null>(null);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+
+    const formatVND = (value: number) =>
+        new Intl.NumberFormat(i18n.language === 'vi' ? 'vi-VN' : 'en-US', {
+            style: 'currency',
+            currency: 'VND',
+            maximumFractionDigits: 0,
+        }).format(value);
 
     useEffect(() => {
         loadProStatus();
@@ -50,7 +59,7 @@ export default function ProUpgradeScreen() {
 
     const handleUpgrade = async () => {
         if (proStatus?.isPro) {
-            Alert.alert('Thông báo', 'Bạn đã là thành viên Pro!');
+            Alert.alert(t('common.info'), t('pro_upgrade.already_pro'));
             return;
         }
 
@@ -60,7 +69,7 @@ export default function ProUpgradeScreen() {
             setPaymentResult(result);
             setShowPaymentModal(true);
         } catch (error) {
-            Alert.alert('Lỗi', getPaymentErrorMessage(error));
+            Alert.alert(t('common.error'), getPaymentErrorMessage(error));
         } finally {
             setLoading(false);
         }
@@ -69,9 +78,9 @@ export default function ProUpgradeScreen() {
     const handlePaymentSuccess = async (status: PaymentStatus) => {
         setShowPaymentModal(false);
         Alert.alert(
-            'Chúc mừng! 🎉',
-            'Bạn đã nâng cấp lên Pro thành công!',
-            [{ text: 'OK', onPress: () => router.back() }]
+            t('pro_upgrade.success_title'),
+            t('pro_upgrade.success_message'),
+            [{ text: t('common.ok'), onPress: () => router.back() }]
         );
         await loadProStatus();
         refreshUser?.();
@@ -79,7 +88,7 @@ export default function ProUpgradeScreen() {
 
     const handlePaymentFailed = (error: string) => {
         setShowPaymentModal(false);
-        Alert.alert('Thanh toán thất bại', error);
+        Alert.alert(t('pro_upgrade.payment_failed_title'), error);
     };
 
     const renderFeature = (icon: string, title: string, description: string) => (
@@ -115,17 +124,13 @@ export default function ProUpgradeScreen() {
                         <Ionicons name="diamond" size={32} color="#FFD700" />
                     </View>
                     <Text style={styles.headerTitle}>ChappAt Pro</Text>
-                    <Text style={styles.headerSubtitle}>
-                        Mở khóa trải nghiệm tốt nhất
-                    </Text>
+                    <Text style={styles.headerSubtitle}>{t('pro_upgrade.header_subtitle')}</Text>
                 </View>
 
                 {proStatus?.isPro && (
                     <View style={styles.currentProBadge}>
                         <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-                        <Text style={styles.currentProText}>
-                            Còn {proStatus.daysRemaining} ngày
-                        </Text>
+                        <Text style={styles.currentProText}>{t('pro_upgrade.days_remaining', { count: proStatus.daysRemaining })}</Text>
                     </View>
                 )}
             </LinearGradient>
@@ -133,37 +138,17 @@ export default function ProUpgradeScreen() {
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Features */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Đặc quyền Pro</Text>
+                    <Text style={styles.sectionTitle}>{t('pro_upgrade.features_title')}</Text>
 
-                    {renderFeature(
-                        'chatbubbles',
-                        'Tin nhắn không giới hạn',
-                        'Tăng giới hạn từ 50 lên 500 tin nhắn/ngày'
-                    )}
+                    {renderFeature('chatbubbles', t('pro_upgrade.feature_unlimited_title'), t('pro_upgrade.feature_unlimited_desc'))}
 
-                    {renderFeature(
-                        'diamond',
-                        'Badge Pro độc quyền',
-                        'Nổi bật với badge Pro bên cạnh tên của bạn'
-                    )}
+                    {renderFeature('diamond', t('pro_upgrade.feature_badge_title'), t('pro_upgrade.feature_badge_desc'))}
 
-                    {renderFeature(
-                        'eye',
-                        'Xem ai đã thích bạn',
-                        'Biết ngay ai quan tâm đến bạn'
-                    )}
+                    {renderFeature('eye', t('pro_upgrade.feature_likes_title'), t('pro_upgrade.feature_likes_desc'))}
 
-                    {renderFeature(
-                        'rocket',
-                        'Ưu tiên hiển thị',
-                        'Profile của bạn được ưu tiên trong tìm kiếm'
-                    )}
+                    {renderFeature('rocket', t('pro_upgrade.feature_priority_title'), t('pro_upgrade.feature_priority_desc'))}
 
-                    {renderFeature(
-                        'ban',
-                        'Không quảng cáo',
-                        'Trải nghiệm mượt mà không bị gián đoạn'
-                    )}
+                    {renderFeature('ban', t('pro_upgrade.feature_no_ads_title'), t('pro_upgrade.feature_no_ads_desc'))}
                 </View>
 
                 {/* Pricing */}
@@ -172,27 +157,27 @@ export default function ProUpgradeScreen() {
                         <View style={styles.pricingHeader}>
                             <Text style={styles.pricingName}>{PRO_PACKAGE.name}</Text>
                             <View style={styles.pricingBadge}>
-                                <Text style={styles.pricingBadgeText}>Phổ biến</Text>
+                                <Text style={styles.pricingBadgeText}>{t('pro_upgrade.popular')}</Text>
                             </View>
                         </View>
 
                         <View style={styles.pricingAmount}>
                             <Text style={styles.pricingPrice}>{formatVND(PRO_PACKAGE.price)}</Text>
-                            <Text style={styles.pricingDuration}>/tháng</Text>
+                            <Text style={styles.pricingDuration}>{t('pro_upgrade.per_month')}</Text>
                         </View>
 
                         <View style={styles.pricingFeatures}>
                             <View style={styles.pricingFeature}>
                                 <Ionicons name="checkmark" size={16} color="#4CAF50" />
-                                <Text style={styles.pricingFeatureText}>Tất cả đặc quyền Pro</Text>
+                                <Text style={styles.pricingFeatureText}>{t('pro_upgrade.pricing_all_features')}</Text>
                             </View>
                             <View style={styles.pricingFeature}>
                                 <Ionicons name="checkmark" size={16} color="#4CAF50" />
-                                <Text style={styles.pricingFeatureText}>Hủy bất cứ lúc nào</Text>
+                                <Text style={styles.pricingFeatureText}>{t('pro_upgrade.pricing_cancel_anytime')}</Text>
                             </View>
                             <View style={styles.pricingFeature}>
                                 <Ionicons name="checkmark" size={16} color="#4CAF50" />
-                                <Text style={styles.pricingFeatureText}>Thanh toán an toàn qua MoMo</Text>
+                                <Text style={styles.pricingFeatureText}>{t('pro_upgrade.pricing_secure_payment')}</Text>
                             </View>
                         </View>
                     </View>
@@ -206,9 +191,7 @@ export default function ProUpgradeScreen() {
                     >
                         <Text style={styles.vietqrLogoText}>QR</Text>
                     </LinearGradient>
-                    <Text style={styles.vietqrInfoText}>
-                        Thanh toán an toàn qua chuyển khoản VietQR
-                    </Text>
+                    <Text style={styles.vietqrInfoText}>{t('pro_upgrade.vietqr_info')}</Text>
                 </View>
 
                 {/* SMS Banking Auto-Confirmation Info */}
@@ -222,10 +205,8 @@ export default function ProUpgradeScreen() {
                         <Ionicons name="phone-portrait" size={20} color="#2E7D32" />
                     </View>
                     <View style={styles.smsBankingTextContainer}>
-                        <Text style={styles.smsBankingInfoTitle}>📱 Xác nhận tự động qua SMS Banking</Text>
-                        <Text style={styles.smsBankingInfoText}>
-                            Chuyển khoản để nâng cấp Pro. App tự động nhận SMS từ Vietcombank và xác nhận trong &lt;1 phút. Không cần xác nhận thủ công!
-                        </Text>
+                        <Text style={styles.smsBankingInfoTitle}>{t('pro_upgrade.sms_title')}</Text>
+                        <Text style={styles.smsBankingInfoText}>{t('pro_upgrade.sms_desc')}</Text>
                     </View>
                 </LinearGradient>
 
@@ -253,7 +234,7 @@ export default function ProUpgradeScreen() {
                                     color="#fff"
                                 />
                                 <Text style={styles.ctaText}>
-                                    {proStatus?.isPro ? 'Đã là Pro' : 'Nâng cấp ngay'}
+                                    {proStatus?.isPro ? t('pro_upgrade.already_pro_short') : t('pro_upgrade.upgrade_now')}
                                 </Text>
                             </>
                         )}
@@ -526,3 +507,5 @@ const styles = StyleSheet.create({
         lineHeight: 18,
     },
 });
+
+

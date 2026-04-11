@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -52,38 +52,14 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
   }, [visible, startInContactForm]);
 
   const faqItems = [
-    {
-      question: 'Làm thế nào để tạo nhóm chat?',
-      answer: 'Vào tab Groups, nhấn nút "+", nhập tên nhóm và thêm thành viên.',
-    },
-    {
-      question: 'Làm thế nào để tìm và tham gia hotspot?',
-      answer: 'Vào tab Hotspots, chọn vị trí trên bản đồ và tham gia các cuộc trò chuyện gần đó.',
-    },
-    {
-      question: 'Tôi quên mật khẩu, phải làm sao?',
-      answer: 'Nhấn "Quên mật khẩu" ở màn hình đăng nhập và làm theo hướng dẫn.',
-    },
-    {
-      question: 'Làm thế nào để chặn người dùng?',
-      answer: 'Vào profile người dùng, nhấn menu (3 chấm) và chọn "Chặn người dùng".',
-    },
-    {
-      question: 'Ứng dụng bị lag, tôi phải làm gì?',
-      answer: 'Thử khởi động lại app, xóa cache hoặc cập nhật phiên bản mới nhất.',
-    },
-    {
-      question: 'Làm thế nào để báo cáo tin nhắn không phù hợp?',
-      answer: 'Nhấn giữ tin nhắn, chọn "Báo cáo" và mô tả vấn đề.',
-    },
-    {
-      question: 'Làm thế nào để mời bạn bè vào app?',
-      answer: 'Vào tab Invitations, chọn bạn bè từ danh bạ hoặc chia sẻ link mời.',
-    },
-    {
-      question: 'Làm thế nào để sử dụng hashtag?',
-      answer: 'Trong chat, gõ # theo sau từ khóa để tạo hashtag và tìm kiếm cuộc trò chuyện.',
-    },
+    { question: t('help_support.faq.q1.question'), answer: t('help_support.faq.q1.answer') },
+    { question: t('help_support.faq.q2.question'), answer: t('help_support.faq.q2.answer') },
+    { question: t('help_support.faq.q3.question'), answer: t('help_support.faq.q3.answer') },
+    { question: t('help_support.faq.q4.question'), answer: t('help_support.faq.q4.answer') },
+    { question: t('help_support.faq.q5.question'), answer: t('help_support.faq.q5.answer') },
+    { question: t('help_support.faq.q6.question'), answer: t('help_support.faq.q6.answer') },
+    { question: t('help_support.faq.q7.question'), answer: t('help_support.faq.q7.answer') },
+    { question: t('help_support.faq.q8.question'), answer: t('help_support.faq.q8.answer') },
   ];
 
   const filteredFAQ = faqItems.filter(item =>
@@ -93,46 +69,31 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
 
   const handleContactSubmit = async () => {
     if (!contactMessage.trim()) {
-      Alert.alert('⚠️ Lỗi', 'Vui lòng nhập nội dung cần hỗ trợ');
+      Alert.alert(t('common.error'), t('help_support.validation_message_required'));
       return;
     }
 
     try {
       setSubmitting(true);
-      console.log('📤 HelpSupportModal handleContactSubmit called');
-      console.log('📝 Contact message:', contactMessage.trim());
-      console.log('📧 Contact email:', contactEmail.trim() || 'not provided');
-      console.log('🖼️ Selected images:', selectedImages);
-      console.log('🏷️ Contact type:', contactType);
 
       if (onSubmitContact) {
         await onSubmitContact(contactMessage.trim(), contactEmail.trim() || undefined, selectedImages, contactType);
       } else {
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 1200));
       }
 
-      Alert.alert(
-        '✅ Thành công',
-        'Yêu cầu hỗ trợ đã được gửi. Chúng tôi sẽ phản hồi trong 24h.',
-        [{
-          text: 'OK', onPress: () => {
-            setContactMessage('');
-            setContactEmail('');
-            setSelectedImages([]);
-            setShowContactForm(false);
-            setContactType('support');
-            setImageLoading(false);
-          }
-        }]
-      );
-    } catch (error) {
-      console.log('❌ HelpSupportModal handleContactSubmit error:', error);
-      console.log('❌ Error details:', {
-        message: error instanceof Error ? error.message : String(error),
-        code: error instanceof Error && 'code' in error ? (error as any).code : 'unknown',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      Alert.alert('❌ Lỗi', 'Không thể gửi yêu cầu. Vui lòng thử lại.');
+      Alert.alert(t('common.success'), t('help_support.submit_success'), [{
+        text: t('common.ok'), onPress: () => {
+          setContactMessage('');
+          setContactEmail('');
+          setSelectedImages([]);
+          setShowContactForm(false);
+          setContactType('support');
+          setImageLoading(false);
+        },
+      }]);
+    } catch {
+      Alert.alert(t('common.error'), t('help_support.submit_error'));
     } finally {
       setSubmitting(false);
     }
@@ -141,10 +102,9 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
   const pickImage = useCallback(async () => {
     try {
       setImageLoading(true);
-      // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Quyền truy cập', 'Cần quyền truy cập thư viện ảnh để chọn hình ảnh');
+        Alert.alert(t('help_support.permission_title'), t('help_support.permission_library'));
         return;
       }
 
@@ -159,22 +119,21 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
 
       if (!result.canceled && result.assets) {
         const newImages = result.assets.map(asset => asset.uri);
-        setSelectedImages(prev => [...prev, ...newImages].slice(0, 5)); // Limit to 5 images
+        setSelectedImages(prev => [...prev, ...newImages].slice(0, 5));
       }
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể chọn hình ảnh');
-      console.error('Image picker error:', error);
+    } catch {
+      Alert.alert(t('common.error'), t('help_support.pick_image_error'));
     } finally {
       setImageLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const takePhoto = useCallback(async () => {
     try {
       setImageLoading(true);
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Quyền truy cập', 'Cần quyền truy cập camera để chụp ảnh');
+        Alert.alert(t('help_support.permission_title'), t('help_support.permission_camera'));
         return;
       }
 
@@ -187,30 +146,33 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
       if (!result.canceled && result.assets) {
         setSelectedImages(prev => [...prev, result.assets[0].uri].slice(0, 5));
       }
-    } catch (error) {
-      Alert.alert('Lỗi', 'Không thể chụp ảnh');
-      console.error('Camera error:', error);
+    } catch {
+      Alert.alert(t('common.error'), t('help_support.take_photo_error'));
     } finally {
       setImageLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const removeImage = useCallback((index: number) => {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  const contactFormTitle = contactType === 'bug'
+    ? t('help_support.report_bug')
+    : contactType === 'suggestion'
+      ? t('help_support.feature_request')
+      : t('help_support.contact_support');
+
   if (showContactForm) {
     return (
       <Modal visible={visible} transparent animationType="slide">
         <View style={styles.overlay}>
-          <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <View style={[styles.container, { backgroundColor: colors.background }]}> 
+            <View style={[styles.header, { borderBottomColor: colors.border }]}> 
               <TouchableOpacity onPress={() => setShowContactForm(false)}>
                 <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
               </TouchableOpacity>
-              <Text style={[styles.title, { color: colors.text }]}>
-                {contactType === 'bug' ? 'Báo cáo lỗi' : contactType === 'suggestion' ? 'Đề xuất tính năng' : 'Liên hệ hỗ trợ'}
-              </Text>
+              <Text style={[styles.title, { color: colors.text }]}>{contactFormTitle}</Text>
               <TouchableOpacity onPress={onClose}>
                 <MaterialCommunityIcons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
@@ -218,11 +180,11 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
 
             <ScrollView style={styles.content}>
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Mô tả vấn đề *</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('help_support.issue_description_required')}</Text>
                 <TextInput
                   value={contactMessage}
                   onChangeText={setContactMessage}
-                  placeholder="Mô tả chi tiết vấn đề bạn gặp phải..."
+                  placeholder={t('help_support.issue_description_placeholder')}
                   placeholderTextColor={colors.subtleText}
                   style={[styles.textArea, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
                   multiline
@@ -233,8 +195,8 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
               </View>
 
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Email liên hệ (tùy chọn)</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('help_support.contact_email_optional')}</Text>
+                <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                   <MaterialCommunityIcons name="email-outline" size={20} color={colors.primary} />
                   <TextInput
                     value={contactEmail}
@@ -248,12 +210,10 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                 </View>
               </View>
 
-              {/* Image Attachments */}
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Hình ảnh đính kèm (tùy chọn)</Text>
-                <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>Thêm ảnh để cung cấp bằng chứng chi tiết hơn</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('help_support.attachments_optional')}</Text>
+                <Text style={[styles.sectionSubtitle, { color: colors.subtleText }]}>{t('help_support.attachments_hint')}</Text>
 
-                {/* Selected Images */}
                 {selectedImages.length > 0 && (
                   <FlatList
                     data={selectedImages}
@@ -264,10 +224,7 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     renderItem={({ item, index }) => (
                       <View style={styles.imageItem}>
                         <Image source={{ uri: item }} style={[styles.selectedImage, { borderColor: colors.border }]} />
-                        <TouchableOpacity
-                          style={styles.removeImageButton}
-                          onPress={() => removeImage(index)}
-                        >
+                        <TouchableOpacity style={styles.removeImageButton} onPress={() => removeImage(index)}>
                           <MaterialCommunityIcons name="close-circle" size={20} color="#FFFFFF" />
                         </TouchableOpacity>
                       </View>
@@ -275,7 +232,6 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                   />
                 )}
 
-                {/* Image Picker Buttons */}
                 <View style={styles.imageButtonsContainer}>
                   <TouchableOpacity
                     style={[styles.imageButton, { backgroundColor: colors.surface, borderColor: colors.border }, imageLoading && styles.imageButtonDisabled]}
@@ -283,8 +239,8 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     disabled={imageLoading}
                   >
                     <MaterialCommunityIcons name="image" size={20} color={colors.primary} />
-                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>
-                      {imageLoading ? 'Đang tải...' : 'Chọn từ thư viện'}
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}> 
+                      {imageLoading ? t('help_support.uploading') : t('help_support.pick_from_library')}
                     </Text>
                   </TouchableOpacity>
 
@@ -294,53 +250,49 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     disabled={imageLoading}
                   >
                     <MaterialCommunityIcons name="camera" size={20} color={colors.primary} />
-                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>
-                      {imageLoading ? 'Đang tải...' : 'Chụp ảnh'}
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}> 
+                      {imageLoading ? t('help_support.uploading') : t('help_support.take_photo')}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}>
-                  {selectedImages.length}/5 hình ảnh (tối đa 5 ảnh)
+                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}> 
+                  {t('help_support.images_limit', { count: selectedImages.length, max: 5 })}
                 </Text>
               </View>
 
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Loại yêu cầu *</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('help_support.request_type_required')}</Text>
                 <View style={styles.contactTypeContainer}>
                   <TouchableOpacity
                     style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'support' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('support')}
                   >
-                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'support' && { color: '#FFFFFF' }]}>Hỗ trợ</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'support' && { color: '#FFFFFF' }]}>{t('help_support.support')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'bug' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('bug')}
                   >
-                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'bug' && { color: '#FFFFFF' }]}>Báo cáo lỗi</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'bug' && { color: '#FFFFFF' }]}>{t('help_support.report_bug')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'suggestion' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('suggestion')}
                   >
-                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'suggestion' && { color: '#FFFFFF' }]}>Đề xuất</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'suggestion' && { color: '#FFFFFF' }]}>{t('help_support.suggestion')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={[styles.submitButton, { opacity: submitting ? 0.7 : 1 }]}
-                onPress={handleContactSubmit}
-                disabled={submitting}
-              >
+              <TouchableOpacity style={[styles.submitButton, { opacity: submitting ? 0.7 : 1 }]} onPress={handleContactSubmit} disabled={submitting}>
                 <LinearGradient colors={[colors.primary, colors.tintDark || colors.primary]} style={styles.submitButtonGradient}>
                   {submitting ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <>
                       <MaterialCommunityIcons name="send" size={20} color="#fff" />
-                      <Text style={styles.submitButtonText}>Gửi yêu cầu</Text>
+                      <Text style={styles.submitButtonText}>{t('help_support.send_request')}</Text>
                     </>
                   )}
                 </LinearGradient>
@@ -355,61 +307,58 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
-          <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}> 
+          <View style={[styles.header, { borderBottomColor: colors.border }]}> 
             <View style={styles.headerSpacer} />
-            <Text style={[styles.title, { color: colors.text }]}>Trợ giúp & Hỗ trợ</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{t('help_support.title')}</Text>
             <TouchableOpacity onPress={onClose}>
               <MaterialCommunityIcons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Search */}
             <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
               <MaterialCommunityIcons name="magnify" size={20} color={colors.subtleText} />
               <TextInput
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder="Tìm kiếm câu hỏi..."
+                placeholder={t('help_support.search_placeholder')}
                 placeholderTextColor={colors.subtleText}
                 style={[styles.searchInput, { color: colors.text }]}
               />
             </View>
 
-            {/* Quick Actions */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Hành động nhanh</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('help_support.quick_actions')}</Text>
               <View style={styles.actionsGrid}>
                 <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => { setContactType('support'); setShowContactForm(true); }}>
                   <MaterialCommunityIcons name="headset" size={24} color={colors.primary} />
-                  <Text style={[styles.actionTitle, { color: colors.text }]}>Liên hệ hỗ trợ</Text>
-                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Chat trực tiếp với đội ngũ hỗ trợ</Text>
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>{t('help_support.contact_support')}</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>{t('help_support.contact_support_desc')}</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => Alert.alert('Hướng dẫn', 'Tính năng hướng dẫn đang được phát triển.')}>
+                <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => Alert.alert(t('help_support.guide_title'), t('help_support.guide_coming_soon'))}>
                   <MaterialCommunityIcons name="play-circle" size={24} color={colors.primary} />
-                  <Text style={[styles.actionTitle, { color: colors.text }]}>Hướng dẫn</Text>
-                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Video và tài liệu hướng dẫn chi tiết</Text>
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>{t('help_support.guide')}</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>{t('help_support.guide_desc')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => { setContactType('bug'); setShowContactForm(true); }}>
                   <MaterialCommunityIcons name="bug" size={24} color={colors.primary} />
-                  <Text style={[styles.actionTitle, { color: colors.text }]}>Báo cáo lỗi</Text>
-                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Báo cáo lỗi hoặc vấn đề kỹ thuật</Text>
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>{t('help_support.report_bug')}</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>{t('help_support.report_bug_desc')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.surface }]} onPress={() => { setContactType('suggestion'); setShowContactForm(true); }}>
                   <MaterialCommunityIcons name="lightbulb-outline" size={24} color={colors.primary} />
-                  <Text style={[styles.actionTitle, { color: colors.text }]}>Đề xuất</Text>
-                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>Gửi ý tưởng cho tính năng mới</Text>
+                  <Text style={[styles.actionTitle, { color: colors.text }]}>{t('help_support.suggestion')}</Text>
+                  <Text style={[styles.actionDescription, { color: colors.subtleText }]}>{t('help_support.suggestion_desc')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* FAQ */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Câu hỏi thường gặp</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('help_support.faq_title')}</Text>
               {filteredFAQ.map((item, index) => (
                 <View key={index} style={[styles.faqItem, { backgroundColor: colors.surface }]}>
                   <Text style={[styles.faqQuestion, { color: colors.text }]}>{item.question}</Text>
@@ -420,9 +369,9 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
               {filteredFAQ.length === 0 && searchQuery && (
                 <View style={[styles.noResults, { backgroundColor: colors.surface }]}>
                   <MaterialCommunityIcons name="help-circle-outline" size={48} color={colors.subtleText} />
-                  <Text style={[styles.noResultsText, { color: colors.subtleText }]}>Không tìm thấy câu hỏi phù hợp</Text>
+                  <Text style={[styles.noResultsText, { color: colors.subtleText }]}>{t('help_support.no_results')}</Text>
                   <TouchableOpacity style={[styles.contactSupportButton, { backgroundColor: colors.primary }]} onPress={() => setShowContactForm(true)}>
-                    <Text style={styles.contactSupportText}>Liên hệ hỗ trợ</Text>
+                    <Text style={styles.contactSupportText}>{t('help_support.contact_support')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -448,7 +397,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     overflow: 'hidden',
-    height: '80%', // Ensure modal has height so ScrollView with flex:1 can layout on Android
+    height: '80%',
   },
   header: {
     flexDirection: 'row',
@@ -687,9 +636,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-  },
-  contactTypeButtonActive: {
-    backgroundColor: '#6366F1',
   },
   contactTypeButtonText: {
     fontSize: 14,

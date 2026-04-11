@@ -14,6 +14,7 @@ import { getInterestsArray } from '@/utils/interests';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp, FadeIn, SlideInRight } from 'react-native-reanimated';
 import { pickImage, uploadFile } from '@/utils/fileUpload';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +34,7 @@ interface ProfileForm {
 }
 
 const EditProfile = () => {
+    const { t } = useTranslation();
     const { user, setName, setEmail, setAge, setBio, setIcon, icon, refreshUser, activeFrame } = useAuth();
     const router = useRouter();
     const themeContext = useContext(ThemeContext);
@@ -89,14 +91,14 @@ const EditProfile = () => {
                 setProfile(prev => ({ ...prev, coverImage: downloadURL }));
             }
         } catch (error) {
-            setError('Không thể tải ảnh bìa.');
+            setError(t('edit_profile.cover_upload_error')); 
         } finally {
             setUploadingCover(false);
         }
     };
 
     const handleSave = async () => {
-        if (!user || !user.uid) return setError('Lỗi đăng nhập.');
+        if (!user || !user.uid) return setError(t('edit_profile.login_error'));
         setLoading(true);
         setError(null);
         try {
@@ -121,7 +123,7 @@ const EditProfile = () => {
             refreshUser();
             router.back();
         } catch (error) {
-            setError('Lỗi khi lưu.');
+            setError(t('edit_profile.save_error')); 
         } finally {
             setLoading(false);
         }
@@ -152,9 +154,9 @@ const EditProfile = () => {
                 <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
                     <Ionicons name="close-outline" size={30} color={currentThemeColors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Chỉnh sửa</Text>
+                <Text style={styles.headerTitle}>{t('edit_profile.header_title')}</Text>
                 <TouchableOpacity onPress={handleSave} disabled={loading} style={styles.saveBtn}>
-                    {loading ? <ActivityIndicator color={Colors.primary} size="small" /> : <Text style={styles.saveBtnText}>Xong</Text>}
+                    {loading ? <ActivityIndicator color={Colors.primary} size="small" /> : <Text style={styles.saveBtnText}>{t('common.done')}</Text>}
                 </TouchableOpacity>
             </View>
 
@@ -167,7 +169,7 @@ const EditProfile = () => {
                         ) : (
                             <View style={[styles.coverPlaceholder, { backgroundColor: theme === 'dark' ? '#1E1E1E' : '#F5F5F7' }]}>
                                 <Ionicons name="images-outline" size={32} color={currentThemeColors.subtleText} />
-                                <Text style={styles.placeholderLabel}>Tải ảnh bìa</Text>
+                                <Text style={styles.placeholderLabel}>{t('edit_profile.upload_cover')}</Text>
                             </View>
                         )}
                         <View style={styles.coverEditBadge}>
@@ -190,28 +192,28 @@ const EditProfile = () => {
                 {/* Form Sections */}
                 <View style={styles.formBody}>
                     <Animated.View entering={FadeInDown.delay(200).duration(600)}>
-                        <Text style={styles.sectionHeading}>THÔNG TIN CÁ NHÂN</Text>
+                        <Text style={styles.sectionHeading}>{t('edit_profile.personal_info')}</Text>
                         <View style={[styles.cardGroup, { backgroundColor: theme === 'dark' ? '#111' : '#fff' }]}>
-                            <InputRow label="Họ tên" value={profile.name} field="name" placeholder="Tên của bạn" iconName="person-outline" />
+                            <InputRow label={t('edit_profile.full_name_label')} value={profile.name} field="name" placeholder={t('edit_profile.full_name_placeholder')} iconName="person-outline" />
                             <View style={styles.line} />
                             <View style={{ flexDirection: 'row' }}>
                                 <View style={{ flex: 1 }}>
-                                    <InputRow label="Tuổi" value={profile.age} field="age" placeholder="20" iconName="calendar-clear-outline" />
+                                    <InputRow label={t('edit_profile.age_label')} value={profile.age} field="age" placeholder="20" iconName="calendar-clear-outline" />
                                 </View>
                                 <View style={{ width: 1, backgroundColor: '#8E8E93', opacity: 0.08, marginVertical: 10 }} />
                                 <View style={{ flex: 1.5 }}>
-                                    <InputRow label="Ngày sinh" value={profile.birthday} field="birthday" placeholder="DD/MM/YYYY" iconName="calendar-outline" />
+                                    <InputRow label={t('edit_profile.birthday_label')} value={profile.birthday} field="birthday" placeholder="DD/MM/YYYY" iconName="calendar-outline" />
                                 </View>
                             </View>
                             <View style={styles.line} />
-                            <InputRow label="Nghề nghiệp" value={profile.job} field="job" placeholder="VD: Nhà thiết kế" iconName="briefcase-outline" />
+                            <InputRow label={t('edit_profile.job_label')} value={profile.job} field="job" placeholder={t('edit_profile.job_placeholder')} iconName="briefcase-outline" />
                             <View style={styles.line} />
-                            <InputRow label="Học vấn" value={profile.university} field="university" placeholder="Tên trường học" iconName="school-outline" />
+                            <InputRow label={t('edit_profile.education_label')} value={profile.university} field="university" placeholder={t('edit_profile.education_placeholder')} iconName="school-outline" />
                         </View>
                     </Animated.View>
 
                     <Animated.View entering={FadeInDown.delay(400).duration(600)}>
-                        <Text style={styles.sectionHeading}>CÂU CHUYỆN CỦA BẠN</Text>
+                        <Text style={styles.sectionHeading}>{t('edit_profile.your_story')}</Text>
                         <View style={[styles.cardGroup, { backgroundColor: theme === 'dark' ? '#111' : '#fff' }]}>
                             <View style={styles.bioContainer}>
                                 <TextInput
@@ -219,7 +221,7 @@ const EditProfile = () => {
                                     onChangeText={(text) => handleChange('bio', text)}
                                     style={[styles.bioInput, { color: currentThemeColors.text }]}
                                     multiline
-                                    placeholder="Viết vài dòng giới thiệu bản thân..."
+                                    placeholder={t('edit_profile.bio_placeholder')}
                                     placeholderTextColor={currentThemeColors.subtleText}
                                 />
                             </View>
@@ -227,7 +229,7 @@ const EditProfile = () => {
                     </Animated.View>
 
                     <Animated.View entering={FadeInDown.delay(600).duration(600)}>
-                        <Text style={styles.sectionHeading}>SỞ THÍCH & VIBE</Text>
+                        <Text style={styles.sectionHeading}>{t('edit_profile.interests_vibe')}</Text>
                         <View style={styles.interestsCloud}>
                             {interestItems.map((item) => {
                                 const isSelected = profile.interests.includes(item.id);

@@ -305,7 +305,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = React.memo(({
                   ]}
                   numberOfLines={1}
                 >
-                  {message.replyTo.imageUrl ? `📷 ${t('groups.image')}` : message.replyTo.text}
+                  {message.replyTo.imageUrl ? t('groups.image') : message.replyTo.text}
                 </Text>
               </View>
             </View>

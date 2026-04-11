@@ -4,6 +4,7 @@ import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-ic
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 
 // Memoized particles component
 const HeaderParticles = memo(() => {
@@ -28,6 +29,7 @@ const HeaderParticles = memo(() => {
 const ChatListHeader = () => {
   const { theme } = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
 
   return (
     <View style={styles.container}>
@@ -45,8 +47,8 @@ const ChatListHeader = () => {
               <MaterialCommunityIcons name="chat-processing" size={26} color="white" />
             </View>
             <View style={styles.titleSection}>
-              <Text style={styles.title}>Trò chuyện</Text>
-              <Text style={styles.subtitle}>✨ Kết nối bạn bè</Text>
+              <Text style={styles.title}>{t('chat.title')}</Text>
+              <Text style={styles.subtitle}>{t('chat.list_header_subtitle')}</Text>
             </View>
           </View>
 

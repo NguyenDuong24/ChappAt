@@ -33,6 +33,7 @@ import { createMeeting, getToken } from '@/api';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { endCall } from '@/services/firebaseCallService';
+import callTimeoutService from '@/services/callTimeoutService';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
@@ -41,8 +42,7 @@ import Animated, {
   useAnimatedGestureHandler,
   withRepeat,
   withTiming,
-  withSequence,
-  runOnJS
+  withSequence
 } from 'react-native-reanimated';
 import { useAuth } from '@/context/authContext';
 import { doc, getDoc } from 'firebase/firestore';
@@ -54,6 +54,21 @@ const { width, height } = Dimensions.get('window');
 // Enable/disable debug mode for call screen
 const DEBUG_MODE = false;
 const log = DEBUG_MODE ? console.log : () => { };
+
+const getSafeStreamURL = (stream: any) => {
+  if (!stream) return null;
+  if (stream.toURL && typeof stream.toURL === 'function') {
+    try {
+      return stream.toURL();
+    } catch (e) { }
+  }
+  if (stream.track) {
+    try {
+      return new MediaStream([stream.track]).toURL();
+    } catch (e) { }
+  }
+  return stream.url || stream.uri || null;
+};
 
 // Draggable Local Video Component - REANIMATED for 60fps smoothness
 const DraggableLocalVideo = React.memo(function DraggableLocalVideo({ localParticipant, callType }: {
@@ -121,15 +136,7 @@ const DraggableLocalVideo = React.memo(function DraggableLocalVideo({ localParti
 
   // MEMOIZED stream URL
   const streamURL = useMemo(() => {
-    if (!webcamStream) return null;
-    const stream = webcamStream as any;
-    if (stream.toURL && typeof stream.toURL === 'function') {
-      try { return stream.toURL(); } catch (e) { }
-    }
-    if (stream.track) {
-      try { return new MediaStream([stream.track]).toURL(); } catch (e) { }
-    }
-    return stream.url || stream.uri || null;
+    return getSafeStreamURL(webcamStream as any);
   }, [webcamStream, (webcamStream as any)?.track]);
 
   if (callType === 'audio') return null;
@@ -252,14 +259,8 @@ const RemoteVideoView = React.memo(function RemoteVideoView({ participantId, cal
 
   // Memoize webcam stream URL to prevent recalculation
   const webcamStreamURL = useMemo(() => {
-    if (!webcamStream?.track) return null;
-    try {
-      return new MediaStream([webcamStream.track]).toURL();
-    } catch (e) {
-      log('Error getting webcam stream URL:', e);
-      return null;
-    }
-  }, [webcamStream?.track]);
+    return getSafeStreamURL(webcamStream as any);
+  }, [webcamStream, (webcamStream as any)?.track]);
 
   return (
     <View style={styles.remoteVideoContainer}>
@@ -268,6 +269,7 @@ const RemoteVideoView = React.memo(function RemoteVideoView({ participantId, cal
           streamURL={webcamStreamURL}
           objectFit="cover"
           style={styles.remoteVideoStream}
+          zOrder={0}
         />
       ) : (
         <LinearGradient
@@ -469,7 +471,9 @@ function ControlsContainer({
   toggleMic,
   callType,
   micEnabled,
-  webcamEnabled
+  webcamEnabled,
+  switchCamera,
+  canSwitchCamera
 }: {
   end: () => void;
   toggleWebcam: () => void;
@@ -477,13 +481,17 @@ function ControlsContainer({
   callType: string;
   micEnabled: boolean;
   webcamEnabled: boolean;
+  switchCamera?: () => void;
+  canSwitchCamera?: boolean;
 }) {
   const micScale = useSharedValue(1);
   const camScale = useSharedValue(1);
+  const flipScale = useSharedValue(1);
   const endScale = useSharedValue(1);
 
   const animatedMicStyle = useAnimatedStyle(() => ({ transform: [{ scale: micScale.value }] }));
   const animatedCamStyle = useAnimatedStyle(() => ({ transform: [{ scale: camScale.value }] }));
+  const animatedFlipStyle = useAnimatedStyle(() => ({ transform: [{ scale: flipScale.value }] }));
   const animatedEndStyle = useAnimatedStyle(() => ({ transform: [{ scale: endScale.value }] }));
 
   const animateButton = (scaleValue: any, callback: () => void) => {
@@ -491,7 +499,7 @@ function ControlsContainer({
       withTiming(0.8, { duration: 100 }),
       withTiming(1, { duration: 100 })
     );
-    runOnJS(callback)();
+    callback();
   };
 
   return (
@@ -517,6 +525,18 @@ function ControlsContainer({
               activeOpacity={0.8}
             >
               <Ionicons name={webcamEnabled ? "videocam" : "videocam-off"} size={24} color={webcamEnabled ? "#000000" : "#FFFFFF"} />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+
+        {callType === 'video' && canSwitchCamera && !!switchCamera && (
+          <Animated.View style={animatedFlipStyle}>
+            <TouchableOpacity
+              onPress={() => animateButton(flipScale, switchCamera)}
+              style={[styles.controlButton, styles.secondaryControlButton]}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="camera-reverse" size={22} color="#FFFFFF" />
             </TouchableOpacity>
           </Animated.View>
         )}
@@ -593,13 +613,8 @@ const ParticipantView = React.memo(function ParticipantView({ participantId, cal
 
   // Memoize webcam stream URL
   const webcamStreamURL = useMemo(() => {
-    if (!webcamStream?.track) return null;
-    try {
-      return new MediaStream([webcamStream.track]).toURL();
-    } catch (e) {
-      return null;
-    }
-  }, [webcamStream?.track]);
+    return getSafeStreamURL(webcamStream as any);
+  }, [webcamStream, (webcamStream as any)?.track]);
 
   // Play remote audio if available
   useRemoteAudio(micStream, micOn, participantId);
@@ -708,6 +723,8 @@ const ParticipantList = React.memo(function ParticipantList({ participants, call
 function MeetingView({ callType, callId }: { callType: string; callId?: string }) {
   const router = useRouter();
   const [isConnecting, setIsConnecting] = useState(true);
+  const [callDurationSec, setCallDurationSec] = useState(0);
+  const [cameraErrorSignal, setCameraErrorSignal] = useState(0);
   const isMounted = useRef(true);
   const [otherUserName, setOtherUserName] = useState<string | null>(null);
   const [otherUserAvatar, setOtherUserAvatar] = useState<string | null>(null);
@@ -717,6 +734,11 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
   const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
   const [cameras, setCameras] = useState<any[]>([]);
   const { getCameras } = useMediaDevice();
+  const isSwitchingCameraRef = useRef(false);
+  const cameraListRef = useRef<any[]>([]);
+  const currentCameraIndexRef = useRef(0);
+  const isRecoveringCameraRef = useRef(false);
+  const cameraErrorNoticeShownRef = useRef(false);
 
   // Loading animation values
   const loadingScale = useSharedValue(1);
@@ -746,6 +768,67 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
     opacity: loadingOpacity.value,
   }));
 
+  const formattedDuration = useMemo(() => {
+    const min = Math.floor(callDurationSec / 60);
+    const sec = callDurationSec % 60;
+    return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }, [callDurationSec]);
+
+  const normalizeCameraLabel = (cam: any) => {
+    return String(cam?.label || cam?.deviceId || '').toLowerCase();
+  };
+
+  const detectFacingMode = (cam: any): 'user' | 'environment' | null => {
+    const facing = String(cam?.facingMode || '').toLowerCase();
+    if (facing === 'user' || facing === 'front') return 'user';
+    if (facing === 'environment' || facing === 'back' || facing === 'rear') return 'environment';
+
+    const label = normalizeCameraLabel(cam);
+    if (label.includes('front') || label.includes('user')) return 'user';
+    if (label.includes('back') || label.includes('rear') || label.includes('environment')) return 'environment';
+    return null;
+  };
+
+  const cameraScore = (cam: any) => {
+    const label = normalizeCameraLabel(cam);
+    let score = 0;
+
+    if (label.includes('ultra') || label.includes('macro') || label.includes('tele') || label.includes('depth') || label.includes('periscope')) {
+      score -= 50;
+    }
+    if (label.includes('main') || label.includes('default') || label.includes('primary')) {
+      score += 20;
+    }
+    if (label.includes('wide')) {
+      score += 4;
+    }
+
+    return score;
+  };
+
+  const buildSwitchableCameraList = (cams: any[]) => {
+    if (!cams || cams.length <= 1) return cams || [];
+
+    const frontCams = cams.filter((cam: any) => detectFacingMode(cam) === 'user');
+    const backCams = cams.filter((cam: any) => detectFacingMode(cam) === 'environment');
+
+    const pickBest = (arr: any[]) => {
+      if (!arr.length) return null;
+      return [...arr].sort((a, b) => cameraScore(b) - cameraScore(a))[0];
+    };
+
+    const bestFront = pickBest(frontCams);
+    const bestBack = pickBest(backCams);
+
+    const selected: any[] = [];
+    if (bestFront) selected.push(bestFront);
+    if (bestBack && bestBack.deviceId !== bestFront?.deviceId) selected.push(bestBack);
+
+    if (selected.length >= 2) return selected;
+
+    return cams.slice(0, Math.min(2, cams.length));
+  };
+
   // Initial camera fetch and setup
   useEffect(() => {
     let mounted = true;
@@ -753,24 +836,27 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
       try {
         const cams = await getCameras();
         if (mounted && cams && cams.length > 0) {
-          setCameras(cams);
+          const switchable = buildSwitchableCameraList(cams);
+          setCameras(switchable);
+          cameraListRef.current = switchable;
 
           // Try to identify the default (front) camera to sync state
           // Most apps default to front camera. We try to find it.
-          const frontCam = cams.find((cam: any) =>
-            cam.label?.toLowerCase().includes('front') ||
-            cam.facingMode === 'user' ||
-            cam.deviceId?.toLowerCase().includes('front')
+          const frontCam = switchable.find((cam: any) =>
+            detectFacingMode(cam) === 'user'
           );
 
           if (frontCam) {
+            const frontIndex = switchable.findIndex((cam: any) => cam.deviceId === frontCam.deviceId);
+            currentCameraIndexRef.current = frontIndex >= 0 ? frontIndex : 0;
             setCurrentDeviceId(frontCam.deviceId);
           } else {
             // If can't determine, assume the first one (or the second if usually front is 2nd)
             // Often index 1 is front on mobile, but not always.
             // We'll default to the first one if no label matches, but this might be the "2 clicks" cause if wrong.
             // Better to assume we are on the one that looks like 'front' or just the first one.
-            setCurrentDeviceId(cams[0].deviceId);
+            currentCameraIndexRef.current = 0;
+            setCurrentDeviceId(switchable[0]?.deviceId || null);
           }
         }
       } catch (e) {
@@ -833,6 +919,10 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
   } = useMeeting({
     onMeetingJoined: async () => {
       if (!isMounted.current) return;
+      if (callId) {
+        callTimeoutService.stopCallTimeout(callId);
+      }
+      setCallDurationSec(0);
       setIsConnecting(false);
       await AudioService.stopCallingSound();
       await AudioService.playJoinSound();
@@ -850,8 +940,11 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
       await AudioService.stopCallingSound();
       await AudioService.cleanup();
       if (isMounted.current) {
-        // Always replace to home to avoid going back to IncomingCallScreen/ListenCallScreen
-        router.replace('/(tabs)/home');
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(tabs)/home');
+        }
       }
     },
     onParticipantJoined: (participant) => {
@@ -863,42 +956,103 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
     onWebcamRequested: () => {
     },
     onError: (error) => {
-      console.error("❌ Meeting error:", error);
+      console.error("Meeting error:", error);
+      if ((error as any)?.code === 3037) {
+        setCameraErrorSignal(Date.now());
+      }
     },
   });
 
-  const handleSwitchCamera = async () => {
-    try {
-      // Re-fetch cameras to ensure we have the latest list
-      const currentCameras = await getCameras();
-      if (currentCameras && currentCameras.length > 1) {
-        setCameras(currentCameras); // Update list
+  useEffect(() => {
+    if (!cameraErrorSignal || callType === 'audio') return;
+    if (isRecoveringCameraRef.current) return;
 
-        // Find index of current device
-        let currentIndex = currentCameras.findIndex((c: any) => c.deviceId === currentDeviceId);
+    const recoverCamera = async () => {
+      isRecoveringCameraRef.current = true;
+      try {
+        const latest = await getCameras();
+        const switchable = buildSwitchableCameraList(latest || []);
+        if (switchable.length > 0) {
+          cameraListRef.current = switchable;
+          setCameras(switchable);
 
-        // If current not found (e.g. first switch), try to guess or start from 0
-        if (currentIndex === -1) {
-          // Fallback: if we don't know where we are, we might be on Front.
-          // Let's try to switch to Back (usually index 0 or labeled 'back').
-          // Or just pick index 0.
-          currentIndex = 0;
+          const fallbackCamera =
+            switchable.find((cam: any) => cam?.deviceId && cam.deviceId !== currentDeviceId) ||
+            switchable[0];
+
+          if (fallbackCamera?.deviceId && changeWebcam) {
+            await Promise.resolve(changeWebcam(fallbackCamera.deviceId));
+            setCurrentDeviceId(fallbackCamera.deviceId);
+
+            const newIndex = switchable.findIndex((cam: any) => cam.deviceId === fallbackCamera.deviceId);
+            if (newIndex >= 0) {
+              currentCameraIndexRef.current = newIndex;
+            }
+          }
         }
 
-        const nextIndex = (currentIndex + 1) % currentCameras.length;
-        const nextCamera = currentCameras[nextIndex];
-
-        console.log(`Switching camera: ${currentIndex} -> ${nextIndex} (${nextCamera.label})`);
-
-        if (changeWebcam) {
-          changeWebcam(nextCamera.deviceId);
-          setCurrentDeviceId(nextCamera.deviceId);
+        if (!localWebcamOn && toggleWebcam) {
+          await Promise.resolve(toggleWebcam());
         }
-      } else {
-        console.log("No alternative camera found");
+      } catch (e) {
+        console.error('Camera recovery failed:', e);
+      } finally {
+        isRecoveringCameraRef.current = false;
       }
+
+      if (!cameraErrorNoticeShownRef.current) {
+        cameraErrorNoticeShownRef.current = true;
+        Alert.alert(
+          'Camera issue',
+          'Camera is unavailable right now. We tried to recover automatically. If it still fails, check camera permission and close other apps using the camera.'
+        );
+      }
+    };
+
+    recoverCamera();
+  }, [
+    cameraErrorSignal,
+    callType,
+    changeWebcam,
+    currentDeviceId,
+    getCameras,
+    localWebcamOn,
+    toggleWebcam,
+  ]);
+
+  const handleSwitchCamera = async () => {
+    if (isSwitchingCameraRef.current) return;
+    if (!changeWebcam) return;
+
+    try {
+      isSwitchingCameraRef.current = true;
+
+      let cams = cameraListRef.current;
+      if (!cams || cams.length === 0) {
+        const latest = await getCameras();
+        cams = buildSwitchableCameraList(latest || []);
+        cameraListRef.current = cams;
+        setCameras(cams);
+      }
+
+      if (cams.length <= 1) {
+        console.log("No alternative camera found");
+        return;
+      }
+
+      const nextIndex = (currentCameraIndexRef.current + 1) % cams.length;
+      const nextCamera = cams[nextIndex];
+      if (!nextCamera?.deviceId) return;
+
+      await Promise.resolve(changeWebcam(nextCamera.deviceId));
+      currentCameraIndexRef.current = nextIndex;
+      setCurrentDeviceId(nextCamera.deviceId);
     } catch (e) {
       console.error("Error switching camera:", e);
+    } finally {
+      setTimeout(() => {
+        isSwitchingCameraRef.current = false;
+      }, 180);
     }
   };
 
@@ -938,6 +1092,19 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
   useEffect(() => {
   }, [localMicOn, localWebcamOn]);
 
+  useEffect(() => {
+    if (isConnecting) {
+      setCallDurationSec(0);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setCallDurationSec((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isConnecting]);
+
   return (
     <LinearGradient
       colors={['#1a1a2e', '#16213e', '#0f3460']}
@@ -948,11 +1115,14 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
       {/* Header with Other User Name */}
       {!isConnecting && (
         <View style={styles.headerContainer}>
-          {otherUserName ? (
-            <Text style={styles.meetingIdText}>{otherUserName}</Text>
-          ) : (
-            <Text style={styles.meetingIdText}>Connected</Text>
-          )}
+          <View style={styles.headerPill}>
+            <View style={styles.liveDot} />
+            <Text style={styles.callTypeBadgeText}>
+              {callType === 'video' ? 'Video call' : 'Audio call'}
+            </Text>
+          </View>
+          <Text style={styles.meetingIdText}>{otherUserName || 'Connected'}</Text>
+          <Text style={styles.callDurationText}>{formattedDuration}</Text>
         </View>
       )}
 
@@ -974,6 +1144,16 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
         </View>
       ) : (
         <>
+          <LinearGradient
+            colors={['rgba(8, 13, 34, 0.85)', 'rgba(8, 13, 34, 0)']}
+            style={styles.topFade}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={['rgba(8, 13, 34, 0)', 'rgba(8, 13, 34, 0.9)']}
+            style={styles.bottomFade}
+            pointerEvents="none"
+          />
           <ParticipantList
             participants={participantsArrId}
             callType={callType}
@@ -988,6 +1168,8 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
             callType={callType}
             micEnabled={localMicOn}
             webcamEnabled={localWebcamOn}
+            switchCamera={handleSwitchCamera}
+            canSwitchCamera={cameras.length > 1}
           />
         </>
       )}
@@ -1014,7 +1196,7 @@ export default function CallScreen() {
     const fetchToken = async () => {
       try {
         const t = await getToken();
-        setToken(t);
+        setToken(t ?? null);
       } catch (e) {
         Alert.alert("Error", "Failed to authenticate for video call");
         router.back();
@@ -1027,6 +1209,9 @@ export default function CallScreen() {
     if (!token) return;
     try {
       const finalMeetingId = id == null ? await createMeeting({ token }) : id;
+      if (!finalMeetingId) {
+        throw new Error('Missing meeting ID');
+      }
       setMeetingId(finalMeetingId);
     } catch (error) {
       console.error("❌ Error getting meeting ID:", error);
@@ -1188,17 +1373,70 @@ const styles = StyleSheet.create({
   // Meeting Styles
   meetingContainer: {
     flex: 1,
+    backgroundColor: '#070b1b',
   },
   headerContainer: {
-    paddingVertical: 20,
-    paddingHorizontal: 20,
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 30,
+    left: 16,
+    right: 16,
     alignItems: 'center',
+    zIndex: 40,
+  },
+  headerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(10, 24, 59, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(118, 190, 255, 0.45)',
+    marginBottom: 10,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#4ade80',
+    marginRight: 8,
+  },
+  callTypeBadgeText: {
+    color: '#dbeafe',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   meetingIdText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  callDurationText: {
+    marginTop: 6,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.92)',
+    fontWeight: '600',
+  },
+  topFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 180,
+    zIndex: 15,
+  },
+  bottomFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 230,
+    zIndex: 15,
   },
   connectingIndicator: {
     paddingVertical: 8,
@@ -1210,6 +1448,59 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFA500',
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  loadingContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(7, 19, 45, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 197, 253, 0.3)',
+  },
+  loadingRipple: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 2,
+    borderColor: 'rgba(147, 197, 253, 0.35)',
+  },
+  loadingAvatarContainer: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  loadingAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  loadingName: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  loadingStatus: {
+    color: 'rgba(219, 234, 254, 0.95)',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   // Participant Styles
@@ -1292,26 +1583,27 @@ const styles = StyleSheet.create({
   // Controls Styles
   controlsBlur: {
     position: 'absolute',
-    bottom: 40,
+    bottom: Platform.OS === 'ios' ? 48 : 30,
     alignSelf: 'center',
-    borderRadius: 35,
+    borderRadius: 999,
     overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(6, 19, 47, 0.45)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(155, 196, 255, 0.22)',
+    zIndex: 30,
   },
   controls: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingVertical: 12,
-    gap: 20,
+    gap: 14,
   },
   controlButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1319,7 +1611,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
@@ -1331,13 +1623,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   enabledButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#dbeafe',
   },
   disabledControlButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(8, 20, 50, 0.8)',
   },
   secondaryControlButton: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(8, 20, 50, 0.85)',
   },
   leaveButton: {
     // Gradient handled in controlButtonGradient
@@ -1347,7 +1639,8 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     borderWidth: 2,
-    borderColor: 'rgba(255, 67, 54, 0.5)',
+    borderColor: 'rgba(255, 67, 54, 0.65)',
+    backgroundColor: '#ef4444',
   },
   controlButtonText: {
     color: '#FFFFFF',

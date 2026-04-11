@@ -1,0 +1,388 @@
+﻿=== Hardcoded UI Audit ===
+Scanned files: 257
+Findings: 895
+
+Top files:
+43	components\payment\VietQRPaymentModal.tsx
+41	components\common\HelpSupportModalSimple.tsx
+27	components\moderation\ContentModerationDemo.tsx
+25	app\groups\preview\[id].tsx
+25	components\common\ReportModalSimple.tsx
+25	components\hotspots\EventInvitesModal.tsx
+24	app\(screens)\hotspots\HotSpotChatScreen.tsx
+23	app\SoundTestScreen.tsx
+22	app\signup\CompleteSocialProfileScreen.jsx
+22	components\BadWordsManager.tsx
+22	components\profile\UserProfile.tsx
+20	components\moderation\ContentModerationSettings.tsx
+19	components\common\FeedbackModal.tsx
+19	components\common\FeedbackModalSimple.tsx
+18	components\common\BackupRestoreModal.tsx
+18	components\moderation\ImageModerationTest.tsx
+17	app\ProximityRadar.tsx
+15	app\(screens)\call\CallScreen.tsx
+15	app\signup\EducationSelectionScreen.jsx
+15	components\hotspots\InterestedUsersModal.tsx
+15	components\profile\TopProfile.tsx
+14	app\(screens)\groups\GroupVoiceRoom.tsx
+14	components\hotspots\HotSpotDetailsContent.tsx
+13	app\(screens)\user\ProfileEditScreen.tsx
+13	components\hotspots\HotSpotFlowDemo.tsx
+12	app\(screens)\hotspots\HotSpotDetailScreen.tsx
+12	components\auth\SocialLoginButtons.tsx
+12	components\common\DataManagementModal.tsx
+12	components\OptimizationTest.tsx
+12	components\payment\MoMoPaymentModal.tsx
+12	components\vibe\VibePickerModal.tsx
+11	app\signup\EmailVerificationScreen.jsx
+11	app\signup\index.tsx
+11	components\call\PreCallScreen.tsx
+10	app\InviteFriendScreen.tsx
+9	app\signin\index.tsx
+9	components\common\PostActions.tsx
+9	components\hotspots\ProximityTracker.tsx
+9	components\NotificationSettingsScreen.tsx
+8	components\payment\CoinPurchaseSection.tsx
+8	components\profile\OptimizedPostCard.tsx
+7	app\(screens)\social\NotificationsScreen.tsx
+7	app\(screens)\wallet\CoinWalletScreen.tsx
+7	components\chat\ChatExample.jsx
+7	components\common\FirebaseTest.tsx
+7	components\common\PrivacySecurityModal.tsx
+7	components\moderation\ModerationWarningModal.tsx
+6	app\chat\[id].tsx
+6	components\groups\EnhancedCreateGroupModal.tsx
+6	components\groups\GroupPreviewModal.tsx
+6	components\home\HomeHeader.jsx
+6	components\hotspots\ActionMenu.tsx
+6	components\hotspots\EventDetails.tsx
+6	components\hotspots\GoTogetherConfirm.tsx
+6	components\profile\PostCard.tsx
+5	app\(tabs)\explore\HashtagScreen.tsx
+5	app\AddFriend.tsx
+5	components\settings\SettingsScreen.tsx
+5	components\settings\SoundSettingsScreen.jsx
+4	app\signup\IconSelectionScreen.jsx
+4	app\SimpleSoundTest.tsx
+4	components\chat\ChatThemePicker.tsx
+4	components\chat\GiftPicker.tsx
+4	components\groups\GroupMessageInput.tsx
+3	app\(screens)\call\IncomingCallScreen.tsx
+3	app\(screens)\hotspots\HotSpotsScreen.tsx
+3	app\(tabs)\home\index.jsx
+3	app\(tabs)\profile\create.jsx
+3	components\common\PostHeader.tsx
+3	components\common\TestModal.tsx
+3	components\groups\OptimizedGroupMessageList.tsx
+3	components\hotspots\EventChatHeader.tsx
+2	app\(screens)\call\ListenCallAcceptedScreen.tsx
+2	app\(screens)\user\PrivacySettingsScreen.tsx
+2	app\(tabs)\groups\index.jsx
+2	components\chat\ChatRoomHeader.tsx
+2	components\common\CommentSection.tsx
+2	components\common\ConversationOptionsModal.tsx
+2	components\common\ErrorComponent.tsx
+2	components\explore\BaseExploreTab.tsx
+
+Sample findings (first 300):
+app\(screens)\call\CallScreen.tsx:162 [jsx-text] "Camera Off"
+app\(screens)\call\CallScreen.tsx:286 [fallback] "Remote User"
+app\(screens)\call\CallScreen.tsx:289 [jsx-text] "Audio Call"
+app\(screens)\call\CallScreen.tsx:309 [fallback] "Remote User"
+app\(screens)\call\CallScreen.tsx:407 [jsx-text] "Start Video Call"
+app\(screens)\call\CallScreen.tsx:408 [jsx-text] "Connect with your friends instantly"
+app\(screens)\call\CallScreen.tsx:419 [jsx-text] "Create New Meeting"
+app\(screens)\call\CallScreen.tsx:432 [prop:placeholder] "Enter Meeting ID (XXXX-XXXX-XXXX)"
+app\(screens)\call\CallScreen.tsx:449 [jsx-text] "Join Meeting"
+app\(screens)\call\CallScreen.tsx:639 [fallback] "Participant"
+app\(screens)\call\CallScreen.tsx:697 [jsx-text] "Waiting for others to join..."
+app\(screens)\call\CallScreen.tsx:892 [fallback] "Unknown User"
+app\(screens)\call\CallScreen.tsx:1124 [fallback] "Connected"
+app\(screens)\call\CallScreen.tsx:1201 [alert] "Failed to authenticate for video call"
+app\(screens)\call\CallScreen.tsx:1218 [alert] "Failed to create/join meeting"
+app\(screens)\call\IncomingCallScreen.tsx:351 [fallback] "Unknown User"
+app\(screens)\call\IncomingCallScreen.tsx:375 [jsx-text] "Decline"
+app\(screens)\call\IncomingCallScreen.tsx:396 [jsx-text] "Accept"
+app\(screens)\call\ListenCallAcceptedScreen.tsx:355 [fallback] "Unknown User"
+app\(screens)\call\ListenCallAcceptedScreen.tsx:388 [jsx-text] "Cancel"
+app\(screens)\groups\GroupVoiceRoom.tsx:155 [jsx-text] "Tap to move to spotlight"
+app\(screens)\groups\GroupVoiceRoom.tsx:158 [jsx-text] "Đang nói..."
+app\(screens)\groups\GroupVoiceRoom.tsx:303 [alert] "Lỗi"
+app\(screens)\groups\GroupVoiceRoom.tsx:303 [alert] "Cần cấp quyền microphone để tham gia voice chat"
+app\(screens)\groups\GroupVoiceRoom.tsx:324 [alert] "Lỗi"
+app\(screens)\groups\GroupVoiceRoom.tsx:324 [alert] "Không thể khởi tạo audio. Vui lòng thử lại."
+app\(screens)\groups\GroupVoiceRoom.tsx:426 [jsx-text] "Waiting for host..."
+app\(screens)\groups\GroupVoiceRoom.tsx:432 [jsx-text] "Speakers"
+app\(screens)\groups\GroupVoiceRoom.tsx:454 [jsx-text] "No speakers yet"
+app\(screens)\groups\GroupVoiceRoom.tsx:508 [alert] "Failed to authenticate for voice chat"
+app\(screens)\groups\GroupVoiceRoom.tsx:552 [alert] "Lỗi"
+app\(screens)\groups\GroupVoiceRoom.tsx:552 [alert] "Không thể tạo phòng voice chat. Vui lòng thử lại."
+app\(screens)\groups\GroupVoiceRoom.tsx:611 [jsx-text] "Đang tham gia phòng voice chat..."
+app\(screens)\groups\GroupVoiceRoom.tsx:636 [fallback] "Voice Chat"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:153 [fallback] "pending"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:184 [alert] "Location Permission"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:184 [alert] "Please allow location access for tracking."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:359 [alert] "Unable to send message."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:408 [alert] "Unable to upload image."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:471 [alert] "Success"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:471 [alert] "Gift sent."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:474 [fallback] "UNKNOWN"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:476 [alert] "Insufficient Balance"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:476 [alert] "You do not have enough balance for this gift."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:478 [alert] "Cannot Send Gift"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:478 [alert] "You cannot send a gift to yourself."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:480 [alert] "Cannot Send Gift"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:480 [alert] "Unknown error"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:495 [alert] "Unable to copy message."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:671 [jsx-text] "Talking about"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:788 [alert] "Check-in thanh cong"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:788 [alert] "Ban da nhan thuong kim cuong tu buoi gap."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:834 [jsx-text] "Decline"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:854 [fallback] "Other user"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:870 [jsx-text] "Tracking location"
+app\(screens)\hotspots\HotSpotChatScreen.tsx:887 [jsx-text] "Calculating distance..."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:935 [prop:placeholder] "Message about this Hot Spot..."
+app\(screens)\hotspots\HotSpotChatScreen.tsx:968 [jsx-text] "Send Gift"
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:71 [alert] "Unable to process this action. Please try again."
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:79 [alert] "No Hot Spot data found."
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:88 [alert] "Permission Required"
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:88 [alert] "Please allow location access to check in."
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:99 [alert] "Hot Spot does not have coordinates for check-in."
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:113 [alert] "Success"
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:113 [alert] "Check-in successful!"
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:119 [alert] "Too Far"
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:119 [alert] "You need to be within ${CHECK_IN_RADIUS_METERS}m to check in. You are ${distance}m away."
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:123 [alert] "Check-in Error"
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:163 [fallback] "Unable to load Hot Spot information."
+app\(screens)\hotspots\HotSpotDetailScreen.tsx:311 [jsx-text] "Images"
+app\(screens)\hotspots\HotSpotsScreen.tsx:399 [jsx-text] "= today && spotDate"
+app\(screens)\hotspots\HotSpotsScreen.tsx:443 [jsx-text] "Hot Spots"
+app\(screens)\hotspots\HotSpotsScreen.tsx:564 [fallback] "Hot Spot"
+app\(screens)\social\NotificationsScreen.tsx:193 [fallback] "system"
+app\(screens)\social\NotificationsScreen.tsx:237 [fallback] "system"
+app\(screens)\social\NotificationsScreen.tsx:321 [fallback] "system"
+app\(screens)\social\NotificationsScreen.tsx:363 [fallback] "system"
+app\(screens)\social\NotificationsScreen.tsx:503 [alert] "${t('common.you')} ${t('notifications.liked_your_post')} ${notification.senderName}"
+app\(screens)\social\NotificationsScreen.tsx:538 [alert] "error_generic"
+app\(screens)\social\NotificationsScreen.tsx:671 [alert] "\n"
+app\(screens)\subscription\ProUpgradeScreen.tsx:126 [jsx-text] "ChappAt Pro"
+app\(screens)\user\ChangePasswordScreen.tsx:55 [alert] "Mật khẩu đã được cập nhật thành công"
+app\(screens)\user\PrivacySettingsScreen.tsx:98 [alert] "Không thể cập nhật cài đặt"
+app\(screens)\user\PrivacySettingsScreen.tsx:255 [alert] "Tính năng này sẽ sớm ra mắt"
+app\(screens)\user\ProfileEditScreen.tsx:120 [jsx-text] "Edit Profile"
+app\(screens)\user\ProfileEditScreen.tsx:129 [jsx-text] "Photos"
+app\(screens)\user\ProfileEditScreen.tsx:147 [jsx-text] "Basic Info"
+app\(screens)\user\ProfileEditScreen.tsx:169 [jsx-text] "Location"
+app\(screens)\user\ProfileEditScreen.tsx:181 [jsx-text] "About Me"
+app\(screens)\user\ProfileEditScreen.tsx:199 [prop:placeholder] "Tell others about yourself..."
+app\(screens)\user\ProfileEditScreen.tsx:210 [jsx-text] "Interests"
+app\(screens)\user\ProfileEditScreen.tsx:233 [jsx-text] "Additional Details"
+app\(screens)\user\ProfileEditScreen.tsx:236 [jsx-text] "Occupation"
+app\(screens)\user\ProfileEditScreen.tsx:245 [jsx-text] "Education"
+app\(screens)\user\ProfileEditScreen.tsx:254 [jsx-text] "Height"
+app\(screens)\user\ProfileEditScreen.tsx:263 [jsx-text] "Looking For"
+app\(screens)\user\ProfileEditScreen.tsx:278 [jsx-text] "Save Changes"
+app\(screens)\user\UserProfileScreen.tsx:214 [fallback] "Unknown User"
+app\(screens)\wallet\CoinWalletScreen.tsx:184 [fallback] "${type}_ad_${Date.now()}"
+app\(screens)\wallet\CoinWalletScreen.tsx:191 [alert] "+${result.amount} ${t('wallet.banhMi')}!"
+app\(screens)\wallet\CoinWalletScreen.tsx:215 [alert] "Không thể mở quảng cáo."
+app\(screens)\wallet\CoinWalletScreen.tsx:218 [alert] "Quảng cáo đang được tải..."
+app\(screens)\wallet\CoinWalletScreen.tsx:247 [fallback] "N/A"
+app\(screens)\wallet\CoinWalletScreen.tsx:251 [fallback] "Vật phẩm"
+app\(screens)\wallet\CoinWalletScreen.tsx:253 [fallback] "Sử dụng dịch vụ"
+app\(tabs)\explore\HashtagScreen.tsx:63 [alert] "Lỗi"
+app\(tabs)\explore\HashtagScreen.tsx:63 [alert] "Không tìm thấy hashtag!"
+app\(tabs)\explore\HashtagScreen.tsx:117 [alert] "Lỗi"
+app\(tabs)\explore\HashtagScreen.tsx:117 [alert] "Không thể tải bài viết. Vui lòng thử lại!"
+app\(tabs)\explore\HashtagScreen.tsx:205 [jsx-text] "Tạo bài viết"
+app\(tabs)\explore\_layout.jsx:120 [fallback] "Theo dõi"
+app\(tabs)\groups\index.jsx:618 [jsx-text] "Không tìm thấy nhóm"
+app\(tabs)\groups\index.jsx:619 [jsx-text] "Thử tìm kiếm với từ khóa khác hoặc ID"
+app\(tabs)\home\index.jsx:39 [jsx-text] "Không tìm thấy ai gần đây"
+app\(tabs)\home\index.jsx:40 [jsx-text] "Hãy thử thay đổi bộ lọc hoặc vị trí của bạn!"
+app\(tabs)\home\index.jsx:53 [jsx-text] "Thử lại"
+app\(tabs)\home\settings.jsx:7 [jsx-text] "settings"
+app\(tabs)\profile\create.jsx:245 [jsx-text] "1 && !selectedHashtags.includes(hashtag) && selectedHashtags.length"
+app\(tabs)\profile\create.jsx:431 [fallback] "Anonymous"
+app\(tabs)\profile\create.jsx:765 [fallback] "location"
+app\(tabs)\profile\EditProfile.tsx:205 [prop:placeholder] "DD/MM/YYYY"
+app\(tabs)\_layout.jsx:25 [fallback] "transparent"
+app\AddFriend.tsx:34 [alert] "Vui lòng nhập tên hoặc ID cần tìm."
+app\AddFriend.tsx:164 [jsx-text] "Đang theo dõi"
+app\AddFriend.tsx:170 [jsx-text] "Theo dõi"
+app\AddFriend.tsx:195 [prop:placeholder] "Nhập tên hoặc ID..."
+app\AddFriend.tsx:207 [jsx-text] "Không tìm thấy user"
+app\ButtonToChat.tsx:79 [jsx-text] "Gửi tin nhắn"
+app\chat\[id].tsx:382 [fallback] "NSFW detected"
+app\chat\[id].tsx:397 [alert] "Image Upload"
+app\chat\[id].tsx:808 [alert] "Message"
+app\chat\[id].tsx:895 [fallback] "\uD83C\uDF81"
+app\chat\[id].tsx:900 [fallback] "UNKNOWN"
+app\chat\[id].tsx:1100 [fallback] "\uD83C\uDF81"
+app\DeviceScan.tsx:149 [jsx-text] "Device Scan"
+app\explore\index.jsx:6 [jsx-text] "Explore"
+app\explore\[id].tsx:7 [jsx-text] "RoomImage"
+app\groups\preview\[id].tsx:111 [alert] "Lỗi"
+app\groups\preview\[id].tsx:111 [alert] "Không thể tải thông tin nhóm"
+app\groups\preview\[id].tsx:142 [alert] "Thông báo"
+app\groups\preview\[id].tsx:142 [alert] "Bạn đã là thành viên của nhóm này"
+app\groups\preview\[id].tsx:152 [alert] "Thành công"
+app\groups\preview\[id].tsx:152 [alert] "Đã gửi yêu cầu tham gia nhóm. Vui lòng chờ quản trị viên duyệt."
+app\groups\preview\[id].tsx:155 [alert] "Thông báo"
+app\groups\preview\[id].tsx:167 [alert] "Thành công"
+app\groups\preview\[id].tsx:167 [alert] "Đã tham gia nhóm!"
+app\groups\preview\[id].tsx:176 [alert] "Lỗi"
+app\groups\preview\[id].tsx:176 [alert] "Không thể tham gia nhóm. Vui lòng thử lại."
+app\groups\preview\[id].tsx:186 [alert] "Sao chép"
+app\groups\preview\[id].tsx:186 [alert] "ID nhóm đã được sao chép vào clipboard"
+app\groups\preview\[id].tsx:213 [jsx-text] "Đang tải..."
+app\groups\preview\[id].tsx:225 [jsx-text] "Không tìm thấy nhóm"
+app\groups\preview\[id].tsx:226 [jsx-text] "Quay lại"
+app\groups\preview\[id].tsx:247 [jsx-text] "Xem trước nhóm"
+app\groups\preview\[id].tsx:260 [fallback] "Nhóm chưa đặt tên"
+app\groups\preview\[id].tsx:273 [jsx-text] "Mô tả nhóm:"
+app\groups\preview\[id].tsx:323 [fallback] "Người dùng"
+app\groups\preview\[id].tsx:326 [jsx-text] "Người tạo"
+app\groups\preview\[id].tsx:345 [jsx-text] "Tin nhắn gần đây"
+app\groups\preview\[id].tsx:356 [fallback] "Người dùng"
+app\groups\preview\[id].tsx:363 [fallback] "Tin nhắn"
+app\groups\preview\[id].tsx:379 [jsx-text] "Nhóm riêng tư"
+app\groups\[id].tsx:306 [fallback] "NSFW detected"
+app\InviteFriendScreen.tsx:73 [alert] "Lỗi"
+app\InviteFriendScreen.tsx:73 [alert] "Không thể tải danh sách bạn bè"
+app\InviteFriendScreen.tsx:94 [alert] "Thông báo"
+app\InviteFriendScreen.tsx:94 [alert] "Vui lòng chọn ít nhất một người bạn để mời"
+app\InviteFriendScreen.tsx:117 [alert] "Lỗi"
+app\InviteFriendScreen.tsx:117 [alert] "Không thể gửi lời mời. Vui lòng thử lại."
+app\InviteFriendScreen.tsx:153 [jsx-text] "Đang tải danh sách bạn bè..."
+app\InviteFriendScreen.tsx:170 [jsx-text] "Mời bạn bè"
+app\InviteFriendScreen.tsx:183 [jsx-text] "Gửi"
+app\InviteFriendScreen.tsx:193 [prop:placeholder] "Tìm kiếm bạn bè..."
+app\ProximityRadar.tsx:129 [fallback] "Có lỗi khi tìm kiếm"
+app\ProximityRadar.tsx:138 [alert] "Lỗi"
+app\ProximityRadar.tsx:138 [alert] "Vui lòng đăng nhập để sử dụng tính năng này."
+app\ProximityRadar.tsx:179 [alert] "Lỗi"
+app\ProximityRadar.tsx:179 [alert] "Không thể lấy vị trí của bạn. Vui lòng kiểm tra GPS."
+app\ProximityRadar.tsx:186 [alert] "Lỗi"
+app\ProximityRadar.tsx:186 [alert] "Có lỗi xảy ra khi bắt đầu quét."
+app\ProximityRadar.tsx:485 [jsx-text] "🛰️ Proximity Radar"
+app\ProximityRadar.tsx:615 [jsx-text] "Dừng quét"
+app\ProximityRadar.tsx:620 [jsx-text] "Bắt đầu quét"
+app\ProximityRadar.tsx:627 [jsx-text] "Bán kính:"
+app\ProximityRadar.tsx:663 [jsx-text] "Làm mới"
+app\ProximityRadar.tsx:729 [jsx-text] "Thử lại"
+app\ProximityRadar.tsx:773 [jsx-text] "Khoảng cách"
+app\ProximityRadar.tsx:791 [jsx-text] "Tương đối"
+app\ProximityRadar.tsx:807 [jsx-text] "Nhắn tin"
+app\ProximityRadar.tsx:815 [jsx-text] "Xem hồ sơ"
+app\signin\index.tsx:58 [fallback] "Login failed"
+app\signin\index.tsx:88 [jsx-text] "ChappAt"
+app\signin\index.tsx:90 [jsx-text] "Welcome Back"
+app\signin\index.tsx:91 [jsx-text] "Sign in to continue"
+app\signin\index.tsx:107 [prop:label] "Password"
+app\signin\index.tsx:126 [jsx-text] "Forgot Password?"
+app\signin\index.tsx:137 [jsx-text] "Continue with Google"
+app\signin\index.tsx:141 [jsx-text] "Don't have an account?"
+app\signin\index.tsx:142 [jsx-text] "Sign Up"
+app\signup\CompleteSocialProfileScreen.jsx:71 [alert] "Thiếu thông tin"
+app\signup\CompleteSocialProfileScreen.jsx:71 [alert] "Vui lòng cập nhật: ${missing.join(', ')}"
+app\signup\CompleteSocialProfileScreen.jsx:95 [alert] "Lỗi"
+app\signup\CompleteSocialProfileScreen.jsx:95 [alert] "Không thể cập nhật hồ sơ"
+app\signup\CompleteSocialProfileScreen.jsx:103 [alert] "Hoàn thành!"
+app\signup\CompleteSocialProfileScreen.jsx:103 [alert] "Hồ sơ của bạn đã được cập nhật thành công!"
+app\signup\CompleteSocialProfileScreen.jsx:106 [alert] "Lỗi"
+app\signup\CompleteSocialProfileScreen.jsx:106 [alert] "Không thể hoàn thành đăng ký. Vui lòng thử lại."
+app\signup\CompleteSocialProfileScreen.jsx:173 [jsx-text] "Bước cuối cùng"
+app\signup\CompleteSocialProfileScreen.jsx:175 [jsx-text] "Xác nhận thông tin"
+app\signup\CompleteSocialProfileScreen.jsx:176 [jsx-text] "Kiểm tra và hoàn thành hồ sơ của bạn"
+app\signup\CompleteSocialProfileScreen.jsx:196 [fallback] "Chưa cập nhật"
+app\signup\CompleteSocialProfileScreen.jsx:205 [jsx-text] "Thông tin cá nhân"
+app\signup\CompleteSocialProfileScreen.jsx:210 [fallback] "Chưa cập nhật"
+app\signup\CompleteSocialProfileScreen.jsx:215 [prop:label] "Giới tính"
+app\signup\CompleteSocialProfileScreen.jsx:221 [prop:label] "Tuổi"
+app\signup\CompleteSocialProfileScreen.jsx:230 [jsx-text] "Học vấn & Nghề nghiệp"
+app\signup\CompleteSocialProfileScreen.jsx:235 [prop:label] "Trình độ"
+app\signup\CompleteSocialProfileScreen.jsx:243 [prop:label] "Trường học"
+app\signup\CompleteSocialProfileScreen.jsx:251 [prop:label] "Nghề nghiệp"
+app\signup\CompleteSocialProfileScreen.jsx:289 [jsx-text] "Hoàn thành và bắt đầu"
+app\signup\CompleteSocialProfileScreen.jsx:297 [jsx-text] "Huỷ đăng ký"
+app\signup\EducationSelectionScreen.jsx:129 [alert] "Lỗi"
+app\signup\EducationSelectionScreen.jsx:129 [alert] "Vui lòng nhập trình độ học vấn nếu chọn "Khác""
+app\signup\EducationSelectionScreen.jsx:137 [alert] "Lỗi"
+app\signup\EducationSelectionScreen.jsx:137 [alert] "Vui lòng nhập trường đại học nếu chọn "Khác""
+app\signup\EducationSelectionScreen.jsx:145 [alert] "Lỗi"
+app\signup\EducationSelectionScreen.jsx:145 [alert] "Vui lòng nhập nghề nghiệp nếu chọn "Khác""
+app\signup\EducationSelectionScreen.jsx:196 [jsx-text] "Hồ sơ của bạn"
+app\signup\EducationSelectionScreen.jsx:207 [jsx-text] "Trình độ học vấn"
+app\signup\EducationSelectionScreen.jsx:235 [prop:placeholder] "Nhập trình độ học vấn của bạn..."
+app\signup\EducationSelectionScreen.jsx:246 [jsx-text] "Trường học"
+app\signup\EducationSelectionScreen.jsx:251 [prop:placeholder] "Tìm kiếm trường học..."
+app\signup\EducationSelectionScreen.jsx:298 [prop:placeholder] "Nhập tên trường của bạn..."
+app\signup\EducationSelectionScreen.jsx:309 [jsx-text] "Nghề nghiệp (Tùy chọn)"
+app\signup\EducationSelectionScreen.jsx:337 [prop:placeholder] "Nhập nghề nghiệp của bạn..."
+app\signup\EducationSelectionScreen.jsx:355 [jsx-text] "Tiếp tục"
+app\signup\EmailVerificationScreen.jsx:42 [alert] "Chưa xác thực"
+app\signup\EmailVerificationScreen.jsx:42 [alert] "Email của bạn chưa được xác thực. Vui lòng kiểm tra hộp thư đến và nhấn vào liên kết xác thực."
+app\signup\EmailVerificationScreen.jsx:46 [alert] "Lỗi"
+app\signup\EmailVerificationScreen.jsx:46 [alert] "Không thể kiểm tra trạng thái xác thực. Vui lòng thử lại."
+app\signup\EmailVerificationScreen.jsx:58 [alert] "Đã gửi lại"
+app\signup\EmailVerificationScreen.jsx:58 [alert] "Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư đến."
+app\signup\EmailVerificationScreen.jsx:62 [alert] "Lỗi"
+app\signup\EmailVerificationScreen.jsx:62 [alert] "Không thể gửi lại email. Vui lòng thử lại sau."
+app\signup\EmailVerificationScreen.jsx:120 [jsx-text] "Xác thực Email"
+app\signup\EmailVerificationScreen.jsx:137 [jsx-text] "Tôi đã xác thực"
+app\signup\EmailVerificationScreen.jsx:152 [jsx-text] "Huỷ đăng ký"
+app\signup\IconSelectionScreen.jsx:52 [jsx-text] "Tải ảnh"
+app\signup\IconSelectionScreen.jsx:209 [alert] "Lỗi"
+app\signup\IconSelectionScreen.jsx:209 [alert] "Không thể chọn ảnh. Vui lòng thử lại."
+app\signup\IconSelectionScreen.jsx:261 [jsx-text] "Khám phá kho biểu tượng độc đáo hoặc tải lên ảnh riêng của bạn"
+app\signup\index.tsx:30 [alert] "Sign Up"
+app\signup\index.tsx:30 [alert] "Please fill all the fields"
+app\signup\index.tsx:35 [alert] "Sign Up"
+app\signup\index.tsx:35 [alert] "Passwords do not match"
+app\signup\index.tsx:43 [alert] "Sign Up"
+app\signup\index.tsx:61 [jsx-text] "Create Account"
+app\signup\index.tsx:62 [jsx-text] "Join us to explore the world of opportunities"
+app\signup\index.tsx:67 [prop:label] "Username"
+app\signup\index.tsx:95 [prop:label] "Password"
+app\signup\index.tsx:109 [prop:label] "Confirm Password"
+app\signup\index.tsx:133 [jsx-text] "Already have an account?"
+app\signup\settings.jsx:7 [jsx-text] "settings"
+app\SimpleSoundTest.tsx:121 [jsx-text] "🔊 Simple Sound Test"
+app\SimpleSoundTest.tsx:144 [prop:title] "▶️ Play notification.mp3"
+app\SimpleSoundTest.tsx:152 [prop:title] "▶️ Play join.mp3"
+app\SimpleSoundTest.tsx:160 [prop:title] "▶️ Play calling.mp3"
+app\SoundTestScreen.tsx:24 [alert] "Success"
+app\SoundTestScreen.tsx:24 [alert] "${soundName} played!"
+app\SoundTestScreen.tsx:27 [alert] "Failed to play ${soundName}: ${error.message}"
+app\SoundTestScreen.tsx:34 [jsx-text] "🔊 Sound Test Screen"
+app\SoundTestScreen.tsx:44 [jsx-text] "Message Sounds"
+app\SoundTestScreen.tsx:50 [jsx-text] "📨 Play Message Received"
+app\SoundTestScreen.tsx:57 [jsx-text] "📤 Play Message Sent"
+app\SoundTestScreen.tsx:64 [jsx-text] "🔔 Play Notification"
+app\SoundTestScreen.tsx:69 [jsx-text] "Call Sounds"
+app\SoundTestScreen.tsx:75 [jsx-text] "📞 Play Incoming Call"
+app\SoundTestScreen.tsx:82 [alert] "Stopped"
+app\SoundTestScreen.tsx:82 [alert] "All call sounds stopped"
+app\SoundTestScreen.tsx:85 [jsx-text] "⏹️ Stop Call Sounds"
+app\SoundTestScreen.tsx:90 [jsx-text] "System Sounds"
+app\SoundTestScreen.tsx:96 [jsx-text] "✅ Play Success"
+app\SoundTestScreen.tsx:103 [jsx-text] "❌ Play Error"
+app\SoundTestScreen.tsx:110 [alert] "Stopped"
+app\SoundTestScreen.tsx:110 [alert] "All sounds stopped"
+app\SoundTestScreen.tsx:113 [jsx-text] "⏹️ Stop All Sounds"
+app\SoundTestScreen.tsx:121 [jsx-text] "✓ Volume thiết bị đủ lớn"
+app\SoundTestScreen.tsx:122 [jsx-text] "✓ Không ở chế độ im lặng"
+app\SoundTestScreen.tsx:123 [jsx-text] "✓ Xem console logs"
+app\SoundTestScreen.tsx:124 [jsx-text] "✓ Test trên thiết bị thật, không phải emulator"
+components\auth\SocialLoginButtons.tsx:13 [jsx-text] "Promise"
+components\auth\SocialLoginButtons.tsx:14 [jsx-text] "Promise"
+components\auth\SocialLoginButtons.tsx:41 [alert] "Thành công"
+components\auth\SocialLoginButtons.tsx:43 [alert] "Lỗi"
+components\auth\SocialLoginButtons.tsx:46 [alert] "Lỗi"
+components\auth\SocialLoginButtons.tsx:46 [alert] "Đăng nhập Google thất bại"
+components\auth\SocialLoginButtons.tsx:59 [alert] "Thành công"
+components\auth\SocialLoginButtons.tsx:61 [alert] "Lỗi"
+components\auth\SocialLoginButtons.tsx:64 [alert] "Lỗi"
+components\auth\SocialLoginButtons.tsx:64 [alert] "Đăng nhập Facebook thất bại"
+...and 595 more

@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { acceptCall, declineCall, cancelCall, CALL_STATUS } from '@/services/firebaseCallService';
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
+import callTimeoutService from '@/services/callTimeoutService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -173,6 +174,7 @@ const ListenCallAcceptedScreen = () => {
 
         if (data.status === CALL_STATUS.ACCEPTED) {
           console.log('Call accepted! Navigating to call screen...');
+          callTimeoutService.stopCallTimeout(callId);
           if (soundRef.current) {
             await soundRef.current.stopAsync();
             await soundRef.current.unloadAsync();

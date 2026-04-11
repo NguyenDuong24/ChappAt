@@ -1,9 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useSound } from '@/hooks/useSound';
 import { useAudio } from '@/context/AudioContext';
+import { useTranslation } from 'react-i18next';
 
 export default function SoundTestScreen() {
+  const { t } = useTranslation();
   const {
     playMessageReceivedSound,
     playMessageSentSound,
@@ -19,109 +21,83 @@ export default function SoundTestScreen() {
 
   const testSound = async (soundFunction, soundName) => {
     try {
-      console.log(`Testing ${soundName}...`);
       await soundFunction();
-      Alert.alert('Success', `${soundName} played!`);
+      Alert.alert(t('common.success'), t('sound_test.played', { name: soundName }));
     } catch (error) {
-      console.error(`Error playing ${soundName}:`, error);
-      Alert.alert('Error', `Failed to play ${soundName}: ${error.message}`);
+      Alert.alert(t('common.error'), t('sound_test.play_failed', { name: soundName, error: error?.message || t('hotspots.chat.unknown_error') }));
     }
   };
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>🔊 Sound Test Screen</Text>
-        <Text style={styles.subtitle}>
-          Initialized: {isInitialized ? '✅' : '❌'}
-        </Text>
-        <Text style={styles.subtitle}>
-          Sounds Loaded: {soundsLoaded ? '✅' : '❌'}
-        </Text>
+        <Text style={styles.title}>{t('sound_test.title')}</Text>
+        <Text style={styles.subtitle}>{t('sound_test.initialized')}: {isInitialized ? t('sound_test.yes') : t('sound_test.no')}</Text>
+        <Text style={styles.subtitle}>{t('sound_test.loaded')}: {soundsLoaded ? t('sound_test.yes') : t('sound_test.no')}</Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Message Sounds</Text>
-        
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => testSound(playMessageReceivedSound, 'Message Received')}
-        >
-          <Text style={styles.buttonText}>📨 Play Message Received</Text>
+        <Text style={styles.sectionTitle}>{t('sound_test.message_sounds')}</Text>
+
+        <TouchableOpacity style={styles.button} onPress={() => testSound(playMessageReceivedSound, t('sound_test.message_received'))}>
+          <Text style={styles.buttonText}>{t('sound_test.play_message_received')}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => testSound(playMessageSentSound, 'Message Sent')}
-        >
-          <Text style={styles.buttonText}>📤 Play Message Sent</Text>
+        <TouchableOpacity style={styles.button} onPress={() => testSound(playMessageSentSound, t('sound_test.message_sent'))}>
+          <Text style={styles.buttonText}>{t('sound_test.play_message_sent')}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => testSound(playNotificationSound, 'Notification')}
-        >
-          <Text style={styles.buttonText}>🔔 Play Notification</Text>
+        <TouchableOpacity style={styles.button} onPress={() => testSound(playNotificationSound, t('sound_test.notification'))}>
+          <Text style={styles.buttonText}>{t('sound_test.play_notification')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Call Sounds</Text>
-        
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => testSound(playIncomingCallSound, 'Incoming Call')}
-        >
-          <Text style={styles.buttonText}>📞 Play Incoming Call</Text>
+        <Text style={styles.sectionTitle}>{t('sound_test.call_sounds')}</Text>
+
+        <TouchableOpacity style={styles.button} onPress={() => testSound(playIncomingCallSound, t('sound_test.incoming_call'))}>
+          <Text style={styles.buttonText}>{t('sound_test.play_incoming_call')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, styles.stopButton]}
           onPress={() => {
             stopCallSounds();
-            Alert.alert('Stopped', 'All call sounds stopped');
+            Alert.alert(t('sound_test.stopped_title'), t('sound_test.stopped_call_sounds'));
           }}
         >
-          <Text style={styles.buttonText}>⏹️ Stop Call Sounds</Text>
+          <Text style={styles.buttonText}>{t('sound_test.stop_call_sounds')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>System Sounds</Text>
-        
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => testSound(playSuccessSound, 'Success')}
-        >
-          <Text style={styles.buttonText}>✅ Play Success</Text>
+        <Text style={styles.sectionTitle}>{t('sound_test.system_sounds')}</Text>
+
+        <TouchableOpacity style={styles.button} onPress={() => testSound(playSuccessSound, t('common.success'))}>
+          <Text style={styles.buttonText}>{t('sound_test.play_success')}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => testSound(playErrorSound, 'Error')}
-        >
-          <Text style={styles.buttonText}>❌ Play Error</Text>
+        <TouchableOpacity style={styles.button} onPress={() => testSound(playErrorSound, t('common.error'))}>
+          <Text style={styles.buttonText}>{t('sound_test.play_error')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.button, styles.stopButton]}
           onPress={() => {
             stopAllSounds();
-            Alert.alert('Stopped', 'All sounds stopped');
+            Alert.alert(t('sound_test.stopped_title'), t('sound_test.stopped_all_sounds'));
           }}
         >
-          <Text style={styles.buttonText}>⏹️ Stop All Sounds</Text>
+          <Text style={styles.buttonText}>{t('sound_test.stop_all_sounds')}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.infoText}>
-          Nếu không nghe được âm thanh, kiểm tra:
-        </Text>
-        <Text style={styles.infoText}>✓ Volume thiết bị đủ lớn</Text>
-        <Text style={styles.infoText}>✓ Không ở chế độ im lặng</Text>
-        <Text style={styles.infoText}>✓ Xem console logs</Text>
-        <Text style={styles.infoText}>✓ Test trên thiết bị thật, không phải emulator</Text>
+        <Text style={styles.infoText}>{t('sound_test.checklist_title')}</Text>
+        <Text style={styles.infoText}>{t('sound_test.check_1')}</Text>
+        <Text style={styles.infoText}>{t('sound_test.check_2')}</Text>
+        <Text style={styles.infoText}>{t('sound_test.check_3')}</Text>
+        <Text style={styles.infoText}>{t('sound_test.check_4')}</Text>
       </View>
     </ScrollView>
   );

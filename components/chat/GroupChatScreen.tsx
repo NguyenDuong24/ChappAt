@@ -20,6 +20,7 @@ import { useAuth } from '@/context/authContext';
 import GroupMessageList from '../groups/GroupMessageList';
 import { useGroupMessages } from '@/hooks/useGroupMessages';
 import { useSound } from '@/hooks/useSound';
+import { useTranslation } from 'react-i18next';
 
 interface GroupChatScreenProps {
   groupId?: string;
@@ -29,9 +30,10 @@ interface GroupChatScreenProps {
 
 const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
   groupId = 'test_group_123',
-  groupName = 'Nhóm Chat Vui Vẻ',
+  groupName = '',
   memberCount = 12
 }) => {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
   const [replyTo, setReplyTo] = useState<any>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -46,7 +48,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
   // Mock current user if not available
   const currentUser = user || {
     uid: 'current_user',
-    username: 'Bạn',
+    username: t('common.you'),
     profileUrl: 'https://via.placeholder.com/100',
   };
 
@@ -109,7 +111,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Quyền truy cập', 'Cần quyền truy cập thư viện ảnh để gửi hình ảnh');
+        Alert.alert(t('common.error'), t('chat.image_upload_error'));
         return;
       }
 
@@ -129,7 +131,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
       handleSendImageMessage(result.assets[0].uri);
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Lỗi', 'Không thể chọn hình ảnh');
+      Alert.alert(t('common.error'), t('chat.image_upload_error'));
     }
   };
 
@@ -154,9 +156,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
     return (
       <View style={[styles.container, styles.loadingContainer, { backgroundColor: currentThemeColors.background }]}>
         <ActivityIndicator size="large" color={currentThemeColors.tint} />
-        <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>
-          Đang tải tin nhắn...
-        </Text>
+        <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>{t('groups.loading_messages')}</Text>
       </View>
     );
   }
@@ -172,7 +172,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
           style={[styles.retryButton, { backgroundColor: currentThemeColors.tint }]}
           onPress={() => window.location.reload()}
         >
-          <Text style={styles.retryButtonText}>Thử lại</Text>
+          <Text style={styles.retryButtonText}>{t('home.retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -190,12 +190,12 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
           <MaterialCommunityIcons name="arrow-left" size={24} color={currentThemeColors.tint} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={[styles.groupName, { color: currentThemeColors.text }]}>{groupName}</Text>
+          <Text style={[styles.groupName, { color: currentThemeColors.text }]}>{groupName || t('groups.chat_default_name')}</Text>
           <Text
             style={[styles.memberCount, { color: currentThemeColors.subtleText }]}
             numberOfLines={1}
           >
-            {memberCount} thành viên • {messages.length} tin nhắn
+            {t('groups.member_message_count', { members: memberCount, messages: messages.length })}
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -220,11 +220,9 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
       {replyTo && (
         <View style={[styles.replyBar, { backgroundColor: currentThemeColors.surface, borderTopColor: currentThemeColors.border }]}>
           <View style={styles.replyContent}>
-            <Text style={[styles.replyLabel, { color: currentThemeColors.tint }]}>
-              Trả lời {replyTo.senderName}
-            </Text>
+            <Text style={[styles.replyLabel, { color: currentThemeColors.tint }]}>{t('chat.replying_to', { name: replyTo.senderName })}</Text>
             <Text style={[styles.replyText, { color: currentThemeColors.text }]} numberOfLines={1}>
-              {replyTo.imageUrl ? '📷 Hình ảnh' : replyTo.text}
+              {replyTo.imageUrl ? t('chat.image') : replyTo.text}
             </Text>
           </View>
           <TouchableOpacity onPress={cancelReply} style={styles.cancelReply}>
@@ -243,7 +241,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
           style={[styles.input, { backgroundColor: currentThemeColors.inputBackground, color: currentThemeColors.text }]}
           value={input}
           onChangeText={setInput}
-          placeholder="Nhập tin nhắn..."
+          placeholder={t('chat.type_message')}
           placeholderTextColor={currentThemeColors.placeholderText}
           multiline
           maxLength={1000}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,6 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-  Dimensions
 } from 'react-native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,8 +17,7 @@ import { eventInviteService } from '@/services/eventInviteService';
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-
-const { width } = Dimensions.get('window');
+import { useTranslation } from 'react-i18next';
 
 interface EventInvitesModalProps {
   visible: boolean;
@@ -30,12 +28,13 @@ interface EventInvitesModalProps {
 const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
   visible,
   onClose,
-  onInviteAccepted
+  onInviteAccepted,
 }) => {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
-  const [invites, setInvites] = useState<(EventInvite & { inviterProfile?: UserProfile, eventTitle?: string })[]>([]);
-  const [sentInvites, setSentInvites] = useState<(EventInvite & { inviteeProfile?: UserProfile, eventTitle?: string })[]>([]);
+  const [invites, setInvites] = useState<(EventInvite & { inviterProfile?: UserProfile; eventTitle?: string })[]>([]);
+  const [sentInvites, setSentInvites] = useState<(EventInvite & { inviteeProfile?: UserProfile; eventTitle?: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const [respondingTo, setRespondingTo] = useState<{ [key: string]: boolean }>({});
 
@@ -50,7 +49,6 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
     setLoading(true);
     try {
       const userInvites = await eventInviteService.getUserInvites(user!.uid);
-      // Enrich with profiles and event titles
       const enrichedInvites = await Promise.all(
         userInvites.map(async (invite) => {
           try {
@@ -61,7 +59,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             return {
               ...invite,
               inviterProfile,
-              eventTitle: eventDetails?.title || 'Sự kiện',
+              eventTitle: eventDetails?.title || t('event_invites.default_event_title'),
             } as any;
           } catch {
             return invite as any;
@@ -71,7 +69,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       setInvites(enrichedInvites);
     } catch (error) {
       console.error('Error loading invites:', error);
-      Alert.alert('Lỗi', 'Không thể tải danh sách lời mời');
+      Alert.alert(t('common.error'), t('event_invites.load_received_error'));
     } finally {
       setLoading(false);
     }
@@ -88,7 +86,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
               fetchUserProfile(inv.inviteeId),
               fetchEventDetails(inv.eventId),
             ]);
-            return { ...inv, inviteeProfile, eventTitle: eventDetails?.title || 'Sự kiện' } as any;
+            return { ...inv, inviteeProfile, eventTitle: eventDetails?.title || t('event_invites.default_event_title') } as any;
           } catch {
             return inv as any;
           }
@@ -103,10 +101,10 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
   const handleCancelInvite = async (inviteId: string) => {
     try {
       await eventInviteService.cancelInvite(inviteId, user!.uid);
-      Alert.alert('Đã thu hồi', 'Bạn đã thu hồi lời mời.');
+      Alert.alert(t('event_invites.recalled_title'), t('event_invites.recalled_message'));
       await loadSentInvites();
     } catch (e: any) {
-      Alert.alert('Lỗi', e.message || 'Không thể thu hồi');
+      Alert.alert(t('common.error'), e.message || t('event_invites.recall_error'));
     }
   };
 
@@ -117,7 +115,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       const d: any = snap.data();
       return {
         id: userId,
-        name: d?.displayName || d?.name || d?.username || 'Người dùng',
+        name: d?.displayName || d?.name || d?.username || t('event_invites.default_user_name'),
         avatar: d?.avatar || d?.photoURL || d?.profileUrl,
         age: typeof d?.age === 'number' ? d.age : undefined,
         bio: typeof d?.bio === 'string' ? d.bio : undefined,
@@ -132,15 +130,15 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       const hot = await getDoc(doc(db, 'hotSpots', eventId));
       if (hot.exists()) {
         const d: any = hot.data();
-        return { title: d?.title || d?.name || 'Sự kiện' };
+        return { title: d?.title || d?.name || t('event_invites.default_event_title') };
       }
       const ev = await getDoc(doc(db, 'events', eventId));
       if (ev.exists()) {
         const d: any = ev.data();
-        return { title: d?.title || d?.name || 'Sự kiện' };
+        return { title: d?.title || d?.name || t('event_invites.default_event_title') };
       }
-    } catch { }
-    return { title: 'Sự kiện' };
+    } catch {}
+    return { title: t('event_invites.default_event_title') };
   };
 
   const getCreatedAtDate = (ts: any): Date => {
@@ -149,15 +147,18 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       if (typeof ts?.toDate === 'function') return ts.toDate();
       if (typeof ts === 'string' || typeof ts === 'number') return new Date(ts);
       if (typeof ts?.seconds === 'number') return new Date(ts.seconds * 1000);
-    } catch { }
+    } catch {}
     return new Date();
+  };
+
+  const formatInviteTime = (date: Date) => {
+    return `${date.toLocaleDateString()} ${t('event_invites.at_time')} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   const handleRespondToInvite = async (inviteId: string, response: 'accepted' | 'declined') => {
     setRespondingTo(prev => ({ ...prev, [inviteId]: true }));
 
     try {
-      // Find the invite to get event details
       const invite = invites.find(inv => inv.id === inviteId);
       const chatRoomId = await eventInviteService.respondToInvite(inviteId, response);
 
@@ -168,20 +169,16 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
           onInviteAccepted?.(chatRoomId);
         }
       } else if (response === 'declined') {
-        Alert.alert(
-          'Đã từ chối',
-          'Bạn đã từ chối lời mời này.',
-          [{ text: 'OK', onPress: () => loadInvites() }]
-        );
+        Alert.alert(t('event_invites.declined_title'), t('event_invites.declined_message'), [{ text: t('common.ok'), onPress: () => loadInvites() }]);
       }
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể phản hồi lời mời');
+      Alert.alert(t('common.error'), error.message || t('event_invites.respond_error'));
     } finally {
       setRespondingTo(prev => ({ ...prev, [inviteId]: false }));
     }
   };
 
-  const renderInviteCard = ({ item }: { item: EventInvite & { inviterProfile?: UserProfile, eventTitle?: string } }) => {
+  const renderInviteCard = ({ item }: { item: EventInvite & { inviterProfile?: UserProfile; eventTitle?: string } }) => {
     const createdAtDate = getCreatedAtDate((item as any).createdAt);
     return (
       <View style={styles.inviteCard}>
@@ -191,21 +188,17 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
               <Image source={{ uri: item.inviterProfile.avatar }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Text style={styles.avatarText}>
-                  {item.inviterProfile?.name?.charAt(0).toUpperCase() || '?'}
-                </Text>
+                <Text style={styles.avatarText}>{item.inviterProfile?.name?.charAt(0).toUpperCase() || '?'}</Text>
               </View>
             )}
           </View>
 
           <View style={styles.inviteInfo}>
             <Text style={styles.inviterName}>
-              {item.inviterProfile?.name || 'Người dùng'} mời bạn đi cùng
+              {t('event_invites.invited_you_by', { name: item.inviterProfile?.name || t('event_invites.default_user_name') })}
             </Text>
             <Text style={styles.eventTitle}>{item.eventTitle}</Text>
-            <Text style={styles.inviteTime}>
-              {createdAtDate.toLocaleDateString('vi-VN')} lúc {createdAtDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-            </Text>
+            <Text style={styles.inviteTime}>{formatInviteTime(createdAtDate)}</Text>
           </View>
         </View>
 
@@ -220,7 +213,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             ) : (
               <>
                 <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
-                <Text style={styles.declineButtonText}>Từ chối</Text>
+                <Text style={styles.declineButtonText}>{t('event_invites.decline')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -230,18 +223,13 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             onPress={() => handleRespondToInvite(item.id, 'accepted')}
             disabled={respondingTo[item.id]}
           >
-            <LinearGradient
-              colors={['#10B981', '#059669']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.acceptButtonGradient}
-            >
+            <LinearGradient colors={['#10B981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.acceptButtonGradient}>
               {respondingTo[item.id] ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="white" />
-                  <Text style={styles.acceptButtonText}>Đồng ý</Text>
+                  <Text style={styles.acceptButtonText}>{t('event_invites.accept')}</Text>
                 </>
               )}
             </LinearGradient>
@@ -251,7 +239,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
     );
   };
 
-  const renderInviteCardSent = ({ item }: { item: EventInvite & { inviteeProfile?: UserProfile, eventTitle?: string } }) => {
+  const renderInviteCardSent = ({ item }: { item: EventInvite & { inviteeProfile?: UserProfile; eventTitle?: string } }) => {
     const createdAtDate = getCreatedAtDate((item as any).createdAt);
     return (
       <View style={styles.inviteCard}>
@@ -261,24 +249,20 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
               <Image source={{ uri: item.inviteeProfile.avatar }} style={styles.avatar} />
             ) : (
               <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Text style={styles.avatarText}>
-                  {item.inviteeProfile?.name?.charAt(0).toUpperCase() || '?'}
-                </Text>
+                <Text style={styles.avatarText}>{item.inviteeProfile?.name?.charAt(0).toUpperCase() || '?'}</Text>
               </View>
             )}
           </View>
           <View style={styles.inviteInfo}>
-            <Text style={styles.inviterName}>Bạn đã mời {item.inviteeProfile?.name || 'người dùng'}</Text>
+            <Text style={styles.inviterName}>{t('event_invites.you_invited', { name: item.inviteeProfile?.name || t('event_invites.default_user_name') })}</Text>
             <Text style={styles.eventTitle}>{item.eventTitle}</Text>
-            <Text style={styles.inviteTime}>
-              {createdAtDate.toLocaleDateString('vi-VN')} lúc {createdAtDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-            </Text>
+            <Text style={styles.inviteTime}>{formatInviteTime(createdAtDate)}</Text>
           </View>
         </View>
         <View style={styles.actionButtons}>
           <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => handleCancelInvite(item.id!)}>
             <Ionicons name="trash-outline" size={20} color="#EF4444" />
-            <Text style={styles.declineButtonText}>Thu hồi</Text>
+            <Text style={styles.declineButtonText}>{t('event_invites.recall')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -286,39 +270,32 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.headerTabs}>
           <TouchableOpacity onPress={() => setActiveTab('received')} style={[styles.tabBtn, activeTab === 'received' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'received' && styles.tabTextActive]}>Nhận</Text>
+            <Text style={[styles.tabText, activeTab === 'received' && styles.tabTextActive]}>{t('event_invites.tab_received')}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setActiveTab('sent')} style={[styles.tabBtn, activeTab === 'sent' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'sent' && styles.tabTextActive]}>Đã gửi</Text>
+            <Text style={[styles.tabText, activeTab === 'sent' && styles.tabTextActive]}>{t('event_invites.tab_sent')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerClose} onPress={onClose}>
             <MaterialIcons name="close" size={22} color="#333" />
           </TouchableOpacity>
         </View>
 
-        {/* Content */}
         <View style={styles.content}>
           {loading && activeTab === 'received' ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#EC4899" />
-              <Text style={styles.loadingText}>Đang tải...</Text>
+              <Text style={styles.loadingText}>{t('common.loading')}</Text>
             </View>
           ) : activeTab === 'received' ? (
             invites.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="mail-outline" size={64} color="#ccc" />
-                <Text style={styles.emptyTitle}>Chưa có lời mời</Text>
-                <Text style={styles.emptySubtitle}>Khi ai đó rủ bạn, lời mời sẽ hiển thị ở đây.</Text>
+                <Text style={styles.emptyTitle}>{t('event_invites.empty_received_title')}</Text>
+                <Text style={styles.emptySubtitle}>{t('event_invites.empty_received_subtitle')}</Text>
               </View>
             ) : (
               <FlatList
@@ -333,8 +310,8 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             sentInvites.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="send" size={64} color="#ccc" />
-                <Text style={styles.emptyTitle}>Chưa gửi lời mời nào</Text>
-                <Text style={styles.emptySubtitle}>Hãy mở danh sách người quan tâm để rủ ai đó đi cùng.</Text>
+                <Text style={styles.emptyTitle}>{t('event_invites.empty_sent_title')}</Text>
+                <Text style={styles.emptySubtitle}>{t('event_invites.empty_sent_subtitle')}</Text>
               </View>
             ) : (
               <FlatList
@@ -363,30 +340,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff'
+    backgroundColor: '#fff',
   },
   tabBtn: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 16,
     marginHorizontal: 6,
-    backgroundColor: '#f3f4f6'
+    backgroundColor: '#f3f4f6',
   },
   tabActive: {
-    backgroundColor: '#e9d5ff'
+    backgroundColor: '#e9d5ff',
   },
   tabText: {
     fontWeight: '600',
-    color: '#6b7280'
+    color: '#6b7280',
   },
   tabTextActive: {
-    color: '#6d28d9'
+    color: '#6d28d9',
   },
   headerClose: {
     position: 'absolute',
     right: 16,
     top: 16,
-    padding: 6
+    padding: 6,
   },
   content: {
     flex: 1,
@@ -503,7 +480,7 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   acceptButton: {
-    paddingVertical: 0, // Reset padding because gradient handles it
+    paddingVertical: 0,
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 0,

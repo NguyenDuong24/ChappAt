@@ -1,9 +1,9 @@
-import { View, StyleSheet, Platform, TouchableOpacity, InteractionManager } from 'react-native';
+import { View, StyleSheet, Platform, TouchableOpacity, InteractionManager, Alert } from 'react-native';
 import React, { useEffect, useState, useContext, useRef, useMemo, useCallback } from 'react';
 import EnhancedGroupList from '@/components/groups/EnhancedGroupList';
 import EnhancedCreateGroupModal from '@/components/groups/EnhancedCreateGroupModal';
 import { useAuth } from '@/context/authContext';
-import { getDocs, query, where, doc, getDoc, updateDoc, serverTimestamp, arrayUnion, onSnapshot } from 'firebase/firestore';
+import { getDocs, query, where, doc, getDoc, updateDoc, serverTimestamp, arrayUnion, arrayRemove, onSnapshot } from 'firebase/firestore';
 import { groupsRef, db } from '@/firebaseConfig';
 import { useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -13,10 +13,13 @@ import ThemedStatusBar from '@/components/common/ThemedStatusBar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRefresh } from '@/context/RefreshContext';
+import ConversationOptionsModal from '@/components/common/ConversationOptionsModal';
+import { useTranslation } from 'react-i18next';
 
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 export default function Groups() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { theme } = useTheme();
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -29,6 +32,10 @@ export default function Groups() {
   const [searchResults, setSearchResults] = useState([]); // Search results for global search
   const [searching, setSearching] = useState(false);
   const [isSearchMode, setIsSearchMode] = useState(false); // Toggle between my groups and search results
+  const [pinnedGroupIds, setPinnedGroupIds] = useState([]);
+  const [hiddenGroupIds, setHiddenGroupIds] = useState([]);
+  const [showGroupOptionsModal, setShowGroupOptionsModal] = useState(false);
+  const [selectedGroupItem, setSelectedGroupItem] = useState(null);
 
   const groupsUnsubRef = useRef(null);
 
@@ -94,6 +101,30 @@ export default function Groups() {
       }
     };
   }, [user?.uid, getGroups]);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setPinnedGroupIds([]);
+      setHiddenGroupIds([]);
+      return;
+    }
+
+    const userRef = doc(db, 'users', user.uid);
+    const unsub = onSnapshot(userRef, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data() || {};
+      setPinnedGroupIds(Array.isArray(data.pinnedGroupIds) ? data.pinnedGroupIds : []);
+      setHiddenGroupIds(Array.isArray(data.hiddenGroupIds) ? data.hiddenGroupIds : []);
+    }, (error) => {
+      console.warn('Error listening pinned groups:', error);
+    });
+
+    return () => {
+      try {
+        unsub();
+      } catch (_e) { }
+    };
+  }, [user?.uid]);
 
   // Real-time listener for user's joined groups only
   const getGroups = useCallback(() => {
@@ -317,6 +348,76 @@ export default function Groups() {
     }
   };
 
+  const handleLongPressGroup = useCallback((groupItem) => {
+    if (!groupItem?.id) return;
+    setSelectedGroupItem(groupItem);
+    setShowGroupOptionsModal(true);
+  }, []);
+
+  const groupOptions = useMemo(() => {
+    if (!selectedGroupItem?.id || !user?.uid) return [];
+    const isPinned = pinnedGroupIds.includes(selectedGroupItem.id);
+
+    return [
+      {
+        key: 'pin',
+        label: isPinned ? t('groups.list_options.unpin') : t('groups.list_options.pin'),
+        icon: isPinned ? 'pin-off-outline' : 'pin-outline',
+        onPress: async () => {
+          try {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, {
+              pinnedGroupIds: isPinned ? arrayRemove(selectedGroupItem.id) : arrayUnion(selectedGroupItem.id)
+            });
+          } catch (error) {
+            console.error('Failed to pin/unpin group:', error);
+            Alert.alert(t('common.error'), t('chat.error_generic'));
+          }
+        }
+      },
+      {
+        key: 'hide',
+        label: t('groups.list_options.remove'),
+        icon: 'trash-can-outline',
+        variant: 'danger',
+        onPress: async () => {
+          try {
+            const userRef = doc(db, 'users', user.uid);
+            const groupRef = doc(db, 'groups', selectedGroupItem.id);
+
+            // Primary delete behavior for group list: leave group.
+            // This guarantees group disappears from query members-array-contains.
+            await updateDoc(groupRef, {
+              members: arrayRemove(user.uid),
+              admins: arrayRemove(user.uid),
+              updatedAt: serverTimestamp(),
+            });
+
+            // Optional cleanup in user profile state
+            await updateDoc(userRef, {
+              hiddenGroupIds: arrayUnion(selectedGroupItem.id),
+              pinnedGroupIds: arrayRemove(selectedGroupItem.id)
+            });
+
+            // Instant local UI update (no need to wait snapshot)
+            setGroups(prev => prev.filter(g => g.id !== selectedGroupItem.id));
+            setUserGroups(prev => prev.filter(g => g.id !== selectedGroupItem.id));
+            if (isSearchMode) {
+              setSearchResults(prev => prev.map(g =>
+                g.id === selectedGroupItem.id
+                  ? { ...g, isJoined: false, members: (g.members || []).filter(uid => uid !== user.uid) }
+                  : g
+              ));
+            }
+          } catch (error) {
+            console.error('Failed to remove group from list:', error);
+            Alert.alert(t('common.error'), t('chat.error_generic'));
+          }
+        }
+      }
+    ];
+  }, [selectedGroupItem, user?.uid, pinnedGroupIds, isSearchMode, t]);
+
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1 },
     content: { flex: 1 },
@@ -453,14 +554,14 @@ export default function Groups() {
               color="white"
             />
             <Text style={[styles.headerTitle, { color: 'white' }]}>
-              Nhóm Chat
+              {t('groups_tab.title')}
             </Text>
           </View>
 
           <View style={styles.rightActions}>
             <View style={styles.groupCount}>
               <Text style={[styles.countText, { color: 'white' }]}>
-                {isSearchMode ? `${searchResults.length} kết quả` : `${groups.length} nhóm`}
+                {isSearchMode ? t('groups_tab.search_results_count', { count: searchResults.length }) : t('groups_tab.groups_count', { count: groups.length })}
               </Text>
             </View>
             <TouchableOpacity
@@ -476,7 +577,7 @@ export default function Groups() {
         <View style={styles.searchWrapper}>
           <TextInput
             mode="outlined"
-            placeholder={isSearchMode ? "Tìm kiếm nhóm công khai hoặc ID..." : "Tìm kiếm nhóm..."}
+            placeholder={isSearchMode ? t('groups_tab.search_placeholder_public') : t('groups_tab.search_placeholder')}
             value={searchQuery}
             onChangeText={setSearchQuery}
             style={styles.searchInput}
@@ -491,7 +592,7 @@ export default function Groups() {
           {isSearchMode && (
             <View style={styles.searchModeIndicator}>
               <MaterialCommunityIcons name="earth" size={16} color="#667EEA" />
-              <Text style={[styles.searchModeText, { color: currentThemeColors.text }]}>Tìm kiếm: {searchResults.length} kết quả</Text>
+              <Text style={[styles.searchModeText, { color: currentThemeColors.text }]}>{t('groups_tab.search_mode_count', { count: searchResults.length })}</Text>
             </View>
           )}
         </View>
@@ -506,13 +607,16 @@ export default function Groups() {
           listHeader={null}
           onJoinGroup={joinGroup}
           isSearchMode={isSearchMode}
+          pinnedGroupIds={pinnedGroupIds}
+          hiddenGroupIds={hiddenGroupIds}
+          onLongPressGroup={handleLongPressGroup}
         />
 
         {isSearchMode && !searching && searchResults.length === 0 && searchQuery.trim().length > 0 && (
           <View style={styles.emptySearchContainer}>
             <MaterialCommunityIcons name="magnify" size={64} color={currentThemeColors.subtleText} />
-            <Text style={[styles.emptySearchText, { color: currentThemeColors.text }]}>Không tìm thấy nhóm</Text>
-            <Text style={[styles.emptySearchSubtext, { color: currentThemeColors.subtleText }]}>Thử tìm kiếm với từ khóa khác hoặc ID</Text>
+            <Text style={[styles.emptySearchText, { color: currentThemeColors.text }]}>{t('groups_tab.empty_title')}</Text>
+            <Text style={[styles.emptySearchSubtext, { color: currentThemeColors.subtleText }]}>{t('groups_tab.empty_subtitle')}</Text>
           </View>
         )}
 
@@ -538,6 +642,17 @@ export default function Groups() {
       >
         <MaterialCommunityIcons name="plus" size={24} color="white" />
       </TouchableOpacity>
+
+      <ConversationOptionsModal
+        visible={showGroupOptionsModal}
+        onClose={() => {
+          setShowGroupOptionsModal(false);
+          setSelectedGroupItem(null);
+        }}
+        title={t('groups.list_options.title')}
+        subtitle={selectedGroupItem?.name || t('groups.list_options.subtitle')}
+        options={groupOptions}
+      />
 
     </View>
   );

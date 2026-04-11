@@ -32,6 +32,18 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
   const menuAnimation = useRef(new Animated.Value(0)).current;
   const menuButtonRef = useRef<any>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const menuButtonBackground = chatTheme
+    ? 'rgba(30, 41, 59, 0.46)'
+    : (theme === 'dark' ? 'rgba(255, 255, 255, 0.16)' : '#4F46E5');
+  const menuButtonBorderColor = chatTheme
+    ? 'rgba(255, 255, 255, 0.34)'
+    : (theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : '#6366F1');
+  const menuButtonIconColor = '#FFFFFF';
+  const menuBackgroundColor = theme === 'dark' ? '#111827' : '#0F172A';
+  const menuBorderColor = theme === 'dark' ? 'rgba(148, 163, 184, 0.32)' : 'rgba(165, 180, 252, 0.34)';
+  const menuTextColor = '#F8FAFC';
+  const menuIconColor = '#A5B4FC';
+  const displayName = user?.username || user?.displayName || user?.name || 'Unknown User';
 
   const handleAudioCall = async () => {
     try {
@@ -174,33 +186,33 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.1)',
+      backgroundColor: 'rgba(2, 6, 23, 0.22)',
     },
     customMenu: {
       position: 'absolute',
-      borderRadius: 12,
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      minWidth: 180,
+      borderRadius: 16,
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      minWidth: 188,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 10,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.34,
+      shadowRadius: 16,
+      elevation: 14,
       borderWidth: 1,
-      borderColor: currentThemeColors.border,
+      overflow: 'hidden',
     },
     menuItem: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: 12,
-      paddingHorizontal: 8,
-      borderRadius: 8,
+      paddingHorizontal: 12,
+      borderRadius: 16,
     },
     menuItemText: {
-      fontSize: 16,
-      marginLeft: 12,
-      fontWeight: '500',
+      fontSize: 15,
+      marginLeft: 8,
+      fontWeight: '600',
     },
   });
 
@@ -226,7 +238,7 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
               size={40} // giảm từ 56 xuống 40
               currentVibe={user?.currentVibe || null}
               showAddButton={false}
-              storyUser={{ id: userId, username: user?.username, profileUrl: user?.profileUrl }}
+              storyUser={{ id: userId, username: displayName, profileUrl: user?.profileUrl }}
               vibeBadgePosition="top-left"
             />
             {/* Online dot at bottom-right */}
@@ -243,7 +255,7 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
             pathname: "/(screens)/user/UserProfileScreen",
             params: { userId: userId }
           })}>
-            <Text style={[styles.userName, { color: chatTheme?.textColor || currentThemeColors.text, fontSize: 16 }]}>{user?.username}</Text>
+            <Text style={[styles.userName, { color: chatTheme?.textColor || currentThemeColors.text, fontSize: 16 }]}>{displayName}</Text>
             <Text style={[styles.userStatus, { color: chatTheme?.textColor || currentThemeColors.subtleText }]}
             >
               {viewerShowOnline ? (user?.isOnline ? 'Online' : 'Last seen recently') : ''}
@@ -267,11 +279,22 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
           </TouchableOpacity>
           <TouchableOpacity
             ref={menuButtonRef}
-            style={[styles.actionButton, { backgroundColor: currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor: menuButtonBackground,
+                borderWidth: 1,
+                borderColor: menuButtonBorderColor,
+                width: 32,
+                height: 32,
+                borderRadius: 16
+              }
+            ]}
             onPress={toggleMenu}
             onLayout={handleMenuLayout}
+            activeOpacity={0.82}
           >
-            <MaterialIcons name="more-vert" size={16} color={chatTheme?.textColor || currentThemeColors.text} />
+            <MaterialIcons name="more-vert" size={16} color={menuButtonIconColor} />
           </TouchableOpacity>
         </View>
       </View>
@@ -282,7 +305,8 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
             style={[
               styles.customMenu,
               {
-                backgroundColor: currentThemeColors.surface,
+                backgroundColor: menuBackgroundColor,
+                borderColor: menuBorderColor,
                 opacity: menuAnimation,
                 transform: [{ scale: menuAnimation.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }],
                 top: menuPosition.y + menuPosition.height + 5,
@@ -293,9 +317,10 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => { toggleMenu(); setTimeout(() => { if (onThemePress) onThemePress(); }, 220); }}
+              activeOpacity={0.86}
             >
-              <MaterialIcons name="palette" size={20} color={currentThemeColors.text} />
-              <Text style={[styles.menuItemText, { color: currentThemeColors.text }]}>Chọn đổi chủ đề</Text>
+              <MaterialIcons name="palette" size={20} color={menuIconColor} />
+              <Text style={[styles.menuItemText, { color: menuTextColor }]}>Chọn đổi chủ đề</Text>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>

@@ -1,8 +1,8 @@
-// ✅ Optimized Group Message List with React.memo and virtualization
 import React, { memo, useCallback, useMemo } from 'react';
 import { View, ScrollView, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import GroupMessageItem from './GroupMessageItem';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
+import GroupMessageItem from './GroupMessageItem';
 
 interface OptimizedGroupMessageListProps {
   messages: any[];
@@ -17,7 +17,6 @@ interface OptimizedGroupMessageListProps {
   scrollViewRef?: React.RefObject<ScrollView>;
 }
 
-// ✅ Memoized day separator component
 const DaySeparator = memo(({ date }: { date: string }) => (
   <View style={styles.daySeparatorContainer}>
     <View style={styles.daySeparatorLine} />
@@ -28,48 +27,44 @@ const DaySeparator = memo(({ date }: { date: string }) => (
 
 DaySeparator.displayName = 'DaySeparator';
 
-// ✅ Memoized message item wrapper with day separator logic
-const MessageWithDate = memo(({ 
-  message, 
+const MessageWithDate = memo(({
+  message,
   previousMessage,
   currentUser,
   groupId,
   onReply,
   highlightedMessageId,
-  onClearHighlight,
-  onReport
+  onReport,
 }: any) => {
+  const { t } = useTranslation();
+
   const shouldShowDaySeparator = useMemo(() => {
     if (!previousMessage) return true;
-    
+
     const currentDate = message.createdAt?.toDate?.();
     const prevDate = previousMessage.createdAt?.toDate?.();
-    
+
     if (!currentDate || !prevDate) return false;
-    
     return currentDate.toDateString() !== prevDate.toDateString();
   }, [message.createdAt, previousMessage?.createdAt]);
 
   const dayString = useMemo(() => {
     const date = message.createdAt?.toDate?.();
     if (!date) return '';
-    
+
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
-    if (date.toDateString() === today.toDateString()) {
-      return 'Hôm nay';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Hôm qua';
-    } else {
-      return date.toLocaleDateString('vi-VN', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric' 
-      });
-    }
-  }, [message.createdAt]);
+
+    if (date.toDateString() === today.toDateString()) return t('common.time.today');
+    if (date.toDateString() === yesterday.toDateString()) return t('common.time.yesterday');
+
+    return date.toLocaleDateString(t('common.locale') === 'vi' ? 'vi-VN' : 'en-US', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }, [message.createdAt, t]);
 
   return (
     <>
@@ -85,7 +80,6 @@ const MessageWithDate = memo(({
     </>
   );
 }, (prevProps, nextProps) => {
-  // ✅ Custom comparison for better performance
   return (
     prevProps.message.id === nextProps.message.id &&
     prevProps.highlightedMessageId === nextProps.highlightedMessageId &&
@@ -107,23 +101,23 @@ const OptimizedGroupMessageList: React.FC<OptimizedGroupMessageListProps> = ({
   onReport,
   onLoadMore,
   hasMore = false,
-  scrollViewRef
+  scrollViewRef,
 }) => {
-  // ✅ Memoized load more handler
+  const { t } = useTranslation();
+
   const handleLoadMore = useCallback(() => {
     if (hasMore && onLoadMore) {
       onLoadMore();
     }
   }, [hasMore, onLoadMore]);
 
-  // ✅ Memoized empty state
   const renderEmpty = useMemo(() => (
     <View style={styles.emptyContainer}>
       <MaterialCommunityIcons name="message-outline" size={64} color="#CCC" />
-      <Text style={styles.emptyText}>Chưa có tin nhắn nào</Text>
-      <Text style={styles.emptySubtext}>Hãy bắt đầu cuộc trò chuyện!</Text>
+      <Text style={styles.emptyText}>{t('chat.no_messages')}</Text>
+      <Text style={styles.emptySubtext}>{t('groups.start_conversation')}</Text>
     </View>
-  ), []);
+  ), [t]);
 
   if (messages.length === 0) {
     return renderEmpty;
@@ -137,18 +131,16 @@ const OptimizedGroupMessageList: React.FC<OptimizedGroupMessageListProps> = ({
       showsVerticalScrollIndicator={false}
       onScrollBeginDrag={onClearHighlight}
     >
-      {/* Load more button at top */}
       {hasMore && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.loadMoreButton}
           onPress={handleLoadMore}
         >
           <MaterialCommunityIcons name="refresh" size={20} color="#667eea" />
-          <Text style={styles.loadMoreText}>Tải thêm tin nhắn</Text>
+          <Text style={styles.loadMoreText}>{t('groups.load_more_messages')}</Text>
         </TouchableOpacity>
       )}
 
-      {/* Messages list */}
       {messages.map((message, index) => (
         <MessageWithDate
           key={message.id}
@@ -230,5 +222,4 @@ const styles = StyleSheet.create({
   },
 });
 
-// ✅ Export memoized component
 export default memo(OptimizedGroupMessageList);

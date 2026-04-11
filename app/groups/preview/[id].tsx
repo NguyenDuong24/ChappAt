@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+﻿import React, { useState, useEffect, useContext } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ThemedStatusBar from '@/components/common/ThemedStatusBar';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
+import { useTranslation } from 'react-i18next';
 
 interface Member {
   uid: string;
@@ -36,13 +37,14 @@ interface Group {
   type: 'public' | 'private';
   isSearchable: boolean;
   createdBy: string;
-  members: string[]; // array of uids
+  members: string[];
   avatarUrl?: string;
 }
 
 export default function GroupPreviewScreen() {
   const { id } = useLocalSearchParams();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -55,6 +57,7 @@ export default function GroupPreviewScreen() {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [isMember, setIsMember] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<'none' | 'pending'>('none');
 
   useEffect(() => {
     if (id) {
@@ -62,11 +65,16 @@ export default function GroupPreviewScreen() {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (id && user?.uid) {
+      checkRequestStatus();
+    }
+  }, [id, user]);
+
   const loadGroupPreview = async () => {
     try {
       setLoading(true);
 
-      // Load group data
       const groupDoc = await getDoc(doc(db, 'groups', id as string));
       if (groupDoc.exists()) {
         const groupData = { id: groupDoc.id, ...groupDoc.data() } as Group;
@@ -74,53 +82,41 @@ export default function GroupPreviewScreen() {
         const memberFlag = groupData.members?.includes(user?.uid);
         setIsMember(!!memberFlag);
 
-        // If group is private and user is not a member, don't fetch members or messages
         if (groupData.type === 'private' && !memberFlag) {
           setMembers([]);
           setRecentMessages([]);
           return;
         }
 
-        // Load some members (first 10)
         if (groupData.members?.length > 0) {
           const memberUIDs = groupData.members.slice(0, 10);
           const memberDetails: Member[] = [];
 
-          // Load member details in batches
           for (let i = 0; i < memberUIDs.length; i += 10) {
             const batch = memberUIDs.slice(i, i + 10);
             const q = query(collection(db, 'users'), where(documentId(), 'in', batch));
             const snapshot = await getDocs(q);
-            snapshot.docs.forEach(doc => {
-              memberDetails.push({ uid: doc.id, ...doc.data() });
+            snapshot.docs.forEach(document => {
+              memberDetails.push({ uid: document.id, ...document.data() });
             });
           }
 
           setMembers(memberDetails);
         }
 
-        // Load recent messages (last 5)
         const messagesRef = collection(db, 'groups', id as string, 'messages');
         const messagesQuery = query(messagesRef, orderBy('createdAt', 'desc'), limit(5));
         const messagesSnapshot = await getDocs(messagesQuery);
-        const messages = messagesSnapshot.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) })) as Message[];
-        setRecentMessages(messages.reverse()); // Reverse to show oldest first
+        const messages = messagesSnapshot.docs.map(document => ({ id: document.id, ...(document.data() as any) })) as Message[];
+        setRecentMessages(messages.reverse());
       }
     } catch (error) {
       console.error('Error loading group preview:', error);
-      Alert.alert('Lỗi', 'Không thể tải thông tin nhóm');
+      Alert.alert(t('common.error'), t('group_preview.load_error'));
     } finally {
       setLoading(false);
     }
   };
-
-  const [requestStatus, setRequestStatus] = useState<'none' | 'pending'>('none');
-
-  useEffect(() => {
-    if (id && user?.uid) {
-      checkRequestStatus();
-    }
-  }, [id, user]);
 
   const checkRequestStatus = async () => {
     if (!id || !user?.uid) return;
@@ -137,43 +133,40 @@ export default function GroupPreviewScreen() {
     try {
       setJoining(true);
 
-      // Check if already member
       if (group.members?.includes(user.uid)) {
-        Alert.alert('Thông báo', 'Bạn đã là thành viên của nhóm này');
+        Alert.alert(t('common.info'), t('group_preview.already_member'));
         return;
       }
 
-      // Handle Private Groups: Send Request instead of direct join
       if (group.type === 'private') {
         const { groupRequestService } = await import('@/services/groupRequestService');
         const result = await groupRequestService.sendJoinRequest(group.id, user);
 
         if (result.success) {
-          Alert.alert('Thành công', 'Đã gửi yêu cầu tham gia nhóm. Vui lòng chờ quản trị viên duyệt.');
+          Alert.alert(t('common.success'), t('group_preview.request_sent'));
           setRequestStatus('pending');
         } else {
-          Alert.alert('Thông báo', result.message);
+          Alert.alert(t('common.info'), result.message);
         }
         return;
       }
 
-      // Public Groups: Join directly
       const { updateDoc, arrayUnion, serverTimestamp } = await import('firebase/firestore');
       await updateDoc(doc(db, 'groups', group.id), {
         members: arrayUnion(user.uid),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       });
 
-      Alert.alert('Thành công', 'Đã tham gia nhóm!', [
+      Alert.alert(t('common.success'), t('group_preview.join_success'), [
         {
-          text: 'Vào nhóm',
-          onPress: () => router.replace(`/groups/${group.id}`)
-        }
+          text: t('group_preview.go_to_group'),
+          onPress: () => router.replace(`/groups/${group.id}`),
+        },
       ]);
       setIsMember(true);
     } catch (error) {
       console.error('Error joining group:', error);
-      Alert.alert('Lỗi', 'Không thể tham gia nhóm. Vui lòng thử lại.');
+      Alert.alert(t('common.error'), t('group_preview.join_error'));
     } finally {
       setJoining(false);
     }
@@ -183,7 +176,7 @@ export default function GroupPreviewScreen() {
     if (!group?.id) return;
     try {
       await Clipboard.setStringAsync(group.id);
-      Alert.alert('Sao chép', 'ID nhóm đã được sao chép vào clipboard');
+      Alert.alert(t('group_preview.copied_title'), t('group_preview.copied_message'));
     } catch (e) {
       console.warn('Copy failed', e);
     }
@@ -196,11 +189,11 @@ export default function GroupPreviewScreen() {
   const formatTime = (timestamp: any) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('vi-VN', {
+    return date.toLocaleDateString(undefined, {
       day: '2-digit',
       month: '2-digit',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   };
 
@@ -210,7 +203,7 @@ export default function GroupPreviewScreen() {
         <ThemedStatusBar />
         <View style={styles.loadingContainer}>
           <MaterialCommunityIcons name="loading" size={40} color={currentThemeColors.tint} />
-          <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>Đang tải...</Text>
+          <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>{t('common.loading')}</Text>
         </View>
       </View>
     );
@@ -222,8 +215,8 @@ export default function GroupPreviewScreen() {
         <ThemedStatusBar />
         <View style={styles.errorContainer}>
           <MaterialCommunityIcons name="alert-circle" size={64} color={currentThemeColors.subtleText} />
-          <Text style={[styles.errorText, { color: currentThemeColors.text }]}>Không tìm thấy nhóm</Text>
-          <Button onPress={() => router.back()}>Quay lại</Button>
+          <Text style={[styles.errorText, { color: currentThemeColors.text }]}>{t('group_preview.not_found')}</Text>
+          <Button onPress={() => router.back()}>{t('common.back')}</Button>
         </View>
       </View>
     );
@@ -233,7 +226,6 @@ export default function GroupPreviewScreen() {
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
       <ThemedStatusBar />
 
-      {/* Header */}
       <LinearGradient
         colors={theme === 'dark' ? ['#1a1a2e', '#16213e'] : ['#4facfe', '#00f2fe']}
         start={{ x: 0, y: 0 }}
@@ -244,40 +236,34 @@ export default function GroupPreviewScreen() {
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Xem trước nhóm</Text>
+          <Text style={styles.headerTitle}>{t('group_preview.title')}</Text>
           <View style={{ width: 40 }} />
         </View>
       </LinearGradient>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown} style={styles.content}>
-
-          {/* Group Info Card */}
           <Card style={[styles.groupCard, { backgroundColor: currentThemeColors.cardBackground }]}>
             <Card.Content style={styles.groupCardContent}>
               <Avatar.Image size={80} source={{ uri: getGroupAvatar() }} style={styles.groupAvatar} />
               <View style={styles.groupInfo}>
-                <Text style={[styles.groupName, { color: currentThemeColors.text }]}>{group.name || 'Nhóm chưa đặt tên'}</Text>
+                <Text style={[styles.groupName, { color: currentThemeColors.text }]}>{group.name || t('group_preview.unnamed_group')}</Text>
                 <View style={styles.groupMeta}>
                   <Chip icon="account-group" style={styles.chip}>
-                    {group.members?.length || 0} thành viên
+                    {t('group_preview.members_count', { count: group.members?.length || 0 })}
                   </Chip>
                   {group.type === 'public' && (
-                    <Chip icon="earth" style={styles.chip}>
-                      Công khai
-                    </Chip>
+                    <Chip icon="earth" style={styles.chip}>{t('group_preview.public_group')}</Chip>
                   )}
                 </View>
                 {group.description && (
                   <View style={styles.descriptionContainer}>
-                    <Text style={[styles.descriptionLabel, { color: currentThemeColors.text }]}>Mô tả nhóm:</Text>
-                    <Text style={[styles.groupDescription, { color: currentThemeColors.subtleText }]}>
-                      {group.description}
-                    </Text>
+                    <Text style={[styles.descriptionLabel, { color: currentThemeColors.text }]}>{t('group_preview.description_label')}</Text>
+                    <Text style={[styles.groupDescription, { color: currentThemeColors.subtleText }]}>{group.description}</Text>
                   </View>
                 )}
                 <View style={styles.groupMetaRow}>
-                  <Text style={[styles.groupIdText, { color: currentThemeColors.subtleText }]}>ID: {group.id}</Text>
+                  <Text style={[styles.groupIdText, { color: currentThemeColors.subtleText }]}>{t('group_preview.group_id', { id: group.id })}</Text>
                   <TouchableOpacity onPress={copyGroupId} accessibilityRole="button">
                     <MaterialCommunityIcons name="content-copy" size={16} color={currentThemeColors.subtleText} />
                   </TouchableOpacity>
@@ -286,7 +272,6 @@ export default function GroupPreviewScreen() {
             </Card.Content>
           </Card>
 
-          {/* Join Button */}
           <View style={styles.joinSection}>
             <Button
               mode="contained"
@@ -297,20 +282,19 @@ export default function GroupPreviewScreen() {
               contentStyle={styles.joinButtonContent}
             >
               {group?.members?.includes(user?.uid) || isMember
-                ? 'Đã tham gia'
+                ? t('group_preview.joined')
                 : (requestStatus === 'pending'
-                  ? 'Đã gửi yêu cầu'
+                  ? t('group_preview.request_pending')
                   : (joining
-                    ? 'Đang xử lý...'
-                    : (group?.type === 'private' ? 'Xin vào nhóm' : 'Tham gia nhóm')))}
+                    ? t('group_preview.processing')
+                    : (group?.type === 'private' ? t('group_preview.request_to_join') : t('group_preview.join_group'))))}
             </Button>
           </View>
 
-          {/* Members Preview */}
           {(group?.type === 'public' || isMember) && members.length > 0 && (
             <Card style={[styles.sectionCard, { backgroundColor: currentThemeColors.cardBackground }]}>
               <Card.Content>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Thành viên ({members.length})</Text>
+                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_preview.members_section', { count: members.length })}</Text>
                 <View style={styles.membersList}>
                   {members.slice(0, 5).map((member) => (
                     <View key={member.uid} style={styles.memberItem}>
@@ -320,29 +304,26 @@ export default function GroupPreviewScreen() {
                       />
                       <View style={styles.memberInfo}>
                         <Text style={[styles.memberName, { color: currentThemeColors.text }]} numberOfLines={1}>
-                          {member.username || 'Người dùng'}
+                          {member.username || t('group_preview.default_user')}
                         </Text>
                         {member.uid === group.createdBy && (
-                          <Text style={[styles.memberRole, { color: currentThemeColors.subtleText }]}>Người tạo</Text>
+                          <Text style={[styles.memberRole, { color: currentThemeColors.subtleText }]}>{t('group_preview.creator')}</Text>
                         )}
                       </View>
                     </View>
                   ))}
                   {members.length > 5 && (
-                    <Text style={[styles.moreMembers, { color: currentThemeColors.subtleText }]}>
-                      và {members.length - 5} thành viên khác...
-                    </Text>
+                    <Text style={[styles.moreMembers, { color: currentThemeColors.subtleText }]}>{t('group_preview.more_members', { count: members.length - 5 })}</Text>
                   )}
                 </View>
               </Card.Content>
             </Card>
           )}
 
-          {/* Recent Messages Preview */}
           {(group?.type === 'public' || isMember) && recentMessages.length > 0 && (
             <Card style={[styles.sectionCard, { backgroundColor: currentThemeColors.cardBackground }]}>
               <Card.Content>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Tin nhắn gần đây</Text>
+                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_preview.recent_messages')}</Text>
                 <View style={styles.messagesList}>
                   {recentMessages.map((message) => (
                     <View key={message.id} style={styles.messageItem}>
@@ -353,36 +334,28 @@ export default function GroupPreviewScreen() {
                       <View style={styles.messageContent}>
                         <View style={styles.messageHeader}>
                           <Text style={[styles.messageSender, { color: currentThemeColors.text }]} numberOfLines={1}>
-                            {message.senderName || 'Người dùng'}
+                            {message.senderName || t('group_preview.default_user')}
                           </Text>
-                          <Text style={[styles.messageTime, { color: currentThemeColors.subtleText }]}>
-                            {formatTime(message.createdAt)}
-                          </Text>
+                          <Text style={[styles.messageTime, { color: currentThemeColors.subtleText }]}>{formatTime(message.createdAt)}</Text>
                         </View>
                         <Text style={[styles.messageText, { color: currentThemeColors.subtleText }]} numberOfLines={2}>
-                          {message.text || 'Tin nhắn'}
+                          {message.text || t('group_preview.default_message')}
                         </Text>
                       </View>
                     </View>
                   ))}
                 </View>
-                <Text style={[styles.previewNote, { color: currentThemeColors.subtleText }]}>
-                  Tham gia nhóm để xem tất cả tin nhắn
-                </Text>
+                <Text style={[styles.previewNote, { color: currentThemeColors.subtleText }]}>{t('group_preview.join_to_see_all_messages')}</Text>
               </Card.Content>
             </Card>
           )}
-          {/* Restricted notice for private groups */}
+
           {group?.type === 'private' && !isMember && (
             <Card style={[styles.sectionCard, { backgroundColor: currentThemeColors.cardBackground }]}>
               <Card.Content>
-                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>Nhóm riêng tư</Text>
-                <Text style={[styles.previewNote, { color: currentThemeColors.subtleText }]}>
-                  Đây là nhóm riêng tư. Bạn cần được mời để xem thành viên và tin nhắn.
-                </Text>
-                <Button mode="outlined" disabled style={{ marginTop: 12 }}>
-                  Liên hệ quản trị viên
-                </Button>
+                <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_preview.private_group')}</Text>
+                <Text style={[styles.previewNote, { color: currentThemeColors.subtleText }]}>{t('group_preview.private_group_note')}</Text>
+                <Button mode="outlined" disabled style={{ marginTop: 12 }}>{t('group_preview.contact_admin')}</Button>
               </Card.Content>
             </Card>
           )}

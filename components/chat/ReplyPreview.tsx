@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 
 interface ReplyPreviewProps {
   replyTo: {
@@ -23,20 +24,20 @@ const ReplyPreview: React.FC<ReplyPreviewProps> = ({
     text: '#0F172A',
   },
 }) => {
+  const { t } = useTranslation();
+
   if (!replyTo) return null;
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.surface }]}>
       <View style={[styles.replyBar, { backgroundColor: currentThemeColors.tint || '#2196F3' }]} />
       <View style={styles.content}>
-        <Text style={[styles.replyTitle, { color: currentThemeColors.tint || '#2196F3' }]}>
-          Đang trả lời {replyTo.senderName}
-        </Text>
+        <Text style={[styles.replyTitle, { color: currentThemeColors.tint || '#2196F3' }]}>{t('chat.replying_to', { name: replyTo.senderName })}</Text>
         <Text
           style={[styles.replyText, { color: currentThemeColors.subtleText }]}
           numberOfLines={1}
         >
-          {replyTo.imageUrl ? '📷 Hình ảnh' : replyTo.text}
+          {replyTo.imageUrl ? t('chat.image') : replyTo.text}
         </Text>
       </View>
       <TouchableOpacity onPress={onClearReply} style={styles.closeButton}>

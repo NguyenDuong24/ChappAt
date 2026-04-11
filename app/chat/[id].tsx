@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useContext, useCallback, useMemo } from 'react';
-import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Text, Modal, ActivityIndicator, ImageBackground } from 'react-native';
+﻿import React, { useEffect, useRef, useState, useContext, useCallback, useMemo } from 'react';
+import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Text, Modal, ActivityIndicator, ImageBackground, InteractionManager } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -27,7 +27,7 @@ import {
 import { db } from '@/firebaseConfig';
 
 import * as ImagePicker from 'expo-image-picker';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadLocalFileToStorage } from '@/utils/storageUpload';
 
 import { Colors } from '@/constants/Colors';
 import ChatRoomHeader from '@/components/chat/ChatRoomHeader';
@@ -54,8 +54,6 @@ import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
 import GiftPicker from '@/components/chat/GiftPicker';
 import GiftBurst from '@/components/chat/GiftBurst';
 
-const storage = getStorage();
-
 function ChatRoomContent() {
     const { t } = useTranslation();
     const { id, messageId } = useLocalSearchParams();
@@ -66,12 +64,20 @@ function ChatRoomContent() {
     const routeId: string = Array.isArray(id) ? id[0] : (id as string);
     const peerId: string = useMemo(() => {
         if (!routeId) return '';
-        if (routeId.includes('-')) {
-            const parts = routeId.split('-');
-            // If current user known, pick the other id; else fallback to first part
-            if (user?.uid) return parts.find(p => p !== user.uid) || parts[0];
-            return parts[0];
+        if (!routeId.includes('-')) return routeId;
+
+        const parts = routeId.split('-');
+
+        // Only treat as roomId when format is exactly 2 participants joined by '-'
+        if (parts.length === 2) {
+            if (user?.uid) {
+                return parts.find(p => p !== user.uid) || routeId;
+            }
+            // User not ready yet -> keep full id to avoid wrong peer parsing
+            return routeId;
         }
+
+        // If id has multiple '-' segments, it's likely a plain uid/custom id
         return routeId;
     }, [routeId, user?.uid]);
 
@@ -105,6 +111,8 @@ function ChatRoomContent() {
     const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
     const scrollViewRef = useRef<any>(null);
     const messagePositionsRef = useRef<Record<string, number>>({});
+    const lastMarkStatusAtRef = useRef(0);
+    const [enableBackgroundEffects, setEnableBackgroundEffects] = useState(false);
     const { playMessageReceivedSound, playMessageSentSound } = useSound();
     const { classifyImage } = useNSFWDetection();
     const {
@@ -145,6 +153,22 @@ function ChatRoomContent() {
 
     const { currentTheme, currentEffect, loadTheme, loadEffect } = useChatTheme();
     const chatThemeForUI = useMemo(() => currentTheme?.id === 'default' ? undefined : currentTheme, [currentTheme]);
+    const effectiveEffect = useMemo(() => {
+        // Pause expensive background effects while heavy modals are open.
+        if (showThemePicker || showGifts) return 'none';
+        return currentEffect;
+    }, [currentEffect, showThemePicker, showGifts]);
+
+    // Defer expensive background effects until screen transition settles.
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => {
+            setEnableBackgroundEffects(true);
+        });
+        return () => {
+            task.cancel();
+            setEnableBackgroundEffects(false);
+        };
+    }, [roomId]);
 
     // Load theme and effect when entering room
     useEffect(() => {
@@ -236,10 +260,12 @@ function ChatRoomContent() {
 
     // Ensure room document exists as soon as we know roomId
     useEffect(() => {
-        if (roomId) {
+        if (!roomId) return;
+        const task = InteractionManager.runAfterInteractions(() => {
             createRoomIfNotExists();
-        }
-    }, [roomId]);
+        });
+        return () => task.cancel();
+    }, [roomId, createRoomIfNotExists]);
 
     const handleImagePicker = useCallback(async () => {
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -258,24 +284,24 @@ function ChatRoomContent() {
 
     const uploadImage = useCallback(async (uri: string) => {
         try {
-            console.log('ðŸ“¤ [uploadImage] Start with URI:', uri);
+            console.log('[uploadImage] Start with URI:', uri);
             // Check image content with NSFW model
             const checkResult = await classifyImage(uri);
             if (checkResult.isInappropriate) {
-                console.log('âš ï¸  [uploadImage] NSFW detected, will log to flagged_content');
+                console.log('[uploadImage] NSFW detected, will log to flagged_content');
                 // Image will still be sent, logged to flagged_content below
                 // Continue with upload - will log to flagged_content after getting downloadURL
             }
-            console.log('âœ… [uploadImage] Image passed NSFW check');
+            console.log('[uploadImage] Image passed NSFW check');
 
-            const blob = await (await fetch(uri)).blob();
-            const storageRef = ref(storage, `chat-images/${roomId}/${Date.now()}`);
+            const downloadURL = await uploadLocalFileToStorage({
+                uri,
+                path: `chat-images/${user?.uid}/${Date.now()}.jpg`,
+                contentType: 'image/jpeg',
+            });
+            console.log('[uploadImage] Uploaded to storage, URL:', downloadURL);
 
-            await uploadBytes(storageRef, blob);
-            const downloadURL = await getDownloadURL(storageRef);
-            console.log('âœ… [uploadImage] Uploaded to storage, URL:', downloadURL);
-
-            // Gá»­i tin nháº¯n vá»›i URL áº£nh
+            // Send message with uploaded image URL
             const docRef = doc(db, 'rooms', roomId);
             const messageRef = collection(docRef, 'messages');
             const nowTs = Timestamp.fromDate(new Date());
@@ -289,7 +315,7 @@ function ChatRoomContent() {
                 readBy: [], // array of user IDs who have read this message
                 activeFrame: user?.activeFrame || null
             });
-            console.log('ðŸ“¨ [uploadImage] Message document created');
+            console.log('[uploadImage] Message document created');
 
             // Ensure room exists then update room metadata
             await createRoomIfNotExists();
@@ -304,7 +330,7 @@ function ChatRoomContent() {
                         [`unreadCounts.${peerId}`]: increment(1),
                     }
                 );
-                console.log(`ðŸ§¾ [uploadImage] Room metadata updated, unreadCount incremented for ${peerId} via updateDoc`);
+                console.log(`[uploadImage] Room metadata updated, unreadCount incremented for ${peerId} via updateDoc`);
             } catch (updateErr) {
                 console.warn('[uploadImage] updateDoc failed, attempting runTransaction', updateErr);
                 try {
@@ -328,22 +354,22 @@ function ChatRoomContent() {
                             });
                         }
                     });
-                    console.log(`ðŸ§¾ [uploadImage] Transactionally updated unreadCounts for ${peerId}`);
+                    console.log(`[uploadImage] Transactionally updated unreadCounts for ${peerId}`);
                 } catch (txErr) {
                     console.error('[uploadImage] Failed to update room in transaction:', txErr);
                 }
             }
 
-            // NEW: Gá»­i push notification qua Expo (FCM/APNs) cho ngÆ°á» i nháº­n khi cÃ³ áº£nh má»›i
+            // NEW: Send push notification via Expo (FCM/APNs) when a new image is sent
             try {
                 await ExpoPushNotificationService.sendPushToUser(peerId, {
-                    title: user?.username || user?.displayName || 'Tin nháº¯n má»›i',
-                    body: 'ðŸ“· Ä Ã£ gá»­i má»™t hÃ¬nh áº£nh',
+                    title: user?.username || user?.displayName || t('chat.new_message'),
+                    body: t('chat.sent_image'),
                     data: { type: 'message', chatId: roomId, senderId: user?.uid, receiverId: peerId },
                 });
-                console.log('ðŸ“¬ [uploadImage] Push sent to peer');
+                console.log('[uploadImage] Push sent to peer');
             } catch (e) {
-                console.warn('âš ï¸  [uploadImage] Cannot send push:', e);
+                console.warn('[uploadImage] Cannot send push:', e);
             }
 
             // Log NSFW flagged images to flagged_content collection for admin review
@@ -361,26 +387,26 @@ function ChatRoomContent() {
                         status: 'pending',
                         type: 'image',
                     });
-                    console.log('ðŸ“‹ [uploadImage] Flagged content logged');
+                    console.log('[uploadImage] Flagged content logged');
                 } catch (flagErr) {
-                    console.warn('âš ï¸  [uploadImage] Failed to log flagged content:', flagErr);
+                    console.warn('[uploadImage] Failed to log flagged content:', flagErr);
                 }
             }
         } catch (error: any) {
-            console.error('â Œ [uploadImage] Error:', error);
+            console.error('[uploadImage] Error:', error);
             Alert.alert('Image Upload', error.message);
         }
     }, [classifyImage, roomId, peerId, user?.uid, user?.profileUrl, user?.username, user?.displayName, createRoomIfNotExists]);
 
     const handleAudioSend = useCallback(async (uri: string, duration: number) => {
         try {
-            console.log('ðŸŽ¤ [handleAudioSend] Start with URI:', uri);
-            const blob = await (await fetch(uri)).blob();
-            const storageRef = ref(storage, `chat-audio/${roomId}/${Date.now()}.m4a`);
-
-            await uploadBytes(storageRef, blob);
-            const downloadURL = await getDownloadURL(storageRef);
-            console.log('âœ… [handleAudioSend] Uploaded audio, URL:', downloadURL);
+            console.log('[handleAudioSend] Start with URI:', uri);
+            const downloadURL = await uploadLocalFileToStorage({
+                uri,
+                path: `chat-audio/${user?.uid}/${Date.now()}.m4a`,
+                contentType: 'audio/m4a',
+            });
+            console.log('[handleAudioSend] Uploaded audio, URL:', downloadURL);
 
             const docRef = doc(db, 'rooms', roomId);
             const messageRef = collection(docRef, 'messages');
@@ -425,23 +451,53 @@ function ChatRoomContent() {
             setScrollToEndTrigger(prev => prev + 1);
         } catch (error: any) {
             console.error('Error sending audio:', error);
-            Alert.alert('Error', 'Failed to send audio message');
+            Alert.alert(t('common.error'), t('chat.error_send_audio'));
         }
-    }, [roomId, user?.uid, replyTo, peerId, createRoomIfNotExists]);
+    }, [roomId, user?.uid, replyTo, peerId, createRoomIfNotExists, t]);
 
     const fetchUserInfo = useCallback(async () => {
         if (!peerId) return;
         try {
+            const fallbackUser = { uid: peerId, username: t('chat.unknown_user') };
+
+            // 1) Preferred source: users/{peerId}
             const userDoc = await getDoc(doc(db, 'users', peerId));
             if (userDoc.exists()) {
-                setUserInfo(userDoc.data());
-            } else {
-                console.log('User not found');
+                const data = userDoc.data() as any;
+                setUserInfo({
+                    ...data,
+                    uid: peerId,
+                    username: data?.username || data?.displayName || data?.name || t('chat.unknown_user'),
+                });
+                return;
             }
+
+            // 2) Fallback source: rooms/{roomId}.participantsData
+            const roomDoc = await getDoc(doc(db, 'rooms', roomId));
+            if (roomDoc.exists()) {
+                const roomData = roomDoc.data() as any;
+                const participantData = roomData?.participantsData?.[peerId];
+                if (participantData) {
+                    setUserInfo({
+                        ...participantData,
+                        uid: peerId,
+                        username:
+                            participantData?.username ||
+                            participantData?.displayName ||
+                            participantData?.name ||
+                            t('chat.unknown_user'),
+                    });
+                    return;
+                }
+            }
+
+            // 3) Final fallback to avoid infinite "Loading..."
+            setUserInfo(fallbackUser);
         } catch (error) {
             console.error('Error fetching user data:', error);
+            setUserInfo({ uid: peerId, username: t('chat.unknown_user') });
         }
-    }, [peerId]);
+    }, [peerId, roomId, t]);
 
     // Mark messages as delivered when user enters chat room - update actual message status
     const markMessagesAsDelivered = useCallback(async (rId: string) => {
@@ -531,7 +587,7 @@ function ChatRoomContent() {
 
                 try {
                     await batch.commit();
-                    console.log(`✅ [markMessagesAsRead] Updated ${messagesToUpdate.length} messages to 'read'`);
+                    console.log(`[markMessagesAsRead] Updated ${messagesToUpdate.length} messages to 'read'`);
                 } catch (e) {
                     console.warn('Failed to batch update message status to read:', e);
                 }
@@ -551,7 +607,7 @@ function ChatRoomContent() {
                 // If lastMessage was from other user, update its status to 'read'
                 if (lastMsg && lastMsg.uid && lastMsg.uid !== user.uid && lastMsg.status !== 'read') {
                     updatePayload['lastMessage.status'] = 'read';
-                    console.log(`✅ [markMessagesAsRead] Updating lastMessage.status to 'read'`);
+                    console.log(`[markMessagesAsRead] Updating lastMessage.status to 'read'`);
                 }
 
                 await updateDoc(roomRef, updatePayload);
@@ -584,15 +640,26 @@ function ChatRoomContent() {
         };
     }, [roomId]);
 
-    // Mark messages as read when entering room and when messages change
+    // Mark messages read/delivered with throttle and after transition settles.
     useEffect(() => {
-        if (displayMessages.length > 0 && user?.uid && roomId) {
-            const timeoutId = setTimeout(() => {
+        if (displayMessages.length === 0 || !user?.uid || !roomId) return;
+
+        const now = Date.now();
+        if (now - lastMarkStatusAtRef.current < 1200) return;
+        lastMarkStatusAtRef.current = now;
+
+        let task: { cancel: () => void } | null = null;
+        const timeoutId = setTimeout(() => {
+            task = InteractionManager.runAfterInteractions(() => {
                 markMessagesAsRead();
                 markMessagesAsDelivered(roomId);
-            }, 300); // Debounce to avoid excessive calls
-            return () => clearTimeout(timeoutId);
-        }
+            });
+        }, 220);
+
+        return () => {
+            clearTimeout(timeoutId);
+            task?.cancel();
+        };
     }, [displayMessages.length, roomId, user?.uid, markMessagesAsRead, markMessagesAsDelivered]);
 
     // Remove auto-scroll effect - let MessageList handle scroll behavior
@@ -602,8 +669,8 @@ function ChatRoomContent() {
             const messageType = message?.imageUrl ? 'image' : 'text';
             setReportTarget({
                 id: message?.id || message?.messageId,
-                name: message?.senderName || 'NgÆ°á» i dÃ¹ng',
-                content: message?.text || (message?.imageUrl ? 'HÃ¬nh áº£nh' : ''),
+                name: message?.senderName || t('chat.unknown_user'),
+                content: message?.text || (message?.imageUrl ? t('chat.image') : ''),
                 messageType,
                 messageText: messageType === 'text' ? (message?.text || '') : '',
                 messageImageUrl: messageType === 'image' ? (message?.imageUrl || '') : '',
@@ -719,16 +786,16 @@ function ChatRoomContent() {
                 }
             }
 
-            // NEW: Gá»­i push notification qua Expo (FCM/APNs) cho ngÆ°á» i nháº­n khi cÃ³ tin nháº¯n má»›i
+            // NEW: Send push notification via Expo (FCM/APNs) when a new image is sent
             try {
                 await ExpoPushNotificationService.sendPushToUser(peerUid, {
-                    title: user?.username || user?.displayName || 'Tin nháº¯n má»›i',
+                    title: user?.username || user?.displayName || t('chat.new_message'),
                     body: message,
                     data: { type: 'message', chatId: roomId, senderId: user?.uid, receiverId: peerUid },
                 });
-                console.log('ðŸ“¬ [handleSend] Push sent to peer');
+                console.log('[handleSend] Push sent to peer');
             } catch (e) {
-                console.warn('âš ï¸  [handleSend] Cannot send push:', e);
+                console.warn('[handleSend] Cannot send push:', e);
             }
 
             playMessageSentSound();
@@ -741,13 +808,6 @@ function ChatRoomContent() {
             Alert.alert('Message', error.message);
         }
     }, [newMessage, checkContent, roomId, user?.uid, user?.profileUrl, user?.username, user?.displayName, peerId, createRoomIfNotExists, playMessageSentSound]);
-
-    useEffect(() => {
-        const timeoutId = setTimeout(() => {
-            markMessagesAsRead();
-        }, 800);
-        return () => clearTimeout(timeoutId);
-    }, [messages]);
 
     // Remove updateScrollView - scroll behavior is now handled by MessageList component
 
@@ -779,7 +839,7 @@ function ChatRoomContent() {
             setReplyTo({
                 text: message?.text,
                 imageUrl: message?.imageUrl,
-                senderName: message?.senderName || 'NgÆ°á» i dÃ¹ng',
+                senderName: message?.senderName || t('chat.unknown_user'),
                 uid: message?.uid,
                 messageId: message?.id || message?.messageId,
             });
@@ -832,7 +892,7 @@ function ChatRoomContent() {
             });
             const gift = giftCatalog.find(g => g.id === giftId);
             if (gift) {
-                setBurstEmoji(gift.icon || '🎁');
+                setBurstEmoji(gift.icon || '\uD83C\uDF81');
             }
             refreshMessages?.();
             Alert.alert(t('common.success'), t('chat.gift_sent'));
@@ -866,10 +926,19 @@ function ChatRoomContent() {
     };
 
     useEffect(() => {
-        if (peerId) {
+        if (!peerId) return;
+        const task = InteractionManager.runAfterInteractions(() => {
             fetchUserInfo();
-        }
+        });
+        return () => task.cancel();
     }, [peerId, fetchUserInfo]);
+
+    const handleBack = useCallback(() => {
+        Keyboard.dismiss();
+        requestAnimationFrame(() => {
+            router.back();
+        });
+    }, [router]);
 
     // If still loading permission or messages, show loading
     if (chatPermissionLoading || !isInitialLoadComplete) {
@@ -912,17 +981,17 @@ function ChatRoomContent() {
     }
 
     if (!canChat) {
-        return <BlockedChatView reason={reason} onBack={() => router.back()} />;
+        return <BlockedChatView reason={reason} onBack={handleBack} />;
     }
 
     const renderContent = () => (
         <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
             {/* Header */}
             <ChatRoomHeader
-                user={userInfo || { uid: peerId, username: 'Loading...' }}
+                user={userInfo || { uid: peerId, username: t('chat.unknown_user') }}
                 router={router}
                 userId={peerId}
-                onBack={() => router.back()}
+                onBack={handleBack}
                 onThemePress={() => setShowThemePicker(true)}
                 chatTheme={chatThemeForUI}
             />
@@ -1020,7 +1089,7 @@ function ChatRoomContent() {
 
             {/* Background Effects */}
             <ChatBackgroundEffects
-                effect={currentEffect}
+                effect={enableBackgroundEffects ? effectiveEffect : 'none'}
                 themeId={currentTheme.id}
                 themeColor={currentThemeColors.tint}
                 backgroundColor={currentThemeColors.background}
@@ -1028,7 +1097,7 @@ function ChatRoomContent() {
 
             <GiftBurst
                 visible={!!burstEmoji}
-                emoji={burstEmoji || '🎁'}
+                emoji={burstEmoji || '\uD83C\uDF81'}
                 onComplete={() => setBurstEmoji(null)}
             />
         </View>
@@ -1159,3 +1228,8 @@ export default function ChatRoomScreen() {
         </ChatThemeProvider>
     );
 }
+
+
+
+
+

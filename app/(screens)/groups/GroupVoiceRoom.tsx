@@ -23,31 +23,43 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createMeeting, getToken } from '@/api';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/authContext';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import { doc, getDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { Avatar } from 'react-native-paper';
 import VoiceRoomChat from '@/components/call/VoiceRoomChat';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // Participant Card Component
 function ParticipantView({
   participantId,
   isLocal,
   userData,
-  isSpeakingExternal
+  isSpeakingExternal,
+  layout = 'speaker',
+  emphasizeGlow = false,
+  onPress,
+  showPinHint = false,
 }: {
   participantId: string;
   isLocal: boolean;
   userData?: any;
   isSpeakingExternal?: boolean;
+  layout?: 'host' | 'speaker';
+  emphasizeGlow?: boolean;
+  onPress?: () => void;
+  showPinHint?: boolean;
 }) {
-  const { displayName, micOn } = useParticipant(participantId);
+  const { t } = useTranslation();
+  const participant = useParticipant(participantId) as any;
+  const { displayName, micOn } = participant;
+  const audioLevel = Number(participant?.audioLevel ?? participant?.audioVolume ?? 0);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const pulseAnim = useRef(new Animated.Value(0)).current;
+  const volumeScaleAnim = useRef(new Animated.Value(1)).current;
+  const resolvedName = userData?.displayName || userData?.username || displayName || t('chat.unknown_user');
 
   useEffect(() => {
     if (userData?.profileUrl || userData?.photoURL) {
@@ -70,34 +82,60 @@ function ParticipantView({
     }
   }, [isSpeakingExternal, micOn]);
 
+  useEffect(() => {
+    const safeLevel = Number.isFinite(audioLevel) ? Math.max(0, Math.min(audioLevel, 1)) : 0;
+    const scaleTarget = micOn ? 1 + safeLevel * 0.28 : 1;
+    Animated.spring(volumeScaleAnim, {
+      toValue: scaleTarget,
+      useNativeDriver: true,
+      friction: 6,
+      tension: 110,
+    }).start();
+  }, [audioLevel, micOn]);
+
   const getInitial = () => {
-    if (displayName) return displayName.charAt(0).toUpperCase();
-    if (userData?.username) return userData.username.charAt(0).toUpperCase();
+    if (resolvedName) return resolvedName.charAt(0).toUpperCase();
     return 'U';
   };
 
   const scale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] });
   const ringOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.6] });
+  const isHostLayout = layout === 'host';
+  const avatarSize = isHostLayout ? 84 : 60;
 
   return (
-    <View style={styles.participantCard}>
+    <TouchableOpacity
+      activeOpacity={0.88}
+      disabled={!onPress}
+      onPress={onPress}
+      style={[styles.participantCard, isHostLayout && styles.hostParticipantCard]}
+    >
       <LinearGradient
         colors={isSpeakingExternal && micOn ? ['#10b981', '#059669'] : ['#4a5568', '#2d3748']}
         style={[
           styles.participantGradient,
-          isSpeakingExternal && micOn && styles.participantGradientSpeaking
+          isSpeakingExternal && micOn && styles.participantGradientSpeaking,
+          isHostLayout && styles.hostParticipantGradient,
+          emphasizeGlow && isSpeakingExternal && micOn && styles.hostParticipantGradientSpeaking
         ]}
       >
-        <Animated.View style={[styles.avatarContainer, isSpeakingExternal && micOn && { transform: [{ scale }] }]}>
+        <Animated.View
+          style={[
+            styles.avatarContainer,
+            {
+              transform: [{ scale }, { scale: volumeScaleAnim }],
+            },
+          ]}
+        >
           {avatarUrl ? (
             <Avatar.Image
-              size={60}
+              size={avatarSize}
               source={{ uri: avatarUrl }}
               style={styles.avatar}
             />
           ) : (
             <Avatar.Text
-              size={60}
+              size={avatarSize}
               label={getInitial()}
               style={styles.avatar}
             />
@@ -111,35 +149,38 @@ function ParticipantView({
             <Animated.View style={[styles.speakingPulse, { opacity: ringOpacity }]} />
           )}
         </Animated.View>
-        <Text style={styles.participantName} numberOfLines={1}>
-          {displayName || userData?.username || 'Guest'}
-          {isLocal && ' (Bạn)'}
+        <Text style={[styles.participantName, isHostLayout && styles.hostParticipantName]} numberOfLines={1}>
+          {resolvedName}
+          {isLocal && ` (${t('common.you')})`}
         </Text>
+        {!!showPinHint && !isHostLayout && (
+          <Text style={styles.pinHintText}>{t('group_voice.tap_to_spotlight')}</Text>
+        )}
         {micOn && isSpeakingExternal && (
-          <Text style={styles.speakingText}>Đang nói...</Text>
+          <Text style={styles.speakingText}>{t('group_voice.speaking')}</Text>
         )}
       </LinearGradient>
-    </View>
+    </TouchableOpacity>
   );
 }
 
 // Controls Component
-function Controls({ onLeave }: { onLeave: () => void }) {
-  const { leave, toggleMic, localMicOn, localWebcamOn } = useMeeting();
+function Controls({ onLeave, onLike }: { onLeave: () => void; onLike: () => void }) {
+  const { t } = useTranslation();
+  const { leave, toggleMic, localMicOn } = useMeeting();
 
   const handleToggleMic = () => {
-    console.log('🎤 Toggle mic - Current state:', localMicOn);
     toggleMic();
   };
 
   const handleLeave = () => {
     Alert.alert(
-      'Rời phòng',
-      'Bạn có chắc muốn rời khỏi phòng voice chat?',
+      t('group_voice.leave_title'),
+      t('group_voice.leave_message'),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Rời phòng',
+          text: t('group_voice.leave_action'),
           style: 'destructive',
           onPress: () => {
             leave();
@@ -151,16 +192,20 @@ function Controls({ onLeave }: { onLeave: () => void }) {
   };
 
   return (
-    <View style={styles.controls}>
+    <View style={styles.controlsDock}>
+      <TouchableOpacity style={styles.dockButton} onPress={onLike}>
+        <Ionicons name="heart" size={20} color="#fff" />
+      </TouchableOpacity>
+
       <TouchableOpacity
-        style={[styles.controlButton, localMicOn ? styles.micOnButton : styles.micOffButton]}
+        style={[styles.dockButton, localMicOn ? styles.micOnButton : styles.micOffButton]}
         onPress={handleToggleMic}
       >
-        <Ionicons name={localMicOn ? 'mic' : 'mic-off'} size={28} color="#fff" />
+        <Ionicons name={localMicOn ? 'mic' : 'mic-off'} size={20} color="#fff" />
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.leaveButton} onPress={handleLeave}>
-        <Ionicons name="call" size={28} color="#fff" />
+        <Ionicons name="call" size={22} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -178,29 +223,43 @@ function MeetingView({
   currentUser: any;
   groupId: string;
 }) {
+  const { t } = useTranslation();
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
+  const [spotlightParticipantId, setSpotlightParticipantId] = useState<string | null>(null);
   const { join, participants, localParticipant } = useMeeting({
     onMeetingJoined: () => {
-      console.log('✅ Meeting joined successfully');
+      console.log('âœ… Meeting joined successfully');
       console.log('Local participant ID:', localParticipant?.id);
     },
     onMeetingLeft: () => {
-      console.log('👋 Meeting left');
+      console.log('ðŸ‘‹ Meeting left');
       onLeave();
     },
     onParticipantJoined: (participant) => {
-      console.log('👤 Participant joined:', participant.displayName, 'ID:', participant.id);
+      console.log('ðŸ‘¤ Participant joined:', participant.displayName, 'ID:', participant.id);
     },
     onParticipantLeft: (participant) => {
-      console.log('👋 Participant left:', participant.displayName);
+      console.log('ðŸ‘‹ Participant left:', participant.displayName);
     },
     onSpeakerChanged: (speakerId) => {
-      // VideoSDK event cung cấp ID của người đang nói
+      // VideoSDK event cung cáº¥p ID cá»§a ngÆ°á»i Ä‘ang nÃ³i
       setActiveSpeakerId(speakerId);
     }
   });
 
   const [participantsData, setParticipantsData] = useState<Map<string, any>>(new Map());
+  const heartSlots = useRef(
+    [...Array(8)].map(() => ({
+      y: new Animated.Value(0),
+      opacity: new Animated.Value(0),
+      scale: new Animated.Value(0.8),
+      x: Math.random() * 38 - 19,
+      drift: Math.random() * 20 - 10,
+      size: 16,
+      color: '#fb7185',
+    }))
+  ).current;
+  const heartIndexRef = useRef(0);
 
   // Get all participants (excluding duplicate local participant)
   const participantsArray = [...participants.keys()];
@@ -209,7 +268,7 @@ function MeetingView({
   // VideoSDK automatically includes local participant in the participants Map
   const allParticipants = participantsArray;
 
-  console.log('📊 Participants count:', {
+  console.log('ðŸ“Š Participants count:', {
     localParticipantId: localParticipant?.id,
     participantsArray,
     total: allParticipants.length,
@@ -240,38 +299,93 @@ function MeetingView({
   }, [allParticipants.length]);
 
   useEffect(() => {
-    // Request audio permissions first và bật loa ngoài
+    // Request audio permissions first vÃ  báº­t loa ngoÃ i
     (async () => {
       try {
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Lỗi', 'Cần cấp quyền microphone để tham gia voice chat');
+          Alert.alert(t('common.error'), t('group_voice.mic_permission_required')); 
           return;
         }
 
-        // 🔊 QUAN TRỌNG: Cấu hình để phát qua loa ngoài (multimedia speaker)
+        // ðŸ”Š QUAN TRá»ŒNG: Cáº¥u hÃ¬nh Ä‘á»ƒ phÃ¡t qua loa ngoÃ i (multimedia speaker)
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
           shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false, // Android: loa ngoài
+          playThroughEarpieceAndroid: false, // Android: loa ngoÃ i
           interruptionModeIOS: 2, // iOS: AVAudioSessionCategoryPlayAndRecord
         });
 
-        // 🔊 Cấu hình audio cho group voice chat (không dùng in-call mode)
-        // Không dùng InCallManager để tránh chế độ gọi điện (tắt màn hình, loa thoại)
-        console.log('🎤 Audio configured (speaker mode - no proximity sensor), joining meeting...');
+        // ðŸ”Š Cáº¥u hÃ¬nh audio cho group voice chat (khÃ´ng dÃ¹ng in-call mode)
+        // KhÃ´ng dÃ¹ng InCallManager Ä‘á»ƒ trÃ¡nh cháº¿ Ä‘á»™ gá»i Ä‘iá»‡n (táº¯t mÃ n hÃ¬nh, loa thoáº¡i)
+        console.log('ðŸŽ¤ Audio configured (speaker mode - no proximity sensor), joining meeting...');
         // Join the meeting after audio route configured
         join();
       } catch (error) {
-        console.error('❌ Audio permission/config error:', error);
-        Alert.alert('Lỗi', 'Không thể khởi tạo audio. Vui lòng thử lại.');
+        console.error('âŒ Audio permission/config error:', error);
+        Alert.alert(t('common.error'), t('group_voice.audio_init_error')); 
       }
     })();
 
-    // No cleanup needed - không dùng InCallManager
+    // No cleanup needed - khÃ´ng dÃ¹ng InCallManager
   }, []);
+
+  const triggerHeart = () => {
+    const slot = heartSlots[heartIndexRef.current % heartSlots.length];
+    heartIndexRef.current += 1;
+    const palette = ['#fb7185', '#f43f5e', '#f97316', '#facc15', '#a78bfa', '#22d3ee'];
+
+    slot.x = Math.random() * 40 - 20;
+    slot.drift = Math.random() * 26 - 13;
+    slot.size = 14 + Math.floor(Math.random() * 8);
+    slot.color = palette[Math.floor(Math.random() * palette.length)];
+    slot.y.setValue(0);
+    slot.opacity.setValue(0);
+    slot.scale.setValue(0.85);
+
+    Animated.parallel([
+      Animated.timing(slot.opacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slot.y, {
+        toValue: -170,
+        duration: 1500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slot.scale, {
+        toValue: 1.35,
+        duration: 1500,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      slot.opacity.setValue(0);
+      slot.y.setValue(0);
+      slot.scale.setValue(0.85);
+    });
+  };
+
+  useEffect(() => {
+    if (!activeSpeakerId) return;
+    triggerHeart();
+  }, [activeSpeakerId]);
+  useEffect(() => {
+    if (!spotlightParticipantId) return;
+    if (!allParticipants.includes(spotlightParticipantId)) {
+      setSpotlightParticipantId(null);
+    }
+  }, [allParticipants, spotlightParticipantId]);
+
+  const hostParticipantId =
+    spotlightParticipantId ||
+    activeSpeakerId ||
+    localParticipant?.id ||
+    allParticipants[0] ||
+    null;
+  const speakerParticipants = allParticipants.filter((id) => id !== hostParticipantId);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -279,46 +393,98 @@ function MeetingView({
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <LinearGradient colors={['#667eea', '#764ba2']} style={styles.gradient}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>{groupName}</Text>
-            <Text style={styles.headerSubtitle}>
-              {allParticipants.length} {allParticipants.length === 1 ? 'người' : 'người'} trong phòng
-            </Text>
+        <LinearGradient colors={['#0b1023', '#141a35', '#1f1147']} style={styles.gradient}>
+          <View style={styles.tiktokHeader}>
+            <View style={styles.liveBadge}>
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+            <View style={styles.headerInfo}>
+              <Text style={styles.headerTitle} numberOfLines={1}>{groupName}</Text>
+              <Text style={styles.headerSubtitle}>{t('group_voice.listeners_count', { count: allParticipants.length })}</Text>
+            </View>
+            {!!spotlightParticipantId && (
+              <TouchableOpacity
+                onPress={() => setSpotlightParticipantId(null)}
+                style={styles.clearSpotlightButton}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="refresh" size={14} color="#fff" />
+                <Text style={styles.clearSpotlightText}>{t('group_voice.auto')}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* Participants Grid */}
-          <View style={styles.participantsContainer}>
+          <View style={styles.hostSection}>
+            {hostParticipantId ? (
+              <ParticipantView
+                participantId={hostParticipantId}
+                isLocal={hostParticipantId === localParticipant?.id}
+                userData={hostParticipantId === localParticipant?.id ? currentUser : participantsData.get(hostParticipantId)}
+                isSpeakingExternal={hostParticipantId === activeSpeakerId}
+                layout="host"
+                emphasizeGlow
+              />
+            ) : (
+              <View style={styles.emptyHost}>
+                <Ionicons name="radio" size={40} color="#fff" />
+                <Text style={styles.emptyHostText}>{t('group_voice.waiting_host')}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.speakersSection}>
+            <Text style={styles.sectionLabel}>{t('group_voice.speakers')}</Text>
             <FlatList
-              data={allParticipants}
+              data={speakerParticipants}
               renderItem={({ item }) => {
                 const isLocal = item === localParticipant?.id;
                 const userData = isLocal ? currentUser : participantsData.get(item);
-                const isSpeakingExternal = item === activeSpeakerId; // so sánh ID đang nói
+                const isSpeakingExternal = item === activeSpeakerId;
                 return (
                   <ParticipantView
                     participantId={item}
                     isLocal={isLocal}
                     userData={userData}
                     isSpeakingExternal={isSpeakingExternal}
+                    onPress={() => setSpotlightParticipantId(item)}
+                    showPinHint
                   />
                 );
               }}
               keyExtractor={(item) => item}
-              numColumns={2}
+              numColumns={3}
               contentContainerStyle={styles.participantsList}
               showsVerticalScrollIndicator={false}
+              ListEmptyComponent={<Text style={styles.emptySpeakerText}>{t('group_voice.no_speakers')}</Text>}
             />
           </View>
 
-          {/* Chat Area */}
-          <View style={styles.chatContainer}>
+          <View style={styles.chatOverlay}>
             <VoiceRoomChat groupId={groupId} currentUser={currentUser} />
           </View>
 
-          {/* Controls */}
-          <Controls onLeave={onLeave} />
+          <View style={styles.heartsLayer} pointerEvents="none">
+            {heartSlots.map((slot, index) => (
+              <Animated.View
+                key={`heart-${index}`}
+                style={[
+                  styles.floatingHeart,
+                  {
+                    opacity: slot.opacity,
+                    transform: [
+                      { translateY: slot.y },
+                      { translateX: Animated.multiply(slot.y, slot.drift / -170) },
+                      { scale: slot.scale },
+                    ],
+                  },
+                ]}
+              >
+                <Ionicons name="heart" size={slot.size} color={slot.color} />
+              </Animated.View>
+            ))}
+          </View>
+
+          <Controls onLeave={onLeave} onLike={triggerHeart} />
         </LinearGradient>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -327,6 +493,7 @@ function MeetingView({
 
 // Main Component
 export default function GroupVoiceRoom() {
+  const { t } = useTranslation();
   const { groupId } = useLocalSearchParams();
   const { user } = useAuth();
   const router = useRouter();
@@ -343,7 +510,7 @@ export default function GroupVoiceRoom() {
         setToken(t);
       } catch (e) {
         console.error("Failed to get token", e);
-        Alert.alert("Error", "Failed to authenticate for voice chat");
+        Alert.alert(t('common.error'), t('group_voice.auth_failed'));
         router.back();
       }
     };
@@ -387,14 +554,14 @@ export default function GroupVoiceRoom() {
             });
           } catch (error) {
             console.error('Error creating meeting:', error);
-            Alert.alert('Lỗi', 'Không thể tạo phòng voice chat. Vui lòng thử lại.');
+            Alert.alert(t('common.error'), t('group_voice.create_room_error')); 
             router.back();
             return;
           }
         } else {
           // Join existing room
           await updateDoc(doc(db, 'groups', groupId as string), {
-            voiceRoomActive: true, // ✅ Đảm bảo active = true
+            voiceRoomActive: true, // âœ… Äáº£m báº£o active = true
             voiceRoomParticipants: arrayUnion(user.uid),
           });
         }
@@ -429,7 +596,7 @@ export default function GroupVoiceRoom() {
 
         // If this is the last person, set voiceRoomActive = false
         if (currentParticipants.length <= 1) {
-          console.log('🔴 Last person leaving, setting voiceRoomActive = false');
+          console.log('ðŸ”´ Last person leaving, setting voiceRoomActive = false');
           await updateDoc(doc(db, 'groups', groupId as string), {
             voiceRoomActive: false,
           });
@@ -446,15 +613,15 @@ export default function GroupVoiceRoom() {
       <View style={styles.loadingContainer}>
         <LinearGradient colors={['#667eea', '#764ba2']} style={styles.gradient}>
           <ActivityIndicator size="large" color="#fff" />
-          <Text style={styles.loadingText}>Đang tham gia phòng voice chat...</Text>
+          <Text style={styles.loadingText}>{t('group_voice.joining_room')}</Text>
         </LinearGradient>
       </View>
     );
   }
 
-  console.log('🔧 Initializing MeetingProvider with:', {
+  console.log('ðŸ”§ Initializing MeetingProvider with:', {
     meetingId,
-    userName: user?.displayName || user?.username || 'Guest',
+    userName: user?.displayName || user?.username || t('chat.unknown_user'),
     micEnabled: true,
     webcamEnabled: false,
   });
@@ -466,12 +633,12 @@ export default function GroupVoiceRoom() {
         meetingId,
         micEnabled: true,
         webcamEnabled: false,
-        name: user?.uid || 'Guest', // Pass UID để có thể load user data từ Firebase
+        name: user?.displayName || user?.username || user?.uid || t('chat.unknown_user'),
       }}
       token={token}
     >
       <MeetingView
-        groupName={groupData?.name || 'Voice Chat'}
+        groupName={groupData?.name || t('group_voice.default_room_name')}
         onLeave={handleLeave}
         currentUser={user}
         groupId={groupId as string}
@@ -497,41 +664,116 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textAlign: 'center',
   },
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+  tiktokHeader: {
+    paddingTop: 56,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+  },
+  liveBadge: {
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginRight: 10,
+  },
+  liveText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  headerInfo: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#fff',
-    marginBottom: 8,
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
   },
-  participantsContainer: {
-    flex: 1,
+  clearSpotlightButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 999,
+    paddingVertical: 5,
     paddingHorizontal: 10,
   },
+  clearSpotlightText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  hostSection: {
+    paddingHorizontal: 14,
+    paddingTop: 4,
+  },
+  emptyHost: {
+    height: 170,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  emptyHostText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  speakersSection: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 16,
+  },
+  sectionLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 8,
+    marginBottom: 8,
+  },
   participantsList: {
-    paddingVertical: 10,
+    paddingBottom: 120,
   },
   participantCard: {
-    width: (width - 40) / 2,
-    padding: 10,
+    width: (width - 48) / 3,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+  },
+  hostParticipantCard: {
+    width: '100%',
+    paddingHorizontal: 0,
   },
   participantGradient: {
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 18,
+    padding: 12,
     alignItems: 'center',
-    minHeight: 140,
+    minHeight: 124,
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  hostParticipantGradient: {
+    minHeight: 168,
+    borderRadius: 22,
+  },
+  hostParticipantGradientSpeaking: {
+    borderColor: '#22d3ee',
+    shadowColor: '#22d3ee',
+    shadowOpacity: 0.95,
+    shadowRadius: 14,
+    elevation: 14,
   },
   participantGradientSpeaking: {
     borderColor: '#10b981',
@@ -595,37 +837,52 @@ const styles = StyleSheet.create({
   },
   participantName: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
   },
-  controls: {
+  pinHintText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+    marginTop: 4,
+  },
+  hostParticipantName: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  controlsDock: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginHorizontal: 12,
+    marginBottom: 12,
+    paddingHorizontal: 18,
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    gap: 20,
-    marginBottom: 10,
+    borderRadius: 22,
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    gap: 14,
   },
-  controlButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  dockButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   micOnButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(34,197,94,0.75)',
   },
   micOffButton: {
-    backgroundColor: '#e53e3e',
+    backgroundColor: '#ef4444',
   },
   leaveButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#e53e3e',
+    backgroundColor: '#ef4444',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -645,8 +902,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
-  chatContainer: {
-    height: 250,
-    marginBottom: 10,
+  chatOverlay: {
+    height: 220,
+    marginHorizontal: 10,
+    marginBottom: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+  },
+  heartsLayer: {
+    position: 'absolute',
+    right: 24,
+    bottom: 100,
+    width: 44,
+    height: 190,
+    overflow: 'visible',
+  },
+  floatingHeart: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+  },
+  emptySpeakerText: {
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 12,
   },
 });
+
+
+
+
+
+
+
+

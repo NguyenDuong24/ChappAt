@@ -4,8 +4,10 @@ import { Chip } from 'react-native-paper';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 
 const ActiveFilters = ({ filters, onClearFilter, onClearAll }) => {
+  const { t } = useTranslation();
   const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
 
@@ -15,19 +17,21 @@ const ActiveFilters = ({ filters, onClearFilter, onClearAll }) => {
 
   const getGenderDisplayName = (gender) => {
     switch (gender) {
-      case 'male': return 'Nam';
-      case 'female': return 'Nữ';
-      case 'all': return 'Tất cả';
-      default: return '';
+      case 'male':
+        return t('signup.male');
+      case 'female':
+        return t('signup.female');
+      case 'all':
+        return t('common.all');
+      default:
+        return '';
     }
   };
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.surface }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: currentThemeColors.text }]}>
-          Bộ lọc đang áp dụng
-        </Text>
+        <Text style={[styles.title, { color: currentThemeColors.text }]}>{t('filter.active_title')}</Text>
         <Chip
           mode="outlined"
           onPress={onClearAll}
@@ -35,44 +39,44 @@ const ActiveFilters = ({ filters, onClearFilter, onClearAll }) => {
           style={styles.clearAllChip}
           icon="close"
         >
-          Xóa tất cả
+          {t('filter.clear_all')}
         </Chip>
       </View>
-      
+
       <View style={styles.filtersContainer}>
         {filters?.gender && filters.gender !== 'all' && (
           <Chip
             mode="flat"
             onClose={() => onClearFilter('gender')}
-            style={[styles.filterChip, { backgroundColor: currentThemeColors.primary + '20' }]}
+            style={[styles.filterChip, { backgroundColor: `${currentThemeColors.primary}20` }]}
             textStyle={{ color: currentThemeColors.primary }}
             icon="account"
           >
             {getGenderDisplayName(filters.gender)}
           </Chip>
         )}
-        
+
         {filters?.minAge && (
           <Chip
             mode="flat"
             onClose={() => onClearFilter('minAge')}
-            style={[styles.filterChip, { backgroundColor: currentThemeColors.accent + '20' }]}
+            style={[styles.filterChip, { backgroundColor: `${currentThemeColors.accent}20` }]}
             textStyle={{ color: currentThemeColors.accent }}
             icon="numeric"
           >
-            Từ {filters.minAge} tuổi
+            {t('filter.from_age', { age: filters.minAge })}
           </Chip>
         )}
-        
+
         {filters?.maxAge && (
           <Chip
             mode="flat"
             onClose={() => onClearFilter('maxAge')}
-            style={[styles.filterChip, { backgroundColor: currentThemeColors.accent + '20' }]}
+            style={[styles.filterChip, { backgroundColor: `${currentThemeColors.accent}20` }]}
             textStyle={{ color: currentThemeColors.accent }}
             icon="numeric"
           >
-            Đến {filters.maxAge} tuổi
+            {t('filter.to_age', { age: filters.maxAge })}
           </Chip>
         )}
       </View>

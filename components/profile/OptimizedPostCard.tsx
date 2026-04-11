@@ -21,6 +21,7 @@ import { useAuth } from '@/context/authContext';
 import { userCacheService, optimizedSocialService } from '@/services/optimizedServices';
 import SimpleImage from '../common/SimpleImage';
 import ImageViewerModal from '../common/ImageViewerModal';
+import { useTranslation } from 'react-i18next';
 
 interface Comment {
   id?: string;
@@ -69,6 +70,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   onUserPress,
   isOwner
 }) => {
+  const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const colors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -114,29 +116,26 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
 
     fetchUserInfo();
   }, [post.userID]);
-
-  // Format timestamp
   const formatTimestamp = (timestamp: any) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const now = new Date();
     const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diff < 60) return 'Vừa xong';
-    if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-    return `${Math.floor(diff / 86400)} ngày trước`;
+    if (diff < 60) return t('common.time.just_now');
+    if (diff < 3600) return t('common.time.minutes_ago', { count: Math.floor(diff / 60) });
+    if (diff < 86400) return t('common.time.hours_ago', { count: Math.floor(diff / 3600) });
+    return t('common.time.days_ago', { count: Math.floor(diff / 86400) });
   };
 
-  // Handle delete with optimized service
   const handleDelete = () => {
     Alert.alert(
-      'Xóa bài viết',
-      'Bạn có chắc muốn xóa bài viết này?',
+      t('social.delete_post_title'),
+      t('social.delete_post_message'),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Xóa',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -144,7 +143,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
               onDelete?.();
             } catch (error) {
               console.error('Error deleting post:', error);
-              Alert.alert('Lỗi', 'Không thể xóa bài viết');
+              Alert.alert(t('common.error'), t('post_detail.delete_error'));
             }
           },
         },
@@ -193,7 +192,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
     const commentData = {
       text: commentText.trim(),
       userId: user.uid,
-      username: user.displayName || user.username || 'Anonymous',
+      username: user.displayName || user.username || t('post_card.anonymous'),
       userAvatar: user.profileUrl,
       timestamp: new Date(),
       likes: []
@@ -210,7 +209,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
       console.error('Error adding comment:', error);
       // Revert optimistic update
       setCommentCount(prev => prev - 1);
-      Alert.alert('Lỗi', 'Không thể thêm bình luận');
+      Alert.alert(t('common.error'), t('post_card.comment_error'));
     }
   };
 
@@ -218,10 +217,9 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `${post.content}\n\n- ${userInfo?.displayName || 'Someone'}`,
-        title: 'Chia sẻ bài viết',
+        message: `${post.content}\n\n- ${userInfo?.displayName || t('post_card.someone')}` ,
+        title: t('post_card.share_post_title'),
       });
-
       // Update share count optimistically
       setShareCount(prev => prev + 1);
 
@@ -284,7 +282,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
           </View>
           <View style={styles.userDetails}>
             <Text style={[styles.username, { color: colors.text || '#000' }]}>
-              {userInfo?.displayName || 'Loading...'}
+              {userInfo?.displayName || t('post_card.loading_user')}
             </Text>
             <View style={styles.metaInfo}>
               <Text style={[styles.timestamp, { color: colors.subtleText || '#999' }]}>
@@ -292,13 +290,10 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
               </Text>
               {post.address && (
                 <>
-                  <Text style={[styles.separator, { color: colors.subtleText || '#999' }]}> • </Text>
+                  <Text style={[styles.separator, { color: colors.subtleText || '#999' }]}> Ã¢â‚¬Â¢ </Text>
                   <Ionicons name="location-outline" size={12} color={colors.subtleText || '#999'} />
                   <Text style={[styles.location, { color: colors.subtleText || '#999' }]}>
-                    {typeof post.address === 'string'
-                      ? post.address
-                      : 'Vị trí'
-                    }
+                    {typeof post.address === 'string' ? post.address : t('post_card.location_fallback')}
                   </Text>
                 </>
               )}
@@ -336,7 +331,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
             style={styles.readMoreButton}
           >
             <Text style={[styles.readMoreText, { color: Colors.primary }]}>
-              {showFullContent ? 'Thu gọn' : 'Xem thêm'}
+              {showFullContent ? t('post_card.read_less') : t('post_card.read_more')}
             </Text>
           </TouchableOpacity>
         )}
@@ -461,7 +456,6 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
-
       {/* Comments Section */}
       {showComments && (
         <View style={styles.commentsSection}>
@@ -481,7 +475,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
             )}
             <TextInput
               style={[styles.commentInput, { color: colors.text || '#000' }]}
-              placeholder="Viết bình luận..."
+              placeholder={t('social.write_comment')}
               placeholderTextColor={colors.subtleText || '#999'}
               value={commentText}
               onChangeText={setCommentText}
@@ -492,11 +486,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
               onPress={handleComment}
               disabled={!commentText.trim()}
             >
-              <Ionicons
-                name="send"
-                size={16}
-                color="white"
-              />
+              <Ionicons name="send" size={16} color="white" />
             </TouchableOpacity>
           </View>
 
@@ -518,32 +508,20 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
                     </View>
                   )}
                   <View style={styles.commentContent}>
-                    <Text style={[styles.commentUser, { color: colors.text || '#000' }]}>
-                      {comment.username}
-                    </Text>
-                    <Text style={[styles.commentText, { color: colors.text || '#000' }]}>
-                      {comment.text}
-                    </Text>
+                    <Text style={[styles.commentUser, { color: colors.text || '#000' }]}>{comment.username}</Text>
+                    <Text style={[styles.commentText, { color: colors.text || '#000' }]}>{comment.text}</Text>
                     <View style={styles.commentMeta}>
-                      <Text style={styles.commentTime}>
-                        {formatTimestamp(comment.timestamp)}
-                      </Text>
+                      <Text style={styles.commentTime}>{formatTimestamp(comment.timestamp)}</Text>
                       <TouchableOpacity style={styles.commentLike}>
-                        <Ionicons
-                          name="heart-outline"
-                          size={12}
-                          color="#999"
-                        />
-                        <Text style={styles.commentTime}>
-                          {comment.likes?.length || 0}
-                        </Text>
+                        <Ionicons name="heart-outline" size={12} color="#999" />
+                        <Text style={styles.commentTime}>{comment.likes?.length || 0}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
                 </View>
               ))
             ) : (
-              <Text style={styles.noComments}>Chưa có bình luận nào</Text>
+              <Text style={styles.noComments}>{t('chat.no_messages')}</Text>
             )}
           </View>
         </View>

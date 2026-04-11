@@ -19,7 +19,7 @@
                 "NSLocationWhenInUseUsageDescription": "We need location access to find nearby users."
             },
             "bitcode": false,
-            "bundleIdentifier": "com.duongnguyen1263.Chat",
+            "bundleIdentifier": "saigondating.com.vn",
             "entitlements": {
                 "aps-environment": "development"
             }
@@ -57,7 +57,7 @@
                     "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
                 }
             },
-            "package": "com.duongnguyen1263.Chat",
+            "package": "saigondating.com.vn",
             "googleServicesFile": "./google-services.json"
         },
         "web": {

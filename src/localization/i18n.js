@@ -3,8 +3,23 @@ import { initReactI18next } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import en from './en.json';
 import vi from './vi.json';
+import { normalizeDisplayText } from '@/utils/textEncoding';
 
 const LANGUAGE_KEY = 'user-language';
+
+const normalizeResourceObject = (value) => {
+    if (typeof value === 'string') return normalizeDisplayText(value);
+    if (Array.isArray(value)) return value.map(normalizeResourceObject);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(
+            Object.entries(value).map(([k, v]) => [k, normalizeResourceObject(v)])
+        );
+    }
+    return value;
+};
+
+const normalizedEn = normalizeResourceObject(en);
+const normalizedVi = normalizeResourceObject(vi);
 
 const languageDetector = {
     type: 'languageDetector',
@@ -50,8 +65,8 @@ i18next
     .use(initReactI18next)
     .init({
         resources: {
-            en: { translation: en },
-            vi: { translation: vi },
+            en: { translation: normalizedEn },
+            vi: { translation: normalizedVi },
         },
         fallbackLng: 'vi',
         compatibilityJSON: 'v3',

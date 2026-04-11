@@ -1,4 +1,4 @@
-package com.duongnguyen1263.Chat
+package saigondating.com.vn
 
 import android.app.Application
 import android.content.res.Configuration

@@ -1,25 +1,25 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useLogoState } from '@/context/LogoStateContext';
-import { Colors } from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const CompleteSocialProfileScreen = () => {
   const {
     user, gender, name, age, icon, bio,
     cancelRegistration, updateUserProfile,
-    educationLevel, university, job, email, password,
-    signupType, clearSignupState
+    educationLevel, university, job, email,
+    signupType, clearSignupState,
   } = useAuth();
+  const { t } = useTranslation();
   const router = useRouter();
   const logoUrl = useLogoState();
   const [loading, setLoading] = useState(false);
 
-  // Helpers
   const normalizeGender = (g) => {
     const s = (g || '').toString().toLowerCase().trim();
     if (['male', 'nam', 'man', 'boy', 'm'].includes(s)) return 'male';
@@ -39,7 +39,7 @@ const CompleteSocialProfileScreen = () => {
     if (typeof val === 'number') return val > 0 ? val : 0;
     const str = String(val);
     const d = new Date(str);
-    if (!isNaN(d.getTime())) {
+    if (!Number.isNaN(d.getTime())) {
       const now = new Date();
       let years = now.getFullYear() - d.getFullYear();
       const m = now.getMonth() - d.getMonth();
@@ -52,9 +52,13 @@ const CompleteSocialProfileScreen = () => {
 
   const avatarUri = icon || user?.photoURL || '';
   const normalizedGender = normalizeGender(gender);
-  const displayGender = normalizedGender === 'male' ? 'Nam' : normalizedGender === 'female' ? 'Nữ' : 'Chưa cập nhật';
+  const displayGender = normalizedGender === 'male'
+    ? t('signup.male')
+    : normalizedGender === 'female'
+      ? t('signup.female')
+      : t('complete_social.not_updated');
   const ageNumber = getAgeNumber(age);
-  const displayAge = ageNumber > 0 ? ageNumber : 'Chưa cập nhật';
+  const displayAge = ageNumber > 0 ? ageNumber : t('complete_social.not_updated');
 
   const isProfileComplete = Boolean(
     normalizedGender && (name && name.trim().length > 0) && ageNumber > 0 && !!avatarUri
@@ -64,24 +68,20 @@ const CompleteSocialProfileScreen = () => {
     try {
       if (!isProfileComplete) {
         const missing = [];
-        if (!normalizedGender) missing.push('giới tính');
-        if (!name || !name.trim()) missing.push('tên');
-        if (!(ageNumber > 0)) missing.push('tuổi');
-        if (!avatarUri) missing.push('ảnh đại diện');
-        Alert.alert('Thiếu thông tin', `Vui lòng cập nhật: ${missing.join(', ')}`);
+        if (!normalizedGender) missing.push(t('complete_social.field_gender'));
+        if (!name || !name.trim()) missing.push(t('complete_social.field_name'));
+        if (!(ageNumber > 0)) missing.push(t('complete_social.field_age'));
+        if (!avatarUri) missing.push(t('complete_social.field_avatar'));
+        Alert.alert(t('complete_social.missing_title'), t('complete_social.missing_message', { fields: missing.join(', ') }));
         return;
       }
 
       setLoading(true);
 
-      // For both social and email signup, user is already authenticated - just update profile
-      // (Email users are created at PasswordInputScreen now)
-      console.log('📱 Completing signup profile...');
-
       const profileData = {
         username: name,
         gender: normalizedGender,
-        age: age,
+        age,
         profileUrl: avatarUri,
         bio: bio || '',
         educationLevel: educationLevel || '',
@@ -92,18 +92,17 @@ const CompleteSocialProfileScreen = () => {
 
       const response = await updateUserProfile(profileData);
       if (!response?.success) {
-        Alert.alert('Lỗi', response?.msg || 'Không thể cập nhật hồ sơ');
+        Alert.alert(t('common.error'), response?.msg || t('complete_social.update_error'));
         setLoading(false);
         return;
       }
 
-      console.log('✅ Profile completed successfully');
       clearSignupState();
       router.replace('/(tabs)/home');
-      Alert.alert('Hoàn thành!', 'Hồ sơ của bạn đã được cập nhật thành công!');
+      Alert.alert(t('complete_social.completed_title'), t('complete_social.completed_message'));
     } catch (error) {
       console.error('Error completing profile:', error);
-      Alert.alert('Lỗi', 'Không thể hoàn thành đăng ký. Vui lòng thử lại.');
+      Alert.alert(t('common.error'), t('complete_social.complete_error'));
     } finally {
       setLoading(false);
     }
@@ -111,18 +110,18 @@ const CompleteSocialProfileScreen = () => {
 
   const handleCancel = () => {
     Alert.alert(
-      'Huỷ đăng ký?',
-      'Bạn có chắc muốn huỷ quá trình đăng ký?',
+      t('signup.cancel_title'),
+      t('complete_social.cancel_confirm'),
       [
-        { text: 'Không', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Huỷ',
+          text: t('common.cancel'),
           style: 'destructive',
           onPress: async () => {
             try {
               await cancelRegistration({ deleteAccount: signupType === 'email', navigateTo: '/signin' });
-            } catch (_) { }
-          }
+            } catch {}
+          },
         },
       ]
     );
@@ -141,22 +140,10 @@ const CompleteSocialProfileScreen = () => {
   );
 
   return (
-    <ImageBackground
-      source={require('../../assets/images/cover.png')}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <LinearGradient
-        colors={['rgba(147,112,219,0.85)', 'rgba(255,20,147,0.85)']}
-        style={styles.backdrop}
-      />
+    <ImageBackground source={require('../../assets/images/cover.png')} style={styles.background} resizeMode="cover">
+      <LinearGradient colors={['rgba(147,112,219,0.85)', 'rgba(255,20,147,0.85)']} style={styles.backdrop} />
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           {logoUrl ? (
             <View style={styles.logoContainer}>
@@ -170,15 +157,13 @@ const CompleteSocialProfileScreen = () => {
           )}
           <View style={styles.headerBadge}>
             <Ionicons name="checkmark-circle" size={16} color="#00ff88" />
-            <Text style={styles.badgeText}>Bước cuối cùng</Text>
+            <Text style={styles.badgeText}>{t('complete_social.final_step')}</Text>
           </View>
-          <Text style={styles.title}>Xác nhận thông tin</Text>
-          <Text style={styles.subtitle}>Kiểm tra và hoàn thành hồ sơ của bạn</Text>
+          <Text style={styles.title}>{t('complete_social.confirm_title')}</Text>
+          <Text style={styles.subtitle}>{t('complete_social.confirm_subtitle')}</Text>
         </View>
 
-        {/* Profile Card */}
         <View style={styles.profileCard}>
-          {/* Avatar Section */}
           <View style={styles.avatarSection}>
             {avatarUri ? (
               <View style={styles.avatarWrapper}>
@@ -193,82 +178,44 @@ const CompleteSocialProfileScreen = () => {
                 <Ionicons name="person" size={50} color="#ccc" />
               </View>
             )}
-            <Text style={styles.profileName}>{name || user?.displayName || 'Chưa cập nhật'}</Text>
-            {bio && <Text style={styles.profileBio}>{bio}</Text>}
+            <Text style={styles.profileName}>{name || user?.displayName || t('complete_social.not_updated')}</Text>
+            {bio ? <Text style={styles.profileBio}>{bio}</Text> : null}
           </View>
 
-          {/* Divider */}
           <View style={styles.divider} />
 
-          {/* Info Section */}
           <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+            <Text style={styles.sectionTitle}>{t('complete_social.personal_info')}</Text>
 
-            <InfoRow
-              icon="mail"
-              label="Email"
-              value={email || user?.email || 'Chưa cập nhật'}
-              iconColor="#3b82f6"
-            />
+            <InfoRow icon="mail" label={t('complete_social.email')} value={email || user?.email || t('complete_social.not_updated')} iconColor="#3b82f6" />
             <InfoRow
               icon={normalizedGender === 'male' ? 'male' : 'female'}
-              label="Giới tính"
+              label={t('complete_social.gender')}
               value={displayGender}
               iconColor={normalizedGender === 'male' ? '#3b82f6' : '#ec4899'}
             />
-            <InfoRow
-              icon="calendar"
-              label="Tuổi"
-              value={displayAge}
-              iconColor="#8b5cf6"
-            />
+            <InfoRow icon="calendar" label={t('complete_social.age')} value={displayAge} iconColor="#8b5cf6" />
 
-            {/* Education & Career Section */}
             {(educationLevel || university || job) && (
               <>
                 <View style={styles.divider} />
-                <Text style={styles.sectionTitle}>Học vấn & Nghề nghiệp</Text>
+                <Text style={styles.sectionTitle}>{t('complete_social.education_career')}</Text>
 
-                {educationLevel && (
-                  <InfoRow
-                    icon="school"
-                    label="Trình độ"
-                    value={educationLevel}
-                    iconColor="#10b981"
-                  />
-                )}
-                {university && (
-                  <InfoRow
-                    icon="business"
-                    label="Trường học"
-                    value={university}
-                    iconColor="#f59e0b"
-                  />
-                )}
-                {job && (
-                  <InfoRow
-                    icon="briefcase"
-                    label="Nghề nghiệp"
-                    value={job}
-                    iconColor="#ef4444"
-                  />
-                )}
+                {educationLevel ? <InfoRow icon="school" label={t('complete_social.education_level')} value={educationLevel} iconColor="#10b981" /> : null}
+                {university ? <InfoRow icon="business" label={t('complete_social.university')} value={university} iconColor="#f59e0b" /> : null}
+                {job ? <InfoRow icon="briefcase" label={t('complete_social.job')} value={job} iconColor="#ef4444" /> : null}
               </>
             )}
           </View>
         </View>
 
-        {/* Warning if incomplete */}
         {!isProfileComplete && (
           <View style={styles.warningCard}>
             <Ionicons name="alert-circle" size={24} color="#fbbf24" />
-            <Text style={styles.warningText}>
-              Vui lòng hoàn thành tất cả thông tin bắt buộc trước khi tiếp tục
-            </Text>
+            <Text style={styles.warningText}>{t('complete_social.warning_required_fields')}</Text>
           </View>
         )}
 
-        {/* Action Buttons */}
         <TouchableOpacity
           style={[styles.completeButton, (!isProfileComplete || loading) && styles.disabledButton]}
           onPress={handleCompleteProfile}
@@ -286,7 +233,7 @@ const CompleteSocialProfileScreen = () => {
             ) : (
               <>
                 <Ionicons name="checkmark-done" size={24} color="#fff" />
-                <Text style={styles.completeButtonText}>Hoàn thành và bắt đầu</Text>
+                <Text style={styles.completeButtonText}>{t('complete_social.complete_and_start')}</Text>
               </>
             )}
           </LinearGradient>
@@ -294,10 +241,9 @@ const CompleteSocialProfileScreen = () => {
 
         <TouchableOpacity onPress={handleCancel} style={styles.cancelButton} disabled={loading}>
           <Ionicons name="close-circle-outline" size={20} color="rgba(255,255,255,0.8)" />
-          <Text style={styles.cancelButtonText}>Huỷ đăng ký</Text>
+          <Text style={styles.cancelButtonText}>{t('complete_social.cancel_signup')}</Text>
         </TouchableOpacity>
 
-        {/* Bottom spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
     </ImageBackground>

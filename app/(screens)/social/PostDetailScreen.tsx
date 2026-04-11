@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   Text,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
@@ -14,12 +13,13 @@ import {
   TextInput,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useAuth } from '@/context/authContext';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import PostCard from '@/components/profile/PostCard';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { formatTime } from '@/utils/common';
 import socialNotificationService from '@/services/socialNotificationService';
 import optimizedSocialService from '@/services/optimizedSocialService';
@@ -27,6 +27,7 @@ import optimizedSocialService from '@/services/optimizedSocialService';
 const { width } = Dimensions.get('window');
 
 const PostDetailScreen = () => {
+  const { t } = useTranslation();
   const { postId } = useLocalSearchParams();
   const { user } = useAuth();
   const router = useRouter();
@@ -42,37 +43,37 @@ const PostDetailScreen = () => {
     if (!postId) return;
 
     const postRef = doc(db, 'posts', postId as string);
-    const unsubscribe = onSnapshot(postRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setPost({ id: docSnap.id, ...docSnap.data() });
-      } else {
-        Alert.alert('Lỗi', 'Bài viết không tồn tại hoặc đã bị xóa');
-        router.back();
+    const unsubscribe = onSnapshot(
+      postRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setPost({ id: docSnap.id, ...docSnap.data() });
+        } else {
+          Alert.alert(t('common.error'), t('post_detail.post_not_found'));
+          router.back();
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error fetching post:', error);
+        setLoading(false);
       }
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching post:', error);
-      setLoading(false);
-    });
+    );
 
     return () => unsubscribe();
-  }, [postId]);
+  }, [postId, router, t]);
 
-  const handleLike = async (postId: string, userId: string, isLiked: boolean) => {
+  const handleLike = async (targetPostId: string, userId: string, isLiked: boolean) => {
     if (!user) return;
     try {
-      const postRef = doc(db, 'posts', postId);
+      const postRef = doc(db, 'posts', targetPostId);
       if (isLiked) {
-        await updateDoc(postRef, {
-          likes: arrayRemove(userId)
-        });
-        await socialNotificationService.removeLikeNotification(postId, post.userID, userId);
+        await updateDoc(postRef, { likes: arrayRemove(userId) });
+        await socialNotificationService.removeLikeNotification(targetPostId, post.userID, userId);
       } else {
-        await updateDoc(postRef, {
-          likes: arrayUnion(userId)
-        });
+        await updateDoc(postRef, { likes: arrayUnion(userId) });
         if (post.userID !== userId) {
-          await socialNotificationService.createLikeNotification(postId, post.userID, userId);
+          await socialNotificationService.createLikeNotification(targetPostId, post.userID, userId);
         }
       }
     } catch (error) {
@@ -81,14 +82,14 @@ const PostDetailScreen = () => {
   };
 
   const handleCommentSubmit = async () => {
-    if (!commentText.trim() || !user || submittingComment) return;
+    if (!commentText.trim() || !user || submittingComment || !post) return;
 
     setSubmittingComment(true);
     const trimmedText = commentText.trim();
     const newComment = {
       id: Date.now().toString(),
       userId: user.uid,
-      username: user.username || 'Người dùng',
+      username: user.username || t('chat.unknown_user'),
       avatar: user.profileUrl || '',
       text: trimmedText,
       timestamp: Date.now(),
@@ -102,17 +103,18 @@ const PostDetailScreen = () => {
       setCommentText('');
     } catch (error) {
       console.error('Error adding comment:', error);
-      Alert.alert('Lỗi', 'Không thể gửi bình luận');
+      Alert.alert(t('common.error'), t('post_detail.comment_error'));
     } finally {
       setSubmittingComment(false);
     }
   };
 
   const handleDeletePost = () => {
-    Alert.alert('Xác nhận', 'Bạn có chắc chắn muốn xóa bài viết này?', [
-      { text: 'Hủy', style: 'cancel' },
+    if (!post) return;
+    Alert.alert(t('common.confirm'), t('post_detail.delete_confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Xóa',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -120,16 +122,11 @@ const PostDetailScreen = () => {
             router.back();
           } catch (error) {
             console.error('Error deleting post:', error);
-            Alert.alert('Lỗi', 'Không thể xóa bài viết');
+            Alert.alert(t('common.error'), t('post_detail.delete_error'));
           }
-        }
-      }
+        },
+      },
     ]);
-  };
-
-  const addComment = (postId: string, text: string) => {
-    setCommentText(text);
-    handleCommentSubmit();
   };
 
   if (loading) {
@@ -154,9 +151,8 @@ const PostDetailScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      {/* Custom Header */}
       <Animated.View style={[styles.header, { backgroundColor: colors.surface, opacity: headerOpacity }]}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết bài viết</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('post_detail.title')}</Text>
       </Animated.View>
 
       <TouchableOpacity
@@ -168,28 +164,18 @@ const PostDetailScreen = () => {
 
       <Animated.ScrollView
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
         scrollEventThrottle={16}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Post Card */}
         <View style={styles.postWrapper}>
-          <PostCard
-            post={post}
-            onLike={handleLike}
-            onDeletePost={handleDeletePost}
-            owner={post.userID === user?.uid}
-          />
+          <PostCard post={post} onLike={handleLike} onDeletePost={handleDeletePost} owner={post.userID === user?.uid} />
         </View>
 
-        {/* Comments Section */}
         <View style={[styles.commentsSection, { backgroundColor: colors.surface }]}>
           <View style={styles.commentsHeader}>
             <Text style={[styles.commentsTitle, { color: colors.text }]}>
-              Bình luận ({post.comments?.length || 0})
+              {t('post_detail.comments_count', { count: post.comments?.length || 0 })}
             </Text>
           </View>
 
@@ -198,12 +184,9 @@ const PostDetailScreen = () => {
               <View key={comment.id || index} style={styles.commentItem}>
                 <TouchableOpacity onPress={() => router.push(`/(screens)/user/UserProfileScreen?userId=${comment.userId}`)}>
                   <View style={styles.commentAvatarContainer}>
-                    <View style={[styles.commentAvatar, { backgroundColor: colors.border }]}>
+                    <View style={[styles.commentAvatar, { backgroundColor: colors.border }]}> 
                       {comment.avatar ? (
-                        <Animated.Image
-                          source={{ uri: comment.avatar }}
-                          style={styles.commentAvatarImage}
-                        />
+                        <Animated.Image source={{ uri: comment.avatar }} style={styles.commentAvatarImage} />
                       ) : (
                         <Ionicons name="person" size={20} color={colors.subtleText} />
                       )}
@@ -213,9 +196,7 @@ const PostDetailScreen = () => {
                 <View style={styles.commentContent}>
                   <View style={styles.commentHeader}>
                     <Text style={[styles.commentUsername, { color: colors.text }]}>{comment.username}</Text>
-                    <Text style={[styles.commentTime, { color: colors.subtleText }]}>
-                      {formatTime(comment.timestamp)}
-                    </Text>
+                    <Text style={[styles.commentTime, { color: colors.subtleText }]}>{formatTime(comment.timestamp)}</Text>
                   </View>
                   <Text style={[styles.commentText, { color: colors.text }]}>{comment.text}</Text>
                 </View>
@@ -224,19 +205,16 @@ const PostDetailScreen = () => {
           ) : (
             <View style={styles.emptyComments}>
               <MaterialCommunityIcons name="comment-outline" size={48} color={colors.border} />
-              <Text style={[styles.emptyCommentsText, { color: colors.subtleText }]}>
-                Chưa có bình luận nào. Hãy là người đầu tiên!
-              </Text>
+              <Text style={[styles.emptyCommentsText, { color: colors.subtleText }]}>{t('post_detail.no_comments')}</Text>
             </View>
           )}
         </View>
       </Animated.ScrollView>
 
-      {/* Comment Input */}
       <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
         <TextInput
           style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
-          placeholder="Viết bình luận..."
+          placeholder={t('post_detail.comment_placeholder')}
           placeholderTextColor={colors.subtleText}
           value={commentText}
           onChangeText={setCommentText}
@@ -247,11 +225,7 @@ const PostDetailScreen = () => {
           onPress={handleCommentSubmit}
           disabled={!commentText.trim() || submittingComment}
         >
-          {submittingComment ? (
-            <ActivityIndicator size="small" color="white" />
-          ) : (
-            <Ionicons name="send" size={20} color="white" />
-          )}
+          {submittingComment ? <ActivityIndicator size="small" color="white" /> : <Ionicons name="send" size={20} color="white" />}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

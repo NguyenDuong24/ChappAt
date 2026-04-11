@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   doc,
   addDoc,
@@ -11,6 +11,8 @@ import {
   Timestamp,
   serverTimestamp,
   writeBatch,
+  increment,
+  runTransaction,
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { HotSpotInvite, MeetupSession, CheckInReward } from '@/types/hotSpotInvites';
@@ -19,9 +21,11 @@ import { getDistance } from 'geolib';
 const INVITE_EXPIRY_HOURS = 24;
 const MEETUP_RADIUS_METERS = 200;
 const MEETUP_TIME_WINDOW_MINUTES = 30;
+const AUTO_CHECKIN_USER_DISTANCE_METERS = 50;
+const MEETUP_DIAMOND_REWARD = 15;
 
 class HotSpotInviteService {
-  // Gửi lời mời đi cùng
+  // Send invite to join Hot Spot
   async sendInvite(
     senderId: string,
     senderName: string,
@@ -32,12 +36,12 @@ class HotSpotInviteService {
     hotSpotLocation: any
   ): Promise<string> {
     try {
-      // Kiểm tra không thể tự mời chính mình
+      // Prevent inviting self
       if (senderId === receiverId) {
-        throw new Error('Không thể tự mời chính mình');
+        throw new Error('Cannot invite yourself');
       }
 
-      // Kiểm tra xem đã có lời mời pending chưa
+      // Check if pending invite already exists
       const existingInviteId = await this.checkExistingInvite(senderId, receiverId, hotSpotId);
       if (existingInviteId) {
         // Return existing invite ID instead of throwing error (idempotent behavior)
@@ -63,7 +67,7 @@ class HotSpotInviteService {
 
       const docRef = await addDoc(collection(db, 'hotSpotInvites'), inviteData);
 
-      // Tạo notification
+      // Create notification
       await this.createInviteNotification(receiverId, senderId, senderName, hotSpotTitle, docRef.id);
 
       return docRef.id;
@@ -73,7 +77,7 @@ class HotSpotInviteService {
     }
   }
 
-  // Kiểm tra lời mời đã tồn tại
+  // Check invite exists
   async checkExistingInvite(senderId: string, receiverId: string, hotSpotId: string): Promise<string | null> {
     const q = query(
       collection(db, 'hotSpotInvites'),
@@ -90,37 +94,37 @@ class HotSpotInviteService {
     return null;
   }
 
-  // Chấp nhận lời mời
+  // Accept invite
   async acceptInvite(inviteId: string, userId: string): Promise<string> {
     try {
       const inviteRef = doc(db, 'hotSpotInvites', inviteId);
       const inviteSnap = await getDoc(inviteRef);
 
       if (!inviteSnap.exists()) {
-        throw new Error('Lời mời không tồn tại');
+        throw new Error('Invite does not exist');
       }
 
       const invite = inviteSnap.data() as HotSpotInvite;
 
       if (invite.receiverId !== userId) {
-        throw new Error('Bạn không có quyền chấp nhận lời mời này');
+        throw new Error('You do not have permission to accept this invite');
       }
 
       if (invite.status !== 'pending') {
-        throw new Error('Lời mời đã được xử lý');
+        throw new Error('Invite has already been processed');
       }
 
-      // Tạo chat room
+      // Create chat room
       const chatRoomId = await this.createHotSpotChatRoom(invite);
 
-      // Cập nhật invite
+      // Update invite
       await updateDoc(inviteRef, {
         status: 'accepted',
         chatRoomId,
         updatedAt: serverTimestamp(),
       });
 
-      // Tạo notification cho sender
+      // Notify sender
       await this.createAcceptNotification(invite.senderId, userId, invite.hotSpotTitle);
 
       return chatRoomId;
@@ -130,20 +134,20 @@ class HotSpotInviteService {
     }
   }
 
-  // Từ chối lời mời
+  // Decline invite
   async declineInvite(inviteId: string, userId: string): Promise<void> {
     try {
       const inviteRef = doc(db, 'hotSpotInvites', inviteId);
       const inviteSnap = await getDoc(inviteRef);
 
       if (!inviteSnap.exists()) {
-        throw new Error('Lời mời không tồn tại');
+        throw new Error('Invite does not exist');
       }
 
       const invite = inviteSnap.data() as HotSpotInvite;
 
       if (invite.receiverId !== userId) {
-        throw new Error('Bạn không có quyền từ chối lời mời này');
+        throw new Error('You do not have permission to decline this invite');
       }
 
       await updateDoc(inviteRef, {
@@ -156,20 +160,20 @@ class HotSpotInviteService {
     }
   }
 
-  // Xác nhận đi cùng trong chat
+  // Confirm going together in chat
   async confirmGoingTogether(inviteId: string, userId: string): Promise<void> {
     try {
       const inviteRef = doc(db, 'hotSpotInvites', inviteId);
       const inviteSnap = await getDoc(inviteRef);
 
       if (!inviteSnap.exists()) {
-        throw new Error('Lời mời không tồn tại');
+        throw new Error('Invite does not exist');
       }
 
       const invite = inviteSnap.data() as HotSpotInvite;
 
       if (invite.senderId !== userId && invite.receiverId !== userId) {
-        throw new Error('Bạn không có quyền xác nhận');
+        throw new Error('You do not have permission to confirm');
       }
 
       const isSender = invite.senderId === userId;
@@ -185,7 +189,7 @@ class HotSpotInviteService {
         meetupDetails.receiverConfirmed = true;
       }
 
-      // Nếu cả hai đã xác nhận, tạo meetup session
+      // If both confirmed, create meetup session
       if (meetupDetails.senderConfirmed && meetupDetails.receiverConfirmed) {
         meetupDetails.confirmedAt = serverTimestamp();
         await this.createMeetupSession(invite);
@@ -207,9 +211,18 @@ class HotSpotInviteService {
     }
   }
 
-  // Tạo meetup session
+  // Create meetup session
   async createMeetupSession(invite: HotSpotInvite): Promise<string> {
     try {
+      const existingQ = query(
+        collection(db, 'meetupSessions'),
+        where('inviteId', '==', invite.id)
+      );
+      const existingSnap = await getDocs(existingQ);
+      if (!existingSnap.empty) {
+        return existingSnap.docs[0].id;
+      }
+
       const sessionData: Omit<MeetupSession, 'id'> = {
         hotSpotId: invite.hotSpotId,
         inviteId: invite.id,
@@ -234,25 +247,25 @@ class HotSpotInviteService {
     }
   }
 
-  // Cập nhật vị trí và kiểm tra proximity
+  // Update location and check proximity
   async updateUserLocation(
     sessionId: string,
     userId: string,
     latitude: number,
     longitude: number,
     hotSpotLocation: { latitude: number; longitude: number }
-  ): Promise<{ canCheckIn: boolean; distanceToHotSpot: number; distanceToUser: number | null }> {
+  ): Promise<{ canCheckIn: boolean; autoCheckInEligible: boolean; distanceToHotSpot: number; distanceToUser: number | null }> {
     try {
       const sessionRef = doc(db, 'meetupSessions', sessionId);
       const sessionSnap = await getDoc(sessionRef);
 
       if (!sessionSnap.exists()) {
-        throw new Error('Session không tồn tại');
+        throw new Error('Session does not exist');
       }
 
       const session = sessionSnap.data() as MeetupSession;
 
-      // Tính khoảng cách đến HotSpot
+      // Calculate distance to Hot Spot
       const distanceToHotSpot = getDistance(
         { latitude, longitude },
         { latitude: hotSpotLocation.latitude, longitude: hotSpotLocation.longitude }
@@ -260,20 +273,20 @@ class HotSpotInviteService {
 
       const isWithinRadius = distanceToHotSpot <= MEETUP_RADIUS_METERS;
 
-      // Cập nhật location data của current user
+      // Update current user location
       const updateData: any = {
         [`checkInData.${userId}.location`]: { latitude, longitude },
         [`checkInData.${userId}.isWithinRadius`]: isWithinRadius,
         updatedAt: serverTimestamp(),
       };
 
-      if (isWithinRadius) {
+      if (isWithinRadius && !session.checkInData?.[userId]?.checkInTime) {
         updateData[`checkInData.${userId}.checkInTime`] = serverTimestamp();
       }
 
       await updateDoc(sessionRef, updateData);
 
-      // Lấy data mới nhất để so sánh với person còn lại
+      // Fetch latest data and compare with other participant
       const updatedSessionSnap = await getDoc(sessionRef);
       const updatedSession = updatedSessionSnap.data() as MeetupSession;
 
@@ -288,19 +301,21 @@ class HotSpotInviteService {
         );
       }
 
-      // Kiểm tra điều kiện check-in:
-      // 1. Cả hai cùng có mặt trong bán kính HotSpot
-      // 2. Cả hai cách nhau dưới 50m
+      // Auto check-in conditions:
+      // 1. Both are within Hot Spot radius
+      // 2. Users are within 50m of each other
       const bothInRadius = session.participants.every(
         (participantId) => updatedSession.checkInData[participantId]?.isWithinRadius
       );
 
-      const nearEachOther = distanceToUser !== null && distanceToUser <= 50;
+      const nearEachOther = distanceToUser !== null && distanceToUser <= AUTO_CHECKIN_USER_DISTANCE_METERS;
 
       const canCheckIn = bothInRadius && nearEachOther;
+      const autoCheckInEligible = canCheckIn && this.isWithinMeetupTimeWindow(updatedSession);
 
       return {
         canCheckIn,
+        autoCheckInEligible,
         distanceToHotSpot,
         distanceToUser
       };
@@ -310,60 +325,83 @@ class HotSpotInviteService {
     }
   }
 
-  // Hoàn thành meetup và trao thưởng
+  // Complete meetup and reward users
   async completeMeetup(sessionId: string): Promise<CheckInReward> {
     try {
       const sessionRef = doc(db, 'meetupSessions', sessionId);
-      const sessionSnap = await getDoc(sessionRef);
-
-      if (!sessionSnap.exists()) {
-        throw new Error('Session không tồn tại');
-      }
-
-      const session = sessionSnap.data() as MeetupSession;
-
-      if (session.status === 'completed') {
-        throw new Error('Meetup đã hoàn thành');
-      }
-
-      // Tính thưởng
       const reward: CheckInReward = {
         points: 50,
         badge: 'meetup_master',
-        message: '🎉 Chúc mừng! Bạn đã gặp mặt thành công!',
+        message: `Meetup completed. You received +${MEETUP_DIAMOND_REWARD} diamonds.`,
         items: ['special_gift_voucher'],
       };
 
-      // Cập nhật session
-      await updateDoc(sessionRef, {
-        status: 'completed',
-        completedAt: serverTimestamp(),
-        rewards: reward,
-      });
+      const sessionData = await runTransaction(db, async (transaction) => {
+        const sessionSnap = await transaction.get(sessionRef);
+        if (!sessionSnap.exists()) {
+          throw new Error('Session does not exist');
+        }
 
-      // Cập nhật invite
-      const inviteRef = doc(db, 'hotSpotInvites', session.inviteId);
-      await updateDoc(inviteRef, {
-        status: 'completed',
-        'meetupDetails.bothCheckedIn': true,
-        'meetupDetails.meetupTime': serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+        const session = { id: sessionSnap.id, ...(sessionSnap.data() as any) } as MeetupSession;
+        if (session.status === 'completed') {
+          throw new Error('Meetup already completed');
+        }
 
-      // Trao thưởng cho cả hai người
-      const batch = writeBatch(db);
-      for (const userId of session.participants) {
-        const userRef = doc(db, 'users', userId);
-        batch.update(userRef, {
-          points: (await getDoc(userRef)).data()?.points || 0 + reward.points,
-          totalMeetups: ((await getDoc(userRef)).data()?.totalMeetups || 0) + 1,
+        transaction.update(sessionRef, {
+          status: 'completed',
+          completedAt: serverTimestamp(),
+          rewards: {
+            ...reward,
+            diamonds: MEETUP_DIAMOND_REWARD,
+          },
         });
 
-        // Tạo notification
-        await this.createRewardNotification(userId, reward);
-      }
+        const inviteRef = doc(db, 'hotSpotInvites', session.inviteId);
+        transaction.set(inviteRef, {
+          status: 'completed',
+          meetupDetails: {
+            bothCheckedIn: true,
+            meetupTime: serverTimestamp(),
+          },
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
 
+        return session;
+      });
+
+      const batch = writeBatch(db);
+      for (const uid of sessionData.participants) {
+        const userRef = doc(db, 'users', uid);
+        const walletRef = doc(db, 'users', uid, 'wallet', 'balance');
+        const historyRef = doc(collection(db, 'hotSpotMeetupHistory'));
+
+        batch.set(walletRef, {
+          coins: increment(MEETUP_DIAMOND_REWARD),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        batch.set(userRef, {
+          coins: increment(MEETUP_DIAMOND_REWARD),
+          totalMeetups: increment(1),
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        batch.set(historyRef, {
+          userId: uid,
+          sessionId,
+          inviteId: sessionData.inviteId,
+          hotSpotId: sessionData.hotSpotId,
+          rewardType: 'meetup_auto_checkin',
+          diamonds: MEETUP_DIAMOND_REWARD,
+          points: reward.points,
+          createdAt: serverTimestamp(),
+        });
+      }
       await batch.commit();
+
+      await Promise.all(
+        sessionData.participants.map((uid) => this.createRewardNotification(uid, reward))
+      );
 
       return reward;
     } catch (error) {
@@ -372,7 +410,7 @@ class HotSpotInviteService {
     }
   }
 
-  // Lấy danh sách lời mời pending
+  // Get pending invites
   async getPendingInvites(userId: string): Promise<HotSpotInvite[]> {
     try {
       const q = query(
@@ -390,13 +428,13 @@ class HotSpotInviteService {
     }
   }
 
-  // Lấy meetup session đang active
-  async getActiveMeetupSession(userId: string, hotSpotId: string): Promise<MeetupSession | null> {
+  // Get active meetup session
+  async getActiveMeetupSession(userId: string, inviteId: string): Promise<MeetupSession | null> {
     try {
       const q = query(
         collection(db, 'meetupSessions'),
         where('participants', 'array-contains', userId),
-        where('hotSpotId', '==', hotSpotId),
+        where('inviteId', '==', inviteId),
         where('status', 'in', ['both_confirmed', 'checking_proximity'])
       );
 
@@ -410,7 +448,34 @@ class HotSpotInviteService {
     }
   }
 
-  // Helper: Tạo chat room cho HotSpot
+  private toMs(ts: any): number {
+    try {
+      if (!ts) return 0;
+      if (typeof ts?.toMillis === 'function') return ts.toMillis();
+      if (typeof ts?.seconds === 'number') return ts.seconds * 1000;
+      if (typeof ts === 'number') return ts;
+      if (typeof ts === 'string') return Date.parse(ts) || 0;
+      if (typeof ts?.toDate === 'function') return ts.toDate().getTime();
+    } catch { }
+    return 0;
+  }
+
+  private isWithinMeetupTimeWindow(session: MeetupSession): boolean {
+    const participants = session?.participants || [];
+    if (participants.length < 2) return false;
+
+    const p1 = session.checkInData?.[participants[0]];
+    const p2 = session.checkInData?.[participants[1]];
+    if (!p1?.checkInTime || !p2?.checkInTime) return false;
+
+    const t1 = this.toMs(p1.checkInTime);
+    const t2 = this.toMs(p2.checkInTime);
+    if (!t1 || !t2) return false;
+
+    return Math.abs(t1 - t2) <= MEETUP_TIME_WINDOW_MINUTES * 60 * 1000;
+  }
+
+  // Helper: create chat room for Hot Spot
   private async createHotSpotChatRoom(invite: HotSpotInvite): Promise<string> {
     const chatRoomData = {
       type: 'hotspot',
@@ -426,7 +491,7 @@ class HotSpotInviteService {
     return docRef.id;
   }
 
-  // Helper: Tạo notification
+  // Helper: create notification
   private async createInviteNotification(
     receiverId: string,
     senderId: string,
@@ -438,8 +503,8 @@ class HotSpotInviteService {
       await addDoc(collection(db, 'notifications'), {
         userId: receiverId,
         type: 'hotspot_invite',
-        title: '🔥 Lời mời đi cùng',
-        message: `${senderName} rủ bạn đi cùng đến ${hotSpotTitle}`,
+        title: 'Hot Spot invite',
+        message: `${senderName} invited you to join ${hotSpotTitle}`,
         senderId,
         inviteId,
         read: false,
@@ -459,8 +524,8 @@ class HotSpotInviteService {
       await addDoc(collection(db, 'notifications'), {
         userId: receiverId,
         type: 'hotspot_invite_accepted',
-        title: '✅ Lời mời được chấp nhận',
-        message: `Bạn bè đã chấp nhận đi cùng đến ${hotSpotTitle}`,
+        title: 'Invite accepted',
+        message: `Your friend accepted the invite to ${hotSpotTitle}`,
         senderId,
         read: false,
         createdAt: serverTimestamp(),
@@ -475,8 +540,8 @@ class HotSpotInviteService {
       await addDoc(collection(db, 'notifications'), {
         userId,
         type: 'meetup_reward',
-        title: '🎁 Phần thưởng',
-        message: `${reward.message} Bạn nhận được ${reward.points} điểm!`,
+        title: 'Reward received',
+        message: `${reward.message} You received +${MEETUP_DIAMOND_REWARD} diamonds.`,
         read: false,
         createdAt: serverTimestamp(),
       });
@@ -487,3 +552,6 @@ class HotSpotInviteService {
 }
 
 export default new HotSpotInviteService();
+
+
+

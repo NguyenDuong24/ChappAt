@@ -13,6 +13,7 @@ import {
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next';
 
 interface EditMessageModalProps {
     visible: boolean;
@@ -29,6 +30,7 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
     originalText,
     loading = false,
 }) => {
+    const { t } = useTranslation();
     const themeCtx = useContext(ThemeContext);
     const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
     const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -36,7 +38,7 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
 
     const handleSave = () => {
         if (!editedText.trim()) {
-            Alert.alert('Lỗi', 'Tin nhắn không thể để trống');
+            Alert.alert(t('common.error'), t('chat.edit_modal.error_empty'));
             return;
         }
 
@@ -66,9 +68,7 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
             >
                 <View style={[styles.container, { backgroundColor: currentThemeColors.surface }]}>
                     <View style={styles.header}>
-                        <Text style={[styles.title, { color: currentThemeColors.text }]}>
-                            Chỉnh sửa tin nhắn
-                        </Text>
+                        <Text style={[styles.title, { color: currentThemeColors.text }]}>{t('chat.edit_modal.title')}</Text>
                         <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                             <MaterialIcons name="close" size={24} color={currentThemeColors.text} />
                         </TouchableOpacity>
@@ -87,7 +87,7 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
                             value={editedText}
                             onChangeText={setEditedText}
                             multiline
-                            placeholder="Nhập tin nhắn..."
+                            placeholder={t('chat.edit_modal.placeholder')}
                             placeholderTextColor={currentThemeColors.icon}
                             autoFocus
                             maxLength={1000}
@@ -104,9 +104,7 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
                             onPress={handleClose}
                             disabled={loading}
                         >
-                            <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>
-                                Hủy
-                            </Text>
+                            <Text style={[styles.buttonText, { color: currentThemeColors.text }]}>{t('common.cancel')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -122,9 +120,7 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
                             {loading ? (
                                 <MaterialIcons name="hourglass-empty" size={20} color="white" />
                             ) : (
-                                <Text style={[styles.buttonText, { color: 'white' }]}>
-                                    Lưu
-                                </Text>
+                                <Text style={[styles.buttonText, { color: 'white' }]}>{t('common.save')}</Text>
                             )}
                         </TouchableOpacity>
                     </View>

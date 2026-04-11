@@ -41,5 +41,7 @@ app-example
 .env
 admin-web/.env
 admin-web/firebase-admin-key.json
+saigondating-server/firebase-service-account.json
+token.txt
 *_output.txt
 *_log_new.txt

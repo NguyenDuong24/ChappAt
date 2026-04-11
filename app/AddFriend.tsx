@@ -17,10 +17,12 @@ import { Colors } from '@/constants/Colors';
 import { LocationContext } from '@/context/LocationContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 const FollowUser = () => {
   const [search, setSearch] = useState('');
   const [users, setUsers] = useState([]);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const { location } = useContext(LocationContext);
@@ -31,7 +33,7 @@ const FollowUser = () => {
 
   const handleSearch = async () => {
     if (search.trim() === '') {
-      alert('Vui lòng nhập tên hoặc ID cần tìm.');
+      alert(t('add_friend.enter_name_or_id'));
       return;
     }
     setLoading(true);
@@ -161,13 +163,13 @@ const FollowUser = () => {
           />
           <Card.Actions style={styles.cardActions}>
             {item.followStatus ? (
-              <Text style={styles.followingText}>Đang theo dõi</Text>
+              <Text style={styles.followingText}>{t('add_friend.following')}</Text>
             ) : (
               <TouchableOpacity
                 style={styles.followButton}
                 onPress={() => followUser(item.id)}
               >
-                <Text style={styles.followButtonText}>Theo dõi</Text>
+                <Text style={styles.followButtonText}>{t('add_friend.follow')}</Text>
               </TouchableOpacity>
             )}
           </Card.Actions>
@@ -192,7 +194,7 @@ const FollowUser = () => {
               color: currentThemeColors.text,
             },
           ]}
-          placeholder="Nhập tên hoặc ID..."
+          placeholder={t('add_friend.placeholder')}
           placeholderTextColor={currentThemeColors.placeholderText}
           value={search}
           onChangeText={setSearch}
@@ -204,7 +206,7 @@ const FollowUser = () => {
       {loading ? (
         <ActivityIndicator size="large" color={Colors.primary} />
       ) : users.length === 0 ? (
-        <Text style={styles.noResultText}>Không tìm thấy user</Text>
+        <Text style={styles.noResultText}>{t('add_friend.no_user_found')}</Text>
       ) : (
         <FlatList
           data={users}

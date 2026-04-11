@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -18,6 +18,7 @@ import { BlurView } from 'expo-blur';
 import QRCode from 'react-native-qrcode-svg';
 import { useAuth } from '@/context/authContext';
 import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
@@ -36,6 +37,7 @@ interface EventPass {
 }
 
 const EventPassDetailScreen = () => {
+    const { t } = useTranslation();
     const { eventPassId } = useLocalSearchParams();
     const router = useRouter();
     const { user } = useAuth();
@@ -54,13 +56,13 @@ const EventPassDetailScreen = () => {
                 id: eventPassId as string || '123',
                 eventName: 'Summer Music Festival 2025',
                 eventImage: 'https://images.unsplash.com/photo-1459749411177-2a2965f7852f?q=80&w=2070&auto=format&fit=crop',
-                location: 'Sân vận động Quốc gia Mỹ Đình, Hà Nội',
+                location: t('event_pass.mock_location'),
                 date: '20/07/2025',
                 time: '19:00 - 23:00',
                 seat: 'VIP - Row A - Seat 12',
-                price: '2.500.000 VNĐ',
+                price: '2,500,000 VND',
                 status: 'active',
-                description: 'Lễ hội âm nhạc lớn nhất mùa hè với sự tham gia của các nghệ sĩ hàng đầu trong nước và quốc tế. Trải nghiệm âm thanh ánh sáng đỉnh cao.',
+                description: t('event_pass.mock_description'),
                 organizer: 'ChappAt Events'
             });
             setLoading(false);
@@ -73,7 +75,7 @@ const EventPassDetailScreen = () => {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={styles.loadingText}>Đang tải vé...</Text>
+                <Text style={styles.loadingText}>{t('event_pass.loading')}</Text>
             </View>
         );
     }
@@ -81,9 +83,9 @@ const EventPassDetailScreen = () => {
     if (!pass) {
         return (
             <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>Không tìm thấy vé</Text>
+                <Text style={styles.errorText}>{t('event_pass.not_found')}</Text>
                 <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                    <Text style={styles.backButtonText}>Quay lại</Text>
+                    <Text style={styles.backButtonText}>{t('common.back')}</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -102,7 +104,7 @@ const EventPassDetailScreen = () => {
                 <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
                     <Ionicons name="close" size={24} color="white" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Vé Sự Kiện</Text>
+                <Text style={styles.headerTitle}>{t('event_pass.title')}</Text>
                 <TouchableOpacity style={styles.headerButton}>
                     <Ionicons name="share-outline" size={24} color="white" />
                 </TouchableOpacity>
@@ -130,11 +132,11 @@ const EventPassDetailScreen = () => {
                     <View style={styles.ticketBody}>
                         <View style={styles.infoRow}>
                             <View style={styles.infoItem}>
-                                <Text style={styles.label}>NGÀY</Text>
+                                <Text style={styles.label}>{t('event_pass.date_label')}</Text>
                                 <Text style={styles.value}>{pass.date}</Text>
                             </View>
                             <View style={styles.infoItem}>
-                                <Text style={styles.label}>GIỜ</Text>
+                                <Text style={styles.label}>{t('event_pass.time_label')}</Text>
                                 <Text style={styles.value}>{pass.time}</Text>
                             </View>
                         </View>
@@ -143,7 +145,7 @@ const EventPassDetailScreen = () => {
 
                         <View style={styles.infoRow}>
                             <View style={styles.infoItem}>
-                                <Text style={styles.label}>ĐỊA ĐIỂM</Text>
+                                <Text style={styles.label}>{t('event_pass.location_label')}</Text>
                                 <Text style={styles.value} numberOfLines={2}>{pass.location}</Text>
                             </View>
                         </View>
@@ -152,11 +154,11 @@ const EventPassDetailScreen = () => {
 
                         <View style={styles.infoRow}>
                             <View style={styles.infoItem}>
-                                <Text style={styles.label}>VỊ TRÍ</Text>
+                                <Text style={styles.label}>{t('event_pass.seat_label')}</Text>
                                 <Text style={styles.value}>{pass.seat}</Text>
                             </View>
                             <View style={styles.infoItem}>
-                                <Text style={styles.label}>GIÁ VÉ</Text>
+                                <Text style={styles.label}>{t('event_pass.price_label')}</Text>
                                 <Text style={[styles.value, { color: Colors.primary }]}>{pass.price}</Text>
                             </View>
                         </View>
@@ -171,7 +173,7 @@ const EventPassDetailScreen = () => {
                                     backgroundColor="white"
                                 />
                             </View>
-                            <Text style={styles.qrText}>Quét mã này tại cổng soát vé</Text>
+                            <Text style={styles.qrText}>{t('event_pass.qr_hint')}</Text>
                             <Text style={styles.ticketId}>ID: {pass.id}</Text>
                         </View>
                     </View>
@@ -189,15 +191,18 @@ const EventPassDetailScreen = () => {
                         pass.status === 'used' ? styles.statusUsed : styles.statusExpired
                     ]}>
                         <Text style={styles.statusText}>
-                            {pass.status === 'active' ? 'CÓ HIỆU LỰC' :
-                                pass.status === 'used' ? 'ĐÃ SỬ DỤNG' : 'HẾT HẠN'}
+                            {pass.status === 'active'
+                                ? t('event_pass.status_active')
+                                : pass.status === 'used'
+                                    ? t('event_pass.status_used')
+                                    : t('event_pass.status_expired')}
                         </Text>
                     </View>
                 </View>
 
                 {/* Description */}
                 <View style={styles.descriptionContainer}>
-                    <Text style={styles.sectionTitle}>Thông tin sự kiện</Text>
+                    <Text style={styles.sectionTitle}>{t('event_pass.section_info')}</Text>
                     <Text style={styles.descriptionText}>{pass.description}</Text>
                 </View>
 
@@ -205,11 +210,11 @@ const EventPassDetailScreen = () => {
                 <View style={styles.actionsContainer}>
                     <TouchableOpacity style={styles.actionButton}>
                         <MaterialCommunityIcons name="calendar-export" size={24} color="white" />
-                        <Text style={styles.actionButtonText}>Thêm vào lịch</Text>
+                        <Text style={styles.actionButtonText}>{t('event_pass.add_calendar')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[styles.actionButton, styles.secondaryAction]}>
                         <MaterialCommunityIcons name="map-marker-radius" size={24} color="white" />
-                        <Text style={styles.actionButtonText}>Chỉ đường</Text>
+                        <Text style={styles.actionButtonText}>{t('event_pass.directions')}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -494,3 +499,6 @@ const styles = StyleSheet.create({
 });
 
 export default EventPassDetailScreen;
+
+
+

@@ -10,6 +10,8 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint",
+    "i18n:audit": "node ./scripts/i18n-audit.js",
+    "hardcoded:audit": "node ./scripts/hardcoded-audit.js",
     "postinstall": "patch-package"
   },
   "jest": {

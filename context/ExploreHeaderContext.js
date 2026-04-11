@@ -9,7 +9,13 @@ export const SCROLL_DISTANCE = HEADER_HEIGHT - COLLAPSED_HEADER_HEIGHT;
 export const ExploreHeaderContext = createContext({
   scrollY: null,
   handleScroll: null,
+  scrollValues: {
+    latest: null,
+    trending: null,
+    following: null
+  },
   headerHeight: HEADER_HEIGHT,
+  effectiveHeaderHeight: HEADER_HEIGHT,
   collapsedHeaderHeight: COLLAPSED_HEADER_HEIGHT,
 });
 

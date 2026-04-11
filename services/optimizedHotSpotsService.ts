@@ -3,18 +3,17 @@ import {
   doc,
   query,
   where,
-  orderBy,
   limit as firestoreLimit,
   getDocs,
   onSnapshot,
   Unsubscribe,
-  DocumentSnapshot,
-  addDoc,
   updateDoc,
   writeBatch,
   increment,
   deleteDoc,
-  getDoc
+  getDoc,
+  setDoc,
+  runTransaction
 } from 'firebase/firestore';
 import ExpoPushNotificationService from './expoPushNotificationService';
 import { db } from '@/firebaseConfig';
@@ -135,7 +134,8 @@ class OptimizedHotSpotsService {
         const result = new Map();
         cached.forEach((interaction: any) => {
           if (hotSpotIds.includes(interaction.hotSpotId)) {
-            result.set(interaction.hotSpotId, interaction);
+            const existing = result.get(interaction.hotSpotId) || this.createInteractionState();
+            result.set(interaction.hotSpotId, this.mergeInteractionState(existing, interaction));
           }
         });
         return result;
@@ -164,8 +164,8 @@ class OptimizedHotSpotsService {
       const result = new Map<string, any>();
       interactions.forEach((interaction: any) => {
         if (hotSpotIds.includes(interaction.hotSpotId)) {
-          const existing = result.get(interaction.hotSpotId) || {};
-          result.set(interaction.hotSpotId, { ...existing, ...interaction });
+          const existing = result.get(interaction.hotSpotId) || this.createInteractionState();
+          result.set(interaction.hotSpotId, this.mergeInteractionState(existing, interaction));
         }
       });
 
@@ -216,26 +216,25 @@ class OptimizedHotSpotsService {
       const interactionData = {
         userId,
         hotSpotId,
-        type: 'join',
+        type: 'joined',
         isJoined: true,
         timestamp: new Date(),
         createdAt: new Date()
       };
 
-      // Add to Firebase
-      await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
-
-      // Update stats
-      await this.updateHotSpotStats(hotSpotId, 'join');
+      const created = await this.createInteractionOnce(userId, hotSpotId, 'joined', interactionData);
+      if (created) {
+        await this.updateHotSpotStats(hotSpotId, 'join');
+      }
 
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
 
       // Push to creator notifying user joined
       try {
-        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const spotSnap = await this.getHotSpotDoc(hotSpotId);
         const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
-        if (creatorId && creatorId !== userId) {
+        if (created && creatorId && creatorId !== userId) {
           await ExpoPushNotificationService.sendPushToUser(creatorId, {
             title: '🎉 Có người tham gia',
             body: 'Một người dùng vừa tham gia HotSpot của bạn',
@@ -264,19 +263,19 @@ class OptimizedHotSpotsService {
         createdAt: new Date()
       };
 
-      await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
-
-      // Update stats
-      await this.updateHotSpotStats(hotSpotId, 'interested');
+      const created = await this.createInteractionOnce(userId, hotSpotId, 'interested', interactionData);
+      if (created) {
+        await this.updateHotSpotStats(hotSpotId, 'interested');
+      }
 
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
 
       // Push to creator notifying user interested
       try {
-        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const spotSnap = await this.getHotSpotDoc(hotSpotId);
         const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
-        if (creatorId && creatorId !== userId) {
+        if (created && creatorId && creatorId !== userId) {
           await ExpoPushNotificationService.sendPushToUser(creatorId, {
             title: '💜 Có người quan tâm',
             body: 'Một người dùng vừa quan tâm HotSpot của bạn',
@@ -299,26 +298,26 @@ class OptimizedHotSpotsService {
       const interactionData = {
         userId,
         hotSpotId,
-        type: 'checkin',
+        type: 'checked_in',
         hasCheckedIn: true,
         timestamp: new Date(),
         createdAt: new Date(),
-        location: location || null
+        checkInLocation: location || null
       };
 
-      await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
-
-      // Update stats
-      await this.updateHotSpotStats(hotSpotId, 'checkin');
+      const created = await this.createInteractionOnce(userId, hotSpotId, 'checked_in', interactionData);
+      if (created) {
+        await this.updateHotSpotStats(hotSpotId, 'checkin');
+      }
 
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
 
       // Push to creator notifying user check-in
       try {
-        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const spotSnap = await this.getHotSpotDoc(hotSpotId);
         const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
-        if (creatorId && creatorId !== userId) {
+        if (created && creatorId && creatorId !== userId) {
           await ExpoPushNotificationService.sendPushToUser(creatorId, {
             title: '📍 Có người check-in',
             body: 'Một người dùng vừa check-in HotSpot của bạn',
@@ -347,16 +346,16 @@ class OptimizedHotSpotsService {
         createdAt: new Date()
       };
 
-      await addDoc(collection(db, 'hotSpotInteractions'), interactionData);
+      const created = await this.createInteractionOnce(userId, hotSpotId, 'favorite', interactionData);
 
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
 
       // Optional push to creator for favorite
       try {
-        const spotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId));
+        const spotSnap = await this.getHotSpotDoc(hotSpotId);
         const creatorId = spotSnap.exists() ? (spotSnap.data() as any)?.creatorId : undefined;
-        if (creatorId && creatorId !== userId) {
+        if (created && creatorId && creatorId !== userId) {
           await ExpoPushNotificationService.sendPushToUser(creatorId, {
             title: '⭐ Được thêm vào yêu thích',
             body: 'Một người đã thêm HotSpot của bạn vào danh sách yêu thích',
@@ -376,6 +375,12 @@ class OptimizedHotSpotsService {
 
   async removeFavorite(userId: string, hotSpotId: string): Promise<void> {
     try {
+      const primaryRef = doc(db, 'hotSpotInteractions', this.getInteractionDocId(userId, hotSpotId, 'favorite'));
+      const primarySnap = await getDoc(primaryRef);
+      if (primarySnap.exists()) {
+        await deleteDoc(primaryRef);
+      }
+
       // Find and remove the favorite interaction
       const interactionsQuery = query(
         collection(db, 'hotSpotInteractions'),
@@ -406,6 +411,13 @@ class OptimizedHotSpotsService {
 
   async removeInterested(userId: string, hotSpotId: string): Promise<void> {
     try {
+      const primaryRef = doc(db, 'hotSpotInteractions', this.getInteractionDocId(userId, hotSpotId, 'interested'));
+      const primarySnap = await getDoc(primaryRef);
+      let shouldDecrement = primarySnap.exists();
+      if (primarySnap.exists()) {
+        await deleteDoc(primaryRef);
+      }
+
       // Find and remove the interested interaction
       const interactionsQuery = query(
         collection(db, 'hotSpotInteractions'),
@@ -417,9 +429,14 @@ class OptimizedHotSpotsService {
       const snapshot = await getDocs(interactionsQuery);
       const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
       await Promise.all(deletePromises);
+      if (!shouldDecrement && snapshot.docs.length > 0) {
+        shouldDecrement = true;
+      }
 
       // Update stats (decrement)
-      await this.updateHotSpotStats(hotSpotId, 'removeInterested');
+      if (shouldDecrement) {
+        await this.updateHotSpotStats(hotSpotId, 'removeInterested');
+      }
 
       // Clear relevant caches
       this.userInteractionCache.delete(`interactions_${userId}`);
@@ -584,26 +601,26 @@ class OptimizedHotSpotsService {
   // Helper method to update hotspot statistics
   private async updateHotSpotStats(hotSpotId: string, action: 'join' | 'checkin' | 'interested' | 'removeInterested'): Promise<void> {
     try {
-      const hotSpotRef = doc(db, 'hotSpots', hotSpotId);
-
       if (action === 'join') {
-        await updateDoc(hotSpotRef, {
+        await this.updateHotSpotWithFallback(hotSpotId, {
           'stats.joined': increment(1),
           'participantCount': increment(1),
           updatedAt: new Date()
         });
       } else if (action === 'checkin') {
-        await updateDoc(hotSpotRef, {
+        await this.updateHotSpotWithFallback(hotSpotId, {
+          'stats.checkedIn': increment(1),
+          // Backward-compatible key for older dashboards
           'stats.checkins': increment(1),
           updatedAt: new Date()
         });
       } else if (action === 'interested') {
-        await updateDoc(hotSpotRef, {
+        await this.updateHotSpotWithFallback(hotSpotId, {
           'stats.interested': increment(1),
           updatedAt: new Date()
         });
       } else if (action === 'removeInterested') {
-        await updateDoc(hotSpotRef, {
+        await this.updateHotSpotWithFallback(hotSpotId, {
           'stats.interested': increment(-1),
           updatedAt: new Date()
         });
@@ -619,6 +636,91 @@ class OptimizedHotSpotsService {
       console.warn('Failed to update hotspot stats:', error);
       // Don't throw - stats update is not critical
     }
+  }
+
+  private normalizeInteractionType(type: string | undefined): string {
+    if (type === 'join') return 'joined';
+    if (type === 'checkin') return 'checked_in';
+    return type || '';
+  }
+
+  private createInteractionState() {
+    return {
+      isJoined: false,
+      isInterested: false,
+      isFavorited: false,
+      hasCheckedIn: false
+    };
+  }
+
+  private mergeInteractionState(existing: any, interaction: any) {
+    const normalizedType = this.normalizeInteractionType(interaction?.type);
+    return {
+      ...existing,
+      isJoined: Boolean(existing.isJoined || interaction?.isJoined || normalizedType === 'joined'),
+      isInterested: Boolean(existing.isInterested || interaction?.isInterested || normalizedType === 'interested'),
+      isFavorited: Boolean(existing.isFavorited || interaction?.isFavorited || normalizedType === 'favorite'),
+      hasCheckedIn: Boolean(
+        existing.hasCheckedIn ||
+        interaction?.hasCheckedIn ||
+        interaction?.checkedIn ||
+        interaction?.checkInAt ||
+        normalizedType === 'checked_in'
+      )
+    };
+  }
+
+  private getInteractionDocId(userId: string, hotSpotId: string, type: 'joined' | 'interested' | 'checked_in' | 'favorite'): string {
+    return `${userId}_${hotSpotId}_${type}`;
+  }
+
+  private async createInteractionOnce(
+    userId: string,
+    hotSpotId: string,
+    type: 'joined' | 'interested' | 'checked_in' | 'favorite',
+    interactionData: Record<string, any>
+  ): Promise<boolean> {
+    const interactionRef = doc(db, 'hotSpotInteractions', this.getInteractionDocId(userId, hotSpotId, type));
+    return runTransaction(db, async (transaction) => {
+      const existing = await transaction.get(interactionRef);
+      if (existing.exists()) {
+        return false;
+      }
+
+      transaction.set(interactionRef, {
+        ...interactionData,
+        type,
+        updatedAt: new Date()
+      });
+      return true;
+    });
+  }
+
+  private async getHotSpotDoc(hotSpotId: string) {
+    const primaryRef = doc(db, 'hotSpots', hotSpotId);
+    const primarySnap = await getDoc(primaryRef);
+    if (primarySnap.exists()) {
+      return primarySnap;
+    }
+    return getDoc(doc(db, 'hotspots', hotSpotId));
+  }
+
+  private async updateHotSpotWithFallback(hotSpotId: string, payload: Record<string, any>): Promise<void> {
+    const primaryRef = doc(db, 'hotSpots', hotSpotId);
+    const primarySnap = await getDoc(primaryRef);
+    if (primarySnap.exists()) {
+      await updateDoc(primaryRef, payload);
+      return;
+    }
+
+    const fallbackRef = doc(db, 'hotspots', hotSpotId);
+    const fallbackSnap = await getDoc(fallbackRef);
+    if (fallbackSnap.exists()) {
+      await updateDoc(fallbackRef, payload);
+      return;
+    }
+
+    await setDoc(primaryRef, payload, { merge: true });
   }
 
 

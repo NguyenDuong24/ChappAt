@@ -21,6 +21,7 @@ import { BlurView } from 'expo-blur';
 import { getAuth } from 'firebase/auth';
 import { PaymentResult, PaymentStatus, vietqrPaymentService, startPaymentPolling, startRealTimePaymentListener } from '../../services/vietqrPaymentService';
 import { diagnosticService } from '../../services/diagnosticService';
+import { useTranslation } from 'react-i18next';
 
 interface VietQRPaymentModalProps {
     visible: boolean;
@@ -37,6 +38,7 @@ export default function VietQRPaymentModal({
     onPaymentSuccess,
     onPaymentFailed,
 }: VietQRPaymentModalProps) {
+    const { t } = useTranslation();
     const [status, setStatus] = useState<'waiting' | 'polling' | 'verifying' | 'success' | 'failed'>('waiting');
     const [message, setMessage] = useState('Đang chờ xác nhận thanh toán...');
     const [confirmDescription, setConfirmDescription] = useState('');
@@ -49,7 +51,7 @@ export default function VietQRPaymentModal({
     useEffect(() => {
         if (visible && paymentResult) {
             setStatus('waiting');
-            setMessage('Quét mã QR hoặc chuyển khoản...');
+            setMessage(t('vietqr_modal.scan_or_transfer'));
             setConfirmDescription('');
             setIsVerifying(false);
             setPollCounter(0);
@@ -74,14 +76,14 @@ export default function VietQRPaymentModal({
         const uid = auth.currentUser?.uid;
         if (!uid) {
             setStatus('failed');
-            setMessage('Lỗi: Không xác định được người dùng. Vui lòng đăng nhập lại');
+            setMessage(t('vietqr_modal.user_not_found'));
             console.warn('[VietQRModal] No uid found');
             return;
         }
 
         console.log('[VietQRModal] Starting real-time listener for SMS Banking, orderId:', paymentResult.orderId);
         setStatus('polling');
-        setMessage('⏳ Chờ xác nhận từ SMS Banking...');
+        setMessage(t('vietqr_modal.waiting_sms'));
         setVerificationMethod('sms_banking');
 
         try {
@@ -99,12 +101,12 @@ export default function VietQRPaymentModal({
                     setVerificationMethod(method as any);
 
                     if (method === 'sms_banking') {
-                        setMessage('✅ Thanh toán thành công (SMS Banking)!');
+                        setMessage(t('vietqr_modal.success_sms'));
                         console.log('[VietQRModal] ✅ SMS Banking confirmed!');
                     } else if (method === 'manual') {
-                        setMessage('✅ Thanh toán thành công (Xác nhận thủ công)!');
+                        setMessage(t('vietqr_modal.success_manual'));
                     } else {
-                        setMessage('✅ Thanh toán thành công!');
+                        setMessage(t('vietqr_modal.success_generic'));
                     }
 
                     setStatus('success');
@@ -134,7 +136,7 @@ export default function VietQRPaymentModal({
         }
 
         console.log('[VietQRModal] Starting fallback polling');
-        setMessage('⏳ Chờ xác nhận (Polling mode)...');
+        setMessage(t('vietqr_modal.waiting_polling'));
 
         try {
             const pollingController = startPaymentPolling(
@@ -148,11 +150,11 @@ export default function VietQRPaymentModal({
                     setVerificationMethod(method as any);
 
                     if (method === 'sms_banking') {
-                        setMessage('✅ Thanh toán thành công (SMS Banking)!');
+                        setMessage(t('vietqr_modal.success_sms'));
                     } else if (method === 'manual') {
-                        setMessage('✅ Thanh toán thành công (Xác nhận thủ công)!');
+                        setMessage(t('vietqr_modal.success_manual'));
                     } else {
-                        setMessage('✅ Thanh toán thành công!');
+                        setMessage(t('vietqr_modal.success_generic'));
                     }
 
                     setStatus('success');
@@ -174,8 +176,8 @@ export default function VietQRPaymentModal({
         } catch (error: any) {
             console.error('[VietQRModal] Error starting fallback polling:', error);
             setStatus('failed');
-            setMessage(error?.message || 'Lỗi khi khởi động polling');
-            onPaymentFailed(error?.message || 'Polling initialization failed');
+            setMessage(error?.message || t('vietqr_modal.polling_start_error'));
+            onPaymentFailed(error?.message || t('vietqr_modal.polling_init_failed'));
         }
     };
 
@@ -195,7 +197,7 @@ export default function VietQRPaymentModal({
 
     const handleCopyDescription = async () => {
         if (!paymentResult?.description) {
-            Alert.alert('Lỗi', 'Không có nội dung để copy');
+            Alert.alert(t('common.error'), t('vietqr_modal.no_content_to_copy'));
             return;
         }
 
@@ -204,27 +206,27 @@ export default function VietQRPaymentModal({
             console.log('[VietQRModal] Copied to clipboard:', paymentResult.description);
             // Show feedback with actual content
             Alert.alert(
-                '✅ Đã copy',
+                t('vietqr_modal.copied_title'),
                 paymentResult.description,
-                [{ text: 'OK', onPress: () => { } }],
+                [{ text: t('common.ok'), onPress: () => { } }],
                 { cancelable: true }
             );
         } catch (error) {
             console.warn('[VietQRModal] Copy error:', error);
-            Alert.alert('Lỗi', 'Không thể copy. Vui lòng thử lại');
+            Alert.alert(t('common.error'), t('vietqr_modal.copy_failed'));
         }
     };
 
     const handleDirectPayment = () => {
         if (!paymentResult) {
-            Alert.alert('Lỗi', 'Không có thông tin thanh toán');
+            Alert.alert(t('common.error'), t('vietqr_modal.no_payment_info'));
             return;
         }
 
         const { amount, description, accountNumber } = paymentResult;
 
         if (!amount || !description || !accountNumber) {
-            Alert.alert('Lỗi', 'Thông tin thanh toán không đầy đủ');
+            Alert.alert(t('common.error'), t('vietqr_modal.incomplete_payment_info'));
             return;
         }
 
@@ -240,18 +242,18 @@ export default function VietQRPaymentModal({
                 } else {
                     // Fallback: Show error and keep modal open
                     console.warn('[VietQRModal] Banking link not supported');
-                    Alert.alert('Lỗi', 'Vui lòng quét mã QR hoặc chuyển khoản thủ công');
+                    Alert.alert(t('common.error'), t('vietqr_modal.scan_or_manual_transfer'));
                 }
             })
             .catch((error) => {
                 console.error('[VietQRModal] Banking link error:', error);
-                Alert.alert('Lỗi', 'Không thể mở app ngân hàng. Vui lòng quét mã QR.');
+                Alert.alert(t('common.error'), t('vietqr_modal.open_bank_app_failed'));
             });
     };
 
     const handleVerifyPayment = async () => {
         if (!paymentResult) {
-            Alert.alert('Lỗi', 'Không có thông tin thanh toán. Vui lòng thử lại');
+            Alert.alert(t('common.error'), t('vietqr_modal.no_payment_info_retry'));
             return;
         }
 
@@ -259,13 +261,13 @@ export default function VietQRPaymentModal({
         const descriptionToVerify = paymentResult.description;
 
         if (!descriptionToVerify?.trim()) {
-            Alert.alert('Lỗi', 'Không có nội dung thanh toán. Vui lòng liên hệ hỗ trợ');
+            Alert.alert(t('common.error'), t('vietqr_modal.no_payment_description'));
             return;
         }
 
         setIsVerifying(true);
         setStatus('verifying');
-        setMessage('Đang xác nhận thanh toán...');
+        setMessage(t('vietqr_modal.verifying_payment'));
 
         try {
             console.log('[VietQRModal] Verifying payment with description:', descriptionToVerify);
@@ -277,13 +279,13 @@ export default function VietQRPaymentModal({
 
             setStatus('success');
             setVerificationMethod('manual');
-            setMessage('✅ Thanh toán đã xác nhận!');
+            setMessage(t('vietqr_modal.payment_verified'));
             console.log('[VietQRModal] Manual verification success:', result);
             onPaymentSuccess(result as PaymentStatus);
         } catch (error: any) {
             // ⚠️ IMPORTANT: Keep modal open on failure - user can retry
             setStatus('failed');
-            const errorMsg = error?.message || 'Xác nhận thanh toán thất bại. Vui lòng thử lại hoặc liên hệ hỗ trợ';
+            const errorMsg = error?.message || t('vietqr_modal.verify_failed');
             setMessage(errorMsg);
             console.error('[VietQRModal] Manual verification failed:', error);
             // Don't call onPaymentFailed - let user retry within modal
@@ -295,36 +297,36 @@ export default function VietQRPaymentModal({
     // Debug: Run diagnostic
     const handleRunDiagnostic = async () => {
         if (!paymentResult?.orderId) {
-            Alert.alert('Lỗi', 'Không có orderId');
+            Alert.alert(t('common.error'), t('vietqr_modal.no_order_id'));
             return;
         }
 
-        Alert.alert('🔍 Running Diagnostic', 'Đang kiểm tra...');
+        Alert.alert(t('vietqr_modal.diagnostic_title'), t('vietqr_modal.diagnostic_running'));
         const results = await diagnosticService.runFullDiagnostic(paymentResult.orderId);
         await diagnosticService.analyzeProblem(paymentResult.orderId);
 
         const summaryText = `
 Firestore: ${results.checks.firestore ? '✅' : '❌'}
-Status: ${results.checks.firestoreStatus || 'N/A'}
+Status: ${results.checks.firestoreStatus || t('vietqr_modal.na')}
 Server: ${results.checks.server ? '✅' : '❌'}
 Backend: ${results.checks.backend ? '✅' : '❌'}
 
-Chi tiết xem logs ở console (F12)
+${t('vietqr_modal.check_console')}
         `;
 
-        Alert.alert('📊 Diagnostic Results', summaryText.trim());
+        Alert.alert(t('vietqr_modal.diagnostic_results_title'), summaryText.trim());
     };
 
     const handleReportIssue = async () => {
         if (!paymentResult) return;
 
         Alert.alert(
-            'Báo cáo vấn đề',
-            'Sử dụng tính năng này nếu bạn đã chuyển khoản thành công nhưng hệ thống chưa cộng xu sau 5-10 phút. Đội ngũ kỹ thuật sẽ kiểm tra ngay lập tức.',
+            t('vietqr_modal.report_issue_title'),
+            t('vietqr_modal.report_issue_message'),
             [
-                { text: 'Hủy', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Gửi báo cáo',
+                    text: t('vietqr_modal.send_report'),
                     onPress: async () => {
                         try {
                             const result = await vietqrPaymentService.reportIssue(
@@ -334,13 +336,13 @@ Chi tiết xem logs ở console (F12)
                             );
 
                             if (result?.success) {
-                                Alert.alert('✅ Đã gửi', 'Báo cáo của bạn đã được gửi. Chúng tôi sẽ xử lý sớm nhất có thể.');
+                                Alert.alert(t('vietqr_modal.report_sent_title'), t('vietqr_modal.report_sent_message'));
                             } else {
-                                throw new Error(result?.message || 'Server error');
+                                throw new Error(result?.message || t('vietqr_modal.server_error'));
                             }
                         } catch (err: any) {
                             console.error('[VIETQR] Report Error:', err);
-                            Alert.alert('Lỗi', `Không thể gửi báo cáo: ${err.message || 'Vui lòng thử lại sau.'}`);
+                            Alert.alert(t('common.error'), t('vietqr_modal.report_failed', { message: err.message || t('vietqr_modal.try_again_later') }));
                         }
                     }
                 }
@@ -367,8 +369,8 @@ Chi tiết xem logs ở console (F12)
 
             // Step 2: Share the file - user can save to gallery from share sheet
             await Share.share({
-                title: 'Mã QR Thanh Toán VietQR',
-                message: `Quét mã QR để thanh toán ${paymentResult.amount.toLocaleString('vi-VN')}đ - Nội dung: ${paymentResult.description}`,
+                title: t('vietqr_modal.share_title'),
+                message: t('vietqr_modal.share_message', { amount: paymentResult.amount.toLocaleString('vi-VN'), description: paymentResult.description }),
                 url: downloadResult.uri, // local file URI for iOS
             });
 
@@ -379,8 +381,8 @@ Chi tiết xem logs ở console (F12)
                 await Linking.openURL(paymentResult.qrImageUrl);
             } catch {
                 Alert.alert(
-                    'Lưu mã QR',
-                    'Vui lòng chụp màn hình để lưu mã QR.'
+                    t('vietqr_modal.save_qr_title'),
+                    t('vietqr_modal.save_qr_message')
                 );
             }
         }
@@ -396,15 +398,15 @@ Chi tiết xem logs ở console (F12)
                     >
                         <Ionicons name="checkmark-sharp" size={48} color="#fff" />
                     </LinearGradient>
-                    <Text style={styles.statusTitle}>Giao dịch thành công!</Text>
+                    <Text style={styles.statusTitle}>{t('vietqr_modal.transaction_success_title')}</Text>
                     <Text style={styles.statusMessage}>
-                        Tài khoản của bạn đã được cộng xu thành công.
+                        {t('vietqr_modal.transaction_success_message')}
                     </Text>
 
                     {verificationMethod === 'sms_banking' && (
                         <View style={styles.successBadge}>
                             <Ionicons name="flash" size={16} color="#4CAF50" />
-                            <Text style={styles.successBadgeText}>Xác nhận bởi SMS Banking</Text>
+                            <Text style={styles.successBadgeText}>{t('vietqr_modal.confirmed_by_sms')}</Text>
                         </View>
                     )}
 
@@ -412,7 +414,7 @@ Chi tiết xem logs ở console (F12)
                         style={styles.primaryButton}
                         onPress={onClose}
                     >
-                        <Text style={styles.primaryButtonText}>Xong</Text>
+                        <Text style={styles.primaryButtonText}>{t('common.done')}</Text>
                     </TouchableOpacity>
                 </View>
             );
@@ -430,12 +432,12 @@ Chi tiết xem logs ở console (F12)
                 {/* Header Status */}
                 <View style={styles.minimalHeader}>
                     <ActivityIndicator size="small" color="#00A8E8" />
-                    <Text style={styles.minimalHeaderText}>Đang chờ bạn thanh toán...</Text>
+                    <Text style={styles.minimalHeaderText}>{t('vietqr_modal.waiting_for_payment')}</Text>
                 </View>
 
                 {/* QR Section */}
                 <View style={styles.qrSection}>
-                    <Text style={styles.qrText}>Quét mã QR để chuyển khoản</Text>
+                    <Text style={styles.qrText}>{t('vietqr_modal.scan_qr_to_transfer')}</Text>
                     <View style={styles.qrWrapper}>
                         {paymentResult?.qrImageUrl && (
                             <Image
@@ -445,20 +447,20 @@ Chi tiết xem logs ở console (F12)
                             />
                         )}
                         <View style={[styles.qrOverlay, { backgroundColor: '#E1F5FE' }]}>
-                            <Text style={styles.qrOverlayText}>Số tiền đã bao gồm trong mã</Text>
+                            <Text style={styles.qrOverlayText}>{t('vietqr_modal.amount_included')}</Text>
                         </View>
                     </View>
 
                     <TouchableOpacity style={styles.saveQrButton} onPress={handleSaveQR}>
                         <Ionicons name="download-outline" size={18} color="#00A8E8" />
-                        <Text style={styles.saveQrButtonText}>Lưu mã QR vào máy</Text>
+                        <Text style={styles.saveQrButtonText}>{t('vietqr_modal.save_qr_to_device')}</Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Info Card */}
                 <View style={styles.premiumCard}>
                     <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Số tiền</Text>
+                        <Text style={styles.infoLabel}>{t('vietqr_modal.amount_label')}</Text>
                         <Text style={styles.infoValue}>
                             {paymentResult?.amount.toLocaleString('vi-VN')} đ
                         </Text>
@@ -467,7 +469,7 @@ Chi tiết xem logs ở console (F12)
                     <View style={styles.cardDivider} />
 
                     <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Nội dung</Text>
+                        <Text style={styles.infoLabel}>{t('vietqr_modal.description_label')}</Text>
                         <View style={styles.memoWrapper}>
                             <Text style={styles.memoText} numberOfLines={1}>{paymentResult?.description}</Text>
                             <TouchableOpacity onPress={handleCopyDescription} style={styles.copyIconButton}>
@@ -479,7 +481,7 @@ Chi tiết xem logs ở console (F12)
                     <View style={styles.cardDivider} />
 
                     <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Ngân hàng</Text>
+                        <Text style={styles.infoLabel}>{t('vietqr_modal.bank_label')}</Text>
                         <Text style={[styles.infoValue, { fontSize: 13, color: '#666' }]}>
                             Vietcombank - {paymentResult?.accountNumber}
                         </Text>
@@ -490,14 +492,14 @@ Chi tiết xem logs ở console (F12)
                 <View style={styles.automationBox}>
                     <Ionicons name="sunny-outline" size={20} color="#00A8E8" />
                     <Text style={styles.automationText}>
-                        Hệ thống sẽ tự động xác nhận ngay sau khi bạn nhận được thông báo biến động số dư.
+                        {t('vietqr_modal.auto_confirm_notice')}
                     </Text>
                 </View>
 
                 {/* Help / Report Section */}
                 <View style={styles.helpSection}>
                     <TouchableOpacity onPress={handleReportIssue} style={styles.reportButton}>
-                        <Text style={styles.reportButtonText}>Đã nạp tiền nhưng chưa được cộng xu?</Text>
+                        <Text style={styles.reportButtonText}>{t('vietqr_modal.report_button')}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -524,7 +526,7 @@ Chi tiết xem logs ở console (F12)
                 <View style={styles.modalBody}>
                     <View style={styles.handle} />
                     <View style={styles.header}>
-                        <Text style={styles.title}>Thanh toán VietQR</Text>
+                        <Text style={styles.title}>{t('vietqr_modal.title')}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                             <Ionicons name="close" size={22} color="#999" />
                         </TouchableOpacity>

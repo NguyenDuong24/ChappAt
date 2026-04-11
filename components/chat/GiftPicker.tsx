@@ -1,458 +1,470 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    Dimensions,
-    Animated,
-    ActivityIndicator,
-    Platform,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { GiftItem } from '@/services/giftService';
 
 const { width, height } = Dimensions.get('window');
 
 interface GiftPickerProps {
-    visible: boolean;
-    onClose: () => void;
-    onSend: (giftId: string) => void;
-    gifts: GiftItem[];
-    coins: number;
-    banhMi: number;
-    themeColors: any;
-    loading?: boolean;
+  visible: boolean;
+  onClose: () => void;
+  onSend: (giftId: string) => void;
+  gifts: GiftItem[];
+  coins: number;
+  banhMi: number;
+  themeColors: any;
+  loading?: boolean;
 }
 
 const CATEGORIES = [
-    { id: 'all', name: 'Tất cả', icon: 'apps' },
-    { id: 'popular', name: 'Phổ biến', icon: 'trending-up' },
-    { id: 'love', name: 'Tình yêu', icon: 'favorite' },
-    { id: 'funny', name: 'Hài hước', icon: 'mood' },
-    { id: 'luxury', name: 'Sang trọng', icon: 'diamond' },
-    { id: 'special', name: 'Đặc biệt', icon: 'stars' },
+  { id: 'all', name: 'Tat ca', icon: 'apps' },
+  { id: 'popular', name: 'Pho bien', icon: 'trending-up' },
+  { id: 'love', name: 'Tinh yeu', icon: 'favorite' },
+  { id: 'funny', name: 'Hai huoc', icon: 'mood' },
+  { id: 'luxury', name: 'Sang trong', icon: 'diamond' },
+  { id: 'special', name: 'Dac biet', icon: 'stars' },
 ];
 
 export default function GiftPicker({
-    visible,
-    onClose,
-    onSend,
-    gifts,
-    coins,
-    banhMi,
-    themeColors,
-    loading = false,
+  visible,
+  onClose,
+  onSend,
+  gifts,
+  coins,
+  banhMi,
+  themeColors,
+  loading = false,
 }: GiftPickerProps) {
-    const [selectedCategory, setSelectedCategory] = useState('all');
-    const [selectedGiftId, setSelectedGiftId] = useState<string | null>(null);
-    const [fadeAnim] = useState(new Animated.Value(0));
-    const [slideAnim] = useState(new Animated.Value(height));
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedGiftId, setSelectedGiftId] = useState<string | null>(null);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(height));
+  const isDark = themeColors?.text === '#FFFFFF' || themeColors?.text === '#fff';
 
-    useEffect(() => {
-        if (visible) {
-            Animated.parallel([
-                Animated.timing(fadeAnim, {
-                    toValue: 1,
-                    duration: 300,
-                    useNativeDriver: true,
-                }),
-                Animated.spring(slideAnim, {
-                    toValue: 0,
-                    tension: 50,
-                    friction: 8,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        } else {
-            Animated.parallel([
-                Animated.timing(fadeAnim, {
-                    toValue: 0,
-                    duration: 250,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(slideAnim, {
-                    toValue: height,
-                    duration: 250,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        }
-    }, [visible]);
-
-    const filteredGifts = useMemo(() => {
-        if (selectedCategory === 'all') return gifts;
-        return gifts.filter((gift) => {
-            const name = gift.name.toLowerCase();
-            if (selectedCategory === 'special') return gift.currencyType === 'coins';
-            if (selectedCategory === 'love') return name.includes('tim') || name.includes('hoa') || name.includes('love') || gift.icon === '❤️' || gift.icon === '🌹';
-            if (selectedCategory === 'funny') return name.includes('hài') || name.includes('vui') || gift.icon === '😂' || gift.icon === '💩';
-            if (selectedCategory === 'luxury') return gift.price >= 500 || name.includes('kim cương') || gift.icon === '💎' || gift.icon === '🏰';
-            if (selectedCategory === 'popular') return gift.price < 100;
-            return true;
-        });
-    }, [gifts, selectedCategory]);
-
-    if (!visible && fadeAnim._value === 0) return null;
-
-    const handleSelectGift = (id: string) => {
-        setSelectedGiftId(id === selectedGiftId ? null : id);
+  const ui = useMemo(() => {
+    if (isDark) {
+      return {
+        sheetBg: '#0B1220',
+        surface: '#111A2B',
+        surfaceElevated: '#17243A',
+        border: '#26354D',
+        text: '#F8FAFC',
+        subtle: '#9FB1C9',
+        primary: '#5B6EE1',
+        primarySoft: '#2B3A66',
+        footerBg: '#0E1626',
+      };
+    }
+    return {
+      sheetBg: '#FFFFFF',
+      surface: '#F8FAFC',
+      surfaceElevated: '#EEF2FF',
+      border: '#D9E2F0',
+      text: '#0F172A',
+      subtle: '#5B6B84',
+      primary: '#4F46E5',
+      primarySoft: '#E0E7FF',
+      footerBg: '#F1F5F9',
     };
+  }, [isDark]);
 
-    const selectedGift = gifts.find(g => g.id === selectedGiftId);
-    const canAfford = selectedGift ? (
-        selectedGift.currencyType === 'coins' ? coins >= selectedGift.price : banhMi >= selectedGift.price
-    ) : true;
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 70, friction: 11, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: height, duration: 200, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [fadeAnim, slideAnim, visible]);
 
-    return (
-        <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
-            <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-                <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
-            </Animated.View>
+  const filteredGifts = useMemo(() => {
+    if (selectedCategory === 'all') return gifts;
 
-            <Animated.View
-                style={[
-                    styles.container,
-                    {
-                        backgroundColor: themeColors.surface,
-                        transform: [{ translateY: slideAnim }],
-                    },
-                ]}
+    return gifts.filter((gift) => {
+      const name = (gift.name || '').toLowerCase();
+      if (selectedCategory === 'special') return gift.currencyType === 'coins';
+      if (selectedCategory === 'love') return name.includes('tim') || name.includes('hoa') || name.includes('love');
+      if (selectedCategory === 'funny') return name.includes('hai') || name.includes('vui');
+      if (selectedCategory === 'luxury') return gift.price >= 500 || name.includes('kim cuong');
+      if (selectedCategory === 'popular') return gift.price < 100;
+      return true;
+    });
+  }, [gifts, selectedCategory]);
+
+  if (!visible && (fadeAnim as any)._value === 0) return null;
+
+  const selectedGift = gifts.find((g) => g.id === selectedGiftId) || null;
+  const canAfford = selectedGift
+    ? selectedGift.currencyType === 'coins'
+      ? coins >= selectedGift.price
+      : banhMi >= selectedGift.price
+    : false;
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
+      <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}> 
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
+
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            transform: [{ translateY: slideAnim }],
+            backgroundColor: ui.sheetBg,
+            borderTopColor: ui.border,
+          },
+        ]}
+      >
+        <BlurView intensity={85} tint={isDark ? 'dark' : 'light'} style={styles.sheetBody}>
+          <View style={styles.handle} />
+
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={[styles.title, { color: ui.text }]}>Tang qua</Text>
+              <Text style={[styles.subtitle, { color: ui.subtle }]}>Chon mot mon qua de gui ngay</Text>
+            </View>
+            <TouchableOpacity style={[styles.closeBtn, { backgroundColor: ui.surface, borderColor: ui.border }]} onPress={onClose}>
+              <MaterialIcons name="close" size={22} color={ui.subtle} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.balanceRow}>
+            <View style={[styles.balancePill, { backgroundColor: ui.surfaceElevated, borderColor: ui.border }]}> 
+              <MaterialCommunityIcons name="bread-slice" size={15} color="#F59E0B" />
+              <Text style={[styles.balanceText, { color: ui.text }]}>{banhMi}</Text>
+            </View>
+            <View style={[styles.balancePill, { backgroundColor: ui.surfaceElevated, borderColor: ui.border }]}> 
+              <MaterialCommunityIcons name="database" size={15} color="#FACC15" />
+              <Text style={[styles.balanceText, { color: ui.text }]}>{coins}</Text>
+            </View>
+          </View>
+
+          <View style={styles.categoryWrap}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
+              {CATEGORIES.map((cat) => {
+                const isActive = selectedCategory === cat.id;
+                return (
+                  <TouchableOpacity
+                    key={cat.id}
+                    onPress={() => setSelectedCategory(cat.id)}
+                    style={[
+                      styles.categoryPill,
+                      {
+                        backgroundColor: isActive ? ui.primarySoft : ui.surface,
+                        borderColor: isActive ? ui.primary : ui.border,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name={cat.icon as any} size={16} color={isActive ? ui.primary : ui.subtle} />
+                    <Text style={[styles.categoryText, { color: isActive ? ui.primary : ui.subtle }]}>{cat.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {loading ? (
+            <View style={styles.centerBox}>
+              <ActivityIndicator size="large" color={ui.primary} />
+            </View>
+          ) : (
+            <ScrollView contentContainerStyle={styles.grid}>
+              {filteredGifts.length === 0 ? (
+                <View style={styles.centerBox}>
+                  <MaterialIcons name="sentiment-dissatisfied" size={46} color={ui.subtle} />
+                  <Text style={[styles.emptyText, { color: ui.subtle }]}>Khong tim thay qua</Text>
+                </View>
+              ) : (
+                filteredGifts.map((gift) => {
+                  const isSelected = selectedGiftId === gift.id;
+                  return (
+                    <TouchableOpacity
+                      key={gift.id}
+                      onPress={() => setSelectedGiftId((prev) => (prev === gift.id ? null : gift.id))}
+                      style={[
+                        styles.giftCard,
+                        {
+                          backgroundColor: ui.surface,
+                          borderColor: isSelected ? ui.primary : ui.border,
+                        },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={isSelected ? [ui.primarySoft, ui.surfaceElevated] : [ui.surface, ui.surface]}
+                        style={styles.giftGradient}
+                      >
+                        {gift.icon ? (
+                          <Text style={styles.giftEmoji}>{gift.icon}</Text>
+                        ) : (
+                          <MaterialCommunityIcons name="gift-outline" size={30} color={ui.primary} />
+                        )}
+                        <Text style={[styles.giftName, { color: ui.text }]} numberOfLines={1}>{gift.name}</Text>
+                        <View style={styles.priceRow}>
+                          {gift.currencyType === 'coins' ? (
+                            <MaterialCommunityIcons name="database" size={12} color="#FACC15" />
+                          ) : (
+                            <MaterialCommunityIcons name="bread-slice" size={12} color="#F59E0B" />
+                          )}
+                          <Text style={[styles.priceText, { color: ui.text }]}>{gift.price}</Text>
+                        </View>
+                      </LinearGradient>
+
+                      {isSelected ? (
+                        <View style={[styles.checkDot, { backgroundColor: ui.primary }]}>
+                          <MaterialIcons name="check" size={12} color="#fff" />
+                        </View>
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+          )}
+
+          <View style={[styles.footer, { borderTopColor: ui.border, backgroundColor: ui.footerBg }]}> 
+            {selectedGift ? (
+              <Text style={[styles.selectionText, { color: ui.subtle }]} numberOfLines={1}>
+                Da chon: {selectedGift.name} ({selectedGift.price} {selectedGift.currencyType === 'coins' ? 'coin' : 'banh mi'})
+              </Text>
+            ) : (
+              <Text style={[styles.selectionText, { color: ui.subtle }]}>Hay chon mot mon qua de gui</Text>
+            )}
+
+            <TouchableOpacity
+              disabled={!selectedGift || !canAfford}
+              onPress={() => selectedGift && onSend(selectedGift.id)}
+              style={styles.sendBtn}
+              activeOpacity={0.9}
             >
-                <BlurView intensity={80} tint={themeColors.text === '#FFFFFF' ? 'dark' : 'light'} style={styles.blurContainer}>
-                    <View style={styles.header}>
-                        <View style={styles.headerIndicator} />
-                        <View style={styles.headerContent}>
-                            <Text style={[styles.title, { color: themeColors.text }]}>Tặng quà</Text>
-                            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                                <MaterialIcons name="close" size={24} color={themeColors.subtleText} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <View style={styles.categoryContainer}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList}>
-                            {CATEGORIES.map((cat) => (
-                                <TouchableOpacity
-                                    key={cat.id}
-                                    onPress={() => setSelectedCategory(cat.id)}
-                                    style={[
-                                        styles.categoryItem,
-                                        selectedCategory === cat.id && { backgroundColor: themeColors.tint + '20' },
-                                    ]}
-                                >
-                                    <MaterialIcons
-                                        name={cat.icon as any}
-                                        size={18}
-                                        color={selectedCategory === cat.id ? themeColors.tint : themeColors.subtleText}
-                                    />
-                                    <Text
-                                        style={[
-                                            styles.categoryName,
-                                            { color: selectedCategory === cat.id ? themeColors.tint : themeColors.subtleText },
-                                            selectedCategory === cat.id && styles.categoryNameActive,
-                                        ]}
-                                    >
-                                        {cat.name}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-                    </View>
-
-                    {loading ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={themeColors.tint} />
-                        </View>
-                    ) : (
-                        <ScrollView contentContainerStyle={styles.giftGrid}>
-                            {filteredGifts.length > 0 ? (
-                                filteredGifts.map((gift) => (
-                                    <TouchableOpacity
-                                        key={gift.id}
-                                        onPress={() => handleSelectGift(gift.id)}
-                                        style={[
-                                            styles.giftCard,
-                                            selectedGiftId === gift.id && { borderColor: themeColors.tint, borderWidth: 2 },
-                                        ]}
-                                    >
-                                        <View style={styles.giftIconContainer}>
-                                            <Text style={styles.giftEmoji}>{gift.icon || '🎁'}</Text>
-                                        </View>
-                                        <Text style={[styles.giftName, { color: themeColors.text }]} numberOfLines={1}>
-                                            {gift.name}
-                                        </Text>
-                                        <View style={styles.priceRow}>
-                                            {gift.currencyType === 'coins' ? (
-                                                <MaterialCommunityIcons name="database" size={12} color="#FFD700" />
-                                            ) : (
-                                                <MaterialCommunityIcons name="bread-slice" size={12} color="#F59E0B" />
-                                            )}
-                                            <Text style={[styles.giftPrice, { color: gift.currencyType === 'coins' ? '#FFD700' : themeColors.tint }]}>
-                                                {gift.price}
-                                            </Text>
-                                        </View>
-                                        {selectedGiftId === gift.id && (
-                                            <View style={[styles.selectedBadge, { backgroundColor: themeColors.tint }]}>
-                                                <MaterialIcons name="check" size={12} color="white" />
-                                            </View>
-                                        )}
-                                    </TouchableOpacity>
-                                ))
-                            ) : (
-                                <View style={styles.emptyContainer}>
-                                    <MaterialIcons name="sentiment-dissatisfied" size={48} color={themeColors.subtleText} />
-                                    <Text style={[styles.emptyText, { color: themeColors.subtleText }]}>Không tìm thấy quà nào</Text>
-                                </View>
-                            )}
-                        </ScrollView>
-                    )}
-
-                    <View style={[styles.footer, { borderTopColor: themeColors.border }]}>
-                        <View style={styles.balanceContainer}>
-                            <View style={styles.balanceItem}>
-                                <Text style={[styles.balanceLabel, { color: themeColors.subtleText }]}>Bánh mì:</Text>
-                                <View style={styles.balanceValue}>
-                                    <MaterialCommunityIcons name="bread-slice" size={16} color="#F59E0B" />
-                                    <Text style={[styles.balanceText, { color: themeColors.text }]}>{banhMi}</Text>
-                                </View>
-                            </View>
-                            <View style={styles.balanceItem}>
-                                <Text style={[styles.balanceLabel, { color: themeColors.subtleText }]}>Coin:</Text>
-                                <View style={styles.balanceValue}>
-                                    <MaterialCommunityIcons name="database" size={16} color="#FFD700" />
-                                    <Text style={[styles.balanceText, { color: themeColors.text }]}>{coins}</Text>
-                                </View>
-                            </View>
-                        </View>
-
-                        <TouchableOpacity
-                            disabled={!selectedGiftId || !canAfford}
-                            onPress={() => selectedGiftId && onSend(selectedGiftId)}
-                            style={[
-                                styles.sendButton,
-                                (!selectedGiftId || !canAfford) && styles.sendButtonDisabled,
-                                selectedGiftId && canAfford && { backgroundColor: themeColors.tint },
-                            ]}
-                        >
-                            {selectedGiftId ? (
-                                <LinearGradient
-                                    colors={canAfford ? [themeColors.tint, themeColors.tint + 'CC'] : ['#94A3B8', '#64748B']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={styles.sendButtonGradient}
-                                >
-                                    <Text style={styles.sendButtonText}>
-                                        {canAfford ? `Gửi ${selectedGift?.name}` : 'Không đủ số dư'}
-                                    </Text>
-                                </LinearGradient>
-                            ) : (
-                                <Text style={[styles.sendButtonText, { color: 'rgba(255,255,255,0.5)' }]}>Chọn quà để gửi</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </BlurView>
-            </Animated.View>
-        </View>
-    );
+              <LinearGradient
+                colors={selectedGift && canAfford ? [ui.primary, '#4338CA'] : ['#94A3B8', '#64748B']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sendBtnGradient}
+              >
+                <MaterialCommunityIcons name="gift-outline" size={18} color="#fff" />
+                <Text style={styles.sendBtnText}>{canAfford ? 'Gui qua ngay' : 'Khong du so du'}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </Animated.View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    backdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.4)',
-    },
-    container: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: height * 0.65,
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
-        overflow: 'hidden',
-        elevation: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 15,
-    },
-    blurContainer: {
-        flex: 1,
-    },
-    header: {
-        paddingTop: 12,
-        paddingBottom: 16,
-        alignItems: 'center',
-    },
-    headerIndicator: {
-        width: 40,
-        height: 5,
-        backgroundColor: 'rgba(0,0,0,0.1)',
-        borderRadius: 3,
-        marginBottom: 16,
-    },
-    headerContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        paddingHorizontal: 20,
-    },
-    title: {
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    closeButton: {
-        padding: 4,
-    },
-    categoryContainer: {
-        marginBottom: 16,
-    },
-    categoryList: {
-        paddingHorizontal: 16,
-        gap: 8,
-    },
-    categoryItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        gap: 6,
-    },
-    categoryName: {
-        fontSize: 14,
-        fontWeight: '500',
-    },
-    categoryNameActive: {
-        fontWeight: 'bold',
-    },
-    giftGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        paddingHorizontal: 12,
-        paddingBottom: 120,
-    },
-    giftCard: {
-        width: (width - 48) / 3,
-        aspectRatio: 0.85,
-        margin: 6,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 8,
-        position: 'relative',
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    giftIconContainer: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: 'rgba(0,0,0,0.03)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 8,
-    },
-    giftEmoji: {
-        fontSize: 36,
-    },
-    giftName: {
-        fontSize: 12,
-        fontWeight: '600',
-        marginBottom: 4,
-    },
-    priceRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    giftPrice: {
-        fontSize: 12,
-        fontWeight: 'bold',
-    },
-    selectedBadge: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: 20,
-        paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-        backgroundColor: 'transparent',
-        borderTopWidth: 1,
-    },
-    balanceContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    balanceItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    balanceLabel: {
-        fontSize: 12,
-    },
-    balanceValue: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    balanceText: {
-        fontSize: 14,
-        fontWeight: 'bold',
-    },
-    sendButton: {
-        height: 54,
-        borderRadius: 27,
-        overflow: 'hidden',
-    },
-    sendButtonDisabled: {
-        backgroundColor: 'rgba(0,0,0,0.1)',
-    },
-    sendButtonGradient: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    sendButtonText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    loadingContainer: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    emptyContainer: {
-        flex: 1,
-        width: width - 24,
-        height: 200,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
-    },
-    emptyText: {
-        fontSize: 16,
-        fontStyle: 'italic',
-    },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.42)',
+  },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: height * 0.72,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 1,
+    overflow: 'hidden',
+    elevation: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -8 },
+  },
+  sheetBody: {
+    flex: 1,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 46,
+    height: 5,
+    borderRadius: 99,
+    backgroundColor: 'rgba(148,163,184,0.6)',
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  headerRow: {
+    paddingHorizontal: 18,
+    paddingBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  subtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingBottom: 8,
+  },
+  balancePill: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+  },
+  balanceText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  categoryWrap: {
+    paddingTop: 4,
+    paddingBottom: 8,
+  },
+  categoryList: {
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    paddingBottom: 140,
+  },
+  giftCard: {
+    width: (width - 44) / 2,
+    margin: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  giftGradient: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+  },
+  giftEmoji: {
+    fontSize: 34,
+    marginBottom: 6,
+  },
+  giftName: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  priceText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  checkDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  centerBox: {
+    width: width,
+    height: 220,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  emptyText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 30 : 16,
+    backgroundColor: 'rgba(2,6,23,0.08)',
+  },
+  selectionText: {
+    fontSize: 12,
+    marginBottom: 10,
+    fontWeight: '600',
+  },
+  sendBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  sendBtnGradient: {
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  sendBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
 });

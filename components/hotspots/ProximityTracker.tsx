@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -43,6 +43,7 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [locationPermission, setLocationPermission] = useState(false);
+  const autoCheckTriggeredRef = useRef(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -103,8 +104,8 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
 
       if (status !== 'granted') {
         Alert.alert(
-          'Cần quyền truy cập vị trí',
-          'Để tự động check-in, bạn cần cấp quyền truy cập vị trí.',
+          'Location Permission',
+          'To auto check-in, please allow location access.',
           [{ text: 'OK' }]
         );
       }
@@ -126,7 +127,7 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
 
   const startTracking = async () => {
     if (!locationPermission) {
-      Alert.alert('Lỗi', 'Cần quyền truy cập vị trí để theo dõi');
+      Alert.alert('Error', 'Location permission is required to start tracking.');
       return;
     }
 
@@ -153,7 +154,7 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
       );
     } catch (error) {
       console.error('Error starting tracking:', error);
-      Alert.alert('Lỗi', 'Không thể theo dõi vị trí');
+      Alert.alert('Error', 'Unable to track location.');
       setTracking(false);
     }
   };
@@ -181,8 +182,10 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
       setDistanceToHotSpot(result.distanceToHotSpot);
       setDistanceToUser(result.distanceToUser);
       setCanCheckIn(result.canCheckIn);
-
-      // Removed auto check-in as per user's request for manual button
+      if (result.autoCheckInEligible && !autoCheckTriggeredRef.current && !isCheckingIn) {
+        autoCheckTriggeredRef.current = true;
+        handleCheckIn();
+      }
     } catch (error) {
       console.error('Error updating location:', error);
     }
@@ -199,11 +202,11 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
       const reward = await hotSpotInviteService.completeMeetup(session.id);
 
       Alert.alert(
-        '🎉 Check-in thành công!',
-        `${reward.message}\n\nBạn nhận được ${reward.points} điểm!`,
+        'Check-in Successful!',
+        `${reward.message}\n\nYou received ${reward.points} points!`,
         [
           {
-            text: 'Tuyệt vời!',
+            text: 'Great!',
             onPress: () => {
               if (onCheckInComplete) {
                 onCheckInComplete(reward);
@@ -214,7 +217,12 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
       );
     } catch (error) {
       console.error('Error during check-in:', error);
-      Alert.alert('Lỗi', 'Có lỗi xảy ra khi check-in. Vui lòng thử lại.');
+      const errMsg = String((error as any)?.message || "");
+      if (errMsg.toLowerCase().includes("already completed")) {
+        return;
+      }
+      Alert.alert('Error', 'Check-in failed. Please try again.');
+      autoCheckTriggeredRef.current = false;
       startTracking(); // Restart tracking if failed
     } finally {
       setIsCheckingIn(false);
@@ -242,15 +250,15 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
         >
           <MaterialIcons name="location-off" size={24} color="#EF4444" />
           <View style={styles.content}>
-            <Text style={styles.errorTitle}>Cần quyền truy cập vị trí</Text>
+            <Text style={styles.errorTitle}>Location Permission Needed</Text>
             <Text style={styles.errorSubtitle}>
-              Để tự động check-in khi gặp mặt, bạn cần cấp quyền
+              Please allow location access to enable auto check-in.
             </Text>
             <TouchableOpacity
               style={styles.permissionButton}
               onPress={requestLocationPermission}
             >
-              <Text style={styles.permissionButtonText}>Cấp quyền</Text>
+              <Text style={styles.permissionButtonText}>Grant permission</Text>
             </TouchableOpacity>
           </View>
         </LinearGradient>
@@ -286,14 +294,14 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
           <View style={styles.content}>
             <Text style={[styles.title, (tracking || canCheckIn) && styles.titleActive]}>
               {canCheckIn
-                ? '✨ Đã có thể Check-in!'
-                : tracking ? '📍 Đang theo dõi vị trí' : 'Sẵn sàng gặp mặt'}
+                ? 'Ready to check in!'
+                : tracking ? 'Tracking location' : 'Ready to meet'}
             </Text>
 
             {distanceToUser !== null && distanceToUser <= 500 && (
               <View style={styles.distanceContainer}>
                 <Text style={[styles.distanceLabel, (tracking || canCheckIn) && styles.subtitleActive]}>
-                  Khoảng cách giữa 2 người:
+                  Distance between 2 users:
                 </Text>
                 <Text style={[styles.distanceText, (tracking || canCheckIn) && styles.distanceTextActive]}>
                   {distanceToUser}m
@@ -303,8 +311,8 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
 
             <Text style={[styles.subtitle, (tracking || canCheckIn) && styles.subtitleActive]}>
               {canCheckIn
-                ? 'Hai bạn đã ở rất gần nhau! Hãy bấm nút Check-In để hoàn thành.'
-                : `Khi cả hai đến gần ${hotSpotTitle} (trong vòng 200m) và gần nhau (dưới 50m), nút check-in sẽ xuất hiện.`}
+                ? 'You are close enough now. Tap Check-In to complete.'
+                : `When both users are near ${hotSpotTitle} (within 200m) and near each other (under 50m), check-in will be available.`}
             </Text>
 
             <View style={styles.statusGrid}>
@@ -314,9 +322,9 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
                   size={20}
                   color={userCheckIn?.isWithinRadius ? '#10B981' : (tracking || canCheckIn) ? 'rgba(0,0,0,0.3)' : '#9CA3AF'}
                 />
-                <Text style={[styles.statusLabel, (tracking || canCheckIn) && styles.statusLabelActive]}>Bạn</Text>
+                <Text style={[styles.statusLabel, (tracking || canCheckIn) && styles.statusLabelActive]}>You</Text>
                 <Text style={[styles.statusValue, userCheckIn?.isWithinRadius && styles.statusValueActive]}>
-                  {userCheckIn?.isWithinRadius ? 'Đã đến' : 'Chưa đến'}
+                  {userCheckIn?.isWithinRadius ? 'Arrived' : 'Not yet'}
                 </Text>
               </View>
 
@@ -326,9 +334,9 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
                   size={20}
                   color={otherCheckIn?.isWithinRadius ? '#10B981' : (tracking || canCheckIn) ? 'rgba(0,0,0,0.3)' : '#9CA3AF'}
                 />
-                <Text style={[styles.statusLabel, (tracking || canCheckIn) && styles.statusLabelActive]}>Bạn bè</Text>
+                <Text style={[styles.statusLabel, (tracking || canCheckIn) && styles.statusLabelActive]}>Friend</Text>
                 <Text style={[styles.statusValue, otherCheckIn?.isWithinRadius && styles.statusValueActive]}>
-                  {otherCheckIn?.isWithinRadius ? 'Đã đến' : 'Chưa đến'}
+                  {otherCheckIn?.isWithinRadius ? 'Arrived' : 'Not yet'}
                 </Text>
               </View>
             </View>
@@ -345,7 +353,7 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
                   ) : (
                     <>
                       <MaterialIcons name="touch-app" size={24} color="white" />
-                      <Text style={styles.checkInButtonText}>CHECK-IN CÙNG NHAU</Text>
+                      <Text style={styles.checkInButtonText}>CHECK IN TOGETHER</Text>
                     </>
                   )}
                 </LinearGradient>
@@ -356,14 +364,14 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
               <TouchableOpacity style={styles.startButton} onPress={startTracking}>
                 <LinearGradient colors={['#8B5CF6', '#EC4899']} style={styles.startButtonGradient}>
                   <Ionicons name="play-circle-outline" size={20} color="white" />
-                  <Text style={styles.startButtonText}>Bắt đầu theo dõi</Text>
+                  <Text style={styles.startButtonText}>Start tracking</Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
 
             {tracking && !canCheckIn && (
               <TouchableOpacity style={styles.stopButton} onPress={stopTracking}>
-                <Text style={styles.stopButtonText}>Dừng theo dõi</Text>
+                <Text style={styles.stopButtonText}>Stop tracking</Text>
               </TouchableOpacity>
             )}
           </View>

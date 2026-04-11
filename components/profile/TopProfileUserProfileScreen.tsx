@@ -53,8 +53,11 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
       ? `${(locationRaw as any).latitude?.toFixed(2)}, ${(locationRaw as any).longitude?.toFixed(2)}`
       : '';
   const educationLevel = user?.educationLevel || '';
+  const job = user?.job || '';
   const university = user?.university || '';
   const school = user?.school || '';
+  const interestsText = Array.isArray(user?.interests) ? user.interests.filter(Boolean).slice(0, 4).join(', ') : '';
+  const genderLabel = user?.gender === 'male' ? t('profile.male') : user?.gender === 'female' ? t('profile.female') : user?.gender ? t('profile.other') : '';
   const profileImage = user?.profileUrl || user?.photoURL || user?.avatar;
   const currentVibe = user?.currentVibe || user?.vibe || null;
   const age = user?.age || user?.dob ? calculateAge(user?.dob) : null;
@@ -103,7 +106,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
 
   const handleCopyId = () => {
     Clipboard.setString(uid);
-    Alert.alert('✅', t('profile.uid_copied'));
+    Alert.alert(t('common.success'), t('profile.uid_copied'));
   };
 
   const handleFollowToggle = async () => {
@@ -160,30 +163,30 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
   const formatCount = (n: number) => n >= 1000 ? (n / 1000).toFixed(1) + 'K' : String(n);
 
   const stats = [
-    { label: 'Bài viết', value: formatCount(postsCount), icon: 'grid', colors: ['#6366F1', '#4F46E5'] },
-    { label: 'Followers', value: formatCount(followersCount), icon: 'heart', colors: ['#EC4899', '#DB2777'] },
-    { label: 'Following', value: formatCount(followingCount), icon: 'user-check', colors: ['#06B6D4', '#0891B2'] },
-    { label: 'Lượt xem', value: formatCount(visitorsCount), icon: 'eye', colors: ['#10B981', '#059669'] },
+    { label: t('profile.posts'), value: formatCount(postsCount), icon: 'grid', colors: ['#6366F1', '#4F46E5'] },
+    { label: t('profile.followers'), value: formatCount(followersCount), icon: 'heart', colors: ['#EC4899', '#DB2777'] },
+    { label: t('profile.following'), value: formatCount(followingCount), icon: 'user-check', colors: ['#06B6D4', '#0891B2'] },
+    { label: t('profile.views'), value: formatCount(visitorsCount), icon: 'eye', colors: ['#10B981', '#059669'] },
   ];
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      {/* ── HERO COVER ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ HERO COVER Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <View style={styles.coverWrapper}>
         <CustomImage type="cover" source={user?.coverImage} style={styles.coverImage} onLongPress={() => { }} />
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.3)', isDark ? 'rgba(10,10,20,0.98)' : 'rgba(250,250,255,0.98)']}
+          colors={['transparent', 'rgba(15,23,42,0.18)', isDark ? 'rgba(10,10,20,0.96)' : 'rgba(248,250,252,0.96)']}
           locations={[0, 0.55, 1]}
           style={StyleSheet.absoluteFill}
         />
       </View>
 
-      {/* ── AVATAR + FOLLOW ROW ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ AVATAR + FOLLOW ROW Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Animated.View style={[styles.avatarRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         {/* Avatar */}
         <Animated.View style={[styles.avatarHalo, { transform: [{ scale: scaleAnim }] }]}>
           <LinearGradient
-            colors={['#6366F1', '#EC4899', '#F59E0B']}
+            colors={['#7C3AED', '#4F46E5', '#EC4899']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={styles.avatarGradientRing}
           >
@@ -206,8 +209,8 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
             <TouchableOpacity onPress={handleFollowToggle} disabled={followLoading} activeOpacity={0.85} style={styles.followBtnWrapper}>
               <LinearGradient
                 colors={isFollowing
-                  ? (isDark ? ['#1E1E2E', '#2A2A3E'] : ['#F1F5F9', '#E2E8F0'])
-                  : ['#6366F1', '#8B5CF6']}
+                  ? (isDark ? ['#111827', '#1F2937'] : ['#E2E8F0', '#CBD5E1'])
+                  : ['#7C3AED', '#8B5CF6']}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                 style={styles.followBtn}
               >
@@ -227,7 +230,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
               visible={showMenu}
               onDismiss={() => setShowMenu(false)}
               anchor={
-                <TouchableOpacity onPress={() => setShowMenu(true)} style={[styles.menuBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
+                <TouchableOpacity onPress={() => setShowMenu(true)} style={[styles.menuBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)' }]}>
                   <Feather name="more-horizontal" size={20} color={currentThemeColors.text} />
                 </TouchableOpacity>
               }
@@ -250,26 +253,10 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
         )}
       </Animated.View>
 
-      {/* ── IDENTITY ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ IDENTITY Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Animated.View style={[styles.identitySection, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         <View style={styles.nameRow}>
           <Text style={[styles.nameText, { color: currentThemeColors.text }]} numberOfLines={1}>{name}</Text>
-          {age && (
-            <View style={[styles.agePill, { backgroundColor: isDark ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.1)' }]}>
-              <Text style={styles.agePillText}>{age}</Text>
-            </View>
-          )}
-          {user?.gender && (
-            <View style={[styles.genderPill, {
-              backgroundColor: user.gender === 'female' ? 'rgba(244,114,182,0.15)' : 'rgba(96,165,250,0.15)'
-            }]}>
-              <MaterialCommunityIcons
-                name={user.gender === 'male' ? 'gender-male' : user.gender === 'female' ? 'gender-female' : 'gender-male-female'}
-                size={14}
-                color={user.gender === 'female' ? '#F472B6' : '#60A5FA'}
-              />
-            </View>
-          )}
           {user?.isPro && (
             <View style={styles.proBadge}>
               <MaterialCommunityIcons name="crown" size={11} color="#F59E0B" />
@@ -286,9 +273,44 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
         {bio ? (
           <Text style={[styles.bioText, { color: currentThemeColors.text }]} numberOfLines={3}>{bio}</Text>
         ) : null}
+
+        {(genderLabel || age || interestsText || job || educationLevel || university || school) && (
+          <View style={styles.identityMetaWrap}>
+            {genderLabel ? (
+              <View style={[styles.identityMetaChip, { backgroundColor: isDark ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.12)' }]}>
+                <MaterialCommunityIcons name="gender-male-female" size={12} color="#6366F1" />
+                <Text style={[styles.identityMetaText, { color: currentThemeColors.text }]}>{t('profile.gender')}: {genderLabel}</Text>
+              </View>
+            ) : null}
+            {age ? (
+              <View style={[styles.identityMetaChip, { backgroundColor: isDark ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.12)' }]}>
+                <MaterialCommunityIcons name="cake-variant-outline" size={12} color="#6366F1" />
+                <Text style={[styles.identityMetaText, { color: currentThemeColors.text }]}>{t('profile.age')}: {age}</Text>
+              </View>
+            ) : null}
+            {interestsText ? (
+              <View style={[styles.identityMetaChip, { backgroundColor: isDark ? 'rgba(236,72,153,0.12)' : 'rgba(236,72,153,0.12)' }]}>
+                <MaterialCommunityIcons name="heart-outline" size={12} color="#EC4899" />
+                <Text style={[styles.identityMetaText, { color: currentThemeColors.text }]} numberOfLines={1}>{t('profile.interests')}: {interestsText}</Text>
+              </View>
+            ) : null}
+            {job ? (
+              <View style={[styles.identityMetaChip, { backgroundColor: isDark ? 'rgba(14,165,233,0.12)' : 'rgba(14,165,233,0.12)' }]}>
+                <MaterialCommunityIcons name="briefcase-outline" size={12} color="#0891B2" />
+                <Text style={[styles.identityMetaText, { color: currentThemeColors.text }]} numberOfLines={1}>{t('profile.occupation')}: {job}</Text>
+              </View>
+            ) : null}
+            {(educationLevel || university || school) ? (
+              <View style={[styles.identityMetaChip, { backgroundColor: isDark ? 'rgba(245,158,11,0.12)' : 'rgba(245,158,11,0.12)' }]}>
+                <MaterialCommunityIcons name="school-outline" size={12} color="#F59E0B" />
+                <Text style={[styles.identityMetaText, { color: currentThemeColors.text }]} numberOfLines={1}>{t('profile.education')}: {educationLevel || university || school}</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
       </Animated.View>
 
-      {/* ── STATS GRID ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ STATS GRID Ã¢â€â‚¬Ã¢â€â‚¬ */}
       <Animated.View style={[styles.statsGrid, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
         {stats.map((s, i) => (
           <View key={i} style={[styles.statCard, { backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.025)' }]}>
@@ -301,7 +323,7 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
         ))}
       </Animated.View>
 
-      {/* ── INFO SECTION ── */}
+      {/* Ã¢â€â‚¬Ã¢â€â‚¬ INFO SECTION Ã¢â€â‚¬Ã¢â€â‚¬ */}
       {(location || educationLevel || university || school) && (
         <Animated.View style={[styles.infoSection, { opacity: fadeAnim }]}>
           {location && (
@@ -345,7 +367,7 @@ const styles = StyleSheet.create({
   avatarGradientRing: {
     width: 122, height: 122, borderRadius: 61,
     padding: 2,
-    shadowColor: '#6366F1',
+    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 20,
@@ -387,11 +409,33 @@ const styles = StyleSheet.create({
   },
   uidText: { fontSize: 11, fontWeight: '600', fontFamily: 'monospace', opacity: 0.6 },
   bioText: { fontSize: 14, lineHeight: 21, opacity: 0.8 },
+  identityMetaWrap: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  identityMetaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+  },
+  identityMetaText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
 
   statsGrid: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 20 },
   statCard: {
     flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.12)',
   },
   statIcon: {
     width: 34, height: 34, borderRadius: 17,

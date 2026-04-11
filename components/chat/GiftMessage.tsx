@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 
 type ThemeColors = {
   text: string;
@@ -27,6 +28,7 @@ interface GiftMessageProps {
 }
 
 export default function GiftMessage({ gift, senderName, isCurrentUser, themeColors }: GiftMessageProps) {
+  const { t } = useTranslation();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const emojiScale = useRef(new Animated.Value(0)).current;
@@ -224,8 +226,8 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
   const rarityStyle = getRarityStyles(rarity);
 
   const note = isCurrentUser
-    ? `Bạn đã tặng quà`
-    : `${senderName || 'Người dùng'} đã tặng bạn một món quà`;
+    ? t('chat.gift_note_self')
+    : t('chat.gift_note_other', { senderName: senderName || t('chat.unknown_user') });
 
   const sparkleOpacity = sparkleAnim.interpolate({
     inputRange: [0, 0.5, 1],

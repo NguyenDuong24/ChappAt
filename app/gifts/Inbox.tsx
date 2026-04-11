@@ -11,6 +11,7 @@ import { giftService } from '@/services/giftService';
 import type { GiftReceiptDoc } from '@/services/giftService';
 import { formatDetailedTime } from '@/utils/common';
 import CoinHeader from '@/components/common/CoinHeader';
+import { useTranslation } from 'react-i18next';
 
 export default function GiftsInboxScreen() {
   const { user } = useAuth();
@@ -18,6 +19,7 @@ export default function GiftsInboxScreen() {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const { t } = useTranslation();
 
   const [items, setItems] = useState<GiftReceiptDoc[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,23 +60,23 @@ export default function GiftsInboxScreen() {
     if (item.redeemed) return;
     const value = item.gift?.price ?? 0;
     Alert.alert(
-      'Đổi quà lấy Bánh mì',
-      `Bạn muốn đổi "${item.gift?.name}" lấy 🥖 ${value}?`,
+      t('gifts_inbox.redeem_title'),
+      t('gifts_inbox.redeem_message', { name: item.gift?.name, value }),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Đổi',
+          text: t('gifts_inbox.redeem_action'),
           style: 'destructive',
           onPress: async () => {
             try {
               setRedeemingId(item.id);
               const res = await giftService.redeemGiftReceipt(user.uid!, item.id);
-              Alert.alert('Thành công', `Bạn đã nhận được 🥖 ${res.redeemValue}`);
+              Alert.alert(t('common.success'), t('gifts_inbox.redeem_success', { value: res.redeemValue }));
               // Update local state to mark as redeemed
               setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, redeemed: true, redeemValue: res.redeemValue } : i)));
             } catch (e: any) {
-              const msg = e?.message || 'Có lỗi xảy ra, vui lòng thử lại';
-              Alert.alert('Không thể đổi quà', msg);
+              const msg = e?.message || t('gifts_inbox.redeem_error_default');
+              Alert.alert(t('gifts_inbox.redeem_error_title'), msg);
             } finally {
               setRedeemingId(null);
             }
@@ -87,7 +89,7 @@ export default function GiftsInboxScreen() {
   const renderItem = ({ item }: { item: GiftReceiptDoc }) => {
     const created = item.createdAt ? formatDetailedTime(item.createdAt) : '';
     const isRedeeming = redeemingId === item.id;
-    const redeemedText = item.redeemed ? `Đã đổi • 🥖 ${item.redeemValue ?? item.gift?.price ?? ''}` : '';
+    const redeemedText = item.redeemed ? t('gifts_inbox.redeemed_label', { value: item.redeemValue ?? item.gift?.price ?? '' }) : '';
 
     return (
       <TouchableOpacity
@@ -104,9 +106,7 @@ export default function GiftsInboxScreen() {
             <Text style={[styles.title, { color: currentThemeColors.text }]} numberOfLines={1}>
               {item.gift?.name} • 🥖 {item.gift?.price}
             </Text>
-            <Text style={[styles.subtitle, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
-              Từ {item.fromName || item.fromUid}
-            </Text>
+            <Text style={[styles.subtitle, { color: currentThemeColors.subtleText }]} numberOfLines={1}>{t('gifts_inbox.from_user', { name: item.fromName || item.fromUid })}</Text>
             <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>{created}</Text>
             {item.redeemed && (
               <Text style={[styles.redeemedLabel, { color: '#2e7d32' }]}>{redeemedText}</Text>
@@ -118,10 +118,10 @@ export default function GiftsInboxScreen() {
                 onPress={() => giftService.markGiftReceiptsReadBatch(user?.uid!, [item.id])}
                 style={[styles.readBtn, { borderColor: currentThemeColors.border }]}
               >
-                <Text style={styles.readBtnText}>Đã đọc</Text>
+                <Text style={styles.readBtnText}>{t('gifts_inbox.mark_read')}</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ fontSize: 12, color: '#4CAF50' }}>Đã đọc</Text>
+              <Text style={{ fontSize: 12, color: '#4CAF50' }}>{t('gifts_inbox.read')}</Text>
             )}
 
             {!item.redeemed ? (
@@ -133,7 +133,7 @@ export default function GiftsInboxScreen() {
                 {isRedeeming ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.redeemBtnText}>Đổi lấy 🥖 {item.gift?.price}</Text>
+                  <Text style={styles.redeemBtnText}>{t('gifts_inbox.redeem_for', { value: item.gift?.price })}</Text>
                 )}
               </TouchableOpacity>
             ) : null}
@@ -161,7 +161,7 @@ export default function GiftsInboxScreen() {
 
           <View style={styles.headerTitle}>
             <Text style={styles.headerEmoji}>🎁</Text>
-            <Text style={styles.headerTitleText}>Hộp Quà</Text>
+            <Text style={styles.headerTitleText}>{t('gifts_inbox.title')}</Text>
           </View>
 
           <TouchableOpacity
@@ -178,7 +178,7 @@ export default function GiftsInboxScreen() {
         </View>
 
         <View style={styles.headerStats}>
-          <Text style={styles.headerStatsLabel}>Tổng quà đã nhận</Text>
+          <Text style={styles.headerStatsLabel}>{t('gifts_inbox.total_received')}</Text>
           <Text style={styles.headerStatsValue}>{items.length}</Text>
         </View>
       </LinearGradient>
@@ -192,7 +192,7 @@ export default function GiftsInboxScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={() => (
           <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: currentThemeColors.subtleText }}>Chưa có quà nào</Text>
+            <Text style={{ color: currentThemeColors.subtleText }}>{t('gifts_inbox.empty')}</Text>
           </View>
         )}
       />

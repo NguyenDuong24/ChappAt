@@ -43,31 +43,26 @@ const ARTISTIC_GRADIENTS = [
 ];
 
 // 🚀 PREMIUM TACTILE BUTTON - Lightweight version
-const ImpactButton = React.memo(({ children, onPress, style, glowColor }) => {
+const ImpactButton = React.memo(({ children, onPress, style }) => {
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = useCallback(() => {
-    Animated.timing(scale, { toValue: 0.94, duration: 80, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    Animated.timing(scale, { toValue: 0.95, duration: 60, useNativeDriver: true }).start();
   }, [scale]);
 
   const onPressOut = useCallback(() => {
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 12 }).start();
   }, [scale]);
 
-  const animStyle = useMemo(() => [
-    { transform: [{ scale }], flex: 1, width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-    glowColor ? {
-      shadowColor: glowColor,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.35,
-      shadowRadius: 12,
-      elevation: 10
-    } : {}
-  ], [scale, glowColor]);
-
   return (
-    <TouchableOpacity onPress={onPress} onPressIn={onPressIn} onPressOut={onPressOut} activeOpacity={0.9} style={style}>
-      <Animated.View style={animStyle}>
+    <TouchableOpacity
+      onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      activeOpacity={0.85}
+      style={style}
+    >
+      <Animated.View style={{ transform: [{ scale }], flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         {children}
       </Animated.View>
     </TouchableOpacity>
@@ -104,13 +99,20 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
   const opacity3 = useRef(new Animated.Value(0)).current;
   const opacityRefs = useRef({ index: opacity1, tab2: opacity2, tab3: opacity3 }).current;
 
+  const scrollY1 = useRef(new Animated.Value(0)).current;
+  const scrollY2 = useRef(new Animated.Value(0)).current;
+  const scrollY3 = useRef(new Animated.Value(0)).current;
+  const scrollYRefs = useRef({ index: scrollY1, tab2: scrollY2, tab3: scrollY3 }).current;
+  const scrollY = scrollYRefs[activeTab];
+
   const slidingAnim = useRef(new Animated.Value(0)).current;
   const fabSlidingAnim = useRef(new Animated.Value(0)).current;
 
   const { notificationCount, trendingHashtags, loading, refresh: refreshData } = useExploreData();
   const { refresh: refreshPosts } = useExploreActions();
 
-  const scrollY = useRef(new Animated.Value(0)).current;
+  // No longer needed as we use individual refs
+  // const scrollY = useRef(new Animated.Value(0)).current;
 
   const tabDefs = useMemo(() => [
     { key: 'index', label: t('social.latest') },
@@ -129,45 +131,45 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     const tabIndex = tabDefs.findIndex(t => t.key === tabName);
     if (tabIndex === -1) return;
 
+    // Ensure tab is mounted immediately if selected
+    if (!mounted[tabName]) {
+      setMounted(prev => ({ ...prev, [tabName]: true }));
+    }
+
     const slideTo = tabIndex * (TAB_WIDTH + TAB_GAP);
 
-    // ⚡️ ONLY 3 ANIMATIONS: sliding pill + fade out old + fade in new
-    // No translateX on content = no layout recalculation = silky smooth
-    const fadeOutOld = Animated.timing(opacityRefs[activeTab], {
-      toValue: 0,
-      duration: 150,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    });
-
-    const fadeInNew = Animated.timing(opacityRefs[tabName], {
-      toValue: 1,
-      duration: 150,
-      easing: Easing.in(Easing.quad),
-      useNativeDriver: true,
-    });
-
-    // Pill slide is spring-based for premium feel
+    // ⚡️ Faster Cross-Fade (120ms parallel)
+    // No translateY/translateX on heavy content during transition
     Animated.parallel([
       Animated.spring(slidingAnim, {
         toValue: slideTo,
-        damping: 22,
-        stiffness: 180,
-        mass: 0.8,
+        damping: 24,
+        stiffness: 220,
         useNativeDriver: true,
       }),
       Animated.spring(fabSlidingAnim, {
         toValue: slideTo,
-        damping: 22,
-        stiffness: 180,
-        mass: 0.8,
+        damping: 24,
+        stiffness: 220,
         useNativeDriver: true,
       }),
-      Animated.sequence([fadeOutOld, fadeInNew]),
+      Animated.timing(opacityRefs[activeTab], {
+        toValue: 0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityRefs[tabName], {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
     ]).start();
 
-    setActiveTab(tabName);
-  }, [activeTab, tabDefs, opacityRefs, slidingAnim, fabSlidingAnim, refreshPosts, refreshData]);
+    // Deferred state update to let animations kick off
+    requestAnimationFrame(() => {
+      setActiveTab(tabName);
+    });
+  }, [activeTab, tabDefs, opacityRefs, slidingAnim, fabSlidingAnim, refreshPosts, refreshData, mounted]);
 
   // Scroll-based header animations
   const headerTranslateY = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE], outputRange: [0, -SCROLL_DISTANCE], extrapolate: 'clamp' });
@@ -183,20 +185,18 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
 
   const renderActionBtn = useCallback((icon, iconLib = MaterialIcons, color, gradColors, onPress, badge = 0) => {
     const IconComponent = iconLib;
-    // Premium dual-tone gradients for icons
     const finalGrad = gradColors || [color, color];
 
     return (
-      <ImpactButton onPress={onPress} style={styles.actionBtn} glowColor={color}>
+      <ImpactButton onPress={onPress} style={styles.actionBtn}>
         <View style={styles.actionBtnContainer}>
-          {/* Inner Glow / Rim Light Effect */}
           <LinearGradient
-            colors={theme === 'dark' ? ['rgba(255,255,255,0.15)', 'transparent'] : ['rgba(255,255,255,0.8)', 'transparent']}
+            colors={theme === 'dark' ? ['rgba(255,255,255,0.12)', 'transparent'] : ['rgba(255,255,255,0.6)', 'transparent']}
             style={styles.rimLight}
           />
-          <View style={[styles.actionBtnInner, { borderColor: color + '40', backgroundColor: theme === 'dark' ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.8)' }]}>
+          <View style={[styles.actionBtnInner, { borderColor: color + '30', backgroundColor: theme === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.7)' }]}>
             <LinearGradient
-              colors={[finalGrad[0] + '15', finalGrad[1] + '05']}
+              colors={[finalGrad[0] + '12', finalGrad[1] + '05']}
               style={StyleSheet.absoluteFill}
             />
             <IconComponent name={icon} size={20} color={color} />
@@ -255,8 +255,18 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     ))
   ), [tabDefs, activeTab, handleTabPress, colors.mutedText]);
 
+  const headerContextValue = useMemo(() => ({
+    scrollY,
+    scrollValues: {
+      latest: scrollY1,
+      trending: scrollY2,
+      following: scrollY3
+    },
+    effectiveHeaderHeight: HEADER_HEIGHT
+  }), [scrollY, scrollY1, scrollY2, scrollY3]);
+
   return (
-    <ExploreHeaderProvider value={{ scrollY, handleScroll: Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true }), effectiveHeaderHeight: HEADER_HEIGHT }}>
+    <ExploreHeaderProvider value={headerContextValue}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 

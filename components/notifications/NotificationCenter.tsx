@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/src/localization/i18n';
+import { normalizeDisplayText } from '@/utils/textEncoding';
 
 interface NotificationItem {
   id: string;
@@ -41,6 +44,7 @@ const NotificationCenter = ({
   onRefresh,
   isDarkMode = false,
 }: NotificationCenterProps) => {
+  const { t } = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedNotifications, setSelectedNotifications] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -87,11 +91,11 @@ const NotificationCenter = ({
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'Vừa xong';
-    if (minutes < 60) return `${minutes} phút trước`;
-    if (hours < 24) return `${hours} giờ trước`;
-    if (days < 7) return `${days} ngày trước`;
-    return timestamp.toLocaleDateString('vi-VN');
+    if (minutes < 1) return t('common.time.just_now');
+    if (minutes < 60) return t('common.time.minutes_ago', { count: minutes });
+    if (hours < 24) return t('common.time.hours_ago', { count: hours });
+    if (days < 7) return t('common.time.days_ago', { count: days });
+    return timestamp.toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US');
   };
 
   const handleRefresh = async () => {
@@ -130,12 +134,12 @@ const NotificationCenter = ({
 
   const handleDeleteSelected = () => {
     Alert.alert(
-      'Xóa thông báo',
-      `Bạn có chắc chắn muốn xóa ${selectedNotifications.size} thông báo?`,
+      t('notifications_center.delete_title'),
+      t('notifications_center.delete_confirm', { count: selectedNotifications.size }),
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Xóa',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             selectedNotifications.forEach(id => onDeleteNotification(id));
@@ -198,7 +202,7 @@ const NotificationCenter = ({
                 ]}
                 numberOfLines={1}
               >
-                {item.title}
+                {normalizeDisplayText(item.title)}
               </Text>
               <Text
                 style={[
@@ -207,7 +211,7 @@ const NotificationCenter = ({
                 ]}
                 numberOfLines={2}
               >
-                {item.content}
+                {normalizeDisplayText(item.content)}
               </Text>
               <Text
                 style={[
@@ -249,9 +253,7 @@ const NotificationCenter = ({
   const renderHeader = () => (
     <View style={[styles.header, { borderBottomColor: colors.border }]}>
       <View style={styles.headerLeft}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Thông báo
-        </Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('notifications_center.title')}</Text>
         {unreadCount > 0 && (
           <View style={[styles.unreadBadge, { backgroundColor: colors.danger }]}>
             <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
@@ -304,12 +306,8 @@ const NotificationCenter = ({
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <MaterialCommunityIcons name="bell-outline" size={64} color={colors.subtleText} />
-      <Text style={[styles.emptyTitle, { color: colors.text }]}>
-        Không có thông báo
-      </Text>
-      <Text style={[styles.emptySubtitle, { color: colors.subtleText }]}>
-        Khi có thông báo mới, chúng sẽ xuất hiện ở đây
-      </Text>
+      <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('notifications_center.empty_title')}</Text>
+      <Text style={[styles.emptySubtitle, { color: colors.subtleText }]}>{t('notifications_center.empty_subtitle')}</Text>
     </View>
   );
 
@@ -340,7 +338,7 @@ const NotificationCenter = ({
       {isSelectionMode && (
         <View style={[styles.selectionBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
           <Text style={[styles.selectionText, { color: colors.text }]}>
-            Đã chọn {selectedNotifications.size} thông báo
+            {t('notifications_center.selected_count', { count: selectedNotifications.size })}
           </Text>
           <View style={styles.selectionActions}>
             <TouchableOpacity
@@ -348,14 +346,14 @@ const NotificationCenter = ({
               onPress={handleMarkSelectedAsRead}
             >
               <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Đánh dấu đã đọc</Text>
+              <Text style={styles.actionButtonText}>{t('notifications_center.mark_read')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: colors.danger }]}
               onPress={handleDeleteSelected}
             >
               <MaterialCommunityIcons name="delete" size={16} color="#FFFFFF" />
-              <Text style={styles.actionButtonText}>Xóa</Text>
+              <Text style={styles.actionButtonText}>{t('notifications_center.delete')}</Text>
             </TouchableOpacity>
           </View>
         </View>

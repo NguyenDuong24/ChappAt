@@ -12,6 +12,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import GroupPreviewModal from './GroupPreviewModal';
+import { useTranslation } from 'react-i18next';
+import { normalizeDisplayText } from '@/utils/textEncoding';
 
 interface GroupItemProps {
   item: any;
@@ -28,6 +30,7 @@ interface GroupItemProps {
   isJoined?: boolean;
   onJoinGroup?: (groupId: string) => void;
   isSearchResult?: boolean;
+  isPinned?: boolean;
 }
 
 const EnhancedGroupItem = ({
@@ -44,8 +47,10 @@ const EnhancedGroupItem = ({
   voiceCallParticipantsCount = 0,
   isJoined = false,
   onJoinGroup,
-  isSearchResult = false
+  isSearchResult = false,
+  isPinned = false
 }: GroupItemProps) => {
+  const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -105,16 +110,16 @@ const EnhancedGroupItem = ({
 
   // Memoized values
   const messagePreview = useMemo(() => {
-    if (isTyping) return 'Đang nhập...';
-    if (!lastMessage) return 'Không có tin nhắn';
-    if (lastMessage?.system) return lastMessage?.text || 'Tin nhắn hệ thống';
-    if (lastMessage?.imageUrl) return '📷 Ảnh';
-    if (lastMessage?.audioUrl) return '🎤 Âm thanh';
-    if (lastMessage?.videoUrl) return '🎬 Video';
-    if (lastMessage?.fileUrl) return '📎 Tệp đính kèm';
-    if (lastMessage?.text) return truncateText(lastMessage.text, 30);
-    return 'Tin nhắn mới';
-  }, [lastMessage, isTyping]);
+    if (isTyping) return t('chat.typing');
+    if (!lastMessage) return t('chat.no_messages');
+    if (lastMessage?.system) return normalizeDisplayText(lastMessage?.text || t('chat.message'));
+    if (lastMessage?.imageUrl) return t('chat.image');
+    if (lastMessage?.audioUrl) return t('chat.audio');
+    if (lastMessage?.videoUrl) return t('chat.video');
+    if (lastMessage?.fileUrl) return t('chat.message');
+    if (lastMessage?.text) return truncateText(normalizeDisplayText(lastMessage.text), 30);
+    return t('chat.new_message');
+  }, [lastMessage, isTyping, t]);
 
   const formattedTime = useMemo(() => {
     if (!lastMessage?.createdAt) return '';
@@ -131,19 +136,13 @@ const EnhancedGroupItem = ({
 
   // Group type icon and color
   const groupTypeInfo = useMemo(() => {
-    // Check multiple possible field names
-    const type = item?.type || item?.privacy || (item?.isPublic ? 'public' : 'private'); // Default to private if no type
-
-    console.log('Computed type:', type);
+    const type = item?.type || item?.privacy || (item?.isPublic ? 'public' : 'private');
 
     if (type === 'public' || type === 'Public') {
-      return { icon: 'earth' as const, color: '#667EEA', label: 'Công khai' };
+      return { icon: 'earth' as const, color: '#667EEA', label: t('groups.public') };
     }
-    if (type === 'private' || type === 'Private') {
-      return { icon: 'lock' as const, color: '#F59E0B', label: 'Riêng tư' };
-    }
-    return { icon: 'lock' as const, color: '#F59E0B', label: 'Riêng tư' }; // Default fallback
-  }, [item?.type, item?.privacy, item?.isPublic]);
+    return { icon: 'lock' as const, color: '#F59E0B', label: t('groups.private') };
+  }, [item?.type, item?.privacy, item?.isPublic, t]);
 
   const handlePress = () => {
     if (onPress) {
@@ -270,6 +269,14 @@ const EnhancedGroupItem = ({
                   color={groupTypeInfo.color}
                   style={styles.typeIcon}
                 />
+                {isPinned && (
+                  <MaterialCommunityIcons
+                    name="pin"
+                    size={14}
+                    color={Colors.primary}
+                    style={styles.pinIcon}
+                  />
+                )}
               </View>
               {isJoined && formattedTime && (
                 <Text variant="bodySmall" style={[styles.time, { color: currentThemeColors.subtleText }]}>
@@ -316,14 +323,14 @@ const EnhancedGroupItem = ({
                   <View style={styles.statItem}>
                     <MaterialCommunityIcons name="account-group" size={14} color={currentThemeColors.subtleText} />
                     <Text variant="bodySmall" style={[styles.statText, { color: currentThemeColors.subtleText }]}>
-                      {memberCount} thành viên
+                      {memberCount} {t('groups.members', { defaultValue: 'members' })}
                     </Text>
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statItem}>
                     <View style={[styles.onlineDotSmall, { backgroundColor: '#10B981' }]} />
                     <Text variant="bodySmall" style={[styles.statText, { color: currentThemeColors.subtleText }]}>
-                      {onlineCount} trực tuyến
+                      {onlineCount} {t('chat.online')}
                     </Text>
                   </View>
                 </View>
@@ -337,7 +344,7 @@ const EnhancedGroupItem = ({
               onPress={handleJoinGroup}
               style={[styles.joinButton, { backgroundColor: Colors.primary }]}
             >
-              <Text style={styles.joinButtonText}>Tham gia</Text>
+              <Text style={styles.joinButtonText}>{t('groups.join', { defaultValue: 'Join' })}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -433,6 +440,9 @@ const styles = StyleSheet.create({
   typeIcon: {
     opacity: 0.7,
   },
+  pinIcon: {
+    marginLeft: 4,
+  },
   time: {
     fontSize: 12,
     marginLeft: 8,
@@ -503,3 +513,4 @@ const styles = StyleSheet.create({
 });
 
 export default EnhancedGroupItem;
+

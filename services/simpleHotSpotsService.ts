@@ -29,6 +29,7 @@ import {
  */
 class SimpleHotSpotsService {
   private hotSpotsCollection = collection(db, 'hotSpots');
+  private hotSpotsLowerCollection = collection(db, 'hotspots');
   private interactionsCollection = collection(db, 'hotSpotInteractions');
 
   async getHotSpots(searchParams: HotSpotSearchParams): Promise<HotSpotsResponse> {
@@ -42,7 +43,11 @@ class SimpleHotSpotsService {
       );
 
       const snapshot = await getDocs(hotSpotsQuery);
-      let allHotSpots = snapshot.docs.map(doc => ({
+      let sourceSnapshot = snapshot;
+      if (sourceSnapshot.empty) {
+        sourceSnapshot = await getDocs(query(this.hotSpotsLowerCollection, limit(200)));
+      }
+      let allHotSpots = sourceSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       } as HotSpot));
@@ -124,7 +129,10 @@ class SimpleHotSpotsService {
 
   async getHotSpotById(hotSpotId: string): Promise<HotSpot | null> {
     try {
-      const snapshot = await getDoc(doc(this.hotSpotsCollection, hotSpotId));
+      let snapshot = await getDoc(doc(this.hotSpotsCollection, hotSpotId));
+      if (!snapshot.exists()) {
+        snapshot = await getDoc(doc(this.hotSpotsLowerCollection, hotSpotId));
+      }
       
       if (snapshot.exists()) {
         return {

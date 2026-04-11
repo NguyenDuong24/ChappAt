@@ -1,0 +1,18 @@
+{
+  "error": "Device Offline",
+  "cause": "ADB device 20080411 is not responding or not connected",
+  "solution": "Start emulator via Android Studio",
+  "steps": [
+    "Open Android Studio",
+    "Go to Tools > Device Manager",
+    "Select your emulator",
+    "Click 'Start' button",
+    "Wait for emulator to boot up"
+  ],
+  "alternative_solutions": [
+    "Use 'npx react-native run-android' instead",
+    "Or run on physical device",
+    "Check if emulator is properly configured"
+  ],
+  "note": "After emulator starts, run 'npx expo run:android' again"
+}

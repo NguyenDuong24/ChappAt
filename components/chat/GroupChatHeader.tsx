@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 
 interface GroupChatHeaderProps {
   group: {
@@ -14,6 +15,7 @@ interface GroupChatHeaderProps {
 }
 
 export default function GroupChatHeader({ group, onBack, onMembers }: GroupChatHeaderProps) {
+  const { t } = useTranslation();
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={onBack} style={styles.iconBtn}>
@@ -26,8 +28,8 @@ export default function GroupChatHeader({ group, onBack, onMembers }: GroupChatH
           contentFit="cover"
         />
         <View>
-          <Text style={styles.groupName} numberOfLines={1}>{group?.name || 'Nhóm chat'}</Text>
-          <Text style={styles.memberCount}>{group?.memberCount || 0} thành viên</Text>
+          <Text style={styles.groupName} numberOfLines={1}>{group?.name || t('groups.chat_default_name')}</Text>
+          <Text style={styles.memberCount}>{t('groups.members_count', { count: group?.memberCount || 0 })}</Text>
         </View>
       </View>
       <TouchableOpacity onPress={onMembers} style={styles.iconBtn}>

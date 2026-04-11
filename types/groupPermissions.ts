@@ -1,17 +1,16 @@
-/**
+﻿/**
  * Group Roles and Permissions System
- * Hệ thống quản lý vai trò và quyền hạn trong nhóm
  */
 
-// Định nghĩa các role trong group
+// Group roles
 export enum GroupRole {
-    ADMIN = 'admin',           // Quản trị viên - có tất cả quyền
-    MODERATOR = 'moderator',   // Điều hành viên - có quyền quản lý hạn chế
-    MEMBER = 'member',         // Thành viên - quyền cơ bản
-    NEWBIE = 'newbie',        // Người mới - quyền hạn chế nhất
+    ADMIN = 'admin',
+    MODERATOR = 'moderator',
+    MEMBER = 'member',
+    NEWBIE = 'newbie',
 }
 
-// Định nghĩa các permission cụ thể
+// Specific permissions
 export enum GroupPermission {
     // Message Permissions
     SEND_MESSAGE = 'send_message',
@@ -49,7 +48,6 @@ export enum GroupPermission {
 // Mapping role -> permissions
 export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     [GroupRole.ADMIN]: [
-        // Admins have ALL permissions
         GroupPermission.SEND_MESSAGE,
         GroupPermission.DELETE_OWN_MESSAGE,
         GroupPermission.DELETE_ANY_MESSAGE,
@@ -73,7 +71,6 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     ],
 
     [GroupRole.MODERATOR]: [
-        // Moderators have most permissions except critical ones
         GroupPermission.SEND_MESSAGE,
         GroupPermission.DELETE_OWN_MESSAGE,
         GroupPermission.DELETE_ANY_MESSAGE,
@@ -91,7 +88,6 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     ],
 
     [GroupRole.MEMBER]: [
-        // Members have basic message and media permissions
         GroupPermission.SEND_MESSAGE,
         GroupPermission.DELETE_OWN_MESSAGE,
         GroupPermission.EDIT_OWN_MESSAGE,
@@ -106,7 +102,6 @@ export const ROLE_PERMISSIONS: Record<GroupRole, GroupPermission[]> = {
     ],
 
     [GroupRole.NEWBIE]: [
-        // Newbies have limited permissions
         GroupPermission.SEND_MESSAGE,
         GroupPermission.DELETE_OWN_MESSAGE,
         GroupPermission.VIEW_MEMBERS,
@@ -122,31 +117,31 @@ export const ROLE_HIERARCHY: Record<GroupRole, number> = {
     [GroupRole.NEWBIE]: 1,
 };
 
-// Role labels để hiển thị
-export const ROLE_LABELS: Record<GroupRole, { vi: string; color: string; icon: string }> = {
+// Role labels for UI
+export const ROLE_LABELS: Record<GroupRole, { label: string; color: string; icon: string }> = {
     [GroupRole.ADMIN]: {
-        vi: 'Quản Trị Viên',
+        label: 'Admin',
         color: '#EF4444',
         icon: 'shield-crown',
     },
     [GroupRole.MODERATOR]: {
-        vi: 'Điều Hành Viên',
+        label: 'Moderator',
         color: '#3B82F6',
         icon: 'shield-check',
     },
     [GroupRole.MEMBER]: {
-        vi: 'Thành Viên',
+        label: 'Member',
         color: '#10B981',
         icon: 'account',
     },
     [GroupRole.NEWBIE]: {
-        vi: 'Người Mới',
+        label: 'Newbie',
         color: '#6B7280',
         icon: 'account-outline',
     },
 };
 
-// Interface cho member với role
+// Member with role
 export interface GroupMemberWithRole {
     uid: string;
     role: GroupRole;
@@ -157,7 +152,7 @@ export interface GroupMemberWithRole {
     isBanned?: boolean;
 }
 
-// Interface cho group data với roles
+// Group data with roles
 export interface GroupWithRoles {
     id: string;
     name: string;
@@ -183,8 +178,8 @@ export interface PermissionCheckResult {
     userRole?: GroupRole;
 }
 
-// Default role cho thành viên mới
+// Default role for new members
 export const DEFAULT_MEMBER_ROLE = GroupRole.NEWBIE;
 
-// Thời gian để tự động nâng role từ Newbie -> Member
-export const NEWBIE_DURATION_DAYS = 7; // 7 ngày
+// Time window to auto-upgrade Newbie -> Member
+export const NEWBIE_DURATION_DAYS = 7;

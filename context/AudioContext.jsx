@@ -51,7 +51,7 @@ export const AudioProvider = ({ children }) => {
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
       });
-      console.log('� Audio system initialized successfully');
+      console.log('Audio system initialized successfully');
       await preloadSounds();
       setIsInitialized(true);
       setSoundsLoaded(true);

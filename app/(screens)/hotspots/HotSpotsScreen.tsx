@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
+﻿import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
 import {
   View,
   Text,
@@ -145,6 +145,16 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
         <Text style={styles.cardTitle} numberOfLines={2}>
           {safeText(item.title, 'Hot Spot')}
         </Text>
+        <View style={styles.metaRow}>
+          <View style={styles.metaChip}>
+            <Ionicons name="pricetag-outline" size={13} color="#6D5BD0" />
+            <Text style={styles.metaChipText}>{safeText(item.category, 'General')}</Text>
+          </View>
+          <View style={styles.metaChip}>
+            <Ionicons name="people-outline" size={13} color="#6D5BD0" />
+            <Text style={styles.metaChipText}>{item.interestedCount ?? 0}</Text>
+          </View>
+        </View>
 
         {/* Info Section */}
         <View style={styles.infoSection}>
@@ -355,9 +365,19 @@ const HotSpotsScreen = () => {
     });
   };
 
-  const handleInviteAccepted = async () => {
+  const handleInviteAccepted = async (chatRoomId: string, eventId?: string, eventTitle?: string) => {
     await refresh();
     await loadPendingInvites();
+    if (chatRoomId) {
+      router.push({
+        pathname: '/(screens)/hotspots/HotSpotChatScreen',
+        params: {
+          chatRoomId,
+          hotSpotId: eventId || '',
+          hotSpotTitle: eventTitle || '',
+        },
+      });
+    }
   };
 
   // Filtered data for display
@@ -388,6 +408,13 @@ const HotSpotsScreen = () => {
   }, [hotSpots, timeFilter]);
 
   // ==================== RENDERS ====================
+  const headerSubtitleText = (() => {
+    const translated = t('hotspots.discover_interesting');
+    if (!translated || translated === 'hotspots.discover_interesting' || translated.startsWith('hotspots.')) {
+      return 'Discover interesting places and events';
+    }
+    return translated;
+  })();
 
   const renderHeader = () => {
     const headerTranslateY = scrollY.interpolate({
@@ -404,6 +431,8 @@ const HotSpotsScreen = () => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         />
+        <View style={styles.headerDecorOrbA} />
+        <View style={styles.headerDecorOrbB} />
 
         <View style={styles.headerContent}>
           <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
@@ -411,8 +440,8 @@ const HotSpotsScreen = () => {
           </TouchableOpacity>
 
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>🔥 Hot Spots</Text>
-            <Text style={styles.headerSubtitle}>{t('hotspots.discover_interesting')}</Text>
+            <Text style={styles.headerTitle}>Hot Spots</Text>
+            <Text style={styles.headerSubtitle}>{headerSubtitleText}</Text>
           </View>
 
           <View style={styles.actionsRow}>
@@ -426,9 +455,6 @@ const HotSpotsScreen = () => {
                   <Text style={styles.notificationText}>{pendingInvitesCount}</Text>
                 </View>
               )}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="search" size={24} color="white" />
             </TouchableOpacity>
           </View>
         </View>
@@ -553,7 +579,7 @@ const HotSpotsScreen = () => {
       {featuredSpots.length > 0 && (
         <View style={styles.featuredSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>🌟 {t('hotspots.featured')}</Text>
+            <Text style={styles.sectionTitle}>{t('hotspots.featured')}</Text>
             <TouchableOpacity
               style={styles.toggleButton}
               onPress={() => setShowFeatured(!showFeatured)}
@@ -692,7 +718,7 @@ const HotSpotsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F7F8FC',
   },
   header: {
     position: 'absolute',
@@ -703,9 +729,27 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 40 : (StatusBar.currentHeight || 20) + 5,
     paddingHorizontal: 16,
     paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     overflow: 'hidden',
+  },
+  headerDecorOrbA: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    top: -60,
+    right: -40,
+  },
+  headerDecorOrbB: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    bottom: -42,
+    left: -24,
   },
   headerContent: {
     flexDirection: 'row',
@@ -714,22 +758,22 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   iconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(255,255,255,0.28)',
   },
   headerTitleContainer: {
     flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '900',
+    fontSize: 23,
+    fontWeight: '800',
     color: 'white',
     textShadowColor: 'rgba(0,0,0,0.4)',
     textShadowOffset: { width: 0, height: 2 },
@@ -765,7 +809,7 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   searchContainer: {
-    marginBottom: 16,
+    marginBottom: 14,
     borderRadius: 20,
     overflow: 'hidden',
   },
@@ -776,19 +820,19 @@ const styles = StyleSheet.create({
   searchInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
     borderRadius: 18,
-    paddingHorizontal: 24,
-    height: 52,
+    paddingHorizontal: 18,
+    height: 50,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.34)',
   },
   searchInput: {
     flex: 1,
     color: 'white',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
   },
   clearButton: {
     width: 32,
@@ -805,11 +849,11 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    marginRight: 16,
+    marginRight: 10,
     borderRadius: 24,
-    minHeight: 36,
+    minHeight: 34,
     gap: 8,
   },
   categoryChipInactive: {
@@ -862,9 +906,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#333',
+    color: '#1C2033',
   },
   toggleButton: {
     padding: 8,
@@ -874,10 +918,12 @@ const styles = StyleSheet.create({
   },
   featuredCard: {
     width: width * 0.75,
-    height: 180,
+    height: 188,
     marginRight: 16,
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.32)',
   },
   featuredImage: {
     width: '100%',
@@ -894,7 +940,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   featuredTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: 'white',
     marginBottom: 6,
@@ -909,18 +955,20 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 80,
+    paddingBottom: 90,
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 24,
     marginBottom: 24,
     overflow: 'hidden',
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(105, 91, 208, 0.08)',
+    shadowColor: '#322B63',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 5,
   },
   imageContainer: {
     height: 320,
@@ -974,17 +1022,38 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   cardContent: {
-    padding: 24,
+    padding: 20,
   },
   cardTitle: {
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: '800',
-    color: '#333',
-    marginBottom: 16,
-    lineHeight: 28,
+    color: '#1D2238',
+    marginBottom: 12,
+    lineHeight: 27,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(109, 91, 208, 0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(109, 91, 208, 0.16)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  metaChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#5E4FB8',
   },
   infoSection: {
-    marginBottom: 24,
+    marginBottom: 20,
     gap: 8,
   },
   infoRow: {
@@ -994,8 +1063,8 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
-    fontSize: 15,
-    color: '#666',
+    fontSize: 14,
+    color: '#656B82',
     fontWeight: '500',
   },
   actionsGrid: {
@@ -1016,8 +1085,8 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   actionButtonInactive: {
-    backgroundColor: '#f5f5f5',
-    borderColor: '#e0e0e0',
+    backgroundColor: '#F4F5FB',
+    borderColor: '#E4E7F5',
   },
   actionButtonActive: {
     borderColor: 'transparent',
@@ -1027,7 +1096,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionTextInactive: {
-    color: '#666',
+    color: '#5D647C',
   },
   actionTextActive: {
     color: 'white',
@@ -1038,7 +1107,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: '#E8EAF4',
   },
   avatarStack: {
     flexDirection: 'row',
@@ -1073,9 +1142,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   participantCount: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
-    color: '#333',
+    color: '#222845',
     marginBottom: 4,
   },
   statsRow: {
@@ -1091,7 +1160,7 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#666',
+    color: '#6C738E',
   },
   price: {
     fontSize: 14,
@@ -1138,3 +1207,5 @@ const styles = StyleSheet.create({
 });
 
 export default HotSpotsScreen;
+
+

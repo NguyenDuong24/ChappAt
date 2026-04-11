@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useEffect, useMemo, useRef, useState, useContext } from 'react';
+import React, { createContext, useCallback, useEffect, useMemo, useState, useContext } from 'react';
 import { InteractionManager } from 'react-native';
 import { db } from '@/firebaseConfig';
 import { doc, updateDoc, arrayUnion, arrayRemove, deleteDoc, increment } from 'firebase/firestore';
@@ -9,6 +9,7 @@ import { useAuth } from '@/context/authContext';
 import { useUserContext } from '@/context/UserContext';
 
 const PAGE_SIZE = 20;
+const MAX_PREFETCH_IMAGES = 12;
 
 const LatestPostsContext = createContext(null);
 const TrendingPostsContext = createContext(null);
@@ -45,15 +46,24 @@ export const ExploreProvider = ({ children }) => {
 
     const prefetchImages = useCallback((posts) => {
         if (!posts || posts.length === 0) return;
-        const imageUrls = posts.flatMap(p => p.images || []).filter(Boolean);
-        if (imageUrls.length > 0) Image.prefetch(imageUrls);
+        const imageUrls = posts
+            .flatMap(p => p.images || [])
+            .filter(Boolean)
+            .slice(0, MAX_PREFETCH_IMAGES);
+        if (imageUrls.length > 0) {
+            InteractionManager.runAfterInteractions(() => {
+                imageUrls.forEach((url) => Image.prefetch(url));
+            });
+        }
     }, []);
 
     const preloadUsersFromPosts = useCallback((posts) => {
         if (!posts || posts.length === 0) return;
         const userIds = [...new Set(posts.map(p => p.userID).filter(Boolean))];
-        if (userIds.length > 0) preloadUsers(userIds);
-        prefetchImages(posts);
+        InteractionManager.runAfterInteractions(() => {
+            if (userIds.length > 0) preloadUsers(userIds);
+            prefetchImages(posts);
+        });
     }, [preloadUsers, prefetchImages]);
 
     const fetchFollowingIds = useCallback(async () => {

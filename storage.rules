@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check authentication
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isGroupMember(groupId) {
+      return isAuthenticated() &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.members;
+    }
+
+    function isHotSpotChatParticipant(chatId) {
+      return isAuthenticated() &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/hotSpotChats/$(chatId)).data.participants;
+    }
+
+    // Allow users to upload their own profile images
+    match /profile-images/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Allow users to upload chat images (only to their own directory)
+    match /chat-images/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Allow users to upload chat audio (only to their own directory)
+    match /chat-audio/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Group media must be restricted to members of that group
+    match /group-images/{groupId}/{allPaths=**} {
+      allow read: if isGroupMember(groupId);
+      allow write: if isGroupMember(groupId);
+      allow delete: if isGroupMember(groupId);
+    }
+
+    // HotSpot chat images must be restricted to chat participants
+    match /hotspot-chat-images/{chatId}/{allPaths=**} {
+      allow read: if isHotSpotChatParticipant(chatId);
+      allow write: if isHotSpotChatParticipant(chatId);
+      allow delete: if isHotSpotChatParticipant(chatId);
+    }
+
+    // Allow users to upload their own images
+    match /images/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Allow users to upload postcard media
+    match /postcards/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Deny all other access by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

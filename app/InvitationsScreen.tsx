@@ -15,8 +15,11 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useHotSpotInvitations } from '@/hooks/useHotSpots';
 import { HotSpotInvitation } from '@/types/hotSpots';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/src/localization/i18n';
 
 const InvitationsScreen = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const { sentInvitations, receivedInvitations, loading, respondToInvitation } = useHotSpotInvitations();
@@ -27,17 +30,17 @@ const InvitationsScreen = () => {
     const success = await respondToInvitation(invitationId, response);
     if (success && response === 'accepted') {
       Alert.alert(
-        'Lời mời được chấp nhận!',
-        'Phòng chat đã được tạo. Bạn có thể bắt đầu trò chuyện ngay bây giờ.',
+        t('invitations.accepted_title'),
+        t('invitations.accepted_message'),
         [
           {
-            text: 'Xem phòng chat',
+            text: t('invitations.open_chat'),
             onPress: () => {
               // TODO: Navigate to chat room
               console.log('Navigate to chat room');
             }
           },
-          { text: 'Đóng' }
+          { text: t('common.close') }
         ]
       );
     }
@@ -60,10 +63,10 @@ const InvitationsScreen = () => {
           {/* Header */}
           <View style={styles.invitationHeader}>
             <Text style={styles.userName}>
-              {isReceived ? 'Từ: Người dùng' : 'Đến: Người dùng'} {/* TODO: Get actual user names */}
+              {isReceived ? t('invitations.from_user') : t('invitations.to_user')} {/* TODO: Get actual user names */}
             </Text>
             <Text style={styles.timestamp}>
-              {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+              {new Date(item.createdAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
             </Text>
           </View>
 
@@ -94,7 +97,7 @@ const InvitationsScreen = () => {
           <View style={styles.invitationFooter}>
             <View style={[styles.statusChip, { backgroundColor: getStatusColor(item.status) }]}>
               <Text style={styles.statusText}>
-                {getStatusText(item.status)}
+                {getStatusText(item.status, t)}
               </Text>
             </View>
 
@@ -105,9 +108,7 @@ const InvitationsScreen = () => {
                   onPress={() => handleInvitationResponse(item.id, 'declined')}
                 >
                   <MaterialIcons name="close" size={16} color="#FF6B6B" />
-                  <Text style={[styles.actionButtonText, { color: '#FF6B6B' }]}>
-                    Từ chối
-                  </Text>
+                  <Text style={[styles.actionButtonText, { color: '#FF6B6B' }]}>{t('invitations.decline')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -115,9 +116,7 @@ const InvitationsScreen = () => {
                   onPress={() => handleInvitationResponse(item.id, 'accepted')}
                 >
                   <MaterialIcons name="check" size={16} color="#FFFFFF" />
-                  <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>
-                    Chấp nhận
-                  </Text>
+                  <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>{t('invitations.accept')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -141,7 +140,7 @@ const InvitationsScreen = () => {
           {isExpired && (
             <View style={styles.expiredOverlay}>
               <MaterialIcons name="schedule" size={16} color="#999" />
-              <Text style={styles.expiredText}>Đã hết hạn</Text>
+              <Text style={styles.expiredText}>{t('invitations.expired')}</Text>
             </View>
           )}
         </View>
@@ -156,7 +155,7 @@ const InvitationsScreen = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4ECDC4" />
-          <Text style={styles.loadingText}>Đang tải lời mời...</Text>
+          <Text style={styles.loadingText}>{t('invitations.loading')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -173,8 +172,8 @@ const InvitationsScreen = () => {
           <MaterialIcons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Text style={styles.title}>Lời mời</Text>
-          <Text style={styles.subtitle}>Quản lý lời mời Hot Spot</Text>
+          <Text style={styles.title}>{t('invitations.title')}</Text>
+          <Text style={styles.subtitle}>{t('invitations.subtitle')}</Text>
         </View>
       </View>
 
@@ -192,7 +191,7 @@ const InvitationsScreen = () => {
           <Text
             style={[styles.tabText, selectedTab === 'received' && styles.tabTextActive]}
           >
-            Nhận được ({receivedInvitations.length})
+            {t('invitations.received_count', { count: receivedInvitations.length })}
           </Text>
         </TouchableOpacity>
 
@@ -208,7 +207,7 @@ const InvitationsScreen = () => {
           <Text
             style={[styles.tabText, selectedTab === 'sent' && styles.tabTextActive]}
           >
-            Đã gửi ({sentInvitations.length})
+            {t('invitations.sent_count', { count: sentInvitations.length })}
           </Text>
         </TouchableOpacity>
       </View>
@@ -223,13 +222,13 @@ const InvitationsScreen = () => {
           />
           <Text style={styles.emptyText}>
             {selectedTab === 'received'
-              ? 'Chưa có lời mời nào'
-              : 'Chưa gửi lời mời nào'}
+              ? t('invitations.empty_received')
+              : t('invitations.empty_sent')}
           </Text>
           <Text style={styles.emptySubtext}>
             {selectedTab === 'received'
-              ? 'Khi có người mời bạn đi cùng sẽ hiển thị ở đây'
-              : 'Hãy tìm Hot Spots thú vị và mời bạn bè cùng đi'}
+              ? t('invitations.empty_received_subtitle')
+              : t('invitations.empty_sent_subtitle')}
           </Text>
         </View>
       ) : (
@@ -256,13 +255,13 @@ const getStatusColor = (status: string): string => {
   }
 };
 
-const getStatusText = (status: string): string => {
+const getStatusText = (status: string, t: (key: string) => string): string => {
   switch (status) {
-    case 'pending': return 'Chờ phản hồi';
-    case 'accepted': return 'Đã chấp nhận';
-    case 'declined': return 'Đã từ chối';
-    case 'expired': return 'Đã hết hạn';
-    default: return 'Không xác định';
+    case 'pending': return t('invitations.status_pending');
+    case 'accepted': return t('invitations.status_accepted');
+    case 'declined': return t('invitations.status_declined');
+    case 'expired': return t('invitations.status_expired');
+    default: return t('invitations.status_unknown');
   }
 };
 

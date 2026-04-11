@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 
 interface SocialLoginButtonsProps {
   onGoogleLogin: () => Promise<any>;
@@ -15,11 +16,12 @@ interface SocialLoginButtonsProps {
   isDarkMode?: boolean;
 }
 
-const SocialLoginButtons = ({ 
-  onGoogleLogin, 
-  onFacebookLogin, 
-  isDarkMode = false 
+const SocialLoginButtons = ({
+  onGoogleLogin,
+  onFacebookLogin,
+  isDarkMode = false,
 }: SocialLoginButtonsProps) => {
+  const { t } = useTranslation();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [facebookLoading, setFacebookLoading] = useState(false);
 
@@ -36,14 +38,14 @@ const SocialLoginButtons = ({
     try {
       setGoogleLoading(true);
       const result = await onGoogleLogin();
-      
+
       if (result.success) {
-        Alert.alert('Thành công', result.message);
+        Alert.alert(t('common.success'), result.message);
       } else {
-        Alert.alert('Lỗi', result.message);
+        Alert.alert(t('common.error'), result.message);
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Đăng nhập Google thất bại');
+      Alert.alert(t('common.error'), t('social_login.google_failed'));
       console.error('Google login error:', error);
     } finally {
       setGoogleLoading(false);
@@ -54,14 +56,14 @@ const SocialLoginButtons = ({
     try {
       setFacebookLoading(true);
       const result = await onFacebookLogin();
-      
+
       if (result.success) {
-        Alert.alert('Thành công', result.message);
+        Alert.alert(t('common.success'), result.message);
       } else {
-        Alert.alert('Lỗi', result.message);
+        Alert.alert(t('common.error'), result.message);
       }
     } catch (error) {
-      Alert.alert('Lỗi', 'Đăng nhập Facebook thất bại');
+      Alert.alert(t('common.error'), t('social_login.facebook_failed'));
       console.error('Facebook login error:', error);
     } finally {
       setFacebookLoading(false);
@@ -73,17 +75,16 @@ const SocialLoginButtons = ({
       <View style={styles.dividerContainer}>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
         <Text style={[styles.dividerText, { color: colors.subtleText }]}>
-          Hoặc tiếp tục với
+          {t('social_login.continue_with')}
         </Text>
         <View style={[styles.divider, { backgroundColor: colors.border }]} />
       </View>
 
       <View style={styles.socialButtons}>
-        {/* Google Login Button */}
         <TouchableOpacity
           style={[
             styles.socialButton,
-            { backgroundColor: colors.google, borderColor: colors.border }
+            { backgroundColor: colors.google, borderColor: colors.border },
           ]}
           onPress={handleGoogleLogin}
           disabled={googleLoading || facebookLoading}
@@ -98,11 +99,10 @@ const SocialLoginButtons = ({
           )}
         </TouchableOpacity>
 
-        {/* Facebook Login Button */}
         <TouchableOpacity
           style={[
             styles.socialButton,
-            { backgroundColor: colors.facebook, borderColor: colors.border }
+            { backgroundColor: colors.facebook, borderColor: colors.border },
           ]}
           onPress={handleFacebookLogin}
           disabled={googleLoading || facebookLoading}
@@ -119,15 +119,15 @@ const SocialLoginButtons = ({
       </View>
 
       <Text style={[styles.disclaimer, { color: colors.subtleText }]}>
-        Bằng cách đăng nhập, bạn đồng ý với{' '}
+        {t('social_login.disclaimer_prefix')}{' '}
         <Text style={[styles.link, { color: colors.google }]}>
-          Điều khoản sử dụng
+          {t('social_login.terms')}
         </Text>{' '}
-        và{' '}
+        {t('social_login.and')}{' '}
         <Text style={[styles.link, { color: colors.google }]}>
-          Chính sách bảo mật
+          {t('social_login.privacy')}
         </Text>{' '}
-        của chúng tôi.
+        {t('social_login.disclaimer_suffix')}
       </Text>
     </View>
   );

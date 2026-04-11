@@ -5,6 +5,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import MessageItem from './MessageItem';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/src/localization/i18n';
 
 // Performance: Enable/disable debug logging
 const DEBUG_MODE = false;
@@ -54,7 +56,7 @@ function getDateKey(createdAt: any): string {
   return `${y}-${m}-${day}`; // YYYY-MM-DD
 }
 
-function formatDayTitle(dateKey: string): string {
+function formatDayTitle(dateKey: string, t: (key: string) => string): string {
   if (dateKey === 'unknown') return '';
   const [y, m, d] = dateKey.split('-').map((v) => parseInt(v, 10));
   const date = new Date(y, (m || 1) - 1, d || 1);
@@ -68,11 +70,11 @@ function formatDayTitle(dateKey: string): string {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
 
-  if (isSame(date, today)) return 'Hôm nay';
-  if (isSame(date, yesterday)) return 'Hôm qua';
+  if (isSame(date, today)) return t('common.time.today');
+  if (isSame(date, yesterday)) return t('common.time.yesterday');
 
   try {
-    return date.toLocaleDateString('vi-VN', {
+    return date.toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US', {
       weekday: 'short',
       day: '2-digit',
       month: 'short',
@@ -139,6 +141,7 @@ export default function MessageList({
   scrollToMessageId,
   themeColors: propThemeColors
 }: MessageListProps) {
+  const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
   const defaultThemeColors: any = theme === 'dark' ? { ...Colors.dark, mode: 'dark' } : { ...Colors.light, mode: 'light' };
@@ -235,7 +238,7 @@ export default function MessageList({
       return (
         <MemoizedDaySeparator
           key={item.id}
-          title={formatDayTitle(item.dateKey)}
+          title={formatDayTitle(item.dateKey, t)}
           themeColors={currentThemeColors}
         />
       );
@@ -279,9 +282,7 @@ export default function MessageList({
       {isLoadingMore && (
         <View style={styles.loadMoreContainer}>
           <ActivityIndicator size="small" color={currentThemeColors?.tint || '#6366F1'} />
-          <Text style={[styles.loadMoreText, { color: currentThemeColors?.subtleText }]}>
-            Đang tải thêm...
-          </Text>
+          <Text style={[styles.loadMoreText, { color: currentThemeColors?.subtleText }]}>{t('chat.loading_more')}</Text>
         </View>
       )}
       {hasMore && !isLoadingMore && (
@@ -298,12 +299,8 @@ export default function MessageList({
       <View style={[styles.emptyContainer, { backgroundColor: backgroundColor || currentThemeColors?.background }]}>
         <View style={[styles.emptyCard, { backgroundColor: currentThemeColors?.surface || '#fff' }]}>
           <MaterialCommunityIcons name="message-text-outline" size={56} color={currentThemeColors?.subtleText || '#94a3b8'} />
-          <Text style={[styles.emptyTitle, { color: currentThemeColors?.text }]}>
-            Chưa có tin nhắn
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: currentThemeColors?.subtleText }]}>
-            Hãy gửi tin nhắn đầu tiên để bắt đầu cuộc trò chuyện.
-          </Text>
+          <Text style={[styles.emptyTitle, { color: currentThemeColors?.text }]}>{t('chat.no_messages')}</Text>
+          <Text style={[styles.emptySubtitle, { color: currentThemeColors?.subtleText }]}>{t('chat.first_message_hint')}</Text>
         </View>
       </View>
     );

@@ -13,6 +13,7 @@ import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,6 +39,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onAction,
 }) => {
   const router = useRouter();
+  const { t } = useTranslation();
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(-100));
 
@@ -111,7 +113,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
       router.push(`/(screens)/user/UserProfileScreen?userId=${userId}` as any);
       onClose();
     } else {
-      Alert.alert('Lỗi', 'Không thể mở profile người dùng');
+      Alert.alert(t('common.error'), t('notifications_modal.open_profile_error'));
     }
   };
 
@@ -126,14 +128,14 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               onPress={handleViewContent}
             >
               <MaterialIcons name="visibility" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Xem bài viết</Text>
+              <Text style={styles.actionButtonText}>{t('notifications_modal.view_post')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.secondaryButton]}
               onPress={handleViewProfile}
             >
               <MaterialIcons name="person" size={16} color="#666" />
-              <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Xem profile</Text>
+              <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>{t('notifications_modal.view_profile')}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -147,14 +149,14 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               onPress={handleViewProfile}
             >
               <MaterialIcons name="person" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Xem profile</Text>
+              <Text style={styles.actionButtonText}>{t('notifications_modal.view_profile')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.secondaryButton]}
               onPress={() => onAction('follow_back')}
             >
               <MaterialIcons name="person-add" size={16} color="#666" />
-              <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Theo dõi lại</Text>
+              <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>{t('notifications_modal.follow_back')}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -168,14 +170,14 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               onPress={() => onAction('reply')}
             >
               <MaterialIcons name="reply" size={16} color="#fff" />
-              <Text style={styles.actionButtonText}>Trả lời</Text>
+              <Text style={styles.actionButtonText}>{t('notifications_modal.reply')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionButton, styles.secondaryButton]}
               onPress={() => onAction('mark_read')}
             >
               <MaterialIcons name="done" size={16} color="#666" />
-              <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Đánh dấu đã đọc</Text>
+              <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>{t('notifications_modal.mark_read')}</Text>
             </TouchableOpacity>
           </View>
         );
@@ -187,7 +189,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
             onPress={handleViewContent}
           >
             <MaterialIcons name="open-in-new" size={16} color="#fff" />
-            <Text style={styles.actionButtonText}>Mở</Text>
+            <Text style={styles.actionButtonText}>{t('notifications_modal.open')}</Text>
           </TouchableOpacity>
         );
     }
@@ -248,7 +250,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               )}
               <View style={styles.textContent}>
                 <Text style={styles.senderName}>
-                  {notification.senderName || 'Unknown User'}
+                  {notification.senderName || t('chat.unknown_user')}
                 </Text>
                 <Text style={styles.title}>{notification.title}</Text>
               </View>

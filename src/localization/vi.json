@@ -33,7 +33,9 @@
             "years_ago": "{{count}} năm trước",
             "today": "Hôm nay",
             "yesterday": "Hôm qua"
-        }
+        },
+        "close": "Đóng",
+        "info": "Thông báo"
     },
     "signup": {
         "cancel_title": "Hủy đăng ký?",
@@ -101,7 +103,11 @@
         "summary_education": "Học vấn: {{education}}",
         "summary_university": "Trường: {{university}}",
         "summary_interests": "Sở thích: {{interests}}",
-        "no_filters": "Chưa chọn bộ lọc nào"
+        "no_filters": "Chưa chọn bộ lọc nào",
+        "active_title": "Bộ lọc đang áp dụng",
+        "clear_all": "Xóa tất cả",
+        "from_age": "Từ {{age}} tuổi",
+        "to_age": "Đến {{age}} tuổi"
     },
     "social": {
         "delete_post_title": "Xác nhận xóa",
@@ -193,11 +199,24 @@
             "title": "Chỉnh sửa tin nhắn",
             "placeholder": "Nhập tin nhắn...",
             "error_empty": "Tin nhắn không được để trống"
-        }
+        },
+        "list_options": {
+            "title": "Tùy chọn chat",
+            "subtitle": "Cuộc trò chuyện",
+            "pin": "Ghim lên đầu",
+            "unpin": "Bỏ ghim",
+            "delete": "Xóa cuộc trò chuyện",
+            "type_not_supported": "Loại chat này chưa hỗ trợ xóa."
+        },
+        "list_header_subtitle": "✨ Kết nối bạn bè",
+        "replying_to": "Đang trả lời {{name}}",
+        "gift_note_self": "Bạn đã tặng quà",
+        "gift_note_other": "{{senderName}} đã tặng bạn một món quà"
     },
     "profile": {
         "title": "Hồ sơ",
         "edit_profile": "Chỉnh sửa hồ sơ",
+        "share_profile": "Chia sẻ hồ sơ",
         "settings": "Cài đặt",
         "logout": "Đăng xuất",
         "coins": "Xu",
@@ -209,11 +228,12 @@
         "following": "Đang theo dõi",
         "posts": "Bài viết",
         "interests": "Sở thích của tôi",
-        "bio_placeholder": "Giới thiệu về bản thân bạn...",
+        "bio_placeholder": "Giới thiệu về bản thân...",
         "bio_empty": "Nhấn chỉnh sửa để thêm giới thiệu",
         "uid_copied": "Đã sao chép UID vào bộ nhớ tạm",
         "follow": "Theo dõi",
         "visitors": "Người ghé thăm",
+        "views": "Lượt xem",
         "who_viewed": "Ai đã xem bạn",
         "no_visitors": "Chưa có ai ghé thăm profile của bạn",
         "unlock_visitors": "Mở khóa người ghé thăm",
@@ -231,6 +251,21 @@
         "unblock_confirm_message": "Bạn có chắc chắn muốn bỏ chặn người dùng này?",
         "add_vibe": "Thêm vibe",
         "info": "Thông tin",
+        "highlights": "Điểm nổi bật",
+        "coins_wallet": "Ví xu",
+        "gift_box": "Hộp quà",
+        "about_me": "Giới thiệu",
+        "studying_at_label": "Học tại {{school}}",
+        "education_level_label": "Trình độ: {{value}}",
+        "visitors_title": "Lượt ghé thăm",
+        "visitors_summary": "{{count}} người đã xem profile của bạn",
+        "gender": "Giới tính",
+        "age": "Tuổi",
+        "occupation": "Nghề nghiệp",
+        "education": "Học vấn",
+        "male": "Nam",
+        "female": "Nữ",
+        "other": "Khác",
         "lives_in": "Sống tại {{city}}",
         "works_at": "Làm việc tại {{job}}",
         "studies_at": "Học tại {{school}}",
@@ -439,7 +474,8 @@
         "unknown_location": "Vị trí không xác định",
         "uninterested_success": "Đã bỏ quan tâm",
         "uninterested_desc": "Bạn không còn quan tâm đến sự kiện này.",
-        "currency": "đ"
+        "currency": "đ",
+        "discover_interesting": "Khám phá địa điểm và sự kiện thú vị"
     },
     "proximity": {
         "title": "Radar Lân Cận",
@@ -457,102 +493,6 @@
         "error_scanning": "Lỗi khi đang quét",
         "location_permission_title": "Quyền truy cập vị trí",
         "location_permission_desc": "Ứng dụng cần quyền truy cập vị trí để tìm người lân cận.",
-        "gps_error": "Không thể lấy vị trí của bạn. Vui lòng kiểm tra GPS.",
-        "modal": {
-            "distance": "Khoảng cách",
-            "bearing": "Phương hướng",
-            "relative": "Tương đối",
-            "view_profile": "Xem hồ sơ",
-            "message": "Nhắn tin"
-        }
-    },
-    "crossing_paths": {
-        "title": "Lướt qua nhau",
-        "subtitle": "Lịch sử chạm mặt gần đây",
-        "crossed_distance": "Lướt qua nhau trong khoảng {{distance}}m",
-        "empty_title": "Chưa có cuộc chạm mặt nào được ghi lại.",
-        "empty_desc": "Hãy thử bật Radar khi đi dạo nhé!",
-        "open_radar": "Bật Radar ngay"
-    },
-    "groups": {
-        "invalid_id": "ID nhóm không hợp lệ",
-        "login_required": "Bạn cần đăng nhập để xem trò chuyện nhóm",
-        "not_member": "Bạn không phải là thành viên của nhóm này",
-        "not_found": "Không tìm thấy trò chuyện nhóm",
-        "connection_error": "Lỗi kết nối với nhóm",
-        "load_timeout": "Tải quá lâu. Kiểm tra mạng hoặc thử lại",
-        "send_error": "Lỗi khi gửi tin nhắn",
-        "send_image_error": "Lỗi khi gửi ảnh",
-        "loading": "Đang tải trò chuyện nhóm...",
-        "reply_to": "Trả lời {{name}}",
-        "image": "Hình ảnh",
-        "user": "Người dùng",
-        "leave_title": "Rời nhóm",
-        "leave_message": "Bạn có chắc chắn muốn rời khỏi nhóm này không?",
-        "leave_confirm": "Rời nhóm",
-        "unnamed": "Nhóm chưa đặt tên",
-        "members_count": "{{count}} thành viên"
-    },
-    "notifications": {
-        "title": "Thông báo",
-        "unread": "Chưa đọc",
-        "mark_all_read": "Đánh dấu tất cả đã đọc",
-        "no_notifications": "Chưa có thông báo nào",
-        "empty_desc": "Khi bạn có thông báo, chúng sẽ hiển thị ở đây",
-        "categories": {
-            "all": "Tất cả",
-            "message": "Tin nhắn",
-            "call": "Cuộc gọi",
-            "friend_request": "Bạn bè",
-            "event_pass": "Thẻ sự kiện",
-            "system": "Hệ thống",
-            "hot_spot": "Địa điểm Hot",
-            "like": "Lượt thích",
-            "comment": "Bình luận",
-            "follow": "Theo dõi"
-        },
-        "types": {
-            "friend_request": "Lời mời kết bạn",
-            "message": "Tin nhắn mới",
-            "hot_spot": "Hoạt động địa điểm Hot",
-            "event_pass": "Thẻ sự kiện mới",
-            "call": "Cuộc gọi nhỡ",
-            "system": "Cập nhật hệ thống",
-            "like": "Đã thích bài viết của bạn",
-            "comment": "Đã bình luận về bài viết của bạn",
-            "follow": "Đã bắt đầu theo dõi bạn",
-            "mention": "Đã nhắc đến bạn",
-            "accepted_invite": "Đã chấp nhận lời mời"
-        },
-        "actions": {
-            "accept": "Chấp nhận",
-            "decline": "Từ chối",
-            "reply": "Trả lời",
-            "view_post": "Xem bài viết",
-            "like_back": "Thích lại",
-            "follow_back": "Theo dõi lại",
-            "view_profile": "Xem hồ sơ",
-            "join": "Tham gia",
-            "view": "Xem"
-        },
-        "unread_count": "Chưa đọc ({{count}})",
-        "all_read_success": "Đã đánh dấu tất cả thông báo là đã đọc",
-        "all_read_error": "Không thể đánh dấu tất cả là đã đọc. Vui lòng thử lại.",
-        "liked_your_post": "đã thích bài viết của bạn",
-        "commented_on_your_post": "đã bình luận về bài viết của bạn",
-        "started_following_you": "đã bắt đầu theo dõi bạn",
-        "mentioned_you": "đã nhắc đến bạn",
-        "accepted_your_invite": "đã chấp nhận lời mời của bạn",
-        "wants_to_follow": "và {{count}} người khác muốn theo dõi bạn",
-        "sent_you_message": "đã gửi cho bạn một tin nhắn",
-        "checked_in_at": "đã check-in tại {{location}} cùng {{count}} người khác",
-        "received_badge": "Bạn đã nhận được huy hiệu \"{{badge}}\" từ sự kiện cuối tuần",
-        "called_you_at": "đã gọi cho bạn lúc {{time}}",
-        "new_version_available": "Phiên bản mới của ChappAt đã sẵn sàng với nhiều tính năng thú vị",
-        "no_unread": "Bạn đã đọc hết thông báo!",
-        "all_marked_read": "Tất cả thông báo đã được đánh dấu là đã đọc",
-        "new_notifications_will_appear": "Khi bạn có thông báo mới, chúng sẽ hiển thị ở đây",
-        "new_notification": "Thông báo mới",
-        "this_user": "người dùng này"
+        "gps_error": "Không thể lấy vị trí của bạn. Vui lòng kiểm tra GPS."
     }
 }

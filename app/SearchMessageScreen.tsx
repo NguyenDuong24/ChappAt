@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { collection, query, where, getDocs, orderBy, DocumentData, QueryDocumentSnapshot } from 'firebase/firestore';
 import { db, auth } from '@/firebaseConfig';
 import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next';
 
 interface MessageResult {
   id: string;
@@ -18,6 +19,7 @@ interface MessageResult {
 const BATCH_SIZE = 30;
 
 const SearchMessageScreen = () => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<MessageResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -100,7 +102,7 @@ const SearchMessageScreen = () => {
             newResults.push({
               id: doc.id,
               message: data.text,
-              sender: data.senderName || data.uid || 'Unknown',
+              sender: data.senderName || data.uid || t('chat.unknown_user'),
               timestamp: data.createdAt?.toDate ? data.createdAt.toDate().toISOString().split('T')[0] : '',
               roomId
             });
@@ -153,7 +155,7 @@ const SearchMessageScreen = () => {
     return (
       <View style={styles.footerLoader}>
         <ActivityIndicator size="small" color="#667eea" />
-        <Text style={styles.footerText}>Đang tải thêm...</Text>
+        <Text style={styles.footerText}>{t('chat.loading_more')}</Text>
       </View>
     );
   };
@@ -166,7 +168,7 @@ const SearchMessageScreen = () => {
         </TouchableOpacity>
         <TextInput
           style={styles.searchInput}
-          placeholder="Tìm kiếm tin nhắn..."
+          placeholder={t('search_messages.placeholder')}
           value={searchQuery}
           onChangeText={setSearchQuery}
           onSubmitEditing={handleSearch}
@@ -181,7 +183,7 @@ const SearchMessageScreen = () => {
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#667eea" />
-          <Text style={styles.loadingText}>Đang tìm kiếm...</Text>
+          <Text style={styles.loadingText}>{t('search_messages.loading')}</Text>
         </View>
       ) : (
         <FlatList
@@ -190,9 +192,9 @@ const SearchMessageScreen = () => {
           renderItem={renderSearchResult}
           ListEmptyComponent={
             !isLoading && searchQuery && searchResults.length === 0 ? (
-              <Text style={styles.emptyText}>Không tìm thấy tin nhắn nào</Text>
+              <Text style={styles.emptyText}>{t('search_messages.empty_result')}</Text>
             ) : (
-              !isLoading && !searchQuery ? <Text style={styles.emptyText}>Nhập từ khóa để tìm kiếm</Text> : null
+              !isLoading && !searchQuery ? <Text style={styles.emptyText}>{t('search_messages.empty_hint')}</Text> : null
             )
           }
           style={styles.resultsList}

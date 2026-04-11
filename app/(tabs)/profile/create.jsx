@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from 'react';
+﻿import React, { useState, useContext, useEffect } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, ScrollView, FlatList, Dimensions, Alert, Modal } from 'react-native';
 import { Image } from 'expo-image';
 import { TextInput, Button, Chip } from 'react-native-paper';
@@ -8,7 +8,7 @@ import {
   addDoc, collection, serverTimestamp, getDoc, setDoc, updateDoc, doc, increment, arrayUnion, query, orderBy, limit, getDocs
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadLocalFileToStorage } from '@/utils/storageUpload';
 import { useAuth } from '@/context/authContext';
 import { LocationContext } from '@/context/LocationContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -23,17 +23,17 @@ import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
 import { manipulateAsync } from 'expo-image-manipulator';
 import * as jpeg from 'jpeg-js';
 import { decode as atob } from 'base-64';
+import { useTranslation } from 'react-i18next';
 
-const storage = getStorage();
 const { width: screenWidth } = Dimensions.get('window');
 
-// Hàm tách các hashtag từ nội dung bài viết
+// Extract hashtags from post content
 const extractHashtags = (text) => {
-  const regex = /#[a-zA-Z0-9_àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]+/gi;
+  const regex = /#[\p{L}\p{N}_]+/gu;
   return text.match(regex) || [];
 };
 
-// Danh sách hashtag phổ biến
+// Popular hashtag list
 const POPULAR_HASHTAGS = [
   '#vietnam', '#saigon', '#hanoi', '#travel', '#food', '#photography',
   '#lifestyle', '#fashion', '#beauty', '#coffee', '#sunset', '#beach',
@@ -44,10 +44,10 @@ const POPULAR_HASHTAGS = [
 
 // Location privacy options
 const LOCATION_PRIVACY_OPTIONS = [
-  { id: 'none', label: 'Không hiển thị vị trí', icon: 'eye-off' },
-  { id: 'city', label: 'Chỉ hiển thị thành phố/tỉnh', icon: 'location' },
-  { id: 'district', label: 'Hiển thị đến quận/huyện', icon: 'location' },
-  { id: 'detailed', label: 'Hiển thị chi tiết', icon: 'location' }
+  { id: 'none', labelKey: 'create_post.location_none', icon: 'eye-off' },
+  { id: 'city', labelKey: 'create_post.location_city', icon: 'location' },
+  { id: 'district', labelKey: 'create_post.location_district', icon: 'location' },
+  { id: 'detailed', labelKey: 'create_post.location_detailed', icon: 'location' }
 ];
 
 // NSFW model assets (relative to this file)
@@ -71,7 +71,7 @@ function imageToTensor(rawImageData) {
     return tf.tidy(() => tf.tensor4d(buffer, [1, height, width, 3]).div(255));
   } catch (error) {
     console.error('Error in imageToTensor:', error);
-    throw error; // Để propagate lỗi lên trên
+    throw error;
   }
 }
 
@@ -85,6 +85,7 @@ async function getTopKClasses(logits, topK = 5) {
 }
 
 const CreatePostScreen = () => {
+  const { t } = useTranslation();
   const [tag, setTag] = useState('');
   const [content, setContent] = useState('');
   const [image, setImage] = useState([]);
@@ -138,7 +139,7 @@ const CreatePostScreen = () => {
           await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s
           await loadModelWithRetry(retries - 1);
         } else {
-          Alert.alert('Lỗi', 'Không thể load model NSFW. Hình ảnh sẽ không được check tự động.');
+          Alert.alert(t('common.error'), t('create_post.nsfw_model_load_error'));
         }
       }
     };
@@ -153,7 +154,7 @@ const CreatePostScreen = () => {
       return { isInappropriate: false, scores: {}, reason: 'Model not available' };
     }
 
-    console.group(`🔎 NSFW check for: ${uri}`);
+    console.group(`NSFW check for: ${uri}`);
     try {
       const resized = await manipulateAsync(
         uri,
@@ -186,7 +187,7 @@ const CreatePostScreen = () => {
       if (p >= 0.45) reasonParts.push(`Porn: ${(p * 100).toFixed(1)}%`);
       if (h >= 0.45) reasonParts.push(`Hentai: ${(h * 100).toFixed(1)}%`);
       if (s >= 0.6) reasonParts.push(`Sexy: ${(s * 100).toFixed(1)}%`);
-      const reason = reasonParts.join(', ') || 'An toàn';
+      const reason = reasonParts.join(', ') || t('create_post.nsfw_safe');
 
       const scores = { p, h, s, n, d };
       console.log('Scores:', scores);
@@ -196,7 +197,7 @@ const CreatePostScreen = () => {
       return { isInappropriate, scores, reason };
     } catch (error) {
       console.error('NSFW classify error:', error);
-      return { isInappropriate: true, scores: {}, reason: 'Lỗi xử lý ảnh - chặn để an toàn' }; // Fallback: block if error
+      return { isInappropriate: true, scores: {}, reason: t('create_post.nsfw_process_error') }; // Fallback: block if error
     } finally {
       console.groupEnd();
     }
@@ -225,8 +226,10 @@ const CreatePostScreen = () => {
         else safeUris.push(selectedImages[idx]);
       });
       if (blocked.length) {
-        const reasons = blocked.map(b => `• Ảnh ${b.idx}: ${b.reason || 'Không phù hợp'}`).join('\n');
-        Alert.alert('Ảnh không phù hợp', `Một số ảnh đã bị chặn:\n${reasons}\n\nBạn có thể chọn lại ảnh.`);
+        const reasons = blocked
+          .map((b) => t('create_post.image_blocked_item', { index: b.idx, reason: b.reason || t('create_post.not_suitable') }))
+          .join('\n');
+        Alert.alert(t('create_post.image_not_suitable_title'), t('create_post.image_blocked_message', { reasons }));
       }
       setImage(safeUris);
     }
@@ -243,21 +246,21 @@ const CreatePostScreen = () => {
       const newHashtags = [...selectedHashtags, hashtag];
       setSelectedHashtags(newHashtags);
       setCustomHashtag('');
-      console.log('✅ Successfully added hashtag:', hashtag);
-      console.log('📋 Updated hashtags array:', newHashtags);
-      Alert.alert('Thành công', `Đã thêm hashtag: ${hashtag}`);
+      console.log('Successfully added hashtag:', hashtag);
+      console.log('Updated hashtags array:', newHashtags);
+      Alert.alert(t('common.success'), t('create_post.hashtag_added', { hashtag }));
     } else {
-      console.log('❌ Failed to add hashtag - conditions check:');
+      console.log('Failed to add hashtag - conditions check:');
       console.log('- Length check (>1):', hashtag.length > 1);
       console.log('- Duplicate check:', !selectedHashtags.includes(hashtag));
       console.log('- Limit check (<10):', selectedHashtags.length < 10);
 
-      let errorMessage = 'Không thể thêm hashtag. ';
-      if (hashtag.length <= 1) errorMessage += 'Hashtag quá ngắn.';
-      else if (selectedHashtags.includes(hashtag)) errorMessage += 'Hashtag đã tồn tại.';
-      else if (selectedHashtags.length >= 10) errorMessage += 'Đã đạt giới hạn 10 hashtag.';
+      let errorMessage = t('create_post.cannot_add_hashtag');
+      if (hashtag.length <= 1) errorMessage = t('create_post.hashtag_too_short');
+      else if (selectedHashtags.includes(hashtag)) errorMessage = t('create_post.hashtag_exists');
+      else if (selectedHashtags.length >= 10) errorMessage = t('create_post.hashtag_limit');
 
-      Alert.alert('Thông báo', errorMessage);
+      Alert.alert(t('create_post.notice'), errorMessage);
     }
   };
 
@@ -269,10 +272,10 @@ const CreatePostScreen = () => {
 
     switch (locationPrivacy) {
       case 'city':
-        // Chỉ lấy 2 phần cuối (thành phố/tỉnh và quốc gia)
+        // Keep last two parts (city/province + country)
         return addressParts.slice(-2).join(', ');
       case 'district':
-        // Lấy 3 phần cuối (quận/huyện, thành phố/tỉnh, quốc gia)
+        // Keep last three parts (district + city/province + country)
         return addressParts.slice(-3).join(', ');
       case 'detailed':
         return fullAddress;
@@ -285,11 +288,11 @@ const CreatePostScreen = () => {
     const formattedAddress = formatAddressForPrivacy(address);
 
     if (locationPrivacy === 'none') {
-      return 'Không hiển thị vị trí';
+      return t('create_post.location_hidden');
     }
 
     if (locationLoading) {
-      return 'Đang lấy vị trí...';
+      return t('create_post.location_loading');
     }
 
     if (formattedAddress) {
@@ -300,28 +303,28 @@ const CreatePostScreen = () => {
       return errorMsg;
     }
 
-    return 'Không có vị trí';
+    return t('create_post.location_unavailable');
   };
 
   const handleSave = async () => {
     if (!content.trim() && image.length === 0) {
-      Alert.alert('Thông báo', 'Vui lòng nhập nội dung hoặc chọn ảnh để đăng bài.');
+      Alert.alert(t('create_post.notice'), t('create_post.empty_content_error'));
       return;
     }
 
-    // Kiểm tra nội dung (text)
+    // Kiá»ƒm tra ná»™i dung (text)
     if (content.trim()) {
       try {
         const moderationResult = await contentModerationService.moderateText(content.trim());
         if (!moderationResult.isClean) {
           const warningMessage = contentModerationService.generateWarningMessage(moderationResult);
           Alert.alert(
-            '⚠️ Nội dung không phù hợp',
-            `${warningMessage}\n\nBạn có muốn đăng với nội dung đã được làm sạch không?`,
+            t('create_post.inappropriate_content_title'),
+            warningMessage,
             [
-              { text: 'Hủy', style: 'cancel' },
-              { text: 'Chỉnh sửa', onPress: () => setContent(moderationResult.filteredText || content) },
-              { text: 'Đăng với nội dung đã lọc', onPress: () => proceedWithPost(moderationResult.filteredText || content.trim()) }
+              { text: t('common.cancel'), style: 'cancel' },
+              { text: t('create_post.edit'), onPress: () => setContent(moderationResult.filteredText || content) },
+              { text: t('create_post.post_with_filtered_content'), onPress: () => proceedWithPost(moderationResult.filteredText || content.trim()) }
             ]
           );
           return;
@@ -331,7 +334,7 @@ const CreatePostScreen = () => {
       }
     }
 
-    // Nội dung sạch, tiếp tục đăng
+    // Ná»™i dung sáº¡ch, tiáº¿p tá»¥c Ä‘Äƒng
     await proceedWithPost(content.trim());
   };
 
@@ -345,33 +348,37 @@ const CreatePostScreen = () => {
           .filter(r => r.isInappropriate);
         const warnings = results
           .map((r, i) => ({ idx: i + 1, ...r }))
-          .filter(r => !r.isInappropriate && r.reason !== 'An toàn'); // Warning cho các trường hợp gần ngưỡng
+          .filter((r) => !r.isInappropriate && r.reason !== t('create_post.nsfw_safe'));
 
         if (bad.length > 0) {
-          const reasons = bad.map(r => `• Ảnh ${r.idx}: ${r.reason}`).join('\n');
-          Alert.alert('⚠️ Hình ảnh không phù hợp', `Không thể đăng:\n${reasons}`);
+          const reasons = bad
+            .map((r) => t('create_post.image_blocked_item', { index: r.idx, reason: r.reason }))
+            .join('\n');
+          Alert.alert(t('create_post.inappropriate_image_title'), t('create_post.cannot_post_images', { reasons }));
           return;
         }
 
         if (warnings.length > 0) {
-          const warnReasons = warnings.map(r => `• Ảnh ${r.idx}: ${r.reason}`).join('\n');
+          const warnReasons = warnings
+            .map((r) => t('create_post.image_blocked_item', { index: r.idx, reason: r.reason }))
+            .join('\n');
           Alert.alert(
-            'Cảnh báo NSFW',
-            `Một số ảnh có thể gần mức nhạy cảm:\n${warnReasons}\n\nBạn vẫn muốn đăng?`,
+            t('create_post.nsfw_warning_title'),
+            t('create_post.nsfw_warning_message', { reasons: warnReasons }),
             [
-              { text: 'Hủy', style: 'cancel' },
-              { text: 'Đăng anyway', onPress: () => uploadAndSave(finalContent) } // Tiếp tục nếu user confirm
+              { text: t('common.cancel'), style: 'cancel' },
+              { text: t('create_post.post_anyway'), onPress: () => uploadAndSave(finalContent) }
             ]
           );
           return;
         }
       }
 
-      // Nếu không có vấn đề, tiếp tục upload
+      // Continue upload when no blocking issue exists
       await uploadAndSave(finalContent);
     } catch (error) {
       console.error('Error in proceedWithPost:', error);
-      Alert.alert('Lỗi', 'Có lỗi khi check NSFW. Vui lòng thử lại.');
+      Alert.alert(t('common.error'), t('create_post.nsfw_check_error'));
     } finally {
       setLoading(false);
     }
@@ -381,20 +388,20 @@ const CreatePostScreen = () => {
     let imageUrls = [];
     if (image.length > 0) {
       const uploadPromises = image.map(async (uri, index) => {
-        const storageRef = ref(storage, `images/${user?.uid}/${Date.now()}_${index}.jpg`);
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        await uploadBytes(storageRef, blob);
-        return getDownloadURL(storageRef);
+        return uploadLocalFileToStorage({
+          uri,
+          path: `images/${user?.uid}/${Date.now()}_${index}.jpg`,
+          contentType: 'image/jpeg',
+        });
       });
       imageUrls = await Promise.all(uploadPromises);
     }
 
-    // Kết hợp hashtag từ nội dung và hashtag được chọn
+    // Merge hashtags extracted from content and selected chips
     const contentHashtags = extractHashtags(finalContent);
     const allHashtags = [...new Set([...contentHashtags, ...selectedHashtags])];
 
-    console.log('🏷️ Hashtag processing details:', {
+    console.log('Hashtag processing details:', {
       contentText: finalContent,
       extractedFromContent: contentHashtags,
       selectedHashtags: selectedHashtags,
@@ -404,28 +411,28 @@ const CreatePostScreen = () => {
       contentCount: contentHashtags.length
     });
 
-    // Tạo bài viết mới
+    // Create new post payload
     const formattedAddress = formatAddressForPrivacy(address);
 
     const newPost = {
       content: finalContent,
-      hashtags: allHashtags, // Lưu danh sách hashtag
+      hashtags: allHashtags,
       images: imageUrls,
       location: (location && locationPrivacy !== 'none') ? {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude
       } : null,
-      address: formattedAddress, // Sử dụng địa chỉ đã được format theo privacy
-      locationPrivacy: locationPrivacy, // Lưu setting privacy
+      address: formattedAddress,
+      locationPrivacy: locationPrivacy,
       likes: [],
       comments: [],
       timestamp: serverTimestamp(),
       userID: user?.uid,
       username: user?.username || user?.displayName || 'Anonymous',
-      privacy: 'public', // Mặc định là public
+      privacy: 'public',
     };
 
-    // Validation để đảm bảo hashtags hợp lệ trước khi lưu
+    // Validate hashtags before save
     const validHashtags = allHashtags.filter(tag =>
       tag &&
       typeof tag === 'string' &&
@@ -433,7 +440,7 @@ const CreatePostScreen = () => {
       tag.length > 1
     );
 
-    console.log('🚀 Creating post with data:', {
+    console.log('Creating post with data:', {
       content: newPost.content,
       originalHashtags: allHashtags,
       validHashtags: validHashtags,
@@ -444,18 +451,18 @@ const CreatePostScreen = () => {
       locationPrivacy: newPost.locationPrivacy
     });
 
-    // Cập nhật newPost với hashtags đã được validate
+    // Keep only validated hashtags
     newPost.hashtags = validHashtags;
 
     // Thêm bài viết vào collection 'posts'
     const postRef = await addDoc(collection(db, 'posts'), newPost);
 
-    // Cập nhật hoặc tạo mới document cho từng hashtag
-    console.log('📊 Updating hashtag documents for:', validHashtags);
+    // Update or create hashtag docs
+    console.log('Updating hashtag documents for:', validHashtags);
     for (const tagItem of validHashtags) {
       const cleanTag = tagItem.toLowerCase();
       const tagDocRef = doc(collection(db, 'hashtags'), cleanTag);
-      console.log(`📝 Processing hashtag: ${tagItem} -> ${cleanTag}`);
+      console.log(`Processing hashtag: ${tagItem} -> ${cleanTag}`);
 
       try {
         const tagDocSnap = await getDoc(tagDocRef);
@@ -480,15 +487,15 @@ const CreatePostScreen = () => {
       }
     }
 
-    console.log('✅ Post created successfully with ID:', postRef.id);
-    console.log('📊 Final hashtag stats updated for:', validHashtags);
+    console.log('Post created successfully with ID:', postRef.id);
+    console.log('Final hashtag stats updated for:', validHashtags);
 
     // Verify the post was saved correctly by reading it back
     try {
       const savedPostDoc = await getDoc(postRef);
       if (savedPostDoc.exists()) {
         const savedData = savedPostDoc.data();
-        console.log('✅ Post verification - saved data:', {
+        console.log('Post verification - saved data:', {
           id: savedPostDoc.id,
           hashtags: savedData.hashtags,
           hashtagsType: typeof savedData.hashtags,
@@ -497,11 +504,11 @@ const CreatePostScreen = () => {
         });
       }
     } catch (verifyError) {
-      console.error('❌ Error verifying saved post:', verifyError);
+      console.error('Error verifying saved post:', verifyError);
     }
 
-    Alert.alert('Thành công', 'Bài viết đã được đăng thành công!', [
-      { text: 'OK', onPress: () => router.back() }
+    Alert.alert(t('common.success'), t('create_post.post_success'), [
+      { text: t('common.ok'), onPress: () => router.back() }
     ]);
   };
 
@@ -527,7 +534,7 @@ const CreatePostScreen = () => {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Tạo bài viết</Text>
+        <Text style={styles.headerTitle}>{t('create_post.title')}</Text>
         <TouchableOpacity
           onPress={handleSave}
           disabled={isButtonDisabled}
@@ -536,7 +543,7 @@ const CreatePostScreen = () => {
           {loading ? (
             <ActivityIndicator color="#fff" size="small" />
           ) : (
-            <Text style={styles.postButtonText}>Đăng</Text>
+            <Text style={styles.postButtonText}>{t('create_post.post_button')}</Text>
           )}
         </TouchableOpacity>
       </LinearGradient>
@@ -551,10 +558,10 @@ const CreatePostScreen = () => {
           </View>
           <View style={styles.userInfo}>
             <Text style={[styles.username, { color: currentThemeColors.text }]}>
-              {user?.username || user?.displayName || 'Anonymous'}
+              {user?.username || user?.displayName || t('create_post.anonymous')}
             </Text>
             <Text style={[styles.privacy, { color: currentThemeColors.subtleText }]}>
-              Công khai
+              {t('create_post.public')}
             </Text>
           </View>
         </View>
@@ -567,7 +574,7 @@ const CreatePostScreen = () => {
             multiline
             numberOfLines={6}
             textColor={currentThemeColors.text}
-            placeholder="Bạn đang nghĩ gì? Hãy chia sẻ với mọi người..."
+            placeholder={t('create_post.placeholder')}
             placeholderTextColor={currentThemeColors.subtleText}
             activeUnderlineColor="transparent"
             underlineColor="transparent"
@@ -579,7 +586,7 @@ const CreatePostScreen = () => {
         {selectedHashtags.length > 0 && (
           <View style={styles.selectedHashtagsContainer}>
             <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-              Hashtags đã chọn ({selectedHashtags.length}/10)
+              {t('create_post.selected_hashtags_count', { count: selectedHashtags.length })}
             </Text>
             <View style={styles.hashtagsRow}>
               {selectedHashtags.map((hashtag, index) => (
@@ -599,24 +606,24 @@ const CreatePostScreen = () => {
         {/* Add Custom Hashtag */}
         <View style={styles.customHashtagContainer}>
           <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-            Thêm hashtag tùy chỉnh
+            {t('create_post.add_custom_hashtag')}
           </Text>
           <View style={styles.customHashtagInput}>
             <TextInput
               value={customHashtag}
               onChangeText={(text) => {
-                console.log('📝 Input changed:', { from: customHashtag, to: text });
+                console.log('Input changed:', { from: customHashtag, to: text });
                 // Xử lý input hashtag
                 if (text === '') {
                   setCustomHashtag('');
                 } else if (text.startsWith('#')) {
                   setCustomHashtag(text);
                 } else {
-                  // Tự động thêm # nếu người dùng nhập mà không có #
+                  // Auto-add # if user input does not include it
                   setCustomHashtag('#' + text);
                 }
               }}
-              placeholder="Nhập hashtag... (VD: #travel)"
+              placeholder={t('create_post.hashtag_placeholder')}
               placeholderTextColor={currentThemeColors.subtleText}
               textColor={currentThemeColors.text}
               activeUnderlineColor="transparent"
@@ -650,7 +657,7 @@ const CreatePostScreen = () => {
         {/* Trending Hashtags */}
         <View style={styles.trendingContainer}>
           <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-            🔥 Hashtags thịnh hành
+            {t('create_post.trending_hashtags')}
           </Text>
           <View style={styles.hashtagsRow}>
             {(trendingHashtags.length > 0 ? trendingHashtags : POPULAR_HASHTAGS.slice(0, 10)).map((hashtag, index) => (
@@ -686,7 +693,7 @@ const CreatePostScreen = () => {
         {image.length > 0 && (
           <View style={styles.imageContainer}>
             <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-              Ảnh đã chọn ({image.length}/4)
+              {t('create_post.selected_images_count', { count: image.length })}
             </Text>
             {image.length === 1 ? (
               <View style={styles.singleImageContainer}>
@@ -730,7 +737,9 @@ const CreatePostScreen = () => {
           >
             <Ionicons name="camera" size={24} color={Colors.primary} />
             <Text style={[styles.actionButtonText, { color: currentThemeColors.text }]}>
-              {image.length > 0 ? `Ảnh (${image.length}/4)` : 'Thêm ảnh'}
+              {image.length > 0
+                ? t('create_post.images_count_button', { count: image.length })
+                : t('create_post.add_image')}
             </Text>
           </TouchableOpacity>
 
@@ -744,7 +753,7 @@ const CreatePostScreen = () => {
         {/* Location Privacy Settings */}
         <View style={styles.locationContainer}>
           <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-            🔒 Cài đặt vị trí
+            {t('create_post.location_settings')}
           </Text>
 
           {/* Current Location Display */}
@@ -759,7 +768,7 @@ const CreatePostScreen = () => {
             />
             <View style={styles.locationInfo}>
               <Text style={[styles.locationPrivacyLabel, { color: currentThemeColors.text }]}>
-                {LOCATION_PRIVACY_OPTIONS.find(opt => opt.id === locationPrivacy)?.label}
+                {t(LOCATION_PRIVACY_OPTIONS.find(opt => opt.id === locationPrivacy)?.labelKey || 'create_post.location_detailed')}
               </Text>
               <Text style={[styles.locationPreview, { color: currentThemeColors.subtleText }]}>
                 {locationLoading ? (
@@ -803,7 +812,7 @@ const CreatePostScreen = () => {
                       fontWeight: locationPrivacy === option.id ? '600' : '400'
                     }
                   ]}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </Text>
                   {locationPrivacy === option.id && (
                     <Ionicons name="checkmark" size={18} color={Colors.primary} />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { StyleSheet, View, FlatList, RefreshControl, Text, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { collection, getDocs, query, where, doc, getDoc, updateDoc, arrayUnion, arrayRemove, limit } from 'firebase/firestore';
@@ -13,6 +13,7 @@ import { useBlockStatus } from '@/hooks/useBlockStatus';
 import { profileVisitService } from '@/services/profileVisitService';
 import { followService } from '@/services/followService';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 
 // Define a Post shape compatible with PostCard props
 interface Comment {
@@ -42,7 +43,9 @@ interface PostForCard {
     [key: string]: any;
 }
 
+
 const UserProfileScreen = () => {
+    const { t } = useTranslation();
     const router = useRouter();
     const { userId } = useLocalSearchParams();
     const { user: authUser } = useAuth();
@@ -68,6 +71,7 @@ const UserProfileScreen = () => {
     };
 
     const [isFollowing, setIsFollowing] = useState(false);
+
 
     const fetchUserData = useCallback(async () => {
         if (!userId) {
@@ -207,7 +211,7 @@ const UserProfileScreen = () => {
             const newComment = {
                 id: `${Date.now()}`,
                 text: comment,
-                username: authUser?.displayName || (authUser as any)?.username || 'Unknown User',
+                username: authUser?.displayName || (authUser as any)?.username || t('chat.unknown_user'),
                 userAvatar: (authUser as any)?.profileUrl || (authUser as any)?.avatar || '',
                 userId: authUser?.uid || '',
                 timestamp: new Date(),
@@ -242,6 +246,7 @@ const UserProfileScreen = () => {
             onPrivacyChange={handlePrivacyChange}
         />
     );
+
 
     // Show loading while checking block status
     if (blockLoading || loading) {
@@ -343,13 +348,10 @@ const UserProfileScreen = () => {
                                     />
                                 </View>
                                 <Text style={[styles.blockedPostsTitle, { color: colors.text }]}>
-                                    {isBlocked ? 'Bạn đã chặn người dùng này' : 'Không có bài viết'}
+                                    {isBlocked ? t('user_profile.blocked_title') : t('user_profile.no_posts_title')}
                                 </Text>
                                 <Text style={[styles.blockedPostsText, { color: colors.subtleText }]}>
-                                    {isBlocked
-                                        ? 'Bạn sẽ không thấy bài viết của họ. Bỏ chặn để xem lại nội dung.'
-                                        : 'Bạn không thể xem bài viết của người dùng này.'
-                                    }
+                                    {isBlocked ? t('user_profile.blocked_subtitle') : t('user_profile.no_posts_subtitle')}
                                 </Text>
                             </View>
                         </>

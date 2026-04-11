@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+﻿import React, { useState, useCallback } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useHotSpotDetails, useHotSpots } from '@/hooks/useHotSpots';
 import { getDistance } from 'geolib';
+import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5, FontAwesome } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -67,31 +68,37 @@ const HotSpotDetailScreen = () => {
       }
     } catch (e) {
       console.error('Interaction error:', e);
-      Alert.alert('Lỗi', 'Không thể thực hiện tương tác. Vui lòng thử lại.');
+      Alert.alert('Error', 'Unable to process this action. Please try again.');
     } finally {
       setIsInteracting(false);
     }
   }, [hotSpot, isInteracting, hasInteraction, removeInteraction, interactWithHotSpot, refetch]);
 
   const handleCheckIn = useCallback(async () => {
-    if (!hotSpot || !navigator.geolocation) {
-      Alert.alert('Lỗi', 'Thiết bị không hỗ trợ định vị hoặc không có thông tin Hot Spot.');
+    if (!hotSpot) {
+      Alert.alert('Error', 'No Hot Spot data found.');
       return;
     }
 
     setCheckingIn(true);
 
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 10000,
-        });
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow location access to check in.');
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
 
       const { latitude, longitude } = position.coords;
-      const hotSpotCoords = hotSpot.location.coordinates;
+      const hotSpotCoords = hotSpot.location?.coordinates;
+      if (!hotSpotCoords?.latitude || !hotSpotCoords?.longitude) {
+        Alert.alert('Error', 'Hot Spot does not have coordinates for check-in.');
+        return;
+      }
 
       const distance = getDistance(
         { latitude, longitude },
@@ -99,19 +106,21 @@ const HotSpotDetailScreen = () => {
       );
 
       if (distance <= CHECK_IN_RADIUS_METERS) {
-        const success = await interactWithHotSpot(hotSpot.id, 'checked_in');
+        const success = await interactWithHotSpot(hotSpot.id, 'checked_in', {
+          checkInLocation: { latitude, longitude },
+        });
         if (success) {
-          Alert.alert('Thành công', 'Bạn đã check-in thành công!');
+          Alert.alert('Success', 'Check-in successful!');
           await refetch();
         } else {
           throw new Error('Failed to update check-in status.');
         }
       } else {
-        Alert.alert('Chưa đến nơi', `Bạn cần ở trong phạm vi ${CHECK_IN_RADIUS_METERS}m để check-in. Bạn đang ở cách ${distance}m.`);
+        Alert.alert('Too Far', `You need to be within ${CHECK_IN_RADIUS_METERS}m to check in. You are ${distance}m away.`);
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Không thể lấy vị trí của bạn.';
-      Alert.alert('Lỗi Check-in', errorMessage);
+      const errorMessage = err instanceof Error ? err.message : 'Unable to get your location.';
+      Alert.alert('Check-in Error', errorMessage);
     } finally {
       setCheckingIn(false);
     }
@@ -151,7 +160,7 @@ const HotSpotDetailScreen = () => {
   }
 
   if (error || !hotSpot) {
-    return <ErrorComponent message={error || 'Không tìm thấy thông tin Hot Spot.'} onRetry={refetch} />;
+    return <ErrorComponent message={error || 'Unable to load Hot Spot information.'} onRetry={refetch} />;
   }
 
   const isInterested = hasInteraction('interested');
@@ -230,7 +239,7 @@ const HotSpotDetailScreen = () => {
               <View style={styles.ratingContainer}>
                 <Ionicons name="star" size={14} color="#FFD700" />
                 <Text style={styles.ratingText}>{hotSpot.stats.rating.toFixed(1)}</Text>
-                <Text style={styles.reviewCount}>({hotSpot.stats.reviewCount} đánh giá)</Text>
+                <Text style={styles.reviewCount}>({hotSpot.stats.reviewCount} reviews)</Text>
               </View>
             </View>
           </View>
@@ -248,7 +257,7 @@ const HotSpotDetailScreen = () => {
             >
               <FontAwesome name={isInterested ? "star" : "star-o"} size={18} color={isInterested ? "#FFF" : "#FFF"} />
               <Text style={styles.primaryButtonText}>
-                {isInterested ? 'Đã quan tâm' : 'Quan tâm'}
+                {isInterested ? 'Interested' : 'Mark Interested'}
               </Text>
             </TouchableOpacity>
 
@@ -263,7 +272,7 @@ const HotSpotDetailScreen = () => {
                 <>
                   <FontAwesome5 name="map-marker-alt" size={16} color={isCheckedIn ? "#FFF" : Colors.primary} />
                   <Text style={[styles.secondaryButtonText, isCheckedIn && styles.secondaryButtonTextActive]}>
-                    {isCheckedIn ? 'Đã Check-in' : 'Check-in'}
+                    {isCheckedIn ? 'Checked-in' : 'Check-in'}
                   </Text>
                 </>
               )}
@@ -299,7 +308,7 @@ const HotSpotDetailScreen = () => {
           {/* Image Gallery Preview (if more than 1 image) */}
           {hotSpot.images.length > 1 && (
             <View style={styles.gallerySection}>
-              <Text style={styles.sectionTitle}>Hình ảnh</Text>
+              <Text style={styles.sectionTitle}>Images</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {hotSpot.images.map((img, index) => (
                   <TouchableOpacity key={index} style={styles.galleryImageWrapper}>
@@ -562,3 +571,6 @@ const styles = StyleSheet.create({
 });
 
 export default HotSpotDetailScreen;
+
+
+

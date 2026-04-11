@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+﻿import React, { useEffect, useState, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,7 @@ import MessageReactions from '@/components/chat/MessageReactions';
 import EditMessageModal from '@/components/chat/EditMessageModal';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { useSound } from '@/hooks/useSound';
+import { useTranslation } from 'react-i18next';
 
 interface Message {
   id: string;
@@ -73,7 +74,20 @@ interface Message {
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
+const normalizeMojibakeText = (value: string = ''): string => {
+  const text = String(value || '');
+  const hasMojibake = /[\u00C3\u00C2\uFFFD]/.test(text);
+  const isHotSpotMatchMsg = /match/i.test(text) && /hot\s*spot/i.test(text);
+
+  if (hasMojibake && isHotSpotMatchMsg) {
+    return 'Hai ban da match tai Hot Spot nay! Cung tro chuyen va len keo di cung nhe!';
+  }
+
+  return text;
+};
+
 const HotSpotChatScreen = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const { chatRoomId, hotSpotId, hotSpotTitle } = useLocalSearchParams();
   const { user } = useAuth();
@@ -169,7 +183,7 @@ const HotSpotChatScreen = () => {
       // Request location permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Quyền truy cập vị trí', 'Cần cho phép truy cập vị trí để tracking');
+        Alert.alert(t('hotspots.chat.location_permission_title'), t('hotspots.chat.location_permission_message'));
         return;
       }
 
@@ -241,8 +255,10 @@ const HotSpotChatScreen = () => {
   const loadHotSpotData = async () => {
     if (!hotSpotId) return;
     try {
-      const hotSpotRef = doc(db, 'hotSpots', hotSpotId as string);
-      const hotSpotSnap = await getDoc(hotSpotRef);
+      let hotSpotSnap = await getDoc(doc(db, 'hotSpots', hotSpotId as string));
+      if (!hotSpotSnap.exists()) {
+        hotSpotSnap = await getDoc(doc(db, 'hotspots', hotSpotId as string));
+      }
       if (hotSpotSnap.exists()) {
         setHotSpotData({ id: hotSpotSnap.id, ...hotSpotSnap.data() });
       }
@@ -281,7 +297,13 @@ const HotSpotChatScreen = () => {
     return onSnapshot(q, (snapshot) => {
       const msgs: Message[] = [];
       snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...(doc.data() as any) } as Message);
+        const raw = doc.data() as any;
+        msgs.push({
+          id: doc.id,
+          ...raw,
+          text: normalizeMojibakeText(raw?.text || ''),
+          senderName: normalizeMojibakeText(raw?.senderName || ''),
+        } as Message);
       });
 
       // Play sound if new message received from another user
@@ -306,7 +328,7 @@ const HotSpotChatScreen = () => {
       const messageData: any = {
         text: newMessage.trim(),
         senderId: user.uid,
-        senderName: user.displayName || user.username || 'User',
+        senderName: user.displayName || user.username || t('groups.user'),
         timestamp: Timestamp.now(),
         type: 'text',
       };
@@ -336,7 +358,7 @@ const HotSpotChatScreen = () => {
       setReplyingTo(null); // Clear reply after sending
     } catch (error) {
       console.error('Error sending message:', error);
-      Alert.alert('Lỗi', 'Không thể gửi tin nhắn');
+      Alert.alert(t('common.error'), t('hotspots.chat.send_message_error'));
     } finally {
       setSending(false);
     }
@@ -370,7 +392,7 @@ const HotSpotChatScreen = () => {
         text: '',
         imageUrl: downloadURL,
         senderId: user?.uid,
-        senderName: user?.displayName || user?.username || 'User',
+        senderName: user?.displayName || user?.username || t('groups.user'),
         timestamp: Timestamp.now(),
         type: 'image',
       });
@@ -378,14 +400,14 @@ const HotSpotChatScreen = () => {
       // Update last message in chat room
       const chatRef = doc(db, 'hotSpotChats', chatRoomId as string);
       await updateDoc(chatRef, {
-        lastMessage: `📷 Hình ảnh`,
+        lastMessage: t('chat.image'),
         lastMessageTime: Timestamp.now(),
       });
 
       setNewMessage('');
     } catch (error: any) {
       console.error('Error uploading image:', error);
-      Alert.alert('Lỗi', 'Không thể tải lên ảnh');
+      Alert.alert(t('common.error'), t('hotspots.chat.upload_image_error'));
     }
   };
 
@@ -424,9 +446,9 @@ const HotSpotChatScreen = () => {
       // Send gift message
       const messagesRef = collection(db, 'hotSpotChats', chatRoomId as string, 'messages');
       await addDoc(messagesRef, {
-        text: `Đã gửi quà: ${gift.icon} ${gift.name}`,
+        text: `Sent gift: ${gift.icon} ${gift.name}`,
         senderId: user.uid,
-        senderName: user.displayName || user.username || 'User',
+        senderName: user.displayName || user.username || t('groups.user'),
         timestamp: Timestamp.now(),
         type: 'gift',
         gift: gift,
@@ -435,29 +457,29 @@ const HotSpotChatScreen = () => {
       // Update last message in chat room
       const chatRef = doc(db, 'hotSpotChats', chatRoomId as string);
       await updateDoc(chatRef, {
-        lastMessage: `🎁 ${gift.name}`,
+        lastMessage: `Gift: ${gift.name}`,
         lastMessageTime: Timestamp.now(),
       });
 
       // Call gift service to handle coins and notifications
       await giftService.sendGift({
         senderUid: user.uid,
-        senderName: user.username || user.displayName || 'Bạn',
+        senderName: user.username || user.displayName || t('common.you'),
         receiverUid: otherUser?.id,
         roomId: chatRoomId as string,
         giftId,
       });
 
-      Alert.alert('Thành công', 'Đã gửi quà');
+      Alert.alert(t('common.success'), t('hotspots.chat.gift_sent'));
       setShowGifts(false);
     } catch (e: any) {
-      const msg = String(e?.message || 'UNKNOWN');
+      const msg = String(e?.message || t('hotspots.chat.unknown_error'));
       if (msg.includes('INSUFFICIENT_FUNDS')) {
-        Alert.alert('Không đủ Bánh mì', 'Bạn không đủ Bánh mì để gửi quà này.');
+        Alert.alert(t('chat.gift_insufficient'), t('chat.gift_insufficient_desc'));
       } else if (msg.includes('CANNOT_GIFT_SELF')) {
-        Alert.alert('Không thể gửi quà', 'Bạn không thể tự tặng quà cho chính mình');
+        Alert.alert(t('hotspots.chat.cannot_send_gift_title'), t('hotspots.chat.cannot_gift_self'));
       } else {
-        Alert.alert('Không thể gửi quà', e?.message || 'Lỗi không xác định');
+        Alert.alert(t('hotspots.chat.cannot_send_gift_title'), e?.message || t('hotspots.chat.unknown_error'));
       }
     }
   };
@@ -472,7 +494,7 @@ const HotSpotChatScreen = () => {
     try {
       await copyToClipboard(selectedMessage.text);
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể sao chép tin nhắn');
+      Alert.alert(t('common.error'), t('hotspots.chat.copy_error'));
     }
     setShowMessageActions(false);
   };
@@ -614,7 +636,7 @@ const HotSpotChatScreen = () => {
               <View style={styles.replyContent}>
                 <Text style={styles.replySender}>{item.replyTo.senderName}</Text>
                 <Text style={styles.replyText} numberOfLines={1}>
-                  {item.replyTo.type === 'image' ? '📷 Hình ảnh' : item.replyTo.text}
+                  {item.replyTo.type === 'image' ? t('chat.image') : item.replyTo.text}
                 </Text>
               </View>
             </View>
@@ -648,7 +670,7 @@ const HotSpotChatScreen = () => {
           <View style={styles.hotSpotContent}>
             <Ionicons name="location" size={20} color="white" />
             <View style={styles.hotSpotTextContainer}>
-              <Text style={styles.hotSpotLabel}>Đang trò chuyện về</Text>
+              <Text style={styles.hotSpotLabel}>{t('hotspots.chat.talking_about')}</Text>
               <Text style={styles.hotSpotTitle} numberOfLines={1}>
                 {hotSpotTitle || hotSpotData.title}
               </Text>
@@ -670,7 +692,7 @@ const HotSpotChatScreen = () => {
     setReportTarget({
       id: message.id,
       name: message.senderName,
-      content: message.text || ((message as any).imageUrl ? 'Hình ảnh' : ''),
+      content: message.text || ((message as any).imageUrl ? 'Image' : ''),
       messageType,
       messageText: messageType === 'text' ? (message.text || '') : '',
       messageImageUrl: messageType === 'image' ? ((message as any).imageUrl || '') : '',
@@ -765,7 +787,7 @@ const HotSpotChatScreen = () => {
           hotSpotLocation={invite.hotSpotLocation.coordinates}
           hotSpotTitle={invite.hotSpotTitle}
           onCheckInComplete={(reward) => {
-            Alert.alert('🎉 Check-in thành công!', `Bạn nhận được ${reward.points} điểm thưởng!`);
+            Alert.alert(t('hotspots.chat.checkin_success_title'), t('hotspots.chat.checkin_success_message'));
           }}
         />
       )}
@@ -774,20 +796,20 @@ const HotSpotChatScreen = () => {
       {renderHotSpotInfo()}
 
       {/* Confirmation Buttons - Show when session is pending */}
-      {sessionStatus === 'pending' && (
+      {false && !invite && sessionStatus === 'pending' && (
         <View style={styles.confirmationSection}>
           <LinearGradient
             colors={['#F0F9FF', '#E0F2FE']}
             style={styles.confirmationCard}
           >
             <Text style={styles.confirmationTitle}>
-              Xác nhận buổi hẹn tại Hot Spot
+              Confirm meetup at Hot Spot
             </Text>
             <Text style={styles.confirmationSubtitle}>
-              {myConfirmation && !otherConfirmation && 'Đang chờ người kia xác nhận...'}
-              {!myConfirmation && otherConfirmation && `${otherUser?.username} đã sẵn sàng!`}
-              {!myConfirmation && !otherConfirmation && 'Cả hai cùng xác nhận để bắt đầu'}
-              {myConfirmation && otherConfirmation && 'Cả hai đã xác nhận! Bắt đầu tracking...'}
+              {myConfirmation && !otherConfirmation && 'Waiting for the other user to confirm...'}
+              {!myConfirmation && otherConfirmation && `${otherUser?.username} is ready!`}
+              {!myConfirmation && !otherConfirmation && 'Both users need to confirm to start'}
+              {myConfirmation && otherConfirmation && 'Both confirmed. Starting tracking...'}
             </Text>
 
             <View style={styles.confirmationButtons}>
@@ -802,7 +824,7 @@ const HotSpotChatScreen = () => {
                   color="white"
                 />
                 <Text style={styles.confirmButtonText}>
-                  {myConfirmation ? 'Đã xác nhận' : 'Xác nhận đi'}
+                  {myConfirmation ? 'Confirmed' : 'Confirm'}
                 </Text>
               </TouchableOpacity>
 
@@ -811,7 +833,7 @@ const HotSpotChatScreen = () => {
                 onPress={handleCancelMeeting}
               >
                 <MaterialIcons name="close" size={20} color="#DC2626" />
-                <Text style={styles.cancelButtonText}>Từ chối</Text>
+                <Text style={styles.cancelButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -823,7 +845,7 @@ const HotSpotChatScreen = () => {
                   size={16}
                   color={myConfirmation ? "#10B981" : "#94A3B8"}
                 />
-                <Text style={styles.statusText}>Bạn</Text>
+                <Text style={styles.statusText}>You</Text>
               </View>
               <View style={styles.statusItem}>
                 <MaterialIcons
@@ -831,7 +853,7 @@ const HotSpotChatScreen = () => {
                   size={16}
                   color={otherConfirmation ? "#10B981" : "#94A3B8"}
                 />
-                <Text style={styles.statusText}>{otherUser?.username || 'Người kia'}</Text>
+                <Text style={styles.statusText}>{otherUser?.username || t('hotspots.chat.other_user')}</Text>
               </View>
             </View>
           </LinearGradient>
@@ -839,7 +861,7 @@ const HotSpotChatScreen = () => {
       )}
 
       {/* Distance Tracker - Show when on_the_way */}
-      {sessionStatus === 'on_the_way' && (
+      {false && !invite && sessionStatus === 'on_the_way' && (
         <View style={styles.distanceSection}>
           <LinearGradient
             colors={['#FEF3C7', '#FDE68A']}
@@ -847,7 +869,7 @@ const HotSpotChatScreen = () => {
           >
             <View style={styles.distanceHeader}>
               <Ionicons name="navigate" size={24} color="#F59E0B" />
-              <Text style={styles.distanceTitle}>Đang tracking vị trí</Text>
+              <Text style={styles.distanceTitle}>{t('hotspots.chat.tracking_location')}</Text>
             </View>
 
             {distance !== null ? (
@@ -858,18 +880,18 @@ const HotSpotChatScreen = () => {
                     : `${distance.toFixed(1)} km`}
                 </Text>
                 <Text style={styles.distanceLabel}>
-                  Khoảng cách giữa bạn và {otherUser?.username}
+                  Distance between you and {otherUser?.username}
                 </Text>
               </View>
             ) : (
               <View style={styles.distanceInfo}>
                 <ActivityIndicator size="small" color="#F59E0B" />
-                <Text style={styles.distanceLabel}>Đang tính toán khoảng cách...</Text>
+                <Text style={styles.distanceLabel}>{t('hotspots.chat.calculating_distance')}</Text>
               </View>
             )}
 
             <Text style={styles.trackingNote}>
-              📍 Cập nhật tự động mỗi 10 giây
+              Auto update every 10 seconds
             </Text>
           </LinearGradient>
         </View>
@@ -903,7 +925,7 @@ const HotSpotChatScreen = () => {
 
         <View style={styles.inputWrapper}>
           <TouchableOpacity onPress={() => setShowGifts(true)} style={styles.iconButton}>
-            <Text style={{ fontSize: 18 }}>🥖</Text>
+            <Text style={{ fontSize: 18 }}>🎁</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={handleImagePicker} style={styles.iconButton}>
@@ -912,7 +934,7 @@ const HotSpotChatScreen = () => {
 
           <TextInput
             style={styles.input}
-            placeholder="Nhắn tin về Hot Spot này..."
+            placeholder={t('hotspots.chat.message_placeholder')}
             placeholderTextColor="#999"
             value={newMessage}
             onChangeText={setNewMessage}
@@ -945,7 +967,7 @@ const HotSpotChatScreen = () => {
 
         <View style={styles.modalSheet}>
           <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>Gửi quà</Text>
+            <Text style={styles.modalTitle}>{t('chat.send_gift')}</Text>
             <TouchableOpacity onPress={() => setShowGifts(false)}>
               <MaterialIcons name="close" size={24} color="#333" />
             </TouchableOpacity>
@@ -960,7 +982,7 @@ const HotSpotChatScreen = () => {
               >
                 <Text style={{ fontSize: 24 }}>{gift.icon}</Text>
                 <Text style={styles.giftTitle}>{gift.name}</Text>
-                <Text style={styles.giftPrice}>{gift.price} Bánh mì</Text>
+                <Text style={styles.giftPrice}>{gift.price} Bread</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -1440,3 +1462,4 @@ const styles = StyleSheet.create({
 });
 
 export default HotSpotChatScreen;
+

@@ -1,5 +1,5 @@
 import React, { useState, useContext, useRef, useEffect, useMemo, useCallback, memo } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, Text, ScrollView, StatusBar, Platform, Modal, Alert } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Dimensions, Text, ScrollView, StatusBar, Platform, Modal, Alert, FlatList, InteractionManager } from 'react-native';
 import { Button, TextInput, Chip } from 'react-native-paper';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -19,6 +19,11 @@ import { useIsPremium } from '@/hooks/useIsPremium';
 
 const educationLevels = educationData.educationLevels;
 const jobs = educationData.jobs;
+const allSchools = [
+  ...schoolsData.universities.map((u) => ({ label: u.name, value: u.name, code: u.code })),
+  ...schoolsData.colleges.map((c) => ({ label: c.name, value: c.name, code: c.code })),
+  { label: 'Khac', value: 'Khac', code: 'OTHER' },
+];
 
 // Memoized particles component
 const HeaderParticles = memo(() => {
@@ -61,9 +66,10 @@ const HomeHeader = () => {
   const [selectedEducationLevel, setSelectedEducationLevel] = useState('');
   const [selectedUniversity, setSelectedUniversity] = useState('');
   const [selectedDistance, setSelectedDistance] = useState('');
-  const [universitiesList, setUniversitiesList] = useState([]);
   const [universitySearch, setUniversitySearch] = useState('');
   const [selectedInterests, setSelectedInterests] = useState([]);
+  const [deferredFilterReady, setDeferredFilterReady] = useState(false);
+  const [showAllInterests, setShowAllInterests] = useState(false);
 
   const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -73,10 +79,14 @@ const HomeHeader = () => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
-  const { width, height } = Dimensions.get('window');
+  const { height } = Dimensions.get('window');
 
   // Interest items as { id, label } - memoized
   const interestItems = useMemo(() => getInterestsArray(), []);
+  const visibleInterestItems = useMemo(
+    () => (showAllInterests ? interestItems : interestItems.slice(0, 24)),
+    [interestItems, showAllInterests]
+  );
 
   // Memoized helper functions
   const getFilterSummary = useCallback((filter) => {
@@ -160,22 +170,41 @@ const HomeHeader = () => {
     })();
   }, []);
 
-  // Load universities list - memoized
-  useEffect(() => {
-    const uniList = schoolsData.universities.map(u => ({ label: u.name, value: u.name, code: u.code }));
-    const colList = schoolsData.colleges.map(c => ({ label: c.name, value: c.name, code: c.code }));
-    const allSchools = [...uniList, ...colList, { label: 'Khác', value: 'Khác', code: 'OTHER' }];
-    setUniversitiesList(allSchools);
-  }, []);
-
-  // Memoized filtered universities
-  const filteredUniversities = useMemo(() =>
-    universitiesList.filter(u => u.label.toLowerCase().includes(universitySearch.toLowerCase())),
-    [universitiesList, universitySearch]
+  const normalizedUniversitySearch = useMemo(
+    () => universitySearch.trim().toLowerCase(),
+    [universitySearch]
   );
 
+  // Keep search render light by capping initial result count.
+  const filteredUniversities = useMemo(() => {
+    const source = normalizedUniversitySearch
+      ? allSchools.filter((u) => u.label.toLowerCase().includes(normalizedUniversitySearch))
+      : allSchools;
+    return source.slice(0, 80);
+  }, [normalizedUniversitySearch]);
+
+  const paperInputTheme = useMemo(() => ({
+    colors: {
+      primary: '#667eea',
+      outline: currentThemeColors.border || '#E2E8F0',
+      text: currentThemeColors.text,
+      placeholder: currentThemeColors.subtleText,
+    }
+  }), [currentThemeColors.border, currentThemeColors.text, currentThemeColors.subtleText]);
+
+  const sectionCardStyle = useMemo(() => ({
+    backgroundColor: theme === 'dark' ? 'rgba(30,41,59,0.55)' : '#F8FAFC',
+    borderColor: theme === 'dark' ? 'rgba(148,163,184,0.24)' : '#E2E8F0',
+  }), [theme]);
+
   const toggleFilter = useCallback(() => {
-    setFilterVisible(v => !v);
+    setFilterVisible((v) => {
+      const next = !v;
+      if (!next) {
+        setShowAllInterests(false);
+      }
+      return next;
+    });
   }, []);
 
   const checkVipAccess = useCallback(() => {
@@ -279,6 +308,40 @@ const HomeHeader = () => {
     setSelectedDistance(prev => prev === value ? '' : value);
   }, [checkVipAccess]);
 
+  const renderUniversityItem = useCallback(({ item }) => {
+    const isSelected = selectedUniversity === item.value;
+    return (
+      <TouchableOpacity
+        style={[styles.universityItem, isSelected && styles.selectedUniversityItem]}
+        onPress={() => handleUniversitySelect(item.value)}
+      >
+        <Text style={[styles.universityText, { color: isSelected ? 'white' : currentThemeColors.text }]}>
+          {item.label}
+        </Text>
+        {isSelected && (
+          <MaterialIcons name="check" size={20} color="white" />
+        )}
+      </TouchableOpacity>
+    );
+  }, [selectedUniversity, handleUniversitySelect, currentThemeColors.text]);
+
+  useEffect(() => {
+    let task;
+    if (filterVisible) {
+      setDeferredFilterReady(false);
+      task = InteractionManager.runAfterInteractions(() => {
+        setDeferredFilterReady(true);
+      });
+    } else {
+      setDeferredFilterReady(false);
+      setShowAllInterests(false);
+    }
+
+    return () => {
+      if (task?.cancel) task.cancel();
+    };
+  }, [filterVisible]);
+
   // Animation effect
   useEffect(() => {
     if (filterVisible) {
@@ -338,14 +401,18 @@ const HomeHeader = () => {
 
   // Memoize active filter count
   const activeFiltersCount = useMemo(() => getActiveFiltersCount(), [getActiveFiltersCount]);
+  const activeFilterText = useMemo(
+    () => (activeFiltersCount > 0 ? `${activeFiltersCount} filter` : t('filter.no_filters')),
+    [activeFiltersCount, t]
+  );
 
   return (
     <View style={styles.container}>
       {/* Modern Header with Theme-Aware Gradient */}
       <LinearGradient
         colors={theme === 'dark'
-          ? ['#1a1a2e', '#16213e']
-          : ['#4facfe', '#00f2fe']
+          ? ['#101426', '#1a1f3a']
+          : ['#3b82f6', '#06b6d4']
         }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -369,6 +436,10 @@ const HomeHeader = () => {
           <View style={styles.titleContainer}>
             <Text style={styles.appTitle}>ChapAt</Text>
             <Text style={styles.appSubtitle}>{t('home.subtitle')}</Text>
+            <View style={styles.filterStatePill}>
+              <MaterialIcons name="tune" size={12} color="rgba(255,255,255,0.95)" />
+              <Text style={styles.filterStateText}>{activeFilterText}</Text>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -408,6 +479,7 @@ const HomeHeader = () => {
               }
             ]}
           >
+            <View style={styles.sheetHandle} />
             <View style={styles.filterHeader}>
               <View style={styles.filterTitleContainer}>
                 <MaterialIcons name="filter-list" size={24} color={currentThemeColors.tint || '#667eea'} />
@@ -427,7 +499,7 @@ const HomeHeader = () => {
               keyboardDismissMode="on-drag"
               style={styles.filterScrollView}
             >
-              <View style={styles.filterSection}>
+              <View style={[styles.filterSection, sectionCardStyle]}>
                 <View style={styles.sectionHeader}>
                   <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
                     {t('filter.gender')}
@@ -464,7 +536,7 @@ const HomeHeader = () => {
                 </View>
               </View>
 
-              <View style={styles.filterSection}>
+              <View style={[styles.filterSection, sectionCardStyle]}>
                 <View style={styles.sectionHeader}>
                   <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
                     {t('filter.age')}
@@ -481,14 +553,7 @@ const HomeHeader = () => {
                       style={styles.ageInput}
                       mode="outlined"
                       dense
-                      theme={{
-                        colors: {
-                          primary: '#667eea',
-                          outline: currentThemeColors.border || '#E2E8F0',
-                          text: currentThemeColors.text,
-                          placeholder: currentThemeColors.subtleText,
-                        }
-                      }}
+                      theme={paperInputTheme}
                     />
                   </View>
                   <View style={styles.ageSeparator}>
@@ -504,171 +569,171 @@ const HomeHeader = () => {
                       style={styles.ageInput}
                       mode="outlined"
                       dense
-                      theme={{
-                        colors: {
-                          primary: '#667eea',
-                          outline: currentThemeColors.border || '#E2E8F0',
-                          text: currentThemeColors.text,
-                          placeholder: currentThemeColors.subtleText,
-                        }
-                      }}
+                      theme={paperInputTheme}
                     />
                   </View>
                 </View>
               </View>
 
-              <View style={styles.filterSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    {t('filter.distance_title')}
-                  </Text>
-                  <VipBadge currentThemeColors={currentThemeColors} />
-                </View>
-                <View style={styles.distanceChips}>
-                  {['1', '5', '10', '50', '100', 'all'].map((dist) => (
-                    <Chip
-                      key={dist}
-                      selected={selectedDistance === dist}
-                      onPress={() => handleDistanceSelect(dist)}
-                      style={[styles.distanceChip, selectedDistance === dist && styles.selectedChip]}
-                      textStyle={{ color: selectedDistance === dist ? 'white' : currentThemeColors.text }}
-                    >
-                      {dist === 'all' ? t('common.all') : `${dist} km`}
-                    </Chip>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.filterSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    {t('filter.education')}
-                  </Text>
-                  <VipBadge currentThemeColors={currentThemeColors} />
-                </View>
-                <View style={styles.educationChips}>
-                  {educationLevels.map((level) => (
-                    <Chip
-                      key={level.value}
-                      selected={selectedEducationLevel === level.value}
-                      onPress={() => handleEducationSelect(level.value)}
-                      style={[styles.educationChip, selectedEducationLevel === level.value && styles.selectedChip]}
-                      textStyle={{ color: selectedEducationLevel === level.value ? 'white' : currentThemeColors.text }}
-                    >
-                      {level.label}
-                    </Chip>
-                  ))}
-                </View>
-              </View>
-
-              {selectedEducationLevel === 'Cao đẳng/Đại học' && (
-                <View style={styles.filterSection}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                      {t('filter.university')}
-                    </Text>
-                    <VipBadge currentThemeColors={currentThemeColors} />
+              {deferredFilterReady ? (
+                <>
+                  <View style={[styles.filterSection, sectionCardStyle]}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                        {t('filter.distance_title')}
+                      </Text>
+                      <VipBadge currentThemeColors={currentThemeColors} />
+                    </View>
+                    <View style={styles.distanceChips}>
+                      {['1', '5', '10', '50', '100', 'all'].map((dist) => (
+                        <Chip
+                          key={dist}
+                          selected={selectedDistance === dist}
+                          onPress={() => handleDistanceSelect(dist)}
+                          style={[styles.distanceChip, selectedDistance === dist && styles.selectedChip]}
+                          textStyle={{ color: selectedDistance === dist ? 'white' : currentThemeColors.text }}
+                        >
+                          {dist === 'all' ? t('common.all') : `${dist} km`}
+                        </Chip>
+                      ))}
+                    </View>
                   </View>
-                  <View style={styles.searchContainer}>
-                    <TextInput
-                      placeholder={t('filter.search_university')}
-                      value={universitySearch}
-                      onChangeText={setUniversitySearch}
-                      style={styles.searchInput}
-                      mode="outlined"
-                      dense
-                      theme={{
-                        colors: {
-                          primary: '#667eea',
-                          outline: currentThemeColors.border || '#E2E8F0',
-                          text: currentThemeColors.text,
-                          placeholder: currentThemeColors.subtleText,
-                        }
-                      }}
-                    />
-                    {universitySearch.length > 0 && (
+
+                  <View style={[styles.filterSection, sectionCardStyle]}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                        {t('filter.education')}
+                      </Text>
+                      <VipBadge currentThemeColors={currentThemeColors} />
+                    </View>
+                    <View style={styles.educationChips}>
+                      {educationLevels.map((level) => (
+                        <Chip
+                          key={level.value}
+                          selected={selectedEducationLevel === level.value}
+                          onPress={() => handleEducationSelect(level.value)}
+                          style={[styles.educationChip, selectedEducationLevel === level.value && styles.selectedChip]}
+                          textStyle={{ color: selectedEducationLevel === level.value ? 'white' : currentThemeColors.text }}
+                        >
+                          {level.label}
+                        </Chip>
+                      ))}
+                    </View>
+                  </View>
+
+                  {selectedEducationLevel === 'Cao đẳng/Đại học' && (
+                    <View style={[styles.filterSection, sectionCardStyle]}>
+                      <View style={styles.sectionHeader}>
+                        <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                          {t('filter.university')}
+                        </Text>
+                        <VipBadge currentThemeColors={currentThemeColors} />
+                      </View>
+                      <View style={styles.searchContainer}>
+                        <TextInput
+                          placeholder={t('filter.search_university')}
+                          value={universitySearch}
+                          onChangeText={setUniversitySearch}
+                          style={styles.searchInput}
+                          mode="outlined"
+                          dense
+                          theme={paperInputTheme}
+                        />
+                        {universitySearch.length > 0 && (
+                          <TouchableOpacity
+                            style={styles.clearSearchButton}
+                            onPress={() => setUniversitySearch('')}
+                          >
+                            <MaterialIcons name="clear" size={20} color={currentThemeColors.subtleText} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <View style={styles.universityList}>
+                        {filteredUniversities.length > 0 ? (
+                          <FlatList
+                            data={filteredUniversities}
+                            keyExtractor={(item) => item.code}
+                            renderItem={renderUniversityItem}
+                            initialNumToRender={12}
+                            maxToRenderPerBatch={16}
+                            windowSize={8}
+                            nestedScrollEnabled
+                            keyboardShouldPersistTaps="handled"
+                            showsVerticalScrollIndicator={false}
+                            removeClippedSubviews={Platform.OS === 'android'}
+                          />
+                        ) : (
+                          <View style={styles.noResultsContainer}>
+                            <Text style={[styles.noResultsText, { color: currentThemeColors.subtleText }]}>
+                              {t('filter.no_university')}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={[styles.filterSection, sectionCardStyle]}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                        {t('filter.job')}
+                      </Text>
+                      <VipBadge currentThemeColors={currentThemeColors} />
+                    </View>
+                    <View style={styles.jobChips}>
+                      {jobs.map((job) => (
+                        <Chip
+                          key={job.value}
+                          selected={selectedJob === job.value}
+                          onPress={() => handleJobSelect(job.value)}
+                          style={[styles.jobChip, selectedJob === job.value && styles.selectedChip]}
+                          textStyle={{ color: selectedJob === job.value ? 'white' : currentThemeColors.text }}
+                        >
+                          {job.label}
+                        </Chip>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={[styles.filterSection, sectionCardStyle]}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
+                        {t('filter.interests')}
+                      </Text>
+                      <VipBadge currentThemeColors={currentThemeColors} />
+                    </View>
+                    <View style={styles.interestsChips}>
+                      {visibleInterestItems.map((it) => (
+                        <Chip
+                          key={it.id}
+                          selected={selectedInterests.includes(it.id)}
+                          onPress={() => handleInterestToggle(it.id)}
+                          style={[styles.interestChip, selectedInterests.includes(it.id) && styles.selectedChip]}
+                          textStyle={{ color: selectedInterests.includes(it.id) ? 'white' : currentThemeColors.text }}
+                        >
+                          {it.label}
+                        </Chip>
+                      ))}
+                    </View>
+                    {interestItems.length > 24 && (
                       <TouchableOpacity
-                        style={styles.clearSearchButton}
-                        onPress={() => setUniversitySearch('')}
+                        style={styles.moreInterestsButton}
+                        onPress={() => setShowAllInterests((v) => !v)}
+                        activeOpacity={0.8}
                       >
-                        <MaterialIcons name="clear" size={20} color={currentThemeColors.subtleText} />
+                        <Text style={[styles.moreInterestsText, { color: currentThemeColors.tint || '#667eea' }]}>
+                          {showAllInterests ? 'Thu gon' : 'Xem them'}
+                        </Text>
                       </TouchableOpacity>
                     )}
                   </View>
-                  <ScrollView
-                    style={styles.universityList}
-                    showsVerticalScrollIndicator={false}
-                    nestedScrollEnabled={true}
-                  >
-                    {filteredUniversities.length > 0 ? (
-                      filteredUniversities.map((university) => (
-                        <TouchableOpacity
-                          key={university.code}
-                          style={[styles.universityItem, selectedUniversity === university.value && styles.selectedUniversityItem]}
-                          onPress={() => handleUniversitySelect(university.value)}
-                        >
-                          <Text style={[styles.universityText, { color: selectedUniversity === university.value ? 'white' : currentThemeColors.text }]}>
-                            {university.label}
-                          </Text>
-                          {selectedUniversity === university.value && (
-                            <MaterialIcons name="check" size={20} color="white" />
-                          )}
-                        </TouchableOpacity>
-                      ))
-                    ) : (
-                      <View style={styles.noResultsContainer}>
-                        <Text style={[styles.noResultsText, { color: currentThemeColors.subtleText }]}>
-                          {t('filter.no_university')}
-                        </Text>
-                      </View>
-                    )}
-                  </ScrollView>
+                </>
+              ) : (
+                <View style={styles.deferLoadingContainer}>
+                  <MaterialIcons name="hourglass-top" size={18} color={currentThemeColors.subtleText} />
+                  <Text style={[styles.deferLoadingText, { color: currentThemeColors.subtleText }]}>Dang tai bo loc...</Text>
                 </View>
               )}
-
-              <View style={styles.filterSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    {t('filter.job')}
-                  </Text>
-                  <VipBadge currentThemeColors={currentThemeColors} />
-                </View>
-                <View style={styles.jobChips}>
-                  {jobs.map((job) => (
-                    <Chip
-                      key={job.value}
-                      selected={selectedJob === job.value}
-                      onPress={() => handleJobSelect(job.value)}
-                      style={[styles.jobChip, selectedJob === job.value && styles.selectedChip]}
-                      textStyle={{ color: selectedJob === job.value ? 'white' : currentThemeColors.text }}
-                    >
-                      {job.label}
-                    </Chip>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.filterSection}>
-                <View style={styles.sectionHeader}>
-                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    {t('filter.interests')}
-                  </Text>
-                  <VipBadge currentThemeColors={currentThemeColors} />
-                </View>
-                <View style={styles.interestsChips}>
-                  {interestItems.map((it) => (
-                    <Chip
-                      key={it.id}
-                      selected={selectedInterests.includes(it.id)}
-                      onPress={() => handleInterestToggle(it.id)}
-                      style={[styles.interestChip, selectedInterests.includes(it.id) && styles.selectedChip]}
-                      textStyle={{ color: selectedInterests.includes(it.id) ? 'white' : currentThemeColors.text }}
-                    >
-                      {it.label}
-                    </Chip>
-                  ))}
-                </View>
-              </View>
 
               <View style={styles.filterPreview}>
                 <Text style={[styles.previewText, { color: currentThemeColors.subtleText }]}>
@@ -716,10 +781,10 @@ const styles = StyleSheet.create({
   },
   headerGradient: {
     paddingTop: Platform.OS === 'ios' ? 44 : (StatusBar.currentHeight || 24),
-    paddingBottom: 10,
+    paddingBottom: 14,
     paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -745,15 +810,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 50,
+    height: 56,
     position: 'relative',
     zIndex: 1,
   },
   filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -787,29 +854,47 @@ const styles = StyleSheet.create({
   titleContainer: {
     flex: 1,
     alignItems: 'center',
+    gap: 2,
   },
   appTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 30,
+    fontWeight: '800',
     color: 'white',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
     textShadowColor: 'rgba(0,0,0,0.4)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
     fontFamily: 'System',
   },
   appSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: 'rgba(255,255,255,0.9)',
-    marginTop: 2,
-    fontStyle: 'italic',
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
+  },
+  filterStatePill: {
+    marginTop: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
+  },
+  filterStateText: {
+    color: 'rgba(255,255,255,0.96)',
+    fontSize: 11,
+    fontWeight: '600',
   },
   scanButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -832,23 +917,36 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   filterPanel: {
-    margin: 16,
-    borderRadius: 20,
-    padding: 24,
-    elevation: 12,
+    marginHorizontal: 12,
+    marginTop: 8,
+    borderRadius: 26,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.24)',
+    elevation: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+    shadowOpacity: 0.28,
+    shadowRadius: 16,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(148,163,184,0.65)',
+    marginBottom: 14,
   },
   filterHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingBottom: 16,
+    marginBottom: 18,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: 'rgba(148,163,184,0.22)',
   },
   filterTitleContainer: {
     flexDirection: 'row',
@@ -856,41 +954,51 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   filterTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.4,
   },
   closeFilterButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: 'rgba(148,163,184,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.2)',
   },
   filterSection: {
-    marginBottom: 28,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   vipBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
     gap: 4,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
   },
   vipBadgeText: {
     fontSize: 11,
     fontWeight: 'bold',
   },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   genderChips: {
     flexDirection: 'row',
@@ -898,21 +1006,21 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   genderChip: {
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    borderRadius: 30,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+    borderRadius: 999,
+    minHeight: 38,
   },
   selectedChip: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#5B6EE1',
+    borderColor: '#5B6EE1',
+    borderWidth: 1,
     elevation: 4,
-    shadowColor: '#667eea',
+    shadowColor: '#5B6EE1',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
   },
   ageInputsContainer: {
     flexDirection: 'row',
@@ -928,8 +1036,9 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   ageInput: {
-    height: 40,
-    backgroundColor: 'transparent',
+    height: 42,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
   },
   ageSeparator: {
     marginTop: 20,
@@ -941,15 +1050,20 @@ const styles = StyleSheet.create({
   },
   educationChip: {
     marginBottom: 4,
-    borderRadius: 20,
+    borderRadius: 999,
+    backgroundColor: '#EDE9FE',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    minHeight: 36,
   },
   searchContainer: {
     position: 'relative',
     marginBottom: 12,
   },
   searchInput: {
-    height: 40,
-    backgroundColor: 'transparent',
+    height: 42,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
   },
   clearSearchButton: {
     position: 'absolute',
@@ -959,9 +1073,10 @@ const styles = StyleSheet.create({
   universityList: {
     maxHeight: 200,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: '#E2E8F0',
     borderRadius: 12,
     padding: 4,
+    backgroundColor: '#FFFFFF',
   },
   universityItem: {
     flexDirection: 'row',
@@ -993,7 +1108,11 @@ const styles = StyleSheet.create({
   },
   jobChip: {
     marginBottom: 4,
-    borderRadius: 20,
+    borderRadius: 999,
+    backgroundColor: '#EDE9FE',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    minHeight: 36,
   },
   interestsChips: {
     flexDirection: 'row',
@@ -1002,16 +1121,42 @@ const styles = StyleSheet.create({
   },
   interestChip: {
     marginBottom: 4,
-    borderRadius: 20,
+    borderRadius: 999,
+    backgroundColor: '#EDE9FE',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    minHeight: 36,
+  },
+  moreInterestsButton: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(102,126,234,0.1)',
+  },
+  moreInterestsText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  deferLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 24,
+  },
+  deferLoadingText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   filterPreview: {
     marginTop: 8,
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    padding: 14,
+    backgroundColor: 'rgba(59,130,246,0.08)',
     borderRadius: 12,
-    borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: 'rgba(59,130,246,0.24)',
   },
   previewText: {
     fontSize: 13,
@@ -1021,29 +1166,30 @@ const styles = StyleSheet.create({
   filterActions: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 24,
+    marginTop: 18,
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.1)',
   },
   clearButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(148,163,184,0.08)',
   },
   applyButton: {
     flex: 1.5,
-    borderRadius: 12,
-    backgroundColor: '#667eea',
-    elevation: 4,
-    shadowColor: '#667eea',
+    borderRadius: 14,
+    backgroundColor: '#5B6EE1',
+    elevation: 6,
+    shadowColor: '#5B6EE1',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
   },
   applyButtonLabel: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 1,
+    fontSize: 19,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
   filterScrollView: {
     flexGrow: 0,
@@ -1055,7 +1201,13 @@ const styles = StyleSheet.create({
   },
   distanceChip: {
     marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: '#EDE9FE',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
   },
 });
 
 export default HomeHeader;
+
+

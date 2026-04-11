@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   doc,
   addDoc,
@@ -22,7 +22,7 @@ import { EventInvite, EventInterest, EventMatch, UserProfile } from '@/types/eve
 import { getRoomId } from '@/utils/common';
 
 class EventInviteService {
-  // GIAI ĐOẠN 1: Quan tâm sự kiện
+  // Step 1: event interest
   async markInterested(eventId: string, userId: string): Promise<void> {
     try {
       // Check if already interested
@@ -80,7 +80,7 @@ class EventInviteService {
     }
   }
 
-  // Lấy danh sách người quan tâm (không bị ẩn) - Hỗ trợ phân trang
+  // Get interested users (excluding hidden), with pagination support
   async getInterestedUsers(
     eventId: string,
     limitCount: number = 10,
@@ -126,7 +126,7 @@ class EventInviteService {
           const d: any = userDocSnap.data();
           userProfiles.push({
             id: userDocSnap.id,
-            name: d?.displayName || d?.name || d?.username || 'Người dùng',
+          name: d?.displayName || d?.name || d?.username || 'User',
             avatar: d?.avatar || d?.photoURL || d?.profileUrl || '',
             age: typeof d?.age === 'number' ? d.age : undefined,
             bio: typeof d?.bio === 'string' ? d.bio : undefined,
@@ -147,7 +147,7 @@ class EventInviteService {
     }
   }
 
-  // GIAI ĐOẠN 2: Gửi lời mời đi cùng
+  // Step 2: send invite
   async sendInvite(eventId: string, inviterId: string, inviteeId: string): Promise<string> {
     try {
       // Check if invite already exists - use 2 where clauses to avoid composite index
@@ -193,24 +193,26 @@ class EventInviteService {
     }
   }
 
-  // GIAI ĐOẠN 3: Xử lý lời mời
+  // Step 3: respond to invite
   async respondToInvite(inviteId: string, response: 'accepted' | 'declined'): Promise<string | null> {
     try {
       const inviteRef = doc(db, 'eventInvites', inviteId);
       const inviteDoc = await getDoc(inviteRef);
 
       if (!inviteDoc.exists()) {
-        throw new Error('Lời mời không tồn tại');
+        throw new Error('Invite does not exist');
       }
 
       const inviteData = inviteDoc.data() as EventInvite;
 
       if (response === 'accepted') {
+        const eventDoc = await this.getEventDoc(inviteData.eventId);
         // Create chat room
         const chatRoomId = await this.createEventChatRoom(
           inviteData.inviterId,
           inviteData.inviteeId,
-          inviteData.eventId
+          inviteData.eventId,
+          eventDoc
         );
 
         // Update invite
@@ -219,6 +221,8 @@ class EventInviteService {
           chatRoomId,
           updatedAt: serverTimestamp()
         });
+
+        await this.createOrUpdateHotSpotInvite(inviteId, inviteData as any, chatRoomId, eventDoc);
 
         // Notify inviter that their invite was accepted
         try {
@@ -236,8 +240,8 @@ class EventInviteService {
             senderName,
             senderAvatar,
             type: 'accepted_invite',
-            title: '✅ Lời mời đã được chấp nhận',
-            message: `${senderName || 'Người dùng'} đã chấp nhận lời mời đi cùng sự kiện ${eventTitle}!`,
+            title: 'Invite accepted',
+            message: `${senderName || 'A user'} accepted your event invite for ${eventTitle}.`,
             data: { eventId: inviteData.eventId, inviteId, chatId: chatRoomId, peerId: inviteData.inviteeId, action: 'open_chat' }
           });
         } catch (e) {
@@ -251,6 +255,7 @@ class EventInviteService {
           status: 'declined',
           updatedAt: serverTimestamp()
         });
+        await this.syncHotSpotInviteStatus(inviteId, 'declined', { updatedAt: serverTimestamp() });
 
         // Optional: Notify inviter about decline
         try {
@@ -268,8 +273,8 @@ class EventInviteService {
             senderName,
             senderAvatar,
             type: 'hot_spot',
-            title: '❌ Lời mời bị từ chối',
-            message: `${senderName || 'Người dùng'} đã từ chối lời mời đi cùng sự kiện ${eventTitle}.`,
+            title: 'Invite declined',
+            message: `${senderName || 'A user'} declined your event invite for ${eventTitle}.`,
             data: { eventId: inviteData.eventId, inviteId, action: 'invite_declined' }
           });
         } catch (e) {
@@ -283,14 +288,14 @@ class EventInviteService {
     }
   }
 
-  // GIAI ĐOẠN 4: Xác nhận đi cùng
+  // Step 4: confirm going
   async confirmGoing(inviteId: string, userId: string): Promise<boolean> {
     try {
       const inviteRef = doc(db, 'eventInvites', inviteId);
       const inviteDoc = await getDoc(inviteRef);
 
       if (!inviteDoc.exists()) {
-        throw new Error('Lời mời không tồn tại');
+        throw new Error('Invite does not exist');
       }
 
       const inviteData = inviteDoc.data() as EventInvite;
@@ -313,8 +318,9 @@ class EventInviteService {
       if (currentInviterConfirmed && currentInviteeConfirmed) {
         updateData.status = 'confirmed';
         updateData.mutualConfirmed = true;
+        updateData.confirmedAt = serverTimestamp();
 
-        // GIAI ĐOẠN 5: Ẩn khỏi danh sách quan tâm
+        // Step 5: hide matched users from interest list
         await this.hideUsersFromInterestList(inviteData.eventId, [inviteData.inviterId, inviteData.inviteeId]);
 
         // Create match record
@@ -326,22 +332,34 @@ class EventInviteService {
             receiverId: inviteData.inviterId,
             senderId: inviteData.inviteeId,
             type: 'hot_spot',
-            title: '💜 Đã có cặp',
-            message: 'Cả hai đã xác nhận sẽ đi cùng sự kiện! Hãy trò chuyện và lên kèo nhé!',
+            title: 'Matched successfully',
+            message: 'Both users confirmed the event invite. Start chatting and plan together.',
             data: { eventId: inviteData.eventId, inviteId, chatId: (inviteData as any).chatRoomId }
           }),
           this.createNotification({
             receiverId: inviteData.inviteeId,
             senderId: inviteData.inviterId,
             type: 'hot_spot',
-            title: '💜 Đã có cặp',
-            message: 'Cả hai đã xác nhận sẽ đi cùng sự kiện! Hãy trò chuyện và lên kèo nhé!',
+            title: 'Matched successfully',
+            message: 'Both users confirmed the event invite. Start chatting and plan together.',
             data: { eventId: inviteData.eventId, inviteId, chatId: (inviteData as any).chatRoomId }
           }),
         ]);
       }
 
       await updateDoc(inviteRef, updateData);
+
+      if (updateData.mutualConfirmed) {
+        await this.syncHotSpotInviteStatus(inviteId, 'confirmed_going', {
+          meetupDetails: {
+            senderConfirmed: true,
+            receiverConfirmed: true,
+            bothCheckedIn: false,
+            confirmedAt: serverTimestamp(),
+          },
+          updatedAt: serverTimestamp(),
+        });
+      }
 
       return updateData.mutualConfirmed || false;
     } catch (error) {
@@ -351,10 +369,11 @@ class EventInviteService {
   }
 
   // Helper methods
-  private async createEventChatRoom(user1Id: string, user2Id: string, eventId: string): Promise<string> {
+  private async createEventChatRoom(user1Id: string, user2Id: string, eventId: string, eventDoc?: any): Promise<string> {
     try {
       // Create a HotSpot-specific chat room in 'hotSpotChats' collection
       const rId = getRoomId(user1Id, user2Id);
+      const eventTitle = eventDoc?.title || eventDoc?.name || 'Hot Spot';
 
       // Create in hotSpotChats collection for HotSpot-specific chat
       await setDoc(
@@ -363,10 +382,12 @@ class EventInviteService {
           chatRoomId: rId,
           participants: [user1Id, user2Id],
           eventId,
+          hotSpotId: eventId,
+          hotSpotTitle: eventTitle,
           type: 'hotspot_match',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          lastMessage: '🎉 Hai bạn đã match tại Hot Spot, cùng trò chuyện và lên kèo nhé!',
+          lastMessage: 'Hai ban da match tai Hot Spot, cung tro chuyen va len keo nhe!',
           lastMessageTime: serverTimestamp(),
           unreadCounts: { [user1Id]: 0, [user2Id]: 0 },
         },
@@ -376,9 +397,9 @@ class EventInviteService {
       // Also create a system message in the chat
       const messagesRef = collection(db, 'hotSpotChats', rId, 'messages');
       await addDoc(messagesRef, {
-        text: '🎉 Hai bạn đã match tại Hot Spot này! Cùng trò chuyện và lên kèo đi cùng nhé!',
+        text: 'Hai ban da match tai Hot Spot nay! Cung tro chuyen va len keo di cung nhe!',
         senderId: 'system',
-        senderName: 'Hệ thống',
+        senderName: 'He thong',
         timestamp: serverTimestamp(),
         type: 'system',
       });
@@ -435,7 +456,7 @@ class EventInviteService {
       const inviter = inviterDoc.exists() ? inviterDoc.data() : {} as any;
 
       // Try to fetch event title from 'hotSpots' then 'events'
-      let eventTitle = 'một sự kiện';
+      let eventTitle = 'an event';
       try {
         const hotSpotDoc = await getDoc(doc(db, 'hotSpots', eventId));
         if (hotSpotDoc.exists()) {
@@ -450,7 +471,7 @@ class EventInviteService {
         }
       } catch { }
 
-      const message = `💌 ${inviter?.displayName || inviter?.name || 'Một người dùng'} mời bạn đi cùng sự kiện ${eventTitle}!`;
+      const message = `${inviter?.displayName || inviter?.name || 'A user'} invited you to join ${eventTitle}!`;
 
       await this.createNotification({
         receiverId: inviteeId,
@@ -458,7 +479,7 @@ class EventInviteService {
         senderName: inviter?.displayName || inviter?.name,
         senderAvatar: inviter?.photoURL || inviter?.avatar,
         type: 'hot_spot', // Use existing mapping on NotificationsScreen
-        title: 'Lời mời đi cùng 💌',
+        title: 'Event invite',
         message,
         data: { eventId, inviteId, action: 'view_invites' }
       });
@@ -554,18 +575,13 @@ class EventInviteService {
 
   private async resolveEventTitle(eventId: string): Promise<string> {
     try {
-      const hot = await getDoc(doc(db, 'hotSpots', eventId));
-      if (hot.exists()) {
-        const d = hot.data() as any;
-        return d?.title || d?.name || 'một sự kiện';
-      }
-      const ev = await getDoc(doc(db, 'events', eventId));
-      if (ev.exists()) {
-        const d = ev.data() as any;
-        return d?.title || d?.name || 'một sự kiện';
+      const eventDoc = await this.getEventDoc(eventId);
+      if (eventDoc) {
+        const d = eventDoc as any;
+        return d?.title || d?.name || 'an event';
       }
     } catch { }
-    return 'một sự kiện';
+    return 'an event';
   }
 
   // Get accepted invites involving the user (received or sent)
@@ -652,10 +668,10 @@ class EventInviteService {
     try {
       const ref = doc(db, 'eventInvites', inviteId);
       const snap = await getDoc(ref);
-      if (!snap.exists()) throw new Error('Lời mời không tồn tại');
+      if (!snap.exists()) throw new Error('Invite does not exist');
       const data = snap.data() as any;
-      if (data.inviterId !== requesterId) throw new Error('Bạn không có quyền thu hồi');
-      if (data.status !== 'pending') throw new Error('Chỉ có thể thu hồi khi đang chờ');
+      if (data.inviterId !== requesterId) throw new Error('You do not have permission to cancel this invite');
+      if (data.status !== 'pending') throw new Error('Only pending invites can be canceled');
       await updateDoc(ref, {
         status: 'cancelled',
         updatedAt: serverTimestamp()
@@ -665,6 +681,69 @@ class EventInviteService {
       throw e;
     }
   }
+
+  private async getEventDoc(eventId: string): Promise<any | null> {
+    try {
+      const hot = await getDoc(doc(db, 'hotSpots', eventId));
+      if (hot.exists()) return hot.data();
+      const hotLower = await getDoc(doc(db, 'hotspots', eventId));
+      if (hotLower.exists()) return hotLower.data();
+      const ev = await getDoc(doc(db, 'events', eventId));
+      if (ev.exists()) return ev.data();
+    } catch { }
+    return null;
+  }
+
+  private getNormalizedHotSpotLocation(eventDoc: any) {
+    return {
+      address: eventDoc?.location?.address || eventDoc?.address || 'Hot Spot',
+      coordinates: {
+        latitude: Number(eventDoc?.location?.coordinates?.latitude || eventDoc?.coordinates?.latitude || 0),
+        longitude: Number(eventDoc?.location?.coordinates?.longitude || eventDoc?.coordinates?.longitude || 0),
+      },
+    };
+  }
+
+  private async createOrUpdateHotSpotInvite(
+    inviteId: string,
+    inviteData: any,
+    chatRoomId: string,
+    eventDoc: any
+  ): Promise<void> {
+    const hotSpotInviteRef = doc(db, 'hotSpotInvites', inviteId);
+    const inviterDoc = await getDoc(doc(db, 'users', inviteData.inviterId));
+    const inviter = inviterDoc.exists() ? inviterDoc.data() as any : {};
+
+    await setDoc(hotSpotInviteRef, {
+      hotSpotId: inviteData.eventId,
+      hotSpotTitle: eventDoc?.title || eventDoc?.name || 'Hot Spot',
+      hotSpotLocation: this.getNormalizedHotSpotLocation(eventDoc),
+      senderId: inviteData.inviterId,
+      senderName: inviter?.displayName || inviter?.name || inviter?.username || 'User',
+      senderAvatar: inviter?.photoURL || inviter?.avatar || inviter?.profileUrl || '',
+      receiverId: inviteData.inviteeId,
+      status: 'accepted',
+      createdAt: inviteData.createdAt || serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      expiresAt: inviteData.expiresAt || null,
+      chatRoomId,
+      sourceEventInviteId: inviteId,
+      meetupDetails: {
+        senderConfirmed: Boolean(inviteData.inviterConfirmed),
+        receiverConfirmed: Boolean(inviteData.inviteeConfirmed),
+        bothCheckedIn: false,
+      },
+    }, { merge: true });
+  }
+
+  private async syncHotSpotInviteStatus(inviteId: string, status: string, extraData: Record<string, any> = {}): Promise<void> {
+    await setDoc(doc(db, 'hotSpotInvites', inviteId), {
+      status,
+      ...extraData,
+    }, { merge: true });
+  }
 }
 
 export const eventInviteService = new EventInviteService();
+
+

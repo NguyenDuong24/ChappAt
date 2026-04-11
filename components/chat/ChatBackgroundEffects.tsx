@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useMemo } from 'react';
-import { View, StyleSheet, Animated, Dimensions, Easing, Text } from 'react-native';
+import { View, StyleSheet, Animated, Dimensions, Easing, Text, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export type EffectType =
@@ -251,11 +251,14 @@ interface ParticleProps {
 const ParticleComponent: React.FC<ParticleProps> = ({ delay, duration, color, size, startX, startY, effect, index }) => {
     const animValue = useRef(new Animated.Value(0)).current;
     const glowAnim = useRef(new Animated.Value(0.5)).current;
+    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const mainAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+    const glowAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
     useEffect(() => {
-        const timeout = setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
             // Main animation loop
-            const mainAnimation = Animated.loop(
+            mainAnimationRef.current = Animated.loop(
                 Animated.timing(animValue, {
                     toValue: 1,
                     duration,
@@ -265,7 +268,7 @@ const ParticleComponent: React.FC<ParticleProps> = ({ delay, duration, color, si
             );
 
             // Glow/pulse animation for certain effects
-            const glowAnimation = Animated.loop(
+            glowAnimationRef.current = Animated.loop(
                 Animated.sequence([
                     Animated.timing(glowAnim, {
                         toValue: 1,
@@ -282,16 +285,17 @@ const ParticleComponent: React.FC<ParticleProps> = ({ delay, duration, color, si
                 ])
             );
 
-            mainAnimation.start();
-            glowAnimation.start();
-
-            return () => {
-                mainAnimation.stop();
-                glowAnimation.stop();
-            };
+            mainAnimationRef.current.start();
+            glowAnimationRef.current.start();
         }, delay);
 
-        return () => clearTimeout(timeout);
+        return () => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            mainAnimationRef.current?.stop();
+            glowAnimationRef.current?.stop();
+            animValue.stopAnimation();
+            glowAnim.stopAnimation();
+        };
     }, [animValue, glowAnim, delay, duration]);
 
     const getAnimatedStyle = () => {
@@ -1090,7 +1094,7 @@ const ParticleComponent: React.FC<ParticleProps> = ({ delay, duration, color, si
 
 const Particle = React.memo(ParticleComponent);
 
-const getParticleCount = (effect: EffectType): number => {
+const getBaseParticleCount = (effect: EffectType): number => {
     switch (effect) {
         case 'stars': return 25;
         case 'snow': return 30;
@@ -1111,6 +1115,16 @@ const getParticleCount = (effect: EffectType): number => {
         case 'sunlight': return 30; // 8 rays + 22 bokeh motes
         default: return 0;
     }
+};
+
+const getParticleCount = (effect: EffectType): number => {
+    const base = getBaseParticleCount(effect);
+    if (Platform.OS !== 'android') return base;
+
+    // Keep effects smooth on most Android devices by lowering particle density.
+    const highCostEffects = new Set<EffectType>(['rain', 'confetti', 'sparkles', 'galaxy', 'sunlight']);
+    const factor = highCostEffects.has(effect) ? 0.5 : 0.65;
+    return Math.max(6, Math.round(base * factor));
 };
 
 const getParticleSize = (effect: EffectType): number => {
@@ -1190,9 +1204,9 @@ const ChatBackgroundEffectsComponent: React.FC<ChatBackgroundEffectsProps> = ({
     themeColor = '#0084FF',
     backgroundColor = '#FFFFFF'
 }) => {
-    const particles = useMemo(() => {
-        if (effect === 'none') return [];
+    if (effect === 'none') return null;
 
+    const particles = useMemo(() => {
         const colors = getEffectColors(effect, themeColor, backgroundColor);
         const count = getParticleCount(effect);
         const result: ParticleProps[] = [];

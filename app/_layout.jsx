@@ -37,9 +37,6 @@ import serverWarmupService from '../services/serverWarmupService';
 import { useAuthRouting } from '../hooks/useAuthRouting';
 import { useSound } from '../hooks/useSound';
 
-// VideoSDK token - trong production, store trong environment variables
-const VIDEOSDK_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlrZXkiOiI5OWY1MWM0YS1mNWVjLTRkMzUtOTZjYy0zZWE1NDNmNWNiMG YiLCJwZXJtaXNzaW9ucyI6WyJhbGxvd19qb2luIl0sImlhdCI6MTczNDQ5MjA2NCwiZXhwIjoxODUwNDA0MDY0fQ.1b9RFFR2c5KWV5DF2XH1K6CwRTBBuNPBcWqKnGhSag";
-
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 

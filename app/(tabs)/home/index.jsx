@@ -8,6 +8,7 @@ import { Colors } from '@/constants/Colors';
 import useHome from './useHome';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 
 // Premium Loading State using Skeletons
 const LoadingView = ({ theme, currentThemeColors }) => (
@@ -30,27 +31,27 @@ const LoadingView = ({ theme, currentThemeColors }) => (
 );
 
 // Empty State with Premium Feel
-const EmptyView = ({ theme, currentThemeColors }) => (
+const EmptyView = ({ theme, currentThemeColors, t }) => (
   <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background }]}>
     <View style={[styles.emptyGlassContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
       <View style={[styles.emptyIconCircle, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
         <MaterialIcons name="person-search" size={60} color={currentThemeColors.subtleText} />
       </View>
-      <Text style={[styles.emptyText, { color: currentThemeColors.text }]}>Không tìm thấy ai gần đây</Text>
-      <Text style={[styles.emptySubText, { color: currentThemeColors.subtleText }]}>Hãy thử thay đổi bộ lọc hoặc vị trí của bạn!</Text>
+      <Text style={[styles.emptyText, { color: currentThemeColors.text }]}>{t('home.no_users')}</Text>
+      <Text style={[styles.emptySubText, { color: currentThemeColors.subtleText }]}>{t('home.no_users_desc')}</Text>
     </View>
   </View>
 );
 
 // Error State with Retry logic
-const ErrorView = ({ error, onRetry, currentThemeColors }) => (
+const ErrorView = ({ error, onRetry, currentThemeColors, t }) => (
   <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background }]}>
     <View style={[styles.errorGlassContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
       <MaterialIcons name="error-outline" size={50} color={Colors.warning} />
       <Text style={[styles.errorText, { color: currentThemeColors.text }]}>{error}</Text>
       <TouchableOpacity onPress={onRetry} style={styles.retryButton} activeOpacity={0.8}>
         <LinearGradient colors={['#FF5F6D', '#FFC371']} style={styles.retryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-          <Text style={styles.retryText}>Thử lại</Text>
+          <Text style={styles.retryText}>{t('home.retry')}</Text>
           <MaterialIcons name="refresh" size={18} color="white" />
         </LinearGradient>
       </TouchableOpacity>
@@ -59,6 +60,7 @@ const ErrorView = ({ error, onRetry, currentThemeColors }) => (
 );
 
 function Home() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const theme = useContext(ThemeContext)?.theme || 'light';
   const currentThemeColors = useMemo(() =>
@@ -80,7 +82,7 @@ function Home() {
         return true;
       }
       lastPressRef.current = now;
-      ToastAndroid.show('Nhấn lần nữa để thoát', ToastAndroid.SHORT);
+      ToastAndroid.show(t('home.exit_app'), ToastAndroid.SHORT);
       return true;
     };
 
@@ -94,8 +96,8 @@ function Home() {
 
   const content = useMemo(() => {
     if (loading && users.length === 0) return <LoadingView theme={theme} currentThemeColors={currentThemeColors} />;
-    if (error && users.length === 0) return <ErrorView error={error} onRetry={refresh} currentThemeColors={currentThemeColors} />;
-    if (!loading && users.length === 0) return <EmptyView theme={theme} currentThemeColors={currentThemeColors} />;
+    if (error && users.length === 0) return <ErrorView error={error} onRetry={refresh} currentThemeColors={currentThemeColors} t={t} />;
+    if (!loading && users.length === 0) return <EmptyView theme={theme} currentThemeColors={currentThemeColors} t={t} />;
 
     return (
       <ListUser
@@ -107,7 +109,7 @@ function Home() {
         loading={loading}
       />
     );
-  }, [loading, users, error, refreshing, refresh, theme, currentThemeColors, onRefresh, loadMore, hasMore]);
+  }, [loading, users, error, refreshing, refresh, theme, currentThemeColors, onRefresh, loadMore, hasMore, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>

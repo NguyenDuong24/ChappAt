@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from 'react';
+﻿import React, { useContext, useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Text, Button, Surface } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -17,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { groupRequestService } from '@/services/groupRequestService';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 interface GroupPreviewModalProps {
   visible: boolean;
@@ -32,8 +33,9 @@ const GroupPreviewModal = ({
   onClose,
   group,
   onJoinGroup,
-  currentUser
+  currentUser,
 }: GroupPreviewModalProps) => {
+  const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -58,14 +60,8 @@ const GroupPreviewModal = ({
 
   if (!group) return null;
 
-  const getGroupAvatar = () => {
-    return group?.avatarUrl || group?.photoURL || 'https://via.placeholder.com/80x80/667eea/ffffff?text=G';
-  };
-
-  const getMemberCount = () => {
-    return group?.members ? group.members.length : 0;
-  };
-
+  const getGroupAvatar = () => group?.avatarUrl || group?.photoURL || 'https://via.placeholder.com/80x80/667eea/ffffff?text=G';
+  const getMemberCount = () => (group?.members ? group.members.length : 0);
   const isPrivate = group?.type === 'private';
 
   const handleJoin = async () => {
@@ -74,157 +70,94 @@ const GroupPreviewModal = ({
     setJoining(true);
     try {
       if (isPrivate) {
-        // Send join request
         const result = await groupRequestService.sendJoinRequest(group.id, currentUser);
         if (result.success) {
           setRequestStatus('pending');
-          Alert.alert('Thành công', 'Đã gửi yêu cầu tham gia nhóm. Vui lòng chờ quản trị viên duyệt.');
+          Alert.alert(t('common.success'), t('group_preview.request_sent'));
         } else {
-          Alert.alert('Thông báo', result.message);
+          Alert.alert(t('common.info'), result.message);
         }
-      } else {
-        // Join directly
-        if (onJoinGroup) {
-          await onJoinGroup(group.id);
-          onClose();
-        }
+      } else if (onJoinGroup) {
+        await onJoinGroup(group.id);
+        onClose();
       }
     } catch (error) {
       console.error('Error joining group:', error);
-      Alert.alert('Lỗi', 'Có lỗi xảy ra khi tham gia nhóm');
+      Alert.alert(t('common.error'), t('group_preview.join_error'));
     } finally {
       setJoining(false);
     }
   };
 
   const getButtonLabel = () => {
-    if (joining) return 'Đang xử lý...';
+    if (joining) return t('group_preview.processing');
     if (isPrivate) {
-      if (requestStatus === 'pending') return 'Đang chờ duyệt';
-      if (requestStatus === 'approved') return 'Đã được duyệt'; // Should ideally auto-join or show "Enter Group"
-      if (requestStatus === 'rejected') return 'Yêu cầu bị từ chối';
-      return 'Yêu cầu tham gia';
+      if (requestStatus === 'pending') return t('group_preview.request_pending');
+      if (requestStatus === 'approved') return t('group_preview.request_approved');
+      if (requestStatus === 'rejected') return t('group_preview.request_rejected');
+      return t('group_preview.request_to_join');
     }
-    return 'Tham gia nhóm';
+    return t('group_preview.join_group');
   };
 
   const isButtonDisabled = joining || (isPrivate && requestStatus === 'pending');
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <BlurView
-        style={styles.blurContainer}
-        intensity={20}
-        tint={theme === 'dark' ? 'dark' : 'light'}
-      >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <BlurView style={styles.blurContainer} intensity={20} tint={theme === 'dark' ? 'dark' : 'light'}>
         <View style={styles.overlay}>
-          <Surface style={[styles.modalContent, { backgroundColor: currentThemeColors.cardBackground }]}>
-            {/* Header */}
+          <Surface style={[styles.modalContent, { backgroundColor: currentThemeColors.cardBackground }]}> 
             <View style={styles.header}>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={onClose}
-              >
-                <MaterialCommunityIcons
-                  name="close"
-                  size={24}
-                  color={currentThemeColors.text}
-                />
+              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                <MaterialCommunityIcons name="close" size={24} color={currentThemeColors.text} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Group Avatar and Basic Info */}
               <View style={styles.groupHeader}>
-                <LinearGradient
-                  colors={theme === 'dark' ? ['#667EEA', '#764BA2'] : ['#4facfe', '#00f2fe']}
-                  style={styles.avatarContainer}
-                >
-                  <Image
-                    source={{ uri: getGroupAvatar() }}
-                    style={styles.avatar}
-                    contentFit="cover"
-                    transition={200}
-                  />
+                <LinearGradient colors={theme === 'dark' ? ['#667EEA', '#764BA2'] : ['#4facfe', '#00f2fe']} style={styles.avatarContainer}>
+                  <Image source={{ uri: getGroupAvatar() }} style={styles.avatar} contentFit="cover" transition={200} />
                 </LinearGradient>
 
                 <View style={styles.groupInfo}>
-                  <Text style={[styles.groupName, { color: currentThemeColors.text }]}>
-                    {group.name || 'Nhóm chưa đặt tên'}
-                  </Text>
+                  <Text style={[styles.groupName, { color: currentThemeColors.text }]}>{group.name || t('group_preview.unnamed_group')}</Text>
 
                   <View style={styles.groupMeta}>
                     <View style={styles.metaItem}>
-                      <MaterialCommunityIcons
-                        name="account-group"
-                        size={16}
-                        color={currentThemeColors.subtleText}
-                      />
-                      <Text style={[styles.metaText, { color: currentThemeColors.subtleText }]}>
-                        {getMemberCount()} thành viên
-                      </Text>
+                      <MaterialCommunityIcons name="account-group" size={16} color={currentThemeColors.subtleText} />
+                      <Text style={[styles.metaText, { color: currentThemeColors.subtleText }]}>{t('group_preview.members_count', { count: getMemberCount() })}</Text>
                     </View>
 
                     <View style={styles.metaItem}>
-                      <MaterialCommunityIcons
-                        name={isPrivate ? "lock" : "earth"}
-                        size={16}
-                        color={isPrivate ? "#FF9F43" : "#667EEA"}
-                      />
-                      <Text style={[styles.metaText, { color: isPrivate ? "#FF9F43" : "#667EEA" }]}>
-                        {isPrivate ? 'Nhóm riêng tư' : 'Nhóm công khai'}
-                      </Text>
+                      <MaterialCommunityIcons name={isPrivate ? 'lock' : 'earth'} size={16} color={isPrivate ? '#FF9F43' : '#667EEA'} />
+                      <Text style={[styles.metaText, { color: isPrivate ? '#FF9F43' : '#667EEA' }]}>{isPrivate ? t('group_preview.private_group') : t('group_preview.public_group')}</Text>
                     </View>
                   </View>
                 </View>
               </View>
 
-              {/* Group Description */}
               {group.description && (
                 <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    Mô tả nhóm
-                  </Text>
-                  <Text style={[styles.description, { color: currentThemeColors.subtleText }]}>
-                    {group.description}
-                  </Text>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_preview.description_label')}</Text>
+                  <Text style={[styles.description, { color: currentThemeColors.subtleText }]}>{group.description}</Text>
                 </View>
               )}
 
-              {/* Preview Notice */}
               <View style={[styles.previewNotice, { backgroundColor: isPrivate ? 'rgba(255, 159, 67, 0.1)' : 'rgba(102, 126, 234, 0.1)' }]}>
-                <MaterialCommunityIcons
-                  name={isPrivate ? "lock-alert" : "eye"}
-                  size={20}
-                  color={isPrivate ? "#FF9F43" : "#667EEA"}
-                />
+                <MaterialCommunityIcons name={isPrivate ? 'lock-alert' : 'eye'} size={20} color={isPrivate ? '#FF9F43' : '#667EEA'} />
                 <Text style={[styles.previewText, { color: currentThemeColors.subtleText }]}>
-                  {isPrivate
-                    ? 'Đây là nhóm riêng tư. Bạn cần gửi yêu cầu tham gia và được duyệt để xem nội dung.'
-                    : 'Bạn đang xem trước nhóm này. Tham gia để có thể chat và xem tin nhắn.'
-                  }
+                  {isPrivate ? t('group_preview.private_group_note') : t('group_preview.preview_note_public')}
                 </Text>
               </View>
 
-              {/* Sample Members (first few) - Hide for private groups unless member */}
               {!isPrivate && group.members && group.members.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                    Thành viên ({Math.min(getMemberCount(), 5)})
-                  </Text>
-                  <Text style={[styles.membersNote, { color: currentThemeColors.subtleText }]}>
-                    Tham gia nhóm để xem tất cả thành viên
-                  </Text>
+                  <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_preview.members_preview', { count: Math.min(getMemberCount(), 5) })}</Text>
+                  <Text style={[styles.membersNote, { color: currentThemeColors.subtleText }]}>{t('group_preview.join_to_see_all_members')}</Text>
                 </View>
               )}
             </ScrollView>
 
-            {/* Join Button */}
             <View style={styles.footer}>
               <Button
                 mode="contained"
@@ -246,15 +179,8 @@ const GroupPreviewModal = ({
 };
 
 const styles = StyleSheet.create({
-  blurContainer: {
-    flex: 1,
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
+  blurContainer: { flex: 1 },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: {
     width: '100%',
     maxWidth: 400,
@@ -266,20 +192,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: 8,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  groupHeader: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
+  header: { flexDirection: 'row', justifyContent: 'flex-end', padding: 16, paddingBottom: 8 },
+  closeButton: { padding: 4 },
+  groupHeader: { alignItems: 'center', paddingHorizontal: 24, paddingBottom: 24 },
   avatarContainer: {
     width: 100,
     height: 100,
@@ -288,45 +203,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  groupInfo: {
-    alignItems: 'center',
-  },
-  groupName: {
-    fontSize: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  groupMeta: {
-    gap: 8,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  section: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
+  avatar: { width: 80, height: 80, borderRadius: 40 },
+  groupInfo: { alignItems: 'center' },
+  groupName: { fontSize: 24, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
+  groupMeta: { gap: 8 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaText: { fontSize: 14, fontWeight: '500' },
+  section: { paddingHorizontal: 24, paddingVertical: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
+  description: { fontSize: 16, lineHeight: 24 },
   previewNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -336,29 +221,12 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     borderRadius: 12,
   },
-  previewText: {
-    fontSize: 14,
-    lineHeight: 20,
-    flex: 1,
-  },
-  membersNote: {
-    fontSize: 14,
-    fontStyle: 'italic',
-  },
-  footer: {
-    padding: 24,
-    paddingTop: 16,
-  },
-  joinButton: {
-    borderRadius: 12,
-  },
-  joinButtonContent: {
-    paddingVertical: 4,
-  },
-  joinButtonLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  previewText: { fontSize: 14, lineHeight: 20, flex: 1 },
+  membersNote: { fontSize: 14, fontStyle: 'italic' },
+  footer: { padding: 24, paddingTop: 16 },
+  joinButton: { borderRadius: 12 },
+  joinButtonContent: { paddingVertical: 4 },
+  joinButtonLabel: { fontSize: 16, fontWeight: '600' },
 });
 
 export default GroupPreviewModal;

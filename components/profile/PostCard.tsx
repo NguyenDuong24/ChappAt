@@ -37,6 +37,7 @@ import contentModerationService from '@/services/contentModerationService';
 import optimizedSocialService from '@/services/optimizedSocialService';
 import { followService } from '@/services/followService';
 import { useFollowingIds, useExploreActions } from '@/context/ExploreContext';
+import { useTranslation } from 'react-i18next';
 
 interface Comment {
     id?: string;
@@ -273,6 +274,7 @@ const PostCard: React.FC<PostCardProps> = ({
     isFollowing: propIsFollowing,
     onToggleFollow
 }) => {
+    const { t } = useTranslation();
     const { user: authUser, activeFrame: authActiveFrame, currentVibe: authCurrentVibe } = useAuth();
     const colors = useThemedColors();
     const { getUserInfo, userCache } = useUserContext();
@@ -284,7 +286,8 @@ const PostCard: React.FC<PostCardProps> = ({
     const router = useRouter();
     const currentUserId = authUser?.uid;
 
-    const [showCommentInput, setShowCommentInput] = useState(false);
+    // ÃƒÂ¢Ã…Â¡Ã‚Â¡ÃƒÂ¯Ã‚Â¸Ã‚Â Stable userInfo - only re-compute when specific user ID changes, not entire userCache map
+    const cachedUserInfo = userCache.get(post.userID) || null;
     const userInfo = useMemo(() => {
         if (postUserInfo) return postUserInfo;
         if (post.userID === authUser?.uid) {
@@ -296,8 +299,9 @@ const PostCard: React.FC<PostCardProps> = ({
                 currentVibe: authCurrentVibe,
             };
         }
-        return userCache.get(post.userID) || null;
-    }, [postUserInfo, userCache, post.userID, authUser, authActiveFrame, authCurrentVibe]);
+        return cachedUserInfo;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [postUserInfo, cachedUserInfo, post.userID, authUser?.uid, authUser?.username, authUser?.profileUrl, authActiveFrame, authCurrentVibe]);
     const [showPrivacySelector, setShowPrivacySelector] = useState(false);
     const [internalIsFollowing, setInternalIsFollowing] = useState(false);
     const [commentText, setCommentText] = useState('');
@@ -361,13 +365,13 @@ const PostCard: React.FC<PostCardProps> = ({
         }
     }, [currentUserId, post.id, post.userID, post.likes, onLike]);
 
-    const handleCommentSubmit = async () => {
+    const handleCommentSubmit = useCallback(async () => {
         if (!commentText.trim() || !currentUserId) return;
         const trimmedText = commentText.trim();
         const newComment: Comment = {
             id: Date.now().toString(),
             userId: currentUserId,
-            username: authUser?.username || 'You',
+            username: authUser?.username || t('common.you'),
             avatar: authUser?.profileUrl,
             text: trimmedText,
             timestamp: Date.now(),
@@ -383,7 +387,7 @@ const PostCard: React.FC<PostCardProps> = ({
                 await socialNotificationService.createCommentNotification(post.id, post.userID, currentUserId, undefined, trimmedText);
             }
         } catch (e) { }
-    };
+    }, [commentText, currentUserId, authUser?.username, authUser?.profileUrl, post.id, post.userID, t]);
 
     useEffect(() => {
         if (!userInfo && post.userID && !postUserInfo) {
@@ -392,10 +396,10 @@ const PostCard: React.FC<PostCardProps> = ({
     }, [post.userID, userInfo, getUserInfo, postUserInfo]);
 
     const handleDeletePost = useCallback(() => {
-        Alert.alert('Xác nhận xóa', 'Bạn có chắc chắn muốn xóa bài viết này?', [
-            { text: 'Hủy', style: 'cancel' },
+        Alert.alert(t('social.delete_post_title'), t('social.delete_post_message'), [
+            { text: t('common.cancel'), style: 'cancel' },
             {
-                text: 'Đồng ý', onPress: async () => {
+                text: t('common.delete'), onPress: async () => {
                     try {
                         await deleteDoc(doc(db, 'posts', post.id));
                         if (post.hashtags) await removeHashtagStats(post.hashtags, post.id, post.userID);
@@ -404,8 +408,7 @@ const PostCard: React.FC<PostCardProps> = ({
                 }
             }
         ]);
-    }, [post.id, post.hashtags, post.userID, onDeletePost]);
-
+    }, [post.id, post.hashtags, post.userID, onDeletePost, t]);
     const handleHashtagPress = useCallback((hashtag: string) => {
         router.push(`/(screens)/social/HashtagScreen?hashtag=${hashtag.replace('#', '')}` as any);
     }, [router]);
@@ -493,7 +496,7 @@ const PostCard: React.FC<PostCardProps> = ({
                         />
                         <TextInput
                             style={[styles.commentInput, { color: colors.text }]}
-                            placeholder="Viết bình luận..."
+                            placeholder={t('social.write_comment')}
                             placeholderTextColor={colors.subtleText}
                             value={commentText}
                             onChangeText={setCommentText}
@@ -733,15 +736,21 @@ const styles = StyleSheet.create({
 });
 
 export default memo(PostCard, (prev, next) => {
+    // ÃƒÂ¢Ã…Â¡Ã‚Â¡ÃƒÂ¯Ã‚Â¸Ã‚Â Stricter comparison - use likesCount from server if available, otherwise array length
+    // Avoids re-render when the same data comes back from Firestore with new array references
+    const prevLikes = prev.post.likesCount ?? prev.post.likes.length;
+    const nextLikes = next.post.likesCount ?? next.post.likes.length;
+    const prevComments = prev.post.commentsCount ?? (prev.post.comments || []).length;
+    const nextComments = next.post.commentsCount ?? (next.post.comments || []).length;
+
     return (
         prev.post.id === next.post.id &&
-        prev.post.likesCount === next.post.likesCount &&
-        prev.post.commentsCount === next.post.commentsCount &&
+        prevLikes === nextLikes &&
+        prevComments === nextComments &&
         prev.post.privacy === next.post.privacy &&
         prev.isFollowing === next.isFollowing &&
         prev.owner === next.owner &&
         prev.post.content === next.post.content &&
-        prev.post.likes.length === next.post.likes.length &&
         (prev.post.images || []).length === (next.post.images || []).length
     );
 });

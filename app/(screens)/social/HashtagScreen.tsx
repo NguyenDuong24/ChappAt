@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+﻿import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Chip } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useTranslation } from 'react-i18next';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { useAuth } from '@/context/authContext';
 import { useUserContext } from '@/context/UserContext';
@@ -38,6 +39,7 @@ interface PostData {
 }
 
 const HashtagScreen: React.FC = () => {
+  const { t } = useTranslation();
   const colors = useThemedColors();
   const { user } = useAuth();
   const { getUserInfo, getUsersInfo } = useUserContext();
@@ -63,15 +65,15 @@ const HashtagScreen: React.FC = () => {
   const displayHashtag = hashtag.startsWith('#') ? hashtag : `#${hashtag}`;
 
   useEffect(() => {
-    console.log('🔍 HashtagScreen mounted with hashtag:', hashtag);
+    console.log('[HashtagScreen] mounted with hashtag:', hashtag);
 
     if (hashtag && hashtag.trim()) {
       loadPosts();
     } else {
-      console.warn('🔍 No valid hashtag parameter found!');
+      console.warn('[HashtagScreen] No valid hashtag parameter found!');
       setLoading(false);
-      Alert.alert('Lỗi', 'Không tìm thấy hashtag!', [
-        { text: 'OK', onPress: () => router.back() }
+      Alert.alert(t('common.error'), t('hashtag_screen.not_found'), [
+        { text: t('common.ok'), onPress: () => router.back() }
       ]);
     }
   }, [hashtag]);
@@ -79,13 +81,13 @@ const HashtagScreen: React.FC = () => {
   const loadPosts = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Calling getPostsByHashtag with:', displayHashtag);
+      console.log('[HashtagScreen] Calling getPostsByHashtag with:', displayHashtag);
 
-      // Gọi API để lấy posts theo hashtag
+      // Fetch posts by hashtag
       const hashtagPosts = await getPostsByHashtag(displayHashtag, 50);
-      console.log('🔍 Found posts:', hashtagPosts.length);
+      console.log('[HashtagScreen] Found posts:', hashtagPosts.length);
 
-      // Sắp xếp theo thời gian mới nhất trước
+      // Sort newest first
       const sortedPosts = hashtagPosts.sort((a, b) => {
         const timeA = a.timestamp?.toDate?.() || (a.timestamp instanceof Date ? a.timestamp : new Date());
         const timeB = b.timestamp?.toDate?.() || (b.timestamp instanceof Date ? b.timestamp : new Date());
@@ -97,7 +99,7 @@ const HashtagScreen: React.FC = () => {
 
 
     } catch (error) {
-      console.error('🔍 Error loading hashtag posts:', error);
+      console.error('[HashtagScreen] Error loading hashtag posts:', error);
     } finally {
       setLoading(false);
     }
@@ -144,7 +146,7 @@ const HashtagScreen: React.FC = () => {
       const newComment = {
         id: `${Date.now()}`,
         text: comment,
-        username: user?.displayName || 'Unknown User',
+        username: user?.displayName || t('chat.unknown_user'),
         userAvatar: user?.avatar || '',
         userId: user?.uid || '',
         timestamp: new Date(),
@@ -206,7 +208,7 @@ const HashtagScreen: React.FC = () => {
           {displayHashtag}
         </Text>
         <Text style={[styles.postCount, { color: colors.subtleText }]}>
-          {posts.length} bài viết • Sắp xếp mới nhất
+          {t('hashtag_screen.post_count', { count: posts.length })}
         </Text>
       </View>
 
@@ -216,8 +218,7 @@ const HashtagScreen: React.FC = () => {
           textStyle={{ color: colors.accent, fontSize: 12 }}
           compact
         >
-          🔥 Hot
-        </Chip>
+          {t('social.trending_now')}</Chip>
       </View>
     </View>
   );
@@ -226,11 +227,10 @@ const HashtagScreen: React.FC = () => {
     <View style={styles.emptyContainer}>
       <MaterialIcons name="tag" size={80} color={colors.subtleText} />
       <Text style={[styles.emptyTitle, { color: colors.text }]}>
-        Chưa có bài viết nào
+                {t('hashtag_screen.empty_title')}
       </Text>
       <Text style={[styles.emptySubtitle, { color: colors.subtleText }]}>
-        Chưa có ai sử dụng hashtag {displayHashtag}.{'\n'}
-        Hãy là người đầu tiên tạo bài viết với hashtag này!
+                {t('hashtag_screen.empty_subtitle', { hashtag: displayHashtag })}
       </Text>
       <TouchableOpacity
         style={[styles.createPostButton, { backgroundColor: colors.primary }]}
@@ -240,7 +240,7 @@ const HashtagScreen: React.FC = () => {
         }}
       >
         <MaterialIcons name="add" size={20} color="white" />
-        <Text style={styles.createPostText}>Tạo bài viết</Text>
+        <Text style={styles.createPostText}>{t('hashtag_screen.create_post')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -374,8 +374,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   separator: {
-    height: 4, // Giảm khoảng cách giữa các post
+    height: 4,
   },
 });
 
 export default HashtagScreen;
+

@@ -20,6 +20,7 @@ import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 import { groupPermissionService } from '@/services/groupPermissionService';
 import CustomImage from '@/components/common/CustomImage';
 import {
@@ -47,6 +48,7 @@ export default function GroupManagementScreen() {
 }
 
 function GroupManagementContent() {
+    const { t, i18n } = useTranslation();
     const { id } = useLocalSearchParams();
     const { user } = useAuth();
     const router = useRouter();
@@ -118,15 +120,15 @@ function GroupManagementContent() {
             const result = await groupRequestService.approveRequest(id as string, requestUid, user!.uid);
 
             if (result.success) {
-                Alert.alert('Thành công', result.message);
+                Alert.alert(t('common.success'), result.message);
                 loadPendingRequests();
                 loadGroupData(); // Reload members
             } else {
-                Alert.alert('Lỗi', result.message);
+                Alert.alert(t('common.error'), result.message);
             }
         } catch (error) {
             console.error('Error approving request:', error);
-            Alert.alert('Lỗi', 'Không thể duyệt yêu cầu');
+            Alert.alert(t('common.error'), t('group_management.approve_request_error'));
         }
     };
 
@@ -136,14 +138,14 @@ function GroupManagementContent() {
             const result = await groupRequestService.rejectRequest(id as string, requestUid);
 
             if (result.success) {
-                Alert.alert('Thành công', result.message);
+                Alert.alert(t('common.success'), result.message);
                 loadPendingRequests();
             } else {
-                Alert.alert('Lỗi', result.message);
+                Alert.alert(t('common.error'), result.message);
             }
         } catch (error) {
             console.error('Error rejecting request:', error);
-            Alert.alert('Lỗi', 'Không thể từ chối yêu cầu');
+            Alert.alert(t('common.error'), t('group_management.reject_request_error'));
         }
     };
 
@@ -156,7 +158,7 @@ function GroupManagementContent() {
             // Load group info
             const groupDoc = await getDoc(doc(db, 'groups', id as string));
             if (!groupDoc.exists()) {
-                Alert.alert('Lỗi', 'Không tìm thấy nhóm');
+                Alert.alert(t('common.error'), t('group_management.group_not_found'));
                 router.back();
                 return;
             }
@@ -184,7 +186,7 @@ function GroupManagementContent() {
 
         } catch (error) {
             console.error('Error loading group data:', error);
-            Alert.alert('Lỗi', 'Không thể tải thông tin nhóm');
+            Alert.alert(t('common.error'), t('group_management.load_group_error'));
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -262,7 +264,7 @@ function GroupManagementContent() {
             }
         } catch (error) {
             console.error('Error toggling follow:', error);
-            Alert.alert('Lỗi', 'Không thể cập nhật trạng thái theo dõi');
+            Alert.alert(t('common.error'), t('group_management.follow_toggle_error'));
         }
     };
 
@@ -290,25 +292,25 @@ function GroupManagementContent() {
             );
 
             if (result.success) {
-                Alert.alert('Thành công', result.message);
+                Alert.alert(t('common.success'), result.message);
                 loadGroupData();
             } else {
-                Alert.alert('Lỗi', result.message);
+                Alert.alert(t('common.error'), result.message);
             }
         } catch (error) {
-            Alert.alert('Lỗi', 'Không thể thay đổi vai trò');
+            Alert.alert(t('common.error'), t('group_management.change_role_error'));
         }
         setMenuVisible(null);
     };
 
     const handleRemoveMember = async (targetUserId: string) => {
         Alert.alert(
-            'Xác nhận',
-            'Bạn có chắc chắn muốn xóa thành viên này khỏi nhóm?',
+            t('common.confirm'),
+            t('group_management.remove_member_confirm'),
             [
-                { text: 'Hủy', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Xóa',
+                    text: t('common.delete'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
@@ -319,13 +321,13 @@ function GroupManagementContent() {
                             );
 
                             if (result.success) {
-                                Alert.alert('Thành công', result.message);
+                                Alert.alert(t('common.success'), result.message);
                                 loadGroupData();
                             } else {
-                                Alert.alert('Lỗi', result.message);
+                                Alert.alert(t('common.error'), result.message);
                             }
                         } catch (error) {
-                            Alert.alert('Lỗi', 'Không thể xóa thành viên');
+                            Alert.alert(t('common.error'), t('group_management.remove_member_error'));
                         }
                     },
                 },
@@ -337,7 +339,7 @@ function GroupManagementContent() {
     const handleUpdateGroupInfo = async () => {
         try {
             if (!editedName.trim()) {
-                Alert.alert('Lỗi', 'Tên nhóm không được để trống');
+                Alert.alert(t('common.error'), t('group_management.empty_group_name'));
                 return;
             }
 
@@ -347,11 +349,11 @@ function GroupManagementContent() {
                 updatedAt: serverTimestamp(),
             });
 
-            Alert.alert('Thành công', 'Đã cập nhật thông tin nhóm');
+            Alert.alert(t('common.success'), t('group_management.update_group_success'));
             setIsEditingInfo(false);
             loadGroupData();
         } catch (error) {
-            Alert.alert('Lỗi', 'Không thể cập nhật thông tin');
+            Alert.alert(t('common.error'), t('group_management.update_group_error'));
         }
     };
 
@@ -381,11 +383,11 @@ function GroupManagementContent() {
                     updatedAt: serverTimestamp(),
                 });
 
-                Alert.alert('Thành công', 'Đã cập nhật ảnh nhóm');
+                Alert.alert(t('common.success'), t('group_management.update_avatar_success'));
                 loadGroupData();
             }
         } catch (error) {
-            Alert.alert('Lỗi', 'Không thể cập nhật ảnh');
+            Alert.alert(t('common.error'), t('group_management.update_avatar_error'));
         }
     };
 
@@ -397,13 +399,13 @@ function GroupManagementContent() {
             // Check if user exists
             const userDoc = await getDoc(doc(db, 'users', uid));
             if (!userDoc.exists()) {
-                Alert.alert('Lỗi', 'Không tìm thấy người dùng với UID này');
+                Alert.alert(t('common.error'), t('group_management.user_not_found_uid'));
                 return;
             }
 
             // Check if already member
             if (group?.members.includes(uid)) {
-                Alert.alert('Lỗi', 'Người dùng đã là thành viên');
+                Alert.alert(t('common.error'), t('group_management.user_already_member'));
                 return;
             }
 
@@ -418,23 +420,23 @@ function GroupManagementContent() {
                 updatedAt: serverTimestamp(),
             });
 
-            Alert.alert('Thành công', 'Đã thêm thành viên mới');
+            Alert.alert(t('common.success'), t('group_management.add_member_success'));
             setNewMemberUid('');
             setAddMemberModalVisible(false);
             loadGroupData();
         } catch (error) {
-            Alert.alert('Lỗi', 'Không thể thêm thành viên');
+            Alert.alert(t('common.error'), t('group_management.add_member_error'));
         }
     };
 
     const handleLeaveGroup = () => {
         Alert.alert(
-            'Rời nhóm',
-            'Bạn có chắc chắn muốn rời khỏi nhóm này?',
+            t('group_management.leave_group_title'),
+            t('group_management.leave_group_confirm'),
             [
-                { text: 'Hủy', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                    text: 'Rời nhóm',
+                    text: t('group_management.leave_group_action'),
                     style: 'destructive',
                     onPress: async () => {
                         try {
@@ -445,13 +447,13 @@ function GroupManagementContent() {
                             );
 
                             if (result.success) {
-                                Alert.alert('Thành công', 'Đã rời khỏi nhóm');
+                                Alert.alert(t('common.success'), t('group_management.leave_group_success'));
                                 router.replace('/(tabs)/groups');
                             } else {
-                                Alert.alert('Lỗi', result.message);
+                                Alert.alert(t('common.error'), result.message);
                             }
                         } catch (error) {
-                            Alert.alert('Lỗi', 'Không thể rời nhóm');
+                            Alert.alert(t('common.error'), t('group_management.leave_group_error'));
                         }
                     },
                 },
@@ -487,7 +489,7 @@ function GroupManagementContent() {
                     <Text style={[styles.memberName, { color: currentThemeColors.text }]}>
                         {member.displayName}
                         {isCreator && ' 👑'}
-                        {isCurrentUser && ' (Bạn)'}
+                        {isCurrentUser && ` (${t('common.you')})`}
                     </Text>
                     <View style={styles.roleBadge}>
                         <MaterialCommunityIcons
@@ -496,7 +498,7 @@ function GroupManagementContent() {
                             color={roleInfo.color}
                         />
                         <Text style={[styles.roleText, { color: roleInfo.color }]}>
-                            {roleInfo.vi}
+                            {roleInfo.label}
                         </Text>
                     </View>
                 </View>
@@ -518,7 +520,7 @@ function GroupManagementContent() {
                                 ? currentThemeColors.tint
                                 : '#FFF'
                         }]}>
-                            {followingStatus[member.uid] ? 'Đang theo dõi' : 'Theo dõi'}
+                            {followingStatus[member.uid] ? t('group_management.following') : t('profile.follow')}
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -538,32 +540,32 @@ function GroupManagementContent() {
                         <Menu.Item
                             leadingIcon="arrow-up"
                             onPress={() => handleChangeRole(member.uid, GroupRole.ADMIN)}
-                            title="Đặt làm Admin"
+                            title={t('group_management.role_set_admin')}
                             disabled={member.role === GroupRole.ADMIN}
                         />
                         <Menu.Item
                             leadingIcon="shield-check"
                             onPress={() => handleChangeRole(member.uid, GroupRole.MODERATOR)}
-                            title="Đặt làm Moderator"
+                            title={t('group_management.role_set_moderator')}
                             disabled={member.role === GroupRole.MODERATOR}
                         />
                         <Menu.Item
                             leadingIcon="account"
                             onPress={() => handleChangeRole(member.uid, GroupRole.MEMBER)}
-                            title="Đặt làm Member"
+                            title={t('group_management.role_set_member')}
                             disabled={member.role === GroupRole.MEMBER}
                         />
                         <Menu.Item
                             leadingIcon="account-outline"
                             onPress={() => handleChangeRole(member.uid, GroupRole.NEWBIE)}
-                            title="Đặt làm Newbie"
+                            title={t('group_management.role_set_newbie')}
                             disabled={member.role === GroupRole.NEWBIE}
                         />
                         <Divider />
                         <Menu.Item
                             leadingIcon="account-remove"
                             onPress={() => handleRemoveMember(member.uid)}
-                            title="Xóa khỏi nhóm"
+                            title={t('group_management.remove_from_group')}
                             titleStyle={{ color: '#EF4444' }}
                         />
                     </Menu>
@@ -576,7 +578,7 @@ function GroupManagementContent() {
         return (
             <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
                 <View style={styles.loadingContainer}>
-                    <Text style={{ color: currentThemeColors.text }}>Đang tải...</Text>
+                    <Text style={{ color: currentThemeColors.text }}>{t('common.loading')}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -591,7 +593,7 @@ function GroupManagementContent() {
             }]}>
                 <IconButton icon="arrow-left" size={24} onPress={() => router.back()} />
                 <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>
-                    Quản lý nhóm
+                    {t('group_management.title')}
                 </Text>
                 <View style={{ width: 40 }} />
             </View>
@@ -627,14 +629,14 @@ function GroupManagementContent() {
                         <View style={styles.editContainer}>
                             <PaperTextInput
                                 mode="outlined"
-                                label="Tên nhóm"
+                                label={t('group_management.group_name_label')}
                                 value={editedName}
                                 onChangeText={setEditedName}
                                 style={styles.input}
                             />
                             <PaperTextInput
                                 mode="outlined"
-                                label="Mô tả"
+                                label={t('group_management.description_label')}
                                 value={editedDescription}
                                 onChangeText={setEditedDescription}
                                 multiline
@@ -646,13 +648,13 @@ function GroupManagementContent() {
                                     style={[styles.button, { backgroundColor: '#6B7280' }]}
                                     onPress={() => setIsEditingInfo(false)}
                                 >
-                                    <Text style={styles.buttonText}>Hủy</Text>
+                                    <Text style={styles.buttonText}>{t('common.cancel')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[styles.button, { backgroundColor: currentThemeColors.tint }]}
                                     onPress={handleUpdateGroupInfo}
                                 >
-                                    <Text style={styles.buttonText}>Lưu</Text>
+                                    <Text style={styles.buttonText}>{t('common.save')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -667,7 +669,7 @@ function GroupManagementContent() {
                                 </Text>
                             )}
                             <Text style={[styles.memberCount, { color: currentThemeColors.subtleText }]}>
-                                {members.length} thành viên
+                                {t('group_management.member_count', { count: members.length })}
                             </Text>
                             {group?.id && (
                                 <TouchableOpacity
@@ -675,17 +677,17 @@ function GroupManagementContent() {
                                     onPress={() => {
                                         // Copy to clipboard
                                         Clipboard.setString(group.id);
-                                        Alert.alert('Đã sao chép', 'ID nhóm đã được sao chép vào clipboard');
+                                        Alert.alert(t('group_management.copied_title'), t('group_management.group_id_copied'));
                                     }}
                                     onLongPress={() => {
                                         // Show full ID on long press
-                                        Alert.alert('ID Nhóm', group.id, [
-                                            { text: 'Đóng', style: 'cancel' },
+                                        Alert.alert(t('group_management.group_id_title'), group.id, [
+                                            { text: t('common.close'), style: 'cancel' },
                                             {
-                                                text: 'Sao chép',
+                                                text: t('group_management.copy_action'),
                                                 onPress: () => {
                                                     Clipboard.setString(group.id);
-                                                    Alert.alert('Đã sao chép', 'ID nhóm đã được sao chép vào clipboard');
+                                                    Alert.alert(t('group_management.copied_title'), t('group_management.group_id_copied'));
                                                 }
                                             }
                                         ]);
@@ -705,7 +707,7 @@ function GroupManagementContent() {
                                 >
                                     <MaterialCommunityIcons name="pencil" size={16} color={currentThemeColors.tint} />
                                     <Text style={[styles.editButtonText, { color: currentThemeColors.tint }]}>
-                                        Chỉnh sửa thông tin
+                                        {t('group_management.edit_info')}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -721,7 +723,7 @@ function GroupManagementContent() {
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
                                 <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                                    Giao diện nhóm
+                                    {t('group_management.group_theme')}
                                 </Text>
                                 <TouchableOpacity
                                     style={styles.editButton}
@@ -729,7 +731,7 @@ function GroupManagementContent() {
                                 >
                                     <MaterialCommunityIcons name="palette" size={16} color={currentThemeColors.tint} />
                                     <Text style={[styles.editButtonText, { color: currentThemeColors.tint }]}>
-                                        Thay đổi
+                                        {t('group_management.change_action')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -739,10 +741,12 @@ function GroupManagementContent() {
                             }]}>
                                 <View style={styles.themeInfo}>
                                     <Text style={[styles.themeName, { color: currentTheme.textColor || currentThemeColors.text }]}>
-                                        Chủ đề: {currentTheme.name}
+                                        {t('group_management.theme_label', { name: currentTheme.name })}
                                     </Text>
                                     <Text style={[styles.effectName, { color: currentTheme.textColor || currentThemeColors.subtleText }]}>
-                                        Hiệu ứng: {currentEffect === 'none' ? 'Không có' : currentEffect}
+                                        {t('group_management.effect_label', {
+                                            effect: currentEffect === 'none' ? t('chat.theme.none') : currentEffect
+                                        })}
                                     </Text>
                                 </View>
                                 {currentTheme.backgroundImage && (
@@ -760,7 +764,7 @@ function GroupManagementContent() {
                 {/* Your Role */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-                        Vai trò của bạn
+                        {t('group_management.your_role')}
                     </Text>
                     <View style={[styles.roleCard, {
                         backgroundColor: currentThemeColors.surface,
@@ -772,7 +776,7 @@ function GroupManagementContent() {
                             color={ROLE_LABELS[userRole].color}
                         />
                         <Text style={[styles.roleCardText, { color: ROLE_LABELS[userRole].color }]}>
-                            {ROLE_LABELS[userRole].vi}
+                            {ROLE_LABELS[userRole].label}
                         </Text>
                     </View>
                 </View>
@@ -802,7 +806,7 @@ function GroupManagementContent() {
                                     fontWeight: activeTab === 'members' ? '700' : '500',
                                 }
                             ]}>
-                                Thành viên ({members.length})
+                                {t('group_management.members_tab', { count: members.length })}
                             </Text>
                         </TouchableOpacity>
 
@@ -851,7 +855,7 @@ function GroupManagementContent() {
                                         fontWeight: activeTab === 'requests' ? '700' : '500',
                                     }
                                 ]}>
-                                    Yêu cầu ({pendingRequests.length})
+                                    {t('group_management.requests_tab', { count: pendingRequests.length })}
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -867,7 +871,7 @@ function GroupManagementContent() {
                                 >
                                     <MaterialCommunityIcons name="plus-circle" size={20} color={currentThemeColors.tint} />
                                     <Text style={[styles.addMemberButtonText, { color: currentThemeColors.tint }]}>
-                                        Thêm thành viên
+                                        {t('group_management.add_member')}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -880,13 +884,13 @@ function GroupManagementContent() {
                         <View style={styles.mediaContainer}>
                             {loadingMedia ? (
                                 <View style={styles.loadingMediaContainer}>
-                                    <Text style={{ color: currentThemeColors.subtleText }}>Đang tải media...</Text>
+                                    <Text style={{ color: currentThemeColors.subtleText }}>{t('group_management.loading_media')}</Text>
                                 </View>
                             ) : mediaItems.length === 0 ? (
                                 <View style={styles.emptyMediaContainer}>
                                     <MaterialCommunityIcons name="image-off" size={48} color={currentThemeColors.subtleText} />
                                     <Text style={[styles.emptyMediaText, { color: currentThemeColors.subtleText }]}>
-                                        Chưa có ảnh nào trong nhóm
+                                        {t('group_management.no_group_images')}
                                     </Text>
                                 </View>
                             ) : (
@@ -917,7 +921,7 @@ function GroupManagementContent() {
                                 <View style={styles.emptyMediaContainer}>
                                     <MaterialCommunityIcons name="account-check-outline" size={48} color={currentThemeColors.subtleText} />
                                     <Text style={[styles.emptyMediaText, { color: currentThemeColors.subtleText }]}>
-                                        Không có yêu cầu tham gia nào
+                                        {t('group_management.no_pending_requests')}
                                     </Text>
                                 </View>
                             ) : (
@@ -939,7 +943,9 @@ function GroupManagementContent() {
                                                 {req.displayName}
                                             </Text>
                                             <Text style={[styles.requestTime, { color: currentThemeColors.subtleText }]}>
-                                                {req.requestedAt?.toDate ? req.requestedAt.toDate().toLocaleDateString() : 'Vừa xong'}
+                                                {req.requestedAt?.toDate
+                                                    ? req.requestedAt.toDate().toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')
+                                                    : t('common.time.just_now')}
                                             </Text>
                                         </View>
                                         <View style={styles.requestActions}>
@@ -970,7 +976,7 @@ function GroupManagementContent() {
                         onPress={handleLeaveGroup}
                     >
                         <MaterialCommunityIcons name="exit-to-app" size={20} color="#EF4444" />
-                        <Text style={styles.leaveButtonText}>Rời khỏi nhóm</Text>
+                        <Text style={styles.leaveButtonText}>{t('group_management.leave_group_action')}</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -980,15 +986,15 @@ function GroupManagementContent() {
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modal, { backgroundColor: currentThemeColors.surface }]}>
                         <Text style={[styles.modalTitle, { color: currentThemeColors.text }]}>
-                            Thêm thành viên
+                            {t('group_management.add_member')}
                         </Text>
                         <PaperTextInput
                             mode="outlined"
-                            label="UID người dùng"
+                            label={t('group_management.user_uid_label')}
                             value={newMemberUid}
                             onChangeText={setNewMemberUid}
                             style={styles.modalInput}
-                            placeholder="Nhập UID của người dùng"
+                            placeholder={t('group_management.user_uid_placeholder')}
                         />
                         <View style={styles.modalButtons}>
                             <TouchableOpacity
@@ -998,13 +1004,13 @@ function GroupManagementContent() {
                                     setNewMemberUid('');
                                 }}
                             >
-                                <Text style={styles.modalButtonText}>Hủy</Text>
+                                <Text style={styles.modalButtonText}>{t('common.cancel')}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.modalButton, { backgroundColor: currentThemeColors.tint }]}
                                 onPress={handleAddMember}
                             >
-                                <Text style={styles.modalButtonText}>Thêm</Text>
+                                <Text style={styles.modalButtonText}>{t('group_management.add_action')}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>

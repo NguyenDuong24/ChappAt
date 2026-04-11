@@ -11,8 +11,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import VibeAvatar from '@/components/vibe/VibeAvatar';
 import { useAuth } from '@/context/authContext';
 import { useTranslation } from 'react-i18next';
+import { normalizeDisplayText } from '@/utils/textEncoding';
 
-const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLastMessage = null, unreadCount: externalUnreadCount, chatType, chatRoomId, hotSpotId, onLongPress, isPinned = false, roomType, eventId }: { item: any, noBorder?: boolean, currenUser: any, lastMessage?: DocumentData | null, unreadCount?: number, chatType?: string, chatRoomId?: string, hotSpotId?: string, onLongPress?: () => void, isPinned?: boolean, roomType?: string, eventId?: string }) => {
+const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLastMessage = null, unreadCount: externalUnreadCount, chatType, chatRoomId, hotSpotId, hotSpotTitle, onLongPress, isPinned = false, roomType, eventId }: { item: any, noBorder?: boolean, currenUser: any, lastMessage?: DocumentData | null, unreadCount?: number, chatType?: string, chatRoomId?: string, hotSpotId?: string, hotSpotTitle?: string, onLongPress?: () => void, isPinned?: boolean, roomType?: string, eventId?: string }) => {
   const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
@@ -31,6 +32,15 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
   const expiryTimerRef = useRef<any>(null);
   const maxLength = 25;
 
+  const normalizePreviewText = (value: string = '') => {
+    const text = normalizeDisplayText(String(value || ''));
+    const hasMojibake = /[\u00C3\u00C2\uFFFD]/.test(text);
+    const isHotSpotMatch = /match/i.test(text) && /hot\s*spot/i.test(text);
+    if (hasMojibake && isHotSpotMatch) {
+      return 'Hai ban da match tai Hot Spot nay! Cung tro chuyen va len keo di cung nhe!';
+    }
+    return text;
+  };
   const lastMessage = externalLastMessage ?? internalLastMessage;
   const unreadCount = typeof externalUnreadCount === 'number' ? externalUnreadCount : internalUnreadCount;
   const hasEventMeta = Boolean(roomMeta?.eventId) || roomMeta?.type === 'event_match';
@@ -191,14 +201,14 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
       try {
         const prefix = currenUser?.uid === lastMessage?.uid ? `${t('common.you')}: ` : '';
         const statusIcon = getLastMessageStatusIcon();
-        const text = lastMessage?.text || (lastMessage?.imageUrl ? `📷 ${t('chat.image')}` : '');
+        const text = normalizePreviewText(lastMessage?.text || (lastMessage?.imageUrl ? t('chat.image') : ''));
         return `${prefix}${text} ${statusIcon}`.trim();
       } catch (error) {
         console.error('Error rendering last message:', error);
-        return 'Error loading message';
+        return t('chat.error_generic');
       }
     } else {
-      return t('chat.say_hi', { defaultValue: 'Say hi 👋' });
+      return t('chat.say_hi', { defaultValue: 'Say hi' });
     }
   };
 
@@ -207,20 +217,21 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
 
     switch (lastMessage?.status) {
       case 'sent':
-        return '✓';
+        return '\u2713';
       case 'delivered':
-        return '✓✓';
+        return '\u2713\u2713';
       case 'read':
-        return '✓✓';
+        return '\u2713\u2713';
       default:
         return '';
     }
   };
 
   const renderUsername = () => {
-    if (!item?.username) return t('chat.unknown_user', { defaultValue: 'Unknown User' });
+    const displayName = normalizeDisplayText(item?.username || item?.displayName || item?.name);
+    if (!displayName) return t('chat.unknown_user', { defaultValue: 'Unknown User' });
     try {
-      return item.username.length > maxLength ? `${item.username.slice(0, maxLength)}...` : item.username;
+      return displayName.length > maxLength ? `${displayName.slice(0, maxLength)}...` : displayName;
     } catch (error) {
       console.error('Error rendering username:', error);
       return t('chat.unknown_user', { defaultValue: 'Unknown User' });
@@ -248,7 +259,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
           params: {
             chatRoomId,
             hotSpotId: hotSpotId || '',
-            hotSpotTitle: '',
+            hotSpotTitle: hotSpotTitle || '',
           },
         });
       } else {

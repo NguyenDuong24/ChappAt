@@ -1,9 +1,10 @@
 // utils/fileUpload.js
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, deleteObject } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
 // import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { uploadLocalFileToStorage } from '@/utils/storageUpload';
 
 export const pickImage = async () => {
   try {
@@ -94,14 +95,11 @@ export const takePhoto = async () => {
 
 export const uploadFile = async (file, path, onProgress) => {
   try {
-    const response = await fetch(file.uri);
-    const blob = await response.blob();
-
-    const storageRef = ref(storage, path);
-    const snapshot = await uploadBytes(storageRef, blob);
-    const downloadURL = await getDownloadURL(snapshot.ref);
-
-    return downloadURL;
+    return await uploadLocalFileToStorage({
+      uri: file?.uri,
+      path,
+      contentType: file?.type,
+    });
   } catch (error) {
     console.error('Upload file error:', error);
     throw error;

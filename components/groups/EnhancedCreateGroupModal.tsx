@@ -1,4 +1,4 @@
-import React, { useState, useContext, useCallback, useEffect } from 'react';
+﻿import React, { useState, useContext, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Text, TextInput, Switch } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import * as ImagePicker from 'expo-image-picker';
@@ -34,6 +35,7 @@ const CreateGroupModal = ({
   onGroupCreated,
   currentUser,
 }: CreateGroupModalProps) => {
+  const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
@@ -73,9 +75,9 @@ const CreateGroupModal = ({
     const newErrors: { name?: string } = {};
 
     if (!name.trim()) {
-      newErrors.name = 'Vui lòng nhập tên nhóm';
+      newErrors.name = t('group_create.errors.name_required');
     } else if (name.length < 3) {
-      newErrors.name = 'Tên nhóm phải có ít nhất 3 ký tự';
+      newErrors.name = t('group_create.errors.name_min');
     }
 
     setErrors(newErrors);
@@ -86,7 +88,7 @@ const CreateGroupModal = ({
     const newErrors: { members?: string } = {};
 
     if (selectedFriends.length === 0) {
-      newErrors.members = 'Vui lòng chọn ít nhất một thành viên';
+      newErrors.members = t('group_create.errors.members_required');
     }
 
     setErrors(newErrors);
@@ -155,7 +157,7 @@ const CreateGroupModal = ({
     const uid = uidInput.trim();
     if (!uid) return;
     if (selectedFriends.includes(uid)) {
-      setUidError('UID đã được chọn');
+      setUidError(t('group_create.errors.uid_selected'));
       return;
     }
     try {
@@ -164,7 +166,7 @@ const CreateGroupModal = ({
       const userRef = doc(db, 'users', uid);
       const snap = await getDoc(userRef);
       if (!snap.exists()) {
-        setUidError('Không tìm thấy người dùng với UID này');
+        setUidError(t('group_create.errors.uid_not_found'));
         return;
       }
       const data: any = snap.data();
@@ -176,11 +178,11 @@ const CreateGroupModal = ({
       setUidInput('');
     } catch (e) {
       console.error('Add by UID failed', e);
-      setUidError('Thêm UID thất bại, thử lại');
+      setUidError(t('group_create.errors.uid_add_failed'));
     } finally {
       setUidAdding(false);
     }
-  }, [uidInput, selectedFriends]);
+  }, [uidInput, selectedFriends, t]);
 
   const removeSelected = useCallback((uid: string) => {
     setSelectedFriends(prev => prev.filter(id => id !== uid));
@@ -201,20 +203,10 @@ const CreateGroupModal = ({
 
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
-      {/* Image Picker */}
-      <TouchableOpacity
-        style={styles.imagePickerContainer}
-        onPress={pickImage}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.imagePickerContainer} onPress={pickImage} activeOpacity={0.7}>
         {image ? (
           <View style={styles.imageWrapper}>
-            <Image
-              source={{ uri: image }}
-              style={styles.groupImage}
-              contentFit="cover"
-              transition={200}
-            />
+            <Image source={{ uri: image }} style={styles.groupImage} contentFit="cover" transition={200} />
             <View style={styles.imageOverlay}>
               <MaterialCommunityIcons name="camera" size={24} color="#FFF" />
             </View>
@@ -222,28 +214,19 @@ const CreateGroupModal = ({
         ) : (
           <View style={[styles.imagePlaceholder, {
             backgroundColor: theme === 'dark' ? '#1F2937' : '#F3F4F6',
-            borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
-          }]}>
-            <MaterialCommunityIcons
-              name="camera-plus"
-              size={40}
-              color={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
-            />
-            <Text style={[styles.placeholderText, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
-              Thêm ảnh nhóm
-            </Text>
+            borderColor: theme === 'dark' ? '#374151' : '#E5E7EB',
+          }]}> 
+            <MaterialCommunityIcons name="camera-plus" size={40} color={theme === 'dark' ? '#6B7280' : '#9CA3AF'} />
+            <Text style={[styles.placeholderText, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>{t('group_create.add_group_image')}</Text>
           </View>
         )}
       </TouchableOpacity>
 
-      {/* Group Name */}
       <View style={styles.inputGroup}>
-        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>
-          Tên nhóm <Text style={styles.required}>*</Text>
-        </Text>
+        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>{t('group_create.group_name')} <Text style={styles.required}>*</Text></Text>
         <TextInput
           mode="outlined"
-          placeholder="Ví dụ: Nhóm bạn thân"
+          placeholder={t('group_create.group_name_placeholder')}
           value={name}
           onChangeText={setName}
           style={[styles.input, { backgroundColor: 'transparent' }]}
@@ -263,14 +246,11 @@ const CreateGroupModal = ({
         )}
       </View>
 
-      {/* Description */}
       <View style={styles.inputGroup}>
-        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>
-          Mô tả
-        </Text>
+        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>{t('group_create.description')}</Text>
         <TextInput
           mode="outlined"
-          placeholder="Thêm mô tả cho nhóm..."
+          placeholder={t('group_create.description_placeholder')}
           value={description}
           onChangeText={setDescription}
           style={[styles.input, styles.textArea, { backgroundColor: 'transparent' }]}
@@ -285,45 +265,29 @@ const CreateGroupModal = ({
         />
       </View>
 
-      {/* Group Type */}
       <View style={styles.inputGroup}>
-        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>
-          Quyền riêng tư
-        </Text>
+        <Text style={[styles.inputLabel, { color: currentThemeColors.text }]}>{t('group_create.privacy')}</Text>
         <View style={styles.typeOptions}>
           <TouchableOpacity
             style={[
               styles.typeCard,
               {
                 backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
-                borderColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
+                borderColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB'),
               },
-              groupType === 'private' && styles.typeCardSelected
+              groupType === 'private' && styles.typeCardSelected,
             ]}
             onPress={() => setGroupType('private')}
             activeOpacity={0.7}
           >
-            <View style={[
-              styles.typeIconContainer,
-              { backgroundColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }
-            ]}>
-              <MaterialCommunityIcons
-                name="lock"
-                size={20}
-                color={groupType === 'private' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')}
-              />
+            <View style={[styles.typeIconContainer, { backgroundColor: groupType === 'private' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }]}>
+              <MaterialCommunityIcons name="lock" size={20} color={groupType === 'private' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')} />
             </View>
             <View style={styles.typeContent}>
-              <Text style={[styles.typeTitle, { color: currentThemeColors.text }]}>
-                Riêng tư
-              </Text>
-              <Text style={[styles.typeDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
-                Chỉ thành viên được mời
-              </Text>
+              <Text style={[styles.typeTitle, { color: currentThemeColors.text }]}>{t('group_create.private')}</Text>
+              <Text style={[styles.typeDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>{t('group_create.private_desc')}</Text>
             </View>
-            {groupType === 'private' && (
-              <MaterialCommunityIcons name="check-circle" size={20} color="#0084FF" />
-            )}
+            {groupType === 'private' && <MaterialCommunityIcons name="check-circle" size={20} color="#0084FF" />}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -331,90 +295,56 @@ const CreateGroupModal = ({
               styles.typeCard,
               {
                 backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
-                borderColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
+                borderColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB'),
               },
-              groupType === 'public' && styles.typeCardSelected
+              groupType === 'public' && styles.typeCardSelected,
             ]}
             onPress={() => setGroupType('public')}
             activeOpacity={0.7}
           >
-            <View style={[
-              styles.typeIconContainer,
-              { backgroundColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }
-            ]}>
-              <MaterialCommunityIcons
-                name="earth"
-                size={20}
-                color={groupType === 'public' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')}
-              />
+            <View style={[styles.typeIconContainer, { backgroundColor: groupType === 'public' ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }]}>
+              <MaterialCommunityIcons name="earth" size={20} color={groupType === 'public' ? '#FFF' : (theme === 'dark' ? '#9CA3AF' : '#6B7280')} />
             </View>
             <View style={styles.typeContent}>
-              <Text style={[styles.typeTitle, { color: currentThemeColors.text }]}>
-                Công khai
-              </Text>
-              <Text style={[styles.typeDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
-                Ai cũng có thể tham gia
-              </Text>
+              <Text style={[styles.typeTitle, { color: currentThemeColors.text }]}>{t('group_create.public')}</Text>
+              <Text style={[styles.typeDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>{t('group_create.public_desc')}</Text>
             </View>
-            {groupType === 'public' && (
-              <MaterialCommunityIcons name="check-circle" size={20} color="#0084FF" />
-            )}
+            {groupType === 'public' && <MaterialCommunityIcons name="check-circle" size={20} color="#0084FF" />}
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Searchable Option */}
       {groupType === 'public' && (
-        <View style={[styles.switchCard, {
-          backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
-          borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
-        }]}>
+        <View style={[styles.switchCard, { backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB', borderColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
           <View style={styles.switchContent}>
             <View style={styles.switchTextContainer}>
-              <Text style={[styles.switchTitle, { color: currentThemeColors.text }]}>
-                Cho phép tìm kiếm
-              </Text>
-              <Text style={[styles.switchDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
-                Hiển thị nhóm trong kết quả tìm kiếm
-              </Text>
+              <Text style={[styles.switchTitle, { color: currentThemeColors.text }]}>{t('group_create.searchable')}</Text>
+              <Text style={[styles.switchDescription, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>{t('group_create.searchable_desc')}</Text>
             </View>
-            <Switch
-              value={isSearchable}
-              onValueChange={setIsSearchable}
-              color="#0084FF"
-            />
+            <Switch value={isSearchable} onValueChange={setIsSearchable} color="#0084FF" />
           </View>
         </View>
       )}
 
-      {/* Info Box */}
-      <View style={[styles.infoBox, {
-        backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 132, 255, 0.05)',
-        borderColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 132, 255, 0.1)'
-      }]}>
+      <View style={[styles.infoBox, { backgroundColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 132, 255, 0.05)', borderColor: theme === 'dark' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(0, 132, 255, 0.1)' }]}>
         <MaterialCommunityIcons name="information" size={18} color="#0084FF" />
-        <Text style={[styles.infoText, { color: theme === 'dark' ? '#93C5FD' : '#0084FF' }]}>
-          Bạn sẽ là quản trị viên của nhóm này
-        </Text>
+        <Text style={[styles.infoText, { color: theme === 'dark' ? '#93C5FD' : '#0084FF' }]}>{t('group_create.admin_note')}</Text>
       </View>
     </View>
   );
 
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
-      {/* Add by UID */}
       <View style={styles.uidSection}>
-        <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-          Thêm bằng UID
-        </Text>
+        <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_create.add_by_uid')}</Text>
         <View style={styles.uidInputRow}>
           <TextInput
             mode="outlined"
-            placeholder="Nhập UID người dùng"
+            placeholder={t('group_create.uid_placeholder')}
             value={uidInput}
-            onChangeText={(t) => {
+            onChangeText={(value) => {
               setUidError(null);
-              setUidInput(t);
+              setUidInput(value);
             }}
             onSubmitEditing={handleAddUid}
             disabled={uidAdding || loading}
@@ -425,17 +355,8 @@ const CreateGroupModal = ({
             placeholderTextColor={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
             dense
           />
-          <TouchableOpacity
-            style={[styles.uidAddButton, { backgroundColor: '#0084FF' }]}
-            onPress={handleAddUid}
-            disabled={uidAdding || loading}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons
-              name={uidAdding ? "loading" : "plus"}
-              size={22}
-              color="#FFF"
-            />
+          <TouchableOpacity style={[styles.uidAddButton, { backgroundColor: '#0084FF' }]} onPress={handleAddUid} disabled={uidAdding || loading} activeOpacity={0.7}>
+            <MaterialCommunityIcons name={uidAdding ? 'loading' : 'plus'} size={22} color="#FFF" />
           </TouchableOpacity>
         </View>
         {uidError && (
@@ -446,42 +367,17 @@ const CreateGroupModal = ({
         )}
       </View>
 
-      {/* Selected Members */}
       {selectedFriends.length > 0 && (
         <View style={styles.selectedSection}>
-          <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-            Đã chọn ({selectedFriends.length})
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.selectedList}
-          >
+          <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_create.selected_count', { count: selectedFriends.length })}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.selectedList}>
             {selectedFriends.map((uid) => {
               const displayName = selectedDetails[uid]?.displayName || `User ${uid.slice(0, 6)}`;
               return (
-                <View
-                  key={uid}
-                  style={[styles.selectedChip, {
-                    backgroundColor: theme === 'dark' ? '#1F2937' : '#F3F4F6',
-                    borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
-                  }]}
-                >
-                  <Text
-                    style={[styles.selectedChipText, { color: currentThemeColors.text }]}
-                    numberOfLines={1}
-                  >
-                    {displayName}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => removeSelected(uid)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <MaterialCommunityIcons
-                      name="close-circle"
-                      size={18}
-                      color={theme === 'dark' ? '#6B7280' : '#9CA3AF'}
-                    />
+                <View key={uid} style={[styles.selectedChip, { backgroundColor: theme === 'dark' ? '#1F2937' : '#F3F4F6', borderColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
+                  <Text style={[styles.selectedChipText, { color: currentThemeColors.text }]} numberOfLines={1}>{displayName}</Text>
+                  <TouchableOpacity onPress={() => removeSelected(uid)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <MaterialCommunityIcons name="close-circle" size={18} color={theme === 'dark' ? '#6B7280' : '#9CA3AF'} />
                   </TouchableOpacity>
                 </View>
               );
@@ -490,121 +386,67 @@ const CreateGroupModal = ({
         </View>
       )}
 
-      {/* Friend List */}
       <View style={styles.friendSection}>
-        <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>
-          Chọn từ danh sách bạn bè
-        </Text>
+        <Text style={[styles.sectionTitle, { color: currentThemeColors.text }]}>{t('group_create.select_from_friends')}</Text>
         {errors.members && (
           <View style={[styles.errorRow, { marginBottom: 12 }]}>
             <MaterialCommunityIcons name="alert-circle" size={14} color="#EF4444" />
             <Text style={styles.errorText}>{errors.members}</Text>
           </View>
         )}
-        <View style={[styles.friendListContainer, {
-          backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB',
-          borderColor: theme === 'dark' ? '#374151' : '#E5E7EB'
-        }]}>
-          <FriendSelectionList
-            currentUser={currentUser}
-            selectedFriends={selectedFriends}
-            onSelectionChange={setSelectedFriends}
-            disabled={loading}
-          />
+        <View style={[styles.friendListContainer, { backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB', borderColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
+          <FriendSelectionList currentUser={currentUser} selectedFriends={selectedFriends} onSelectionChange={setSelectedFriends} disabled={loading} />
         </View>
       </View>
     </View>
   );
 
   return (
-    <RNModal
-      visible={visible}
-      animationType="slide"
-      onRequestClose={onClose}
-      presentationStyle="pageSheet"
-    >
+    <RNModal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet">
       <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        {/* Header */}
         <View style={[styles.header, { borderBottomColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <MaterialCommunityIcons name="close" size={24} color={currentThemeColors.text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>
-              {step === 1 ? 'Tạo nhóm mới' : 'Thêm thành viên'}
-            </Text>
+            <Text style={[styles.headerTitle, { color: currentThemeColors.text }]}>{step === 1 ? t('group_create.create_new_group') : t('group_create.add_members')}</Text>
           </View>
           <View style={styles.headerRight} />
         </View>
 
-        {/* Step Indicator */}
         <View style={[styles.stepIndicator, { borderBottomColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
           <View style={styles.stepDots}>
-            <View style={[styles.stepDot, step === 1 && styles.stepDotActive, {
-              backgroundColor: step === 1 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
-            }]} />
-            <View style={[styles.stepDot, step === 2 && styles.stepDotActive, {
-              backgroundColor: step === 2 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB')
-            }]} />
+            <View style={[styles.stepDot, step === 1 && styles.stepDotActive, { backgroundColor: step === 1 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }]} />
+            <View style={[styles.stepDot, step === 2 && styles.stepDotActive, { backgroundColor: step === 2 ? '#0084FF' : (theme === 'dark' ? '#374151' : '#E5E7EB') }]} />
           </View>
-          <Text style={[styles.stepText, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>
-            Bước {step}/2
-          </Text>
+          <Text style={[styles.stepText, { color: theme === 'dark' ? '#9CA3AF' : '#6B7280' }]}>{t('group_create.step', { step, total: 2 })}</Text>
         </View>
 
-        {/* Content */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.content}
-        >
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.content}>
+          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {step === 1 ? renderStep1() : renderStep2()}
           </ScrollView>
 
-          {/* Footer */}
-          <View style={[styles.footer, {
-            backgroundColor: currentThemeColors.background,
-            borderTopColor: theme === 'dark' ? '#374151' : '#E5E7EB'
-          }]}>
+          <View style={[styles.footer, { backgroundColor: currentThemeColors.background, borderTopColor: theme === 'dark' ? '#374151' : '#E5E7EB' }]}>
             {step === 1 ? (
-              <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: '#0084FF' }]}
-                onPress={handleNext}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.primaryButtonText}>Tiếp tục</Text>
+              <TouchableOpacity style={[styles.primaryButton, { backgroundColor: '#0084FF' }]} onPress={handleNext} disabled={loading} activeOpacity={0.8}>
+                <Text style={styles.primaryButtonText}>{t('common.next')}</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.footerButtons}>
                 <TouchableOpacity
-                  style={[styles.secondaryButton, {
-                    borderColor: theme === 'dark' ? '#374151' : '#E5E7EB',
-                    backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB'
-                  }]}
+                  style={[styles.secondaryButton, { borderColor: theme === 'dark' ? '#374151' : '#E5E7EB', backgroundColor: theme === 'dark' ? '#1F2937' : '#F9FAFB' }]}
                   onPress={handleBack}
                   disabled={loading}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.secondaryButtonText, { color: currentThemeColors.text }]}>
-                    Quay lại
-                  </Text>
+                  <Text style={[styles.secondaryButtonText, { color: currentThemeColors.text }]}>{t('common.back')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.primaryButton, { backgroundColor: '#0084FF', flex: 1 }]}
-                  onPress={handleCreate}
-                  disabled={loading}
-                  activeOpacity={0.8}
-                >
+                <TouchableOpacity style={[styles.primaryButton, { backgroundColor: '#0084FF', flex: 1 }]} onPress={handleCreate} disabled={loading} activeOpacity={0.8}>
                   {loading ? (
                     <MaterialCommunityIcons name="loading" size={20} color="#FFF" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>Tạo nhóm</Text>
+                    <Text style={styles.primaryButtonText}>{t('group_create.create_group')}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -617,9 +459,7 @@ const CreateGroupModal = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -627,23 +467,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  closeButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  headerRight: {
-    width: 40,
-  },
+  closeButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerCenter: { flex: 1, alignItems: 'center' },
+  headerTitle: { fontSize: 17, fontWeight: '600' },
+  headerRight: { width: 40 },
   stepIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -652,50 +479,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  stepDots: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  stepDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  stepDotActive: {
-    width: 24,
-  },
-  stepText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  content: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 32,
-  },
-  stepContainer: {
-    gap: 24,
-  },
-  imagePickerContainer: {
-    alignSelf: 'center',
-    marginBottom: 8,
-  },
-  imageWrapper: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  groupImage: {
-    width: '100%',
-    height: '100%',
-  },
+  stepDots: { flexDirection: 'row', gap: 6 },
+  stepDot: { width: 8, height: 8, borderRadius: 4 },
+  stepDotActive: { width: 24 },
+  stepText: { fontSize: 13, fontWeight: '500' },
+  content: { flex: 1 },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 32 },
+  stepContainer: { gap: 24 },
+  imagePickerContainer: { alignSelf: 'center', marginBottom: 8 },
+  imageWrapper: { width: 120, height: 120, borderRadius: 60, overflow: 'hidden', position: 'relative' },
+  groupImage: { width: '100%', height: '100%' },
   imageOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.3)',
@@ -712,39 +506,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  placeholderText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  inputLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  required: {
-    color: '#EF4444',
-  },
-  input: {
-    fontSize: 15,
-  },
-  textArea: {
-    minHeight: 100,
-  },
-  errorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#EF4444',
-  },
-  typeOptions: {
-    gap: 12,
-  },
+  placeholderText: { fontSize: 13, fontWeight: '500' },
+  inputGroup: { gap: 8 },
+  inputLabel: { fontSize: 15, fontWeight: '600' },
+  required: { color: '#EF4444' },
+  input: { fontSize: 15 },
+  textArea: { minHeight: 100 },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  errorText: { fontSize: 12, color: '#EF4444' },
+  typeOptions: { gap: 12 },
   typeCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -753,94 +523,25 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     gap: 12,
   },
-  typeCardSelected: {
-    backgroundColor: 'rgba(0, 132, 255, 0.05)',
-  },
-  typeIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  typeContent: {
-    flex: 1,
-    gap: 2,
-  },
-  typeTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  typeTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  typeDescription: {
-    fontSize: 13,
-  },
-  switchCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  switchContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  switchTextContainer: {
-    flex: 1,
-    gap: 2,
-  },
-  switchTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  switchDescription: {
-    fontSize: 13,
-  },
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  infoText: {
-    fontSize: 13,
-    fontWeight: '500',
-    flex: 1,
-  },
-  uidSection: {
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  uidInputRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-  },
-  uidInput: {
-    flex: 1,
-  },
-  uidAddButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedSection: {
-    gap: 12,
-  },
-  selectedList: {
-    paddingRight: 20,
-    gap: 8,
-  },
+  typeCardSelected: { backgroundColor: 'rgba(0, 132, 255, 0.05)' },
+  typeIconContainer: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  typeContent: { flex: 1, gap: 2 },
+  typeTitle: { fontSize: 15, fontWeight: '600' },
+  typeDescription: { fontSize: 13 },
+  switchCard: { padding: 16, borderRadius: 12, borderWidth: 1 },
+  switchContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  switchTextContainer: { flex: 1, gap: 2 },
+  switchTitle: { fontSize: 15, fontWeight: '600' },
+  switchDescription: { fontSize: 13 },
+  infoBox: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, borderWidth: 1 },
+  infoText: { fontSize: 13, fontWeight: '500', flex: 1 },
+  uidSection: { gap: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: '600' },
+  uidInputRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  uidInput: { flex: 1 },
+  uidAddButton: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  selectedSection: { gap: 12 },
+  selectedList: { paddingRight: 20, gap: 8 },
   selectedChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -851,39 +552,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
   },
-  selectedChipText: {
-    fontSize: 14,
-    fontWeight: '500',
-    maxWidth: 150,
-  },
-  friendSection: {
-    gap: 12,
-  },
-  friendListContainer: {
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
+  selectedChipText: { fontSize: 14, fontWeight: '500', maxWidth: 150 },
+  friendSection: { gap: 12 },
+  friendListContainer: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   footer: {
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  footerButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  primaryButton: {
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  footerButtons: { flexDirection: 'row', gap: 12 },
+  primaryButton: { height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { color: '#FFF', fontSize: 16, fontWeight: '600' },
   secondaryButton: {
     height: 48,
     borderRadius: 12,
@@ -892,10 +571,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 24,
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  secondaryButtonText: { fontSize: 16, fontWeight: '600' },
 });
 
 export default CreateGroupModal;

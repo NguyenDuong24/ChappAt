@@ -86,9 +86,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.duongnguyen1263.Chat'
+    namespace 'saigondating.com.vn'
     defaultConfig {
-        applicationId 'com.duongnguyen1263.Chat'
+        applicationId 'saigondating.com.vn'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

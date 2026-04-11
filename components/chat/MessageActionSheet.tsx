@@ -31,7 +31,18 @@ interface MessageActionSheetProps {
   onReport?: () => void;
 }
 
-const REACTIONS = ['❤️', '👍', '👎', '😂', '😮', '😢', '😡', '🔥', '👏', '💯'];
+const REACTIONS = [
+  '\u{2764}\u{FE0F}',
+  '\u{1F44D}',
+  '\u{1F44E}',
+  '\u{1F602}',
+  '\u{1F62E}',
+  '\u{1F622}',
+  '\u{1F621}',
+  '\u{1F525}',
+  '\u{1F44F}',
+  '\u{1F4AF}',
+];
 
 const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
   visible,
@@ -55,35 +66,35 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
     {
       id: 'reply',
       icon: 'reply',
-      title: 'Trả lời',
+      title: 'Tra loi',
       onPress: onReply,
       show: true,
     },
     {
       id: 'copy',
       icon: 'content-copy',
-      title: 'Sao chép',
+      title: 'Sao chep',
       onPress: onCopy,
       show: message?.text && !message?.imageUrl,
     },
     {
       id: 'edit',
       icon: 'edit',
-      title: 'Chỉnh sửa',
+      title: 'Chinh sua',
       onPress: onEdit,
       show: isCurrentUser && message?.text && !message?.imageUrl,
     },
     {
       id: 'pin',
-      icon: isPinned ? 'push-pin' : 'push-pin',
-      title: isPinned ? 'Bỏ ghim' : 'Ghim tin nhắn',
+      icon: 'push-pin',
+      title: isPinned ? 'Bo ghim' : 'Ghim tin nhan',
       onPress: onPin,
       show: true,
     },
     {
       id: 'report',
       icon: 'flag',
-      title: 'Báo cáo',
+      title: 'Bao cao',
       onPress: onReport,
       show: !!onReport && !isCurrentUser,
       danger: true,
@@ -91,7 +102,7 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
     {
       id: 'delete',
       icon: 'delete',
-      title: isCurrentUser ? 'Thu hồi' : 'Xóa',
+      title: isCurrentUser ? 'Thu hoi' : 'Xoa',
       onPress: onDelete,
       show: true,
       danger: true,
@@ -123,11 +134,8 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
             <View style={[styles.handle, { backgroundColor: currentThemeColors.border }]} />
           </View>
 
-          {/* Reactions */}
           <View style={styles.reactionsSection}>
-            <Text style={[styles.sectionTitle, { color: currentThemeColors.subtleText }]}>
-              Thả cảm xúc
-            </Text>
+            <Text style={[styles.sectionTitle, { color: currentThemeColors.subtleText }]}>Tha cam xuc</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -153,9 +161,8 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
 
           <View style={[styles.divider, { backgroundColor: currentThemeColors.border }]} />
 
-          {/* Actions */}
           <View style={styles.actionsContainer}>
-            {visibleActions.map((action, index) => (
+            {visibleActions.map((action) => (
               <TouchableOpacity
                 key={action.id}
                 style={styles.actionButton}

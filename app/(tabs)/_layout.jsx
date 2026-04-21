@@ -46,11 +46,10 @@ const TAB_META = {
   },
 };
 
-// Snappy spring so the active pill tracks tab changes without a “laggy” settle
 const springConfig = {
-  damping: 24,
-  stiffness: 420,
-  mass: 0.55,
+  damping: 18,
+  stiffness: 240,
+  mass: 0.9,
 };
 
 const LiquidTabItem = memo(function LiquidTabItem({
@@ -72,7 +71,7 @@ const LiquidTabItem = memo(function LiquidTabItem({
   };
 
   useEffect(() => {
-    progress.value = withTiming(focused ? 1 : 0, { duration: 100 });
+    progress.value = withTiming(focused ? 1 : 0, { duration: 180 });
   }, [focused, progress]);
 
   const animatedContentStyle = useAnimatedStyle(() => ({
@@ -314,9 +313,8 @@ function TabsLayoutContent() {
       elevation: 0,
       height: 0,
     },
-    // Keep tab screens mounted and unfrozen so switching tabs feels instant (tradeoff: more memory / background work)
-    freezeOnBlur: false,
-    lazy: false,
+    freezeOnBlur: true,
+    lazy: true,
     sceneContainerStyle: { backgroundColor: 'transparent' },
     contentStyle: { backgroundColor: 'transparent' },
   }), []);

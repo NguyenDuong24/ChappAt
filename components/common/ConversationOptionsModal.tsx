@@ -39,13 +39,13 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
   const styles = useMemo(() => StyleSheet.create({
     overlay: {
       flex: 1,
       justifyContent: 'flex-end',
-      backgroundColor: Colors.modalBackdrop,
+      backgroundColor: currentThemeColors.backdrop || 'rgba(0,0,0,0.5)',
     },
     sheet: {
       borderTopLeftRadius: 24,
@@ -103,10 +103,10 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
       color: currentThemeColors.text,
     },
     dangerLabel: {
-      color: Colors.error,
+      color: currentThemeColors.error,
     },
     dangerIcon: {
-      color: Colors.error,
+      color: currentThemeColors.error,
     },
     closeButton: {
       marginTop: 14,
@@ -187,3 +187,4 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
 };
 
 export default ConversationOptionsModal;
+

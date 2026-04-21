@@ -10,7 +10,7 @@ export default function CoinHeaderRight() {
   const router = useRouter();
   const { coins } = useAuth();
   const theme = useContext(ThemeContext)?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
   return (
     <View style={styles.container}>
@@ -27,7 +27,7 @@ export default function CoinHeaderRight() {
         style={styles.iconButton}
         activeOpacity={0.7}
       >
-        <MaterialIcons name="card-giftcard" size={20} color={currentThemeColors.tint || '#667eea'} />
+        <MaterialIcons name="card-giftcard" size={20} color={currentThemeColors.tint || '#0EA5E9'} />
       </TouchableOpacity>
     </View>
   );
@@ -54,3 +54,4 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
 });
+

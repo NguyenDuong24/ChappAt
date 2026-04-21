@@ -300,12 +300,12 @@ class NotificationNavigationService {
   }
 
   /**
-   * Navigate to fallback screen (notifications list)
+   * Navigate to fallback screen (notifications drawer)
    */
   private navigateToFallback(): void {
     try {
-      console.log('🧭 Navigating to fallback (notifications)');
-      router.push('/(screens)/social/NotificationsScreen');
+      console.log('🧭 Navigating to fallback (notifications drawer)');
+      router.push('/(tabs)/explore?openDrawer=notification');
     } catch (error) {
       console.error('❌ Failed to navigate to fallback:', error);
       // Last resort - navigate to home

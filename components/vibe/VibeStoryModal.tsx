@@ -1,10 +1,10 @@
-import React, { useContext, useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors, PRIMARY_COLOR } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
+import { PRIMARY_COLOR } from '@/constants/Colors';
 import { UserVibe } from '@/types/vibe';
 import { useAuth } from '@/context/authContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,9 +24,7 @@ interface VibeStoryModalProps {
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '🔥'];
 
 const VibeStoryModal: React.FC<VibeStoryModalProps> = ({ visible, onClose, user, userVibe }) => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const colors = theme === 'dark' ? Colors.dark : Colors.light;
+  const colors = useThemedColors();
   const { user: authUser } = useAuth();
   const [reply, setReply] = useState('');
   const vibe = userVibe?.vibe;

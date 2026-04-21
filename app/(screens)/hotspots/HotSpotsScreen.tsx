@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,14 +7,14 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  RefreshControl,
-  FlatList,
   Platform,
-  Animated,
-  Alert,
-  Easing,
   Dimensions,
   StatusBar,
+  Animated as RNAnimated,
+  Alert,
+  Easing,
+  FlatList,
+  RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
@@ -29,6 +29,9 @@ import useHotSpotsData, { UIHotSpot } from '@/hooks/useHotSpotsData';
 import InterestedUsersModal from '@/components/hotspots/InterestedUsersModal';
 import EventInvitesModal from '@/components/hotspots/EventInvitesModal';
 import { eventInviteService } from '@/services/eventInviteService';
+import { LiquidGlassBackground, LiquidSurface, getLiquidPalette } from '@/components/liquid';
+import { BlurView } from 'expo-blur';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
@@ -54,7 +57,7 @@ const CATEGORIES: Category[] = [
 
 // ==================== SUB-COMPONENTS ====================
 
-const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onSpotPress, actionLoading, t, THEME }: any) => {
+const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onSpotPress, actionLoading, t, THEME, theme, palette }: any) => {
   const safeText = (value: any, fallback: string = ''): string => {
     if (value === null || value === undefined) return fallback;
     if (typeof value === 'string') return value;
@@ -63,207 +66,221 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
     return fallback;
   };
 
+  const isDark = theme === 'dark';
+
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => onSpotPress(item)}
-      activeOpacity={0.95}
-    >
-      {/* Image Section */}
-      <View style={styles.imageContainer}>
-        {item.images && item.images.length > 1 ? (
-          <View style={{ flex: 1 }}>
-            <FlatList
-              data={item.images}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(img, index) => `${item.id}-img-${index}`}
-              renderItem={({ item: imgUrl }) => (
-                <Image
-                  source={{ uri: imgUrl }}
-                  style={[styles.cardImage, { width: width - 32 }]}
-                  contentFit="cover"
-                  transition={200}
+    <Animated.View entering={FadeInDown.springify()}>
+      <LiquidSurface
+        themeMode={theme}
+        borderRadius={28}
+        intensity={isDark ? 10 : 20}
+        style={styles.card}
+      >
+        <TouchableOpacity
+          onPress={() => onSpotPress(item)}
+          activeOpacity={0.9}
+          style={{ flex: 1 }}
+        >
+          {/* Image Section */}
+          <View style={styles.imageContainer}>
+            {item.images && item.images.length > 1 ? (
+              <View style={{ flex: 1 }}>
+                <FlatList
+                  data={item.images}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  keyExtractor={(img, index) => `${item.id}-img-${index}`}
+                  renderItem={({ item: imgUrl }) => (
+                    <Image
+                      source={{ uri: imgUrl }}
+                      style={[styles.cardImage, { width: width - 34 }]} // Subtracting border/padding
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  )}
                 />
-              )}
-            />
-            {/* Pagination Dots */}
-            <View style={styles.paginationDots}>
-              {item.images.map((_: any, index: number) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.dot,
-                    { backgroundColor: 'white', opacity: 0.6 }
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
-        ) : (
-          <Image
-            source={{ uri: item.imageUrl || item.images?.[0] }}
-            style={styles.cardImage}
-            contentFit="cover"
-            transition={200}
-          />
-        )}
-
-        <LinearGradient
-          colors={THEME.hotSpots.gradients.overlay}
-          style={styles.imageOverlay}
-        />
-
-        {/* Badges */}
-        <View style={styles.badgeRow}>
-          <View style={styles.badgeGroup}>
-            {item.hasCheckedIn && (
-              <LinearGradient colors={['#10B981', '#059669']} style={styles.badge}>
-                <Ionicons name="checkmark-circle" size={12} color="white" />
-                <Text style={styles.badgeText}>{t('hotspots.checked_in').toUpperCase()}</Text>
-              </LinearGradient>
-            )}
-            {item.isNew && (
-              <LinearGradient colors={['#10B981', '#059669']} style={styles.badge}>
-                <Ionicons name="sparkles" size={12} color="white" />
-                <Text style={styles.badgeText}>{t('hotspots.new').toUpperCase()}</Text>
-              </LinearGradient>
-            )}
-            {item.isPopular && (
-              <LinearGradient colors={['#F59E0B', '#EF4444']} style={styles.badge}>
-                <Ionicons name="flame" size={12} color="white" />
-                <Text style={styles.badgeText}>{t('hotspots.hot').toUpperCase()}</Text>
-              </LinearGradient>
-            )}
-          </View>
-        </View>
-      </View>
-
-      {/* Content Section */}
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {safeText(item.title, 'Hot Spot')}
-        </Text>
-        <View style={styles.metaRow}>
-          <View style={styles.metaChip}>
-            <Ionicons name="pricetag-outline" size={13} color="#6D5BD0" />
-            <Text style={styles.metaChipText}>{safeText(item.category, 'General')}</Text>
-          </View>
-          <View style={styles.metaChip}>
-            <Ionicons name="people-outline" size={13} color="#6D5BD0" />
-            <Text style={styles.metaChipText}>{item.interestedCount ?? 0}</Text>
-          </View>
-        </View>
-
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoRow}>
-            <Ionicons name="location" size={16} color={THEME.hotSpots.textSecondary} />
-            <Text style={styles.infoText} numberOfLines={1}>
-              {safeText(item.location, t('hotspots.unknown_location'))}
-            </Text>
-          </View>
-
-          {item.startTime && (
-            <View style={styles.infoRow}>
-              <Ionicons name="time" size={16} color={THEME.hotSpots.textSecondary} />
-              <Text style={styles.infoText}>
-                {new Date(item.startTime).toLocaleDateString('vi-VN', {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Action Buttons - Only Interested */}
-        <View style={styles.actionsGrid}>
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              item.isInterested ? styles.actionButtonActive : styles.actionButtonInactive,
-              { flex: 1, paddingVertical: 12 }
-            ]}
-            onPress={() => onInterested(item.id)}
-            disabled={actionLoading[item.id]}
-          >
-            {item.isInterested && (
-              <LinearGradient
-                colors={['#EC4899', '#BE185D']}
-                style={StyleSheet.absoluteFill}
+                {/* Pagination Dots */}
+                <View style={styles.paginationDots}>
+                  {item.images.map((_: any, index: number) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.dot,
+                        { backgroundColor: 'white', opacity: 0.6 }
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <Image
+                source={{ uri: item.imageUrl || item.images?.[0] }}
+                style={styles.cardImage}
+                contentFit="cover"
+                transition={200}
               />
             )}
-            {actionLoading[item.id] ? (
-              <ActivityIndicator size="small" color={item.isInterested ? "white" : THEME.hotSpots.primary} />
-            ) : (
-              <>
-                <Ionicons
-                  name={item.isInterested ? "heart" : "heart-outline"}
-                  size={20}
-                  color={item.isInterested ? "white" : THEME.hotSpots.secondary}
-                />
-                <Text style={[
-                  styles.actionText,
-                  item.isInterested ? styles.actionTextActive : styles.actionTextInactive,
-                  { fontSize: 15 }
-                ]}>
-                  {item.isInterested ? t('hotspots.already_interested') : t('hotspots.interested')}
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
 
-        {/* Participants Section */}
-        <View style={styles.participantsSection}>
-          <TouchableOpacity
-            style={styles.avatarStack}
-            onPress={() => onShowInterestedUsers(item.id, safeText(item.title, 'Hot Spot'))}
-          >
-            {[1, 2, 3].map(i => (
-              <View key={i} style={[styles.avatar, { marginLeft: i > 1 ? -12 : 0, zIndex: 4 - i }]}>
-                <LinearGradient
-                  colors={THEME.hotSpots.gradients.primary}
-                  style={StyleSheet.absoluteFill}
-                />
-                <Text style={styles.avatarText}>U{i}</Text>
-              </View>
-            ))}
-            {(item.interestedCount ?? 0) > 3 && (
-              <View style={[styles.avatar, { marginLeft: -12, backgroundColor: THEME.hotSpots.surfaceLight, zIndex: 0 }]}>
-                <Text style={[styles.avatarText, { fontSize: 11, color: THEME.hotSpots.primary }]}>
-                  +{(item.interestedCount ?? 0) - 3}
-                </Text>
-              </View>
-            )}
-            <View style={styles.viewMoreIndicator}>
-              <Ionicons name="chevron-forward" size={14} color={THEME.hotSpots.primary} />
-            </View>
-          </TouchableOpacity>
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.6)']}
+              style={styles.imageOverlay}
+            />
 
-          <View style={styles.statsGroup}>
-            <Text style={styles.participantCount}>{item.interestedCount ?? 0}</Text>
-            <Text style={[styles.ratingText, { fontSize: 11, marginBottom: 4 }]}>{t('hotspots.interested')}</Text>
-            <View style={styles.statsRow}>
-              <View style={styles.rating}>
-                <Ionicons name="star" size={16} color="#FBBF24" />
-                <Text style={styles.ratingText}>{item.rating}</Text>
+            {/* Badges */}
+            <View style={styles.badgeRow}>
+              <View style={styles.badgeGroup}>
+                {item.hasCheckedIn && (
+                  <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.badge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                    <Text style={[styles.badgeText, { color: '#10B981' }]}>{t('hotspots.checked_in').toUpperCase()}</Text>
+                  </BlurView>
+                )}
+                {item.isNew && (
+                  <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.badge}>
+                    <Ionicons name="sparkles" size={12} color="#8B5CF6" />
+                    <Text style={[styles.badgeText, { color: '#8B5CF6' }]}>{t('hotspots.new').toUpperCase()}</Text>
+                  </BlurView>
+                )}
+                {item.isPopular && (
+                  <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.badge}>
+                    <Ionicons name="flame" size={12} color="#EF4444" />
+                    <Text style={[styles.badgeText, { color: '#EF4444' }]}>{t('hotspots.hot').toUpperCase()}</Text>
+                  </BlurView>
+                )}
               </View>
-              {item.price && (
-                <Text style={styles.price}>
-                  {item.price.toLocaleString('vi-VN')}{t('hotspots.currency')}
-                </Text>
-              )}
             </View>
           </View>
-        </View>
-      </View>
-    </TouchableOpacity>
+
+          {/* Content Section */}
+          <View style={styles.cardContent}>
+            <Text style={[styles.cardTitle, { color: palette.textColor }]} numberOfLines={2}>
+              {safeText(item.title, 'Hot Spot')}
+            </Text>
+            
+            <View style={styles.metaRow}>
+              <View style={[styles.metaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                <Ionicons name="pricetag-outline" size={13} color={palette.sphereGradient[0]} />
+                <Text style={[styles.metaChipText, { color: palette.subtitleColor }]}>{safeText(item.category, 'General')}</Text>
+              </View>
+              <View style={[styles.metaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                <Ionicons name="people-outline" size={13} color={palette.sphereGradient[0]} />
+                <Text style={[styles.metaChipText, { color: palette.subtitleColor }]}>{item.interestedCount ?? 0}</Text>
+              </View>
+            </View>
+
+            {/* Info Section */}
+            <View style={styles.infoSection}>
+              <View style={styles.infoRow}>
+                <Ionicons name="location" size={16} color={palette.subtitleColor} />
+                <Text style={[styles.infoText, { color: palette.subtitleColor }]} numberOfLines={1}>
+                  {safeText(item.location, t('hotspots.unknown_location'))}
+                </Text>
+              </View>
+
+              {item.startTime && (
+                <View style={styles.infoRow}>
+                  <Ionicons name="time" size={16} color={palette.subtitleColor} />
+                  <Text style={[styles.infoText, { color: palette.subtitleColor }]}>
+                    {new Date(item.startTime).toLocaleDateString('vi-VN', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Action Buttons - Only Interested */}
+            <View style={styles.actionsGrid}>
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  item.isInterested ? styles.actionButtonActive : { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' },
+                  { flex: 1, paddingVertical: 12 }
+                ]}
+                onPress={() => onInterested(item.id)}
+                disabled={actionLoading[item.id]}
+              >
+                {item.isInterested && (
+                  <LinearGradient
+                    colors={palette.sphereGradient}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  />
+                )}
+                {actionLoading[item.id] ? (
+                  <ActivityIndicator size="small" color={item.isInterested ? "white" : palette.sphereGradient[0]} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={item.isInterested ? "heart" : "heart-outline"}
+                      size={20}
+                      color={item.isInterested ? "white" : palette.textColor}
+                    />
+                    <Text style={[
+                      styles.actionText,
+                      { color: item.isInterested ? "white" : palette.textColor },
+                      { fontSize: 15 }
+                    ]}>
+                      {item.isInterested ? t('hotspots.already_interested') : t('hotspots.interested')}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Participants Section */}
+            <View style={styles.participantsSection}>
+              <TouchableOpacity
+                style={styles.avatarStack}
+                onPress={() => onShowInterestedUsers(item.id, safeText(item.title, 'Hot Spot'))}
+              >
+                {[1, 2, 3].map(i => (
+                  <View key={i} style={[styles.avatar, { marginLeft: i > 1 ? -12 : 0, zIndex: 4 - i, borderColor: palette.menuBackground || 'white' }]}>
+                    <LinearGradient
+                      colors={palette.sphereGradient}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <Text style={styles.avatarText}>U{i}</Text>
+                  </View>
+                ))}
+                {(item.interestedCount ?? 0) > 3 && (
+                  <View style={[styles.avatar, { marginLeft: -12, backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', zIndex: 0, borderColor: palette.menuBackground || 'white' }]}>
+                    <Text style={[styles.avatarText, { fontSize: 11, color: palette.sphereGradient[0] }]}>
+                      +{(item.interestedCount ?? 0) - 3}
+                    </Text>
+                  </View>
+                )}
+                <View style={[styles.viewMoreIndicator, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                  <Ionicons name="chevron-forward" size={14} color={palette.sphereGradient[0]} />
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.statsGroup}>
+                <Text style={[styles.participantCount, { color: palette.textColor }]}>{item.interestedCount ?? 0}</Text>
+                <Text style={[styles.ratingText, { fontSize: 11, marginBottom: 4, color: palette.subtitleColor }]}>{t('hotspots.interested')}</Text>
+                <View style={styles.statsRow}>
+                  <View style={styles.rating}>
+                    <Ionicons name="star" size={16} color="#FBBF24" />
+                    <Text style={[styles.ratingText, { color: palette.textColor }]}>{item.rating}</Text>
+                  </View>
+                  {item.price && (
+                    <Text style={[styles.price, { color: palette.sphereGradient[0] }]}>
+                      {item.price.toLocaleString('vi-VN')}{t('hotspots.currency')}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </LiquidSurface>
+    </Animated.View>
   );
 });
 
@@ -271,6 +288,10 @@ const HotSpotsScreen = () => {
   const { t } = useTranslation();
   const router = useRouter();
   const THEME = useThemedColors();
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
+  const isDark = themeContext?.isDark ?? (theme === 'dark');
+  const palette = useMemo(() => themeContext?.palette || getLiquidPalette(theme), [theme, themeContext]);
   const { user } = useAuth();
 
   const {
@@ -300,7 +321,7 @@ const HotSpotsScreen = () => {
   const [pendingInvitesCount, setPendingInvitesCount] = useState(0);
 
   // Animations
-  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollY = useRef(new RNAnimated.Value(0)).current;
 
   // Load pending invites
   const loadPendingInvites = async () => {
@@ -424,34 +445,27 @@ const HotSpotsScreen = () => {
     });
 
     return (
-      <Animated.View style={[styles.header, { transform: [{ translateY: headerTranslateY }] }]}>
-        <LinearGradient
-          colors={THEME.hotSpots.gradients.primary}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
-        <View style={styles.headerDecorOrbA} />
-        <View style={styles.headerDecorOrbB} />
-
+      <RNAnimated.View style={[styles.header, { transform: [{ translateY: headerTranslateY }] }, { borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderBottomWidth: 1 }]}>
+        <BlurView intensity={Platform.OS === 'ios' ? 40 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+        
         <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.iconButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="white" />
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderColor: 'transparent' }]} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color={palette.textColor} />
           </TouchableOpacity>
 
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>Hot Spots</Text>
-            <Text style={styles.headerSubtitle}>{headerSubtitleText}</Text>
+            <Text style={[styles.headerTitle, { color: palette.textColor }]}>Hot Spots</Text>
+            <Text style={[styles.headerSubtitle, { color: palette.subtitleColor }]}>{headerSubtitleText}</Text>
           </View>
 
           <View style={styles.actionsRow}>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderColor: 'transparent' }]}
               onPress={() => setShowInvitesModal(true)}
             >
-              <Ionicons name="mail-outline" size={24} color="white" />
+              <Ionicons name="mail-outline" size={24} color={palette.textColor} />
               {pendingInvitesCount > 0 && (
-                <View style={styles.notificationBadge}>
+                <View style={[styles.notificationBadge, { backgroundColor: palette.sphereGradient[0] }]}>
                   <Text style={styles.notificationText}>{pendingInvitesCount}</Text>
                 </View>
               )}
@@ -461,26 +475,21 @@ const HotSpotsScreen = () => {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <LinearGradient
-            colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
-            style={styles.searchGradient}
-          >
-            <View style={styles.searchInner}>
-              <Ionicons name="search" size={20} color="white" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder={t('hotspots.search_placeholder')}
-                placeholderTextColor="rgba(255,255,255,0.7)"
-                value={searchQuery}
-                onChangeText={handleSearch}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => handleSearch('')} style={styles.clearButton}>
-                  <Ionicons name="close-circle" size={18} color="white" />
-                </TouchableOpacity>
-              )}
-            </View>
-          </LinearGradient>
+          <View style={[styles.searchInner, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderRadius: 20 }]}>
+            <Ionicons name="search" size={20} color={palette.subtitleColor} style={{ marginLeft: 12 }} />
+            <TextInput
+              style={[styles.searchInput, { color: palette.textColor }]}
+              placeholder={t('hotspots.search_placeholder')}
+              placeholderTextColor={palette.subtitleColor}
+              value={searchQuery}
+              onChangeText={handleSearch}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => handleSearch('')} style={styles.clearButton}>
+                <Ionicons name="close-circle" size={18} color={palette.subtitleColor} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Categories */}
@@ -495,21 +504,26 @@ const HotSpotsScreen = () => {
               onPress={() => handleCategorySelect(cat.key)}
               activeOpacity={0.8}
             >
-              <LinearGradient
-                colors={selectedCategory === cat.key ? cat.gradient : ['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.1)']}
-                style={[styles.categoryChip, selectedCategory !== cat.key && styles.categoryChipInactive]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <LiquidSurface
+                themeMode={theme}
+                borderRadius={16}
+                intensity={selectedCategory === cat.key ? 30 : 5}
+                style={[
+                  styles.categoryChip, 
+                  selectedCategory === cat.key ? { backgroundColor: palette.sphereGradient[0] } : {}
+                ]}
               >
-                <MaterialIcons
-                  name={cat.icon}
-                  size={18}
-                  color="white"
-                />
-                <Text style={[styles.categoryText, selectedCategory !== cat.key && styles.categoryTextInactive]}>
-                  {t(cat.label)}
-                </Text>
-              </LinearGradient>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 }}>
+                  <MaterialIcons
+                    name={cat.icon}
+                    size={18}
+                    color={selectedCategory === cat.key ? "white" : palette.textColor}
+                  />
+                  <Text style={[styles.categoryText, { color: selectedCategory === cat.key ? "white" : palette.textColor }]}>
+                    {t(cat.label)}
+                  </Text>
+                </View>
+              </LiquidSurface>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -519,16 +533,20 @@ const HotSpotsScreen = () => {
           {(['all', 'today', 'upcoming'] as TimeFilter[]).map((filter) => (
             <TouchableOpacity
               key={filter}
-              style={[styles.timeChip, timeFilter === filter && styles.timeChipActive]}
+              style={[
+                styles.timeChip, 
+                timeFilter === filter && { backgroundColor: palette.sphereGradient[0] + '20' },
+                { borderColor: timeFilter === filter ? palette.sphereGradient[0] : 'transparent' }
+              ]}
               onPress={() => setTimeFilter(filter)}
             >
-              <Text style={[styles.timeText, timeFilter === filter && styles.timeTextActive]}>
+              <Text style={[styles.timeText, { color: timeFilter === filter ? palette.sphereGradient[0] : palette.subtitleColor }, timeFilter === filter && styles.timeTextActive]}>
                 {t(`hotspots.time_filters.${filter}`)}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-      </Animated.View>
+      </RNAnimated.View>
     );
   };
 
@@ -592,7 +610,8 @@ const HotSpotsScreen = () => {
             </TouchableOpacity>
           </View>
           {showFeatured && (
-            <FlatList
+            <Animated.FlatList
+              entering={FadeInDown.delay(300)}
               horizontal
               data={featuredSpots}
               renderItem={renderFeaturedCard}
@@ -642,17 +661,12 @@ const HotSpotsScreen = () => {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['rgba(139, 92, 246, 0.04)', 'rgba(236, 72, 153, 0.04)', 'rgba(245, 158, 11, 0.04)']}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-
+      <LiquidGlassBackground themeMode={theme} style={StyleSheet.absoluteFillObject} />
+      
       {/* Fixed Header */}
       {renderHeader()}
 
-      {/* Main Content - Optimized FlatList */}
-      <Animated.FlatList
+      <RNAnimated.FlatList
         data={visibleHotSpots}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
@@ -664,6 +678,8 @@ const HotSpotsScreen = () => {
             actionLoading={actionLoading}
             t={t}
             THEME={THEME}
+            theme={theme}
+            palette={palette}
           />
         )}
         ListHeaderComponent={renderListHeader}
@@ -673,7 +689,7 @@ const HotSpotsScreen = () => {
           { paddingTop: Platform.OS === 'ios' ? 280 : 260 }
         ]}
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
+        onScroll={RNAnimated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
         )}
@@ -718,7 +734,6 @@ const HotSpotsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F7F8FC',
   },
   header: {
     position: 'absolute',
@@ -729,8 +744,8 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 40 : (StatusBar.currentHeight || 20) + 5,
     paddingHorizontal: 16,
     paddingBottom: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
     overflow: 'hidden',
   },
   headerDecorOrbA: {
@@ -794,14 +809,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#EF4444',
     borderRadius: 12,
     minWidth: 24,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'white',
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
   notificationText: {
     fontSize: 11,
@@ -838,7 +852,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -849,17 +862,11 @@ const styles = StyleSheet.create({
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
     marginRight: 10,
-    borderRadius: 24,
-    minHeight: 34,
-    gap: 8,
-  },
-  categoryChipInactive: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   categoryText: {
     fontSize: 14,
@@ -878,14 +885,12 @@ const styles = StyleSheet.create({
   timeChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.25)',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 16,
+    borderWidth: 1,
+    backgroundColor: 'transparent',
   },
   timeChipActive: {
-    backgroundColor: 'white',
-    borderColor: 'white',
+    borderWidth: 1,
   },
   timeText: {
     fontSize: 14,
@@ -958,17 +963,10 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    borderRadius: 24,
-    marginBottom: 24,
+    marginBottom: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(105, 91, 208, 0.08)',
-    shadowColor: '#322B63',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   imageContainer: {
     height: 320,
@@ -1011,10 +1009,11 @@ const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
     gap: 4,
+    overflow: 'hidden',
   },
   badgeText: {
     fontSize: 12,
@@ -1025,11 +1024,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   cardTitle: {
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '800',
-    color: '#1D2238',
-    marginBottom: 12,
-    lineHeight: 27,
+    marginBottom: 10,
+    lineHeight: 26,
   },
   metaRow: {
     flexDirection: 'row',
@@ -1049,8 +1047,7 @@ const styles = StyleSheet.create({
   },
   metaChipText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#5E4FB8',
+    fontWeight: '800',
   },
   infoSection: {
     marginBottom: 20,
@@ -1107,19 +1104,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E8EAF4',
+    borderTopColor: 'rgba(0,0,0,0.05)',
   },
   avatarStack: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
-    borderWidth: 3,
-    borderColor: 'white',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1187,9 +1182,8 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   skeletonCard: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    marginBottom: 24,
+    borderRadius: 24,
+    marginBottom: 20,
     overflow: 'hidden',
   },
   skeletonImage: {

@@ -1,18 +1,25 @@
-import { useContext } from 'react';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/context/ThemeContext';
+import { Colors, getThemeColors } from '@/constants/Colors';
 
 export const useThemedColors = () => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
+  const { theme, isDark, palette } = useTheme();
 
-  // Get theme-specific colors
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  // Get base theme-specific colors
+  const currentThemeColors = getThemeColors(theme);
 
   // Create a unified color object that combines theme colors and semantic colors
   return {
     // Core colors from theme
     ...currentThemeColors,
+
+    // NEW Theme Palette Overrides (Liquid Design)
+    text: palette.textColor,
+    background: 'transparent', // Allow LiquidGlassBackground to show through
+    surface: palette.cardGradient[0],
+    cardBackground: palette.cardGradient[0],
+    subtleText: palette.subtitleColor,
+    border: palette.menuBorder,
+    icon: palette.textColor,
 
     // Semantic colors (same for both themes)
     success: Colors.success,
@@ -42,22 +49,22 @@ export const useThemedColors = () => {
       textSecondary: currentThemeColors.hotSpotsTextSecondary,
       textTertiary: currentThemeColors.hotSpotsTextTertiary,
       gradients: {
-        primary: currentThemeColors.gradientHotSpotsPrimary as readonly [string, string, ...string[]],
-        secondary: currentThemeColors.gradientHotSpotsSecondary as readonly [string, string, ...string[]],
-        card: currentThemeColors.gradientHotSpotsCard as readonly [string, string, ...string[]],
-        overlay: currentThemeColors.gradientHotSpotsOverlay as readonly [string, string, ...string[]],
+        primary: currentThemeColors.gradientHotSpotsPrimary as any,
+        secondary: currentThemeColors.gradientHotSpotsSecondary as any,
+        card: currentThemeColors.gradientHotSpotsCard as any,
+        overlay: currentThemeColors.gradientHotSpotsOverlay as any,
       }
     },
 
     // Current theme mode
-    isDark: theme === 'dark',
+    isDark,
     theme,
+    palette,
   };
 };
 
 // Alternative hook for just getting the current theme colors
 export const useCurrentThemeColors = () => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  return theme === 'dark' ? Colors.dark : Colors.light;
+  const { theme } = useTheme();
+  return getThemeColors(theme);
 };

@@ -48,7 +48,7 @@ interface CommentSectionProps {
 const CommentItem = React.memo(({ comment, currentUserId }: CommentItemProps) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
   return (
     <View style={styles.commentContainer}>
@@ -89,7 +89,7 @@ const CommentSection = React.memo(({
 }: CommentSectionProps) => {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   const [commentText, setCommentText] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -313,3 +313,4 @@ const styles = StyleSheet.create({
 });
 
 export { CommentSection, CommentItem };
+

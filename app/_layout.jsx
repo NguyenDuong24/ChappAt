@@ -4,7 +4,7 @@ import { DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Slot, useRouter, useSegments, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef, useMemo } from 'react';
 import 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthContextProvider, useAuth } from '../context/authContext';
@@ -25,6 +25,7 @@ import { Colors } from '../constants/Colors';
 import { register } from "@videosdk.live/react-native-sdk";
 import ThemedStatusBar from '@/components/common/ThemedStatusBar';
 import InterstitialAdManager from '@/components/ads/InterstitialAdManager';
+import { LiquidGlassBackground, getLiquidPaperTheme } from '@/components/liquid';
 
 // Import call timeout service
 import callTimeoutService from '../services/callTimeoutService.js';
@@ -44,7 +45,7 @@ const MainLayout = () => {
     const { isAuthenticated, user } = useAuth();
     const themeCtx = useContext(ThemeContext);
     const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const currentThemeColors = Colors[theme] || Colors.light;
     const { playIncomingCallSound, stopCallSounds } = useSound();
 
     // Add font loading state
@@ -83,38 +84,53 @@ const MainLayout = () => {
             <ThemedStatusBar translucent />
             <InterstitialAdManager />
             <CallLogicHandler />
-            <Stack
-                screenOptions={{
-                    headerShown: false,
-                    animation: 'slide_from_right',
-                    animationDuration: 200,
-                    gestureEnabled: true,
-                    fullScreenGestureEnabled: true,
-                    freezeOnBlur: true,
-                }}
-            >
-                <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: 'fade' }} />
-                <Stack.Screen name="(screens)/user/UserProfileScreen" />
-                <Stack.Screen name="(screens)/user/ProfileEditScreen" />
-                <Stack.Screen name="(screens)/user/PrivacySettingsScreen" />
-                <Stack.Screen name="(screens)/user/ChangePasswordScreen" />
-                <Stack.Screen name="(screens)/call/CallScreen" options={{ animation: 'fade', gestureEnabled: false }} />
-                <Stack.Screen name="(screens)/call/IncomingCallScreen" options={{ animation: 'fade', gestureEnabled: false }} />
-                <Stack.Screen name="(screens)/call/ListenCallAcceptedScreen" options={{ animation: 'fade', gestureEnabled: false }} />
-                <Stack.Screen name="(screens)/social/PostDetailScreen" />
-                <Stack.Screen name="(screens)/social/HashtagScreen" />
-                <Stack.Screen name="(screens)/social/NotificationsScreen" />
-                <Stack.Screen name="(screens)/social/CrossingPathsScreen" />
-                <Stack.Screen name="(screens)/wallet/CoinWalletScreen" />
-                <Stack.Screen name="(screens)/hotspots/HotSpotsScreen" />
-                <Stack.Screen name="(screens)/hotspots/HotSpotDetailScreen" />
-                <Stack.Screen name="(screens)/hotspots/HotSpotChatScreen" />
-                <Stack.Screen name="(screens)/groups/GroupManagementScreen" />
-                <Stack.Screen name="(screens)/groups/GroupVoiceRoom" />
-                <Stack.Screen name="(screens)/store/StoreScreen" />
-                <Stack.Screen name="(screens)/user/VibeScreen" />
-            </Stack>
+            <LiquidGlassBackground themeMode={theme}>
+                <Stack
+                    screenOptions={{
+                        headerShown: false,
+                        animation: 'slide_from_right',
+                        animationDuration: 200,
+                        gestureEnabled: true,
+                        fullScreenGestureEnabled: true,
+                        freezeOnBlur: true,
+                        contentStyle: { backgroundColor: 'transparent' },
+                    }}
+                >
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false, animation: 'fade' }} />
+                    <Stack.Screen name="(screens)/user/UserProfileScreen" />
+                    <Stack.Screen name="(screens)/user/ProfileEditScreen" />
+                    <Stack.Screen name="(screens)/user/PrivacySettingsScreen" />
+                    <Stack.Screen name="(screens)/user/ChangePasswordScreen" />
+                    <Stack.Screen name="(screens)/call/CallScreen" options={{ animation: 'fade', gestureEnabled: false }} />
+                    <Stack.Screen name="(screens)/call/IncomingCallScreen" options={{ animation: 'fade', gestureEnabled: false }} />
+                    <Stack.Screen name="(screens)/call/ListenCallAcceptedScreen" options={{ animation: 'fade', gestureEnabled: false }} />
+                    <Stack.Screen name="(screens)/social/PostDetailScreen" />
+                    <Stack.Screen name="(screens)/social/HashtagScreen" />
+                    <Stack.Screen name="(screens)/social/NotificationsScreen" />
+                    <Stack.Screen name="(screens)/social/CrossingPathsScreen" />
+                    <Stack.Screen name="(screens)/wallet/CoinWalletScreen" />
+                    <Stack.Screen name="(screens)/hotspots/HotSpotsScreen" />
+                    <Stack.Screen name="(screens)/hotspots/HotSpotDetailScreen" />
+                    <Stack.Screen name="(screens)/hotspots/HotSpotChatScreen" />
+                    <Stack.Screen name="(screens)/groups/GroupManagementScreen" />
+                    <Stack.Screen name="(screens)/groups/GroupVoiceRoom" />
+                    <Stack.Screen name="(screens)/store/StoreScreen" />
+                    <Stack.Screen name="(screens)/user/VibeScreen" />
+                </Stack>
+            </LiquidGlassBackground>
         </>
+    );
+};
+
+const ThemedPaperProvider = ({ children }) => {
+    const themeCtx = useContext(ThemeContext);
+    const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
+    const paperTheme = useMemo(() => getLiquidPaperTheme(theme), [theme]);
+
+    return (
+        <PaperProvider theme={paperTheme}>
+            {children}
+        </PaperProvider>
     );
 };
 
@@ -171,9 +187,9 @@ export default function RootLayout() {
                                         <AppStateProvider>
                                             <LogoStateProvider>
                                                 <LocationProvider>
-                                                    <PaperProvider>
+                                                    <ThemedPaperProvider>
                                                         <MainLayout />
-                                                    </PaperProvider>
+                                                    </ThemedPaperProvider>
                                                 </LocationProvider>
                                             </LogoStateProvider>
                                         </AppStateProvider>
@@ -187,3 +203,4 @@ export default function RootLayout() {
         </GestureHandlerRootView>
     );
 }
+

@@ -1,280 +1,447 @@
-// Modern Color Palette 2025 - Material Design 3 + Contemporary Trends
-const modernPrimary = '#6366F1'; // Indigo-500 - Contemporary and professional
-const modernSecondary = '#EC4899'; // Pink-500 - Vibrant and engaging
-const modernAccent = '#10B981'; // Emerald-500 - Fresh and modern
+// ============================================================
+// Premium Color Palette 2025
+// Professional · Harmonious · Hermes-Safe
+// 5 Light Themes + 7 Dark Themes
+// ============================================================
 
-export const Colors = {
-  light: {
-    // Core Text & Background
-    text: '#0F172A', // Slate-900 - Deep, rich black for excellent readability
-    background: '#FFFFFF', // Pure white - Clean and minimal
-    surface: '#F8FAFC', // Slate-50 - Subtle background variation
-    
-    // Primary Colors
-    tint: modernPrimary, // Indigo-500 - Main brand color
-    tintLight: '#A5B4FC', // Indigo-300 - Lighter variant
-    tintDark: '#4338CA', // Indigo-700 - Darker variant
+// ============================================================
+// FALLBACK THEME — dùng khi mọi thứ fail, không bao giờ crash
+// ============================================================
+const FALLBACK_THEME: Record<string, any> = {
+  text: '#1A2840',
+  background: '#F4F8FD',
+  surface: 'rgba(255, 255, 255, 0.94)',
+  tint: '#3B7DD8',
+  tintLight: '#6FA3E8',
+  tintDark: '#205FB2',
+  icon: '#3B7DD8',
+  subtleText: 'rgba(24, 40, 64, 0.54)',
+  border: '#D8EAF8',
+  gradientBackground: ['#F4F8FD', '#E8F2FB', '#EFF5FC'],
+  gradientPrimary: ['#3B7DD8', '#6FA3E8'],
+  gradientCard: ['rgba(255, 255, 255, 0.94)', 'rgba(232, 242, 251, 0.75)'],
+  glowTop: ['rgba(59, 125, 216, 0.12)', 'rgba(59, 125, 216, 0)'],
+  glowBottom: ['rgba(111, 163, 232, 0.08)', 'rgba(111, 163, 232, 0)'],
+  menuBackground: 'rgba(250, 253, 255, 0.97)',
+  menuBorder: 'rgba(59, 125, 216, 0.26)',
+};
 
-    // Icons & Interactive Elements
-    icon: '#64748B', // Slate-500 - Balanced gray for icons
-    iconActive: modernPrimary, // Active state
-    iconInactive: '#CBD5E1', // Slate-300 - Inactive state
-    
-    // Navigation & Tabs
-    tabIconDefault: '#94A3B8', // Slate-400 - Subtle inactive tabs
-    tabIconSelected: modernPrimary, // Active tab color
-    backgroundHeader: '#F1F5F9', // Slate-100 - Light header background
-    // Header gradient and text for large/modern headers (centralized)
-    headerGradient: ['#667eea', '#764ba2', '#f093fb'],
-    headerText: '#FFFFFF',
-    
-    // Borders & Dividers
-    border: '#E2E8F0', // Slate-200 - Subtle borders
-    borderLight: '#F1F5F9', // Slate-100 - Very light borders
-    borderDark: '#CBD5E1', // Slate-300 - Stronger borders
+// ============================================================
+// LIGHT THEMES
+// ============================================================
 
-    // Cards & Surfaces
-    cardBackground: '#FFFFFF', // Pure white cards
-    cardBackgroundElevated: '#FEFEFE', // Slightly off-white for elevated cards
-    
-    // Text Variations
-    subtleText: '#64748B', // Slate-500 - Secondary text
-    mutedText: '#94A3B8', // Slate-400 - Muted text
-    highlightText: modernSecondary, // Pink for highlights
-    placeholderText: '#94A3B8', // Slate-400 - Form placeholders
-    
-    // Input & Form Elements
-    inputBackground: '#FFFFFF', // White input background
-    inputBorder: '#D1D5DB', // Gray-300 - Input borders
-    inputFocus: modernPrimary, // Focus state color
-    
-    // Special Elements
-    addressText: '#059669', // Emerald-600 - Location text
-    commentBackground: '#F1F5F9', // Slate-100 - Comment bubbles
-    codeBackground: '#F8FAFC', // Slate-50 - Code blocks
-    
-    // HotSpots Theme Colors
-    hotSpotsBackground: '#FFFFFF', // White background for light mode
-    hotSpotsSurface: '#F8FAFC', // Slate-50 - Card surfaces
-    hotSpotsSurfaceLight: '#F1F5F9', // Slate-100 - Lighter surfaces
-    hotSpotsPrimary: '#FF6B35', // Orange primary for HotSpots
-    hotSpotsSecondary: '#F7931E', // Orange secondary
-    hotSpotsAccent: '#FFD23F', // Yellow accent
-    hotSpotsText: '#0F172A', // Dark text for light mode
-    hotSpotsTextSecondary: 'rgba(15, 23, 42, 0.8)', // Secondary text
-    hotSpotsTextTertiary: 'rgba(15, 23, 42, 0.6)', // Tertiary text
-    hotSpotsIcon: '#FF6B35', // Orange color for HotSpots icons
-    
-    // Gradients
-    gradientBackground: ['#6366F1', '#8B5CF6'], // Indigo to Purple
-    gradientCard: ['#FFFFFF', '#F8FAFC'], // White to Slate-50
-    gradientHotSpotsPrimary: ['#FF6B35', '#F7931E'], // HotSpots primary gradient
-    gradientHotSpotsSecondary: ['#F7931E', '#FFD23F'], // HotSpots secondary gradient
-    gradientHotSpotsCard: ['rgba(255,107,53,0.1)', 'rgba(247,147,30,0.05)'], // HotSpots card gradient
-    gradientHotSpotsOverlay: ['rgba(255,255,255,0)', 'rgba(241,245,249,0.5)', 'rgba(241,245,249,0.9)'], // Light overlay
-  },
-  
-  dark: {
-    // Core Text & Background
-    text: '#F8FAFC', // Slate-50 - Light text on dark
-    background: '#0F172A', // Slate-900 - Deep dark background
-    surface: '#1E293B', // Slate-800 - Dark surface variation
+const pearl: Record<string, any> = {
+  text: '#2A2620',
+  background: '#FDFBF7',
+  surface: 'rgba(255, 255, 255, 0.96)',
+  tint: '#D4A744',
+  tintLight: '#E8C368',
+  tintDark: '#A67C1A',
+  icon: '#D4A744',
+  subtleText: 'rgba(42, 38, 32, 0.58)',
+  border: '#F0E8DE',
+  gradientBackground: ['#FDFBF7', '#FAF6F0', '#FDFAF5'],
+  gradientPrimary: ['#D4A744', '#E8C368'],
+  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(253, 250, 245, 0.82)'],
+  glowTop: ['rgba(212, 167, 68, 0.14)', 'rgba(212, 167, 68, 0)'],
+  glowBottom: ['rgba(232, 195, 104, 0.10)', 'rgba(232, 195, 104, 0)'],
+  menuBackground: 'rgba(253, 251, 248, 0.98)',
+  menuBorder: 'rgba(212, 167, 68, 0.28)',
+};
 
-    // Primary Colors
-    tint: '#818CF8', // Indigo-400 - Lighter primary for dark mode
-    tintLight: '#C7D2FE', // Indigo-200 - Very light variant
-    tintDark: '#6366F1', // Indigo-500 - Standard variant
+const ivory: Record<string, any> = {
+  text: '#2E3B2A',
+  background: '#FAF9F5',
+  surface: 'rgba(255, 255, 255, 0.94)',
+  tint: '#6B9366',
+  tintLight: '#8FB591',
+  tintDark: '#4A6B42',
+  icon: '#6B9366',
+  subtleText: 'rgba(46, 59, 42, 0.60)',
+  border: '#E2EDD9',
+  gradientBackground: ['#FAF9F5', '#F4F7F0', '#F7F6F2'],
+  gradientPrimary: ['#6B9366', '#8FB591'],
+  gradientCard: ['rgba(255, 255, 255, 0.94)', 'rgba(244, 247, 240, 0.78)'],
+  glowTop: ['rgba(107, 147, 102, 0.14)', 'rgba(107, 147, 102, 0)'],
+  glowBottom: ['rgba(143, 181, 145, 0.10)', 'rgba(143, 181, 145, 0)'],
+  menuBackground: 'rgba(252, 253, 250, 0.98)',
+  menuBorder: 'rgba(107, 147, 102, 0.28)',
+};
 
-    // Icons & Interactive Elements
-    icon: '#CBD5E1', // Slate-300 - Light icons on dark
-    iconActive: '#818CF8', // Indigo-400 - Active state
-    iconInactive: '#64748B', // Slate-500 - Inactive state
-    
-    // Navigation & Tabs
-    tabIconDefault: '#64748B', // Slate-500 - Inactive tabs
-    tabIconSelected: '#818CF8', // Indigo-400 - Active tab
-    backgroundHeader: '#1E293B', // Slate-800 - Dark header
-    // Header gradient and text for large/modern headers (centralized)
-    headerGradient: ['#1a1a2e', '#16213e', '#0f3460'],
-    headerText: '#FFFFFF',
-    
-    // Borders & Dividers
-    border: '#334155', // Slate-700 - Dark borders
-    borderLight: '#475569', // Slate-600 - Lighter dark borders
-    borderDark: '#1E293B', // Slate-800 - Darker borders
-    
-    // Cards & Surfaces
-    cardBackground: '#1E293B', // Slate-800 - Dark cards
-    cardBackgroundElevated: '#334155', // Slate-700 - Elevated dark cards
-    
-    // Text Variations
-    subtleText: '#94A3B8', // Slate-400 - Secondary text
-    mutedText: '#64748B', // Slate-500 - Muted text
-    highlightText: '#F472B6', // Pink-400 - Highlights in dark mode
-    placeholderText: '#64748B', // Slate-500 - Form placeholders
-    
-    // Input & Form Elements
-    inputBackground: '#334155', // Slate-700 - Dark input background
-    inputBorder: '#475569', // Slate-600 - Input borders
-    inputFocus: '#818CF8', // Indigo-400 - Focus state
-    
-    // Special Elements
-    addressText: '#34D399', // Emerald-400 - Location text in dark
-    commentBackground: '#334155', // Slate-700 - Dark comment bubbles
-    codeBackground: '#1E293B', // Slate-800 - Dark code blocks
-    
-    // HotSpots Theme Colors (Dark Mode)
-    hotSpotsBackground: '#0A0E1A', // Dark background for HotSpots
-    hotSpotsSurface: '#1A1F2E', // Dark surface
-    hotSpotsSurfaceLight: '#252B3D', // Lighter dark surface
-    hotSpotsPrimary: '#FF6B35', // Keep same orange primary
-    hotSpotsSecondary: '#F7931E', // Keep same orange secondary
-    hotSpotsAccent: '#FFD23F', // Keep same yellow accent
-    hotSpotsText: '#FFFFFF', // White text for dark mode
-    hotSpotsTextSecondary: 'rgba(255, 255, 255, 0.8)', // Secondary text
-    hotSpotsTextTertiary: 'rgba(255, 255, 255, 0.6)', // Tertiary text
-    hotSpotsIcon: '#FF6B35', // Orange color for HotSpots icons
-    
-    // Gradients
-    gradientBackground: ['#312E81', '#1E293B'], // Indigo-800 to Slate-800
-    gradientCard: ['#1E293B', '#334155'], // Slate-800 to Slate-700
-    gradientHotSpotsPrimary: ['#FF6B35', '#F7931E'], // Same HotSpots primary gradient
-    gradientHotSpotsSecondary: ['#F7931E', '#FFD23F'], // Same HotSpots secondary gradient
-    gradientHotSpotsCard: ['rgba(255,107,53,0.1)', 'rgba(247,147,30,0.05)'], // Same HotSpots card gradient
-    gradientHotSpotsOverlay: ['rgba(10,14,26,0)', 'rgba(26,31,46,0.5)', 'rgba(26,31,46,0.9)'], // Dark overlay
-  },
-  
-  // === SEMANTIC COLORS === //
-  // Success States
-  success: '#10B981', // Emerald-500 - Modern success green
-  successLight: '#6EE7B7', // Emerald-300 - Light success
-  successDark: '#047857', // Emerald-700 - Dark success
-  
-  // Error States
-  error: '#EF4444', // Red-500 - Modern error red
-  errorLight: '#FCA5A5', // Red-300 - Light error
-  errorDark: '#DC2626', // Red-600 - Dark error
-  
-  // Warning States
-  warning: '#F59E0B', // Amber-500 - Modern warning
-  warningLight: '#FDE68A', // Amber-200 - Light warning
-  warningDark: '#D97706', // Amber-600 - Dark warning
-  
-  // Info States
-  info: '#3B82F6', // Blue-500 - Modern info blue
-  infoLight: '#93C5FD', // Blue-300 - Light info
-  infoDark: '#2563EB', // Blue-600 - Dark info
-  
-  // === BRAND COLORS === //
-  primary: modernPrimary, // Main brand color
-  secondary: modernSecondary, // Secondary brand color
-  accent: modernAccent, // Accent color
-  
-  // === NEUTRAL PALETTE === //
+const cloud: Record<string, any> = {
+  text: '#1B3352',
+  background: '#F6F9FE',
+  surface: 'rgba(255, 255, 255, 0.96)',
+  tint: '#2E7FD8',
+  tintLight: '#5A9FE8',
+  tintDark: '#1A5DB8',
+  icon: '#2E7FD8',
+  subtleText: 'rgba(27, 51, 82, 0.60)',
+  border: '#DDF0FA',
+  gradientBackground: ['#F6F9FE', '#EEF5FD', '#F2F8FE'],
+  gradientPrimary: ['#2E7FD8', '#5A9FE8'],
+  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(238, 245, 253, 0.80)'],
+  glowTop: ['rgba(46, 127, 216, 0.14)', 'rgba(46, 127, 216, 0)'],
+  glowBottom: ['rgba(90, 159, 232, 0.10)', 'rgba(90, 159, 232, 0)'],
+  menuBackground: 'rgba(250, 253, 255, 0.98)',
+  menuBorder: 'rgba(46, 127, 216, 0.28)',
+};
+
+const lavender: Record<string, any> = {
+  text: '#3A2454',
+  background: '#F9F8FE',
+  surface: 'rgba(255, 255, 255, 0.96)',
+  tint: '#8D5FE8',
+  tintLight: '#B59FF5',
+  tintDark: '#6D3FD0',
+  icon: '#8D5FE8',
+  subtleText: 'rgba(58, 36, 84, 0.62)',
+  border: '#F0ECFF',
+  gradientBackground: ['#F9F8FE', '#F3EFFF', '#F7F4FF'],
+  gradientPrimary: ['#8D5FE8', '#B59FF5'],
+  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(243, 239, 255, 0.80)'],
+  glowTop: ['rgba(141, 95, 232, 0.14)', 'rgba(141, 95, 232, 0)'],
+  glowBottom: ['rgba(181, 159, 245, 0.10)', 'rgba(181, 159, 245, 0)'],
+  menuBackground: 'rgba(253, 251, 255, 0.98)',
+  menuBorder: 'rgba(141, 95, 232, 0.28)',
+};
+
+const sand: Record<string, any> = {
+  text: '#4A2E1C',
+  background: '#FCF7F2',
+  surface: 'rgba(255, 255, 255, 0.96)',
+  tint: '#D17240',
+  tintLight: '#E5956A',
+  tintDark: '#B84D28',
+  icon: '#D17240',
+  subtleText: 'rgba(74, 46, 28, 0.62)',
+  border: '#F2E3D5',
+  gradientBackground: ['#FCF7F2', '#F8EEEA', '#FAF5F0'],
+  gradientPrimary: ['#D17240', '#E5956A'],
+  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(248, 238, 234, 0.82)'],
+  glowTop: ['rgba(209, 114, 64, 0.14)', 'rgba(209, 114, 64, 0)'],
+  glowBottom: ['rgba(229, 149, 106, 0.10)', 'rgba(229, 149, 106, 0)'],
+  menuBackground: 'rgba(255, 252, 249, 0.98)',
+  menuBorder: 'rgba(209, 114, 64, 0.28)',
+};
+
+// ============================================================
+// DARK THEMES
+// ============================================================
+
+const obsidian: Record<string, any> = {
+  text: '#EAEAED',
+  background: '#080808',
+  surface: 'rgba(18, 18, 20, 0.84)',
+  tint: '#B0B0BC',
+  tintLight: '#D0D0DC',
+  tintDark: '#787882',
+  icon: '#D0D0DC',
+  subtleText: 'rgba(234, 234, 237, 0.52)',
+  border: '#1A1A1C',
+  gradientBackground: ['#080808', '#0E0E10', '#0A0A0C'],
+  gradientPrimary: ['#787882', '#C8C8D6'],
+  gradientCard: ['rgba(18, 18, 20, 0.84)', 'rgba(10, 10, 12, 0.64)'],
+  glowTop: ['rgba(208, 208, 220, 0.14)', 'rgba(208, 208, 220, 0)'],
+  glowBottom: ['rgba(120, 120, 130, 0.10)', 'rgba(120, 120, 130, 0)'],
+  menuBackground: 'rgba(6, 6, 8, 0.97)',
+  menuBorder: 'rgba(176, 176, 188, 0.18)',
+};
+
+const sapphire: Record<string, any> = {
+  text: '#D4E6FF',
+  background: '#030C1C',
+  surface: 'rgba(6, 20, 44, 0.80)',
+  tint: '#4F8EF7',
+  tintLight: '#79B2F9',
+  tintDark: '#2563EB',
+  icon: '#4F8EF7',
+  subtleText: 'rgba(212, 230, 255, 0.58)',
+  border: '#0A1E3C',
+  gradientBackground: ['#030C1C', '#061428', '#040F22'],
+  gradientPrimary: ['#2563EB', '#4F8EF7'],
+  gradientCard: ['rgba(6, 20, 44, 0.80)', 'rgba(3, 10, 28, 0.60)'],
+  glowTop: ['rgba(79, 142, 247, 0.22)', 'rgba(79, 142, 247, 0)'],
+  glowBottom: ['rgba(37, 99, 235, 0.16)', 'rgba(37, 99, 235, 0)'],
+  menuBackground: 'rgba(2, 8, 18, 0.97)',
+  menuBorder: 'rgba(79, 142, 247, 0.24)',
+};
+
+const amethyst: Record<string, any> = {
+  text: '#E6DCFF',
+  background: '#090614',
+  surface: 'rgba(16, 10, 32, 0.80)',
+  tint: '#9B5DE5',
+  tintLight: '#C084FC',
+  tintDark: '#6D28D9',
+  icon: '#C084FC',
+  subtleText: 'rgba(230, 220, 255, 0.56)',
+  border: '#14083A',
+  gradientBackground: ['#090614', '#0E0820', '#0B0618'],
+  gradientPrimary: ['#6D28D9', '#9B5DE5'],
+  gradientCard: ['rgba(16, 10, 32, 0.80)', 'rgba(9, 5, 20, 0.60)'],
+  glowTop: ['rgba(155, 93, 229, 0.24)', 'rgba(155, 93, 229, 0)'],
+  glowBottom: ['rgba(109, 40, 217, 0.18)', 'rgba(109, 40, 217, 0)'],
+  menuBackground: 'rgba(7, 4, 14, 0.97)',
+  menuBorder: 'rgba(155, 93, 229, 0.25)',
+};
+
+const ember: Record<string, any> = {
+  text: '#F5E6C4',
+  background: '#0C0908',
+  surface: 'rgba(24, 18, 12, 0.80)',
+  tint: '#D4A017',
+  tintLight: '#EEC048',
+  tintDark: '#A07810',
+  icon: '#D4A017',
+  subtleText: 'rgba(245, 230, 196, 0.56)',
+  border: '#221A08',
+  gradientBackground: ['#0C0908', '#181208', '#100E06'],
+  gradientPrimary: ['#A07810', '#D4A017'],
+  gradientCard: ['rgba(24, 18, 12, 0.80)', 'rgba(14, 10, 6, 0.60)'],
+  glowTop: ['rgba(212, 160, 23, 0.22)', 'rgba(212, 160, 23, 0)'],
+  glowBottom: ['rgba(160, 120, 16, 0.15)', 'rgba(160, 120, 16, 0)'],
+  menuBackground: 'rgba(10, 7, 4, 0.97)',
+  menuBorder: 'rgba(212, 160, 23, 0.24)',
+};
+
+const carbon: Record<string, any> = {
+  text: '#DEF0F6',
+  background: '#0C1014',
+  surface: 'rgba(18, 26, 34, 0.80)',
+  tint: '#06B6D4',
+  tintLight: '#22D3EE',
+  tintDark: '#0891B2',
+  icon: '#06B6D4',
+  subtleText: 'rgba(222, 240, 246, 0.56)',
+  border: '#182030',
+  gradientBackground: ['#0C1014', '#101820', '#0E141C'],
+  gradientPrimary: ['#0891B2', '#06B6D4'],
+  gradientCard: ['rgba(18, 26, 34, 0.80)', 'rgba(10, 16, 22, 0.60)'],
+  glowTop: ['rgba(6, 182, 212, 0.22)', 'rgba(6, 182, 212, 0)'],
+  glowBottom: ['rgba(8, 145, 178, 0.15)', 'rgba(8, 145, 178, 0)'],
+  menuBackground: 'rgba(8, 11, 15, 0.97)',
+  menuBorder: 'rgba(6, 182, 212, 0.24)',
+};
+
+const copper: Record<string, any> = {
+  text: '#FFE2C8',
+  background: '#0C0806',
+  surface: 'rgba(26, 14, 8, 0.80)',
+  tint: '#CD7F32',
+  tintLight: '#E8A060',
+  tintDark: '#9E5C1C',
+  icon: '#CD7F32',
+  subtleText: 'rgba(255, 226, 200, 0.56)',
+  border: '#281408',
+  gradientBackground: ['#0C0806', '#180E08', '#100A06'],
+  gradientPrimary: ['#9E5C1C', '#CD7F32'],
+  gradientCard: ['rgba(26, 14, 8, 0.80)', 'rgba(16, 8, 4, 0.60)'],
+  glowTop: ['rgba(205, 127, 50, 0.24)', 'rgba(205, 127, 50, 0)'],
+  glowBottom: ['rgba(158, 92, 28, 0.16)', 'rgba(158, 92, 28, 0)'],
+  menuBackground: 'rgba(9, 6, 3, 0.97)',
+  menuBorder: 'rgba(205, 127, 50, 0.25)',
+};
+
+const slate: Record<string, any> = {
+  text: '#CDD9E5',
+  background: '#0D1117',
+  surface: 'rgba(22, 30, 40, 0.80)',
+  tint: '#58A6FF',
+  tintLight: '#79B8FF',
+  tintDark: '#388BFD',
+  icon: '#58A6FF',
+  subtleText: 'rgba(205, 217, 229, 0.56)',
+  border: '#21282E',
+  gradientBackground: ['#0D1117', '#131C26', '#101820'],
+  gradientPrimary: ['#388BFD', '#58A6FF'],
+  gradientCard: ['rgba(22, 30, 40, 0.80)', 'rgba(12, 18, 28, 0.60)'],
+  glowTop: ['rgba(88, 166, 255, 0.20)', 'rgba(88, 166, 255, 0)'],
+  glowBottom: ['rgba(56, 139, 253, 0.14)', 'rgba(56, 139, 253, 0)'],
+  menuBackground: 'rgba(8, 12, 18, 0.97)',
+  menuBorder: 'rgba(88, 166, 255, 0.22)',
+};
+
+// ============================================================
+// COLORS MAP
+// ============================================================
+export const Colors: Record<string, any> = {
+  // Legacy aliases for backwards compatibility
+  light: cloud,
+  dark: obsidian,
+  // Light
+  pearl,
+  ivory,
+  cloud,
+  lavender,
+  sand,
+  // Dark
+  obsidian,
+  sapphire,
+  amethyst,
+  ember,
+  carbon,
+  copper,
+  slate,
+  // Semantic (global — không phải theme object)
+  success: '#10B981',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  info: '#3B82F6',
+  primary: '#C9A84C',
+  secondary: '#3B7DD8',
+  accent: '#06B6D4',
   white: '#FFFFFF',
   black: '#000000',
   transparent: 'transparent',
-  
-  // Gray Scale (Slate palette - more modern than basic gray)
-  gray50: '#F8FAFC',
-  gray100: '#F1F5F9',
-  gray200: '#E2E8F0',
-  gray300: '#CBD5E1',
-  gray400: '#94A3B8',
-  gray500: '#64748B',
-  gray600: '#475569',
-  gray700: '#334155',
-  gray800: '#1E293B',
-  gray900: '#0F172A',
-  
-  // === SPECIAL PURPOSE COLORS === //
-  // Links & Navigation
-  link: modernPrimary,
-  linkHover: '#4338CA', // Indigo-700
-  linkVisited: '#7C3AED', // Violet-600
-  
-  // Badges & Status
-  badgeSuccess: '#10B981', // Emerald-500
-  badgeError: '#EF4444', // Red-500
-  badgeWarning: '#F59E0B', // Amber-500
-  badgeInfo: '#3B82F6', // Blue-500
-  badgePrimary: modernPrimary,
-  badgeSecondary: '#64748B', // Slate-500
-  
-  // Overlays & Backdrops
-  backdrop: 'rgba(15, 23, 42, 0.75)', // Slate-900 with opacity
-  overlay: 'rgba(0, 0, 0, 0.5)',
-  modalBackdrop: 'rgba(15, 23, 42, 0.8)',
-
-  
-  // === SOCIAL MEDIA BRAND COLORS === //
-  // Updated with 2025 brand colors
-  facebook: '#1877F2', // Facebook Blue
-  instagram: '#E4405F', // Instagram Pink (primary)
-  twitter: '#1DA1F2', // Twitter Blue (X)
-  tiktok: '#000000', // TikTok Black
-  youtube: '#FF0000', // YouTube Red
-  linkedin: '#0A66C2', // LinkedIn Blue
-  whatsapp: '#25D366', // WhatsApp Green
-  telegram: '#0088CC', // Telegram Blue
-  discord: '#5865F2', // Discord Blurple
-  spotify: '#1DB954', // Spotify Green
-  
-  // === GRADIENT COLLECTIONS === //
-  // Modern gradient combinations for 2025
-  gradients: {
-    // Primary Gradients
-    sunset: ['#FF6B6B', '#FFE66D'], // Coral to Yellow
-    ocean: ['#667EEA', '#764BA2'], // Blue to Purple
-    forest: ['#134E5E', '#71B280'], // Dark Teal to Green
-    cosmic: ['#C33764', '#1D2671'], // Pink to Navy
-    
-    // Brand Gradients
-    primary: [modernPrimary, '#8B5CF6'], // Indigo to Purple
-    secondary: [modernSecondary, '#F97316'], // Pink to Orange
-    success: ['#10B981', '#34D399'], // Emerald gradient
-    
-    // Neutral Gradients
-    grayLight: ['#F8FAFC', '#E2E8F0'], // Light gray gradient
-    grayDark: ['#1E293B', '#0F172A'], // Dark gray gradient
-    
-    // Special Effects
-    glass: ['rgba(255, 255, 255, 0.25)', 'rgba(255, 255, 255, 0.05)'], // Glassmorphism
-    aurora: ['#667EEA', '#764BA2', '#F093FB'], // Aurora effect
-    neon: ['#FF0080', '#FF8C00', '#40E0D0'], // Neon effect
-  },
-  
-  // === THEME VARIATIONS === //
-  themes: {
-    // Modern minimalist theme
-    minimal: {
-      primary: '#000000',
-      secondary: '#FFFFFF',
-      accent: '#6366F1',
-    },
-    
-    // Vibrant theme for younger audience
-    vibrant: {
-      primary: '#FF6B6B',
-      secondary: '#4ECDC4',
-      accent: '#FFE66D',
-    },
-    
-    // Professional theme for business
-    professional: {
-      primary: '#1E40AF', // Blue-800
-      secondary: '#64748B', // Slate-500
-      accent: '#10B981', // Emerald-500
-    },
-    
-    // Dark gaming theme
-    gaming: {
-      primary: '#7C3AED', // Violet-600
-      secondary: '#EC4899', // Pink-500
-      accent: '#06FFA5', // Neon green
-    },
-  },
 };
 
-// Global primary color for components
-export const PRIMARY_COLOR = modernPrimary;
+export const PRIMARY_COLOR = '#C9A84C';
+export const DEFAULT_THEME = 'cloud';
+
+// ============================================================
+// REQUIRED KEYS — validate theme object
+// ============================================================
+const REQUIRED_KEYS: string[] = [
+  'text',
+  'background',
+  'surface',
+  'tint',
+  'subtleText',
+  'border',
+  'gradientBackground',
+  'gradientPrimary',
+  'gradientCard',
+  'glowTop',
+  'glowBottom',
+  'menuBackground',
+  'menuBorder',
+];
+
+// ============================================================
+// UTILITIES — tất cả an toàn với Hermes, không dùng ?. hay ??
+// ============================================================
+
+/**
+ * Kiểm tra object có đủ cấu trúc theme không.
+ */
+export function isThemeLike(value: unknown): value is Record<string, any> {
+  if (value === null || value === undefined) return false;
+  if (typeof value !== 'object') return false;
+  if (Array.isArray(value)) return false;
+  const obj = value as Record<string, unknown>;
+  for (let i = 0; i < REQUIRED_KEYS.length; i++) {
+    if (!(REQUIRED_KEYS[i] in obj)) return false;
+  }
+  return true;
+}
+
+/**
+ * Danh sách tên theme hợp lệ.
+ */
+export function getAvailableThemes(): string[] {
+  const result: string[] = [];
+  const keys = Object.keys(Colors);
+  for (let i = 0; i < keys.length; i++) {
+    if (isThemeLike(Colors[keys[i]])) {
+      result.push(keys[i]);
+    }
+  }
+  return result;
+}
+
+/**
+ * Kiểm tra key có phải theme hợp lệ không.
+ */
+export function isThemeKey(theme: unknown): theme is string {
+  if (typeof theme !== 'string' || theme.length === 0) return false;
+  return isThemeLike(Colors[theme]);
+}
+
+/**
+ * Lấy màu theme — LUÔN trả về object hợp lệ.
+ * Không bao giờ trả về undefined, null, hoặc {}.
+ */
+export function getThemeColors(theme?: string | null): Record<string, any> {
+  // 1. Theme được yêu cầu
+  if (typeof theme === 'string' && theme.length > 0) {
+    const requested = Colors[theme];
+    if (isThemeLike(requested)) return requested;
+  }
+
+  // 2. DEFAULT_THEME
+  const def = Colors[DEFAULT_THEME];
+  if (isThemeLike(def)) return def;
+
+  // 3. Bất kỳ theme nào tìm được
+  const keys = Object.keys(Colors);
+  for (let i = 0; i < keys.length; i++) {
+    const t = Colors[keys[i]];
+    if (isThemeLike(t)) return t;
+  }
+
+  // 4. Hard fallback — không bao giờ crash dù Colors bị xóa hết
+  return FALLBACK_THEME;
+}
+
+/**
+ * Chuyển hex string sang RGB. An toàn với Hermes.
+ */
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  if (typeof hex !== 'string' || hex.length === 0) return null;
+  const clean = hex.charAt(0) === '#' ? hex.slice(1) : hex;
+  if (clean.length === 3) {
+    return {
+      r: parseInt(clean.charAt(0) + clean.charAt(0), 16),
+      g: parseInt(clean.charAt(1) + clean.charAt(1), 16),
+      b: parseInt(clean.charAt(2) + clean.charAt(2), 16),
+    };
+  }
+  if (clean.length === 6) {
+    return {
+      r: parseInt(clean.slice(0, 2), 16),
+      g: parseInt(clean.slice(2, 4), 16),
+      b: parseInt(clean.slice(4, 6), 16),
+    };
+  }
+  return null;
+}
+
+/**
+ * Tính relative luminance — trả về null nếu không tính được.
+ */
+function getRelativeLuminance(themeColors: Record<string, any>): number | null {
+  if (!isThemeLike(themeColors)) return null;
+  const bg = themeColors['background'];
+  if (typeof bg !== 'string' || bg.length === 0) return null;
+  const rgb = hexToRgb(bg);
+  if (rgb === null) return null;
+  const channel = function (c: number): number {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
+}
+
+/**
+ * Kiểm tra theme có phải dark mode không.
+ */
+export function isDarkTheme(theme?: string | null): boolean {
+  const colors = getThemeColors(theme);
+  const lum = getRelativeLuminance(colors);
+  if (lum === null) return false;
+  return lum < 0.35;
+}
+
+/**
+ * Chuyển camelCase key thành tên hiển thị.
+ * Ví dụ: 'roseQuartz' → 'Rose Quartz'
+ */
+export function getThemeDisplayName(themeKey: string): string {
+  if (typeof themeKey !== 'string' || themeKey.length === 0) return '';
+  return themeKey
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, function (c: string) { return c.toUpperCase(); })
+    .trim();
+}

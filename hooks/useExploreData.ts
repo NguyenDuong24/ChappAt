@@ -24,7 +24,7 @@ interface UseExploreDataReturn {
   refresh: () => Promise<void>;
 }
 
-export const useExploreData = (): UseExploreDataReturn => {
+export const useExploreData = (enabled: boolean = true): UseExploreDataReturn => {
   const { user } = useAuth();
   const [notificationCount, setNotificationCount] = useState(0);
   const [trendingHashtags, setTrendingHashtags] = useState<TrendingHashtag[]>([]);
@@ -129,6 +129,11 @@ export const useExploreData = (): UseExploreDataReturn => {
 
   // Initial load with debounce
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     let timeoutId: any;
 
     const loadInitialData = async () => {
@@ -157,10 +162,11 @@ export const useExploreData = (): UseExploreDataReturn => {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [user?.uid, refresh]);
+  }, [enabled, user?.uid, refresh]);
 
   // Auto-refresh notifications periodically with error handling
   useEffect(() => {
+    if (!enabled) return;
     if (!user?.uid) return;
 
     const interval = setInterval(async () => {
@@ -173,10 +179,11 @@ export const useExploreData = (): UseExploreDataReturn => {
     }, 60000); // Refresh every 60 seconds (reduced frequency to avoid rate limits)
 
     return () => clearInterval(interval);
-  }, [user?.uid, refreshNotifications]);
+  }, [enabled, user?.uid, refreshNotifications]);
 
   // Listen to notification changes in real-time with better error handling
   useEffect(() => {
+    if (!enabled) return;
     if (!user?.uid) return;
 
     let unsubscribe: (() => void) | undefined;
@@ -215,7 +222,7 @@ export const useExploreData = (): UseExploreDataReturn => {
         clearTimeout(retryTimeout);
       }
     };
-  }, [user?.uid, refreshNotifications]);
+  }, [enabled, user?.uid, refreshNotifications]);
 
   return {
     notificationCount,

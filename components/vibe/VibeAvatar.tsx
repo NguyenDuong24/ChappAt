@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -11,8 +11,8 @@ import {
 import { Image } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors, PRIMARY_COLOR } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
+import { PRIMARY_COLOR } from '@/constants/Colors';
 import { UserVibe } from '@/types/vibe';
 import VibePickerModal from './VibePickerModal';
 import { useAuth } from '@/context/authContext';
@@ -61,9 +61,7 @@ const VibeAvatar: React.FC<VibeAvatarProps> = ({
   addButtonIcon = 'add',
   onAddPress,
 }) => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const colors = theme === 'dark' ? Colors.dark : Colors.light;
+  const colors = useThemedColors();
 
   const [isVibeModalVisible, setIsVibeModalVisible] = useState(false);
   const [isStoryVisible, setIsStoryVisible] = useState(false);

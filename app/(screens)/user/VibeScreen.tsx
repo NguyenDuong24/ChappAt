@@ -29,7 +29,7 @@ const VibeScreen = () => {
     const router = useRouter();
     const themeContext = useContext(ThemeContext);
     const theme = themeContext?.theme || 'light';
-    const colors = theme === 'dark' ? Colors.dark : Colors.light;
+    const colors = Colors[theme] || Colors.light;
 
     const { setUserVibe, settingVibe, currentVibe, removeUserVibe } = useAuth();
 
@@ -460,3 +460,4 @@ const styles = StyleSheet.create({
 });
 
 export default VibeScreen;
+

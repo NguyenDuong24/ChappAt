@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState, useContext, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useContext, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, Text, Modal, ActivityIndicator, ImageBackground, InteractionManager } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
@@ -186,7 +186,7 @@ function ChatRoomContent() {
 
     // Memoize theme colors to prevent unnecessary re-calculations
     const currentThemeColors = useMemo(() => {
-        const baseColors = (theme === 'dark' ? Colors.dark : Colors.light) || Colors.light;
+        const baseColors = (Colors[theme] || Colors.light) || Colors.light;
 
         if (!baseColors) {
             console.error('Colors.light or Colors.dark is undefined!', { theme, Colors });
@@ -1228,6 +1228,7 @@ export default function ChatRoomScreen() {
         </ChatThemeProvider>
     );
 }
+
 
 
 

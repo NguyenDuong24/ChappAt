@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { router, useSegments } from 'expo-router';
+import { router, useSegments, useLocalSearchParams } from 'expo-router';
 import {
   Text,
   StyleSheet,
@@ -10,9 +10,12 @@ import {
   Animated,
   Platform,
   Easing,
+  BackHandler,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { ExploreHeaderProvider, HEADER_HEIGHT, SCROLL_DISTANCE } from '../../../context/ExploreHeaderContext';
 import useExploreData from '../../../hooks/useExploreData';
@@ -20,6 +23,8 @@ import NotificationBadge from '../../../components/common/NotificationBadge';
 import { ExploreProvider, useExploreActions } from '../../../context/ExploreContext';
 import { Colors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
+import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
+import { RevealScalableView } from '@/components/reveal';
 
 // Import Screens
 import Tab1Screen from './tab1';
@@ -37,8 +42,8 @@ const ARTISTIC_GRADIENTS = [
   ['#FF512F', '#DD2476'],
   ['#00B4DB', '#0083B0'],
   ['#11998e', '#38ef7d'],
-  ['#F093FB', '#F5576C'],
-  ['#4facfe', '#00f2fe'],
+  ['#0EA5E9', '#06B6D4'],
+  ['#06B6D4', '#0891B2'],
   ['#fa709a', '#fee140'],
 ];
 
@@ -81,17 +86,25 @@ const TabButton = React.memo(({ label, isActive, onPress, inactiveColor }) => {
 
 const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
   const { t, i18n } = useTranslation();
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'dark';
-  const colors = theme === 'dark' ? Colors.dark : Colors.light;
+  const { theme, isDark, palette } = useContext(ThemeContext);
+  const colors = isDark ? Colors.dark : Colors.light;
+
+  const { width } = useWindowDimensions();
+  const drawerOffset = useMemo(() => Math.min(width * 0.62, 250), [width]);
 
   const [activeTab, setActiveTab] = useState('index');
   const [mounted, setMounted] = useState({ index: true, tab2: false, tab3: false });
+  const [featureDrawer, setFeatureDrawer] = useState(null);
+
+  const segments = useSegments();
+  const params = useLocalSearchParams();
+  const openDrawer = params.openDrawer;
 
   useEffect(() => {
-    const timer = setTimeout(() => setMounted({ index: true, tab2: true, tab3: true }), 450);
-    return () => clearTimeout(timer);
-  }, []);
+    if (openDrawer === 'notification') {
+      setFeatureDrawer('notification');
+    }
+  }, [openDrawer]);
 
   // ⚡️ SIMPLIFIED ANIMATIONS - Only opacity, no translateX (removes jank)
   const opacity1 = useRef(new Animated.Value(1)).current;
@@ -108,8 +121,13 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
   const slidingAnim = useRef(new Animated.Value(0)).current;
   const fabSlidingAnim = useRef(new Animated.Value(0)).current;
 
-  const { notificationCount, trendingHashtags, loading, refresh: refreshData } = useExploreData();
-  const { refresh: refreshPosts } = useExploreActions();
+  const isFocused = useIsFocused();
+  const { notificationCount, trendingHashtags, loading, refresh: refreshData } = useExploreData(isFocused);
+  const { refresh: refreshPosts, setExploreScreenActive } = useExploreActions();
+
+  useEffect(() => {
+    setExploreScreenActive?.(isFocused);
+  }, [isFocused, setExploreScreenActive]);
 
   // No longer needed as we use individual refs
   // const scrollY = useRef(new Animated.Value(0)).current;
@@ -194,7 +212,7 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
             colors={theme === 'dark' ? ['rgba(255,255,255,0.12)', 'transparent'] : ['rgba(255,255,255,0.6)', 'transparent']}
             style={styles.rimLight}
           />
-          <View style={[styles.actionBtnInner, { borderColor: color + '30', backgroundColor: theme === 'dark' ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.7)' }]}>
+          <View style={[styles.actionBtnInner, { borderColor: color + '30', backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(255, 255, 255, 0.7)' }]}>
             <LinearGradient
               colors={[finalGrad[0] + '12', finalGrad[1] + '05']}
               style={StyleSheet.absoluteFill}
@@ -208,12 +226,26 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
   }, [theme]);
 
   // Stable navigation callbacks
-  const goToNotifications = useCallback(() => router.push('/(screens)/social/NotificationsScreen'), []);
+  const goToNotifications = useCallback(() => {
+    setFeatureDrawer('notification');
+  }, []);
   const goToHotSpots = useCallback(() => router.push('/(screens)/hotspots/HotSpotsScreen'), []);
+  const closeFeatureDrawer = useCallback(() => setFeatureDrawer(null), []);
+
+  useEffect(() => {
+    if (!featureDrawer) {
+      return undefined;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setFeatureDrawer(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [featureDrawer]);
 
   // ⚡️ Memoized header sections to prevent re-renders
   const collapsedHeader = useMemo(() => (
-    <Animated.View style={[styles.collapsedHeader, { opacity: collapsedOpacity, backgroundColor: theme === 'dark' ? '#0f172aF5' : '#ffffffF5' }]} pointerEvents="box-none">
+    <Animated.View style={[styles.collapsedHeader, { opacity: collapsedOpacity, backgroundColor: isDark ? (palette.appGradient[0] + 'F5') : '#ffffffF5' }]} pointerEvents="box-none">
       <View style={styles.collapsedContent} pointerEvents="box-none">
         <View style={[styles.collapsedIcon, { backgroundColor: colors.tint }]}>
           <MaterialIcons name="explore" size={24} color="#FFF" />
@@ -251,9 +283,9 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
 
   const tabButtons = useMemo(() => (
     tabDefs.map(tab => (
-      <TabButton key={tab.key} label={tab.label} isActive={activeTab === tab.key} onPress={() => handleTabPress(tab.key)} inactiveColor={colors.mutedText} />
+      <TabButton key={tab.key} label={tab.label} isActive={activeTab === tab.key} onPress={() => handleTabPress(tab.key)} inactiveColor={palette.textColor || colors.text} />
     ))
-  ), [tabDefs, activeTab, handleTabPress, colors.mutedText]);
+  ), [tabDefs, activeTab, handleTabPress, palette.textColor, colors.text]);
 
   const headerContextValue = useMemo(() => ({
     scrollY,
@@ -267,70 +299,90 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
 
   return (
     <ExploreHeaderProvider value={headerContextValue}>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+      <View style={[styles.container, { backgroundColor: isDark ? palette.appGradient[0] : 'transparent' }]}>
+        <RevealScalableView
+          revealed={!!featureDrawer}
+          side="left"
+          scale={0.86}
+          offset={drawerOffset}
+          style={[styles.revealContainer, { backgroundColor: 'transparent' }]}
+        >
+          <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-        <Animated.View style={[styles.header, { transform: [{ translateY: headerTranslateY }] }]} pointerEvents="box-none">
-          <LinearGradient colors={theme === 'dark' ? ['#020617', '#1e293b'] : ['#f1f5f9', '#ffffff']} style={styles.headerGradient} />
+          <Animated.View style={[styles.header, { transform: [{ translateY: headerTranslateY }] }]} pointerEvents="box-none">
+            <LinearGradient 
+              colors={isDark ? 
+                [palette.appGradient[0] + 'E6', palette.appGradient[1] + '80'] : 
+                ['rgba(241, 245, 249, 0.85)', 'rgba(255, 255, 255, 0.4)']
+              } 
+              style={styles.headerGradient} 
+            />
 
-          {collapsedHeader}
+            {collapsedHeader}
 
-          <Animated.View style={[styles.headerContent, { opacity: headerOpacity }]} pointerEvents="box-none">
-            <View style={styles.headerTop} pointerEvents="box-none">
+            <Animated.View style={[styles.headerContent, { opacity: headerOpacity }]} pointerEvents="box-none">
+              <View style={styles.headerTop} pointerEvents="box-none">
+                <View style={styles.headerTabsContainer} pointerEvents="auto">
+                  <Animated.View style={[styles.slidingPill, { shadowColor: colors.tint, transform: [{ translateX: slidingAnim }] }]}>
+                    <LinearGradient colors={[colors.tint, '#a855f7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tabGradientFill} />
+                  </Animated.View>
+                  {tabButtons}
+                </View>
+                <View style={styles.headerActions} pointerEvents="auto">
+                  {renderActionBtn('notifications', MaterialIcons, colors.tint, [colors.tint, '#a855f7'], goToNotifications, notificationCount)}
+                  {renderActionBtn('fire', FontAwesome5, '#f97316', ['#f97316', '#fb923c'], goToHotSpots)}
+                </View>
+              </View>
+
+              {trendingSection}
+            </Animated.View>
+          </Animated.View>
+
+          {/* ⚡️ TAB CONTENT - No translateX, just opacity + pointerEvents */}
+          <View style={styles.content}>
+            <Animated.View
+              style={[styles.tabPane, { opacity: opacity1, zIndex: activeTab === 'index' ? 10 : 1, backgroundColor: 'transparent' }]}
+              pointerEvents={pointerEvents1}
+            >
+              <Tab1Screen isActive={activeTab === 'index'} />
+            </Animated.View>
+            <Animated.View
+              style={[styles.tabPane, { opacity: opacity2, zIndex: activeTab === 'tab2' ? 10 : 1, backgroundColor: 'transparent' }]}
+              pointerEvents={pointerEvents2}
+            >
+              {mounted.tab2 && <Tab2Screen isActive={activeTab === 'tab2'} />}
+            </Animated.View>
+            <Animated.View
+              style={[styles.tabPane, { opacity: opacity3, zIndex: activeTab === 'tab3' ? 10 : 1, backgroundColor: 'transparent' }]}
+              pointerEvents={pointerEvents3}
+            >
+              {mounted.tab3 && <Tab3Screen isActive={activeTab === 'tab3'} />}
+            </Animated.View>
+          </View>
+
+          {/* Floating tab bar */}
+          <Animated.View style={[styles.floatingActions, { opacity: fabOpacity, transform: [{ translateY: fabTranslateY }] }]} pointerEvents="box-none">
+            <View style={[styles.fabContainer, { backgroundColor: isDark ? (palette.appGradient[0] + 'F0') : 'rgba(255, 255, 255, 0.96)', borderColor: colors.borderLight }]} pointerEvents="auto">
               <View style={styles.headerTabsContainer} pointerEvents="auto">
-                <Animated.View style={[styles.slidingPill, { shadowColor: colors.tint, transform: [{ translateX: slidingAnim }] }]}>
+                <Animated.View style={[styles.slidingPill, { shadowColor: colors.tint, transform: [{ translateX: fabSlidingAnim }] }]}>
                   <LinearGradient colors={[colors.tint, '#a855f7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tabGradientFill} />
                 </Animated.View>
-                {tabButtons}
+                {tabDefs.map(tab => <TabButton key={tab.key} label={tab.label} isActive={activeTab === tab.key} onPress={() => handleTabPress(tab.key)} inactiveColor={palette.textColor || colors.text} />)}
               </View>
-              <View style={styles.headerActions} pointerEvents="auto">
+              <View style={[styles.fabDivider, { backgroundColor: isDark ? 'rgba(148, 163, 184, 0.3)' : 'rgba(0, 0, 0, 0.1)' }]} />
+              <View style={styles.fabActions} pointerEvents="auto">
                 {renderActionBtn('notifications', MaterialIcons, colors.tint, [colors.tint, '#a855f7'], goToNotifications, notificationCount)}
-                {renderActionBtn('fire', FontAwesome5, '#f97316', ['#f97316', '#fb923c'], goToHotSpots)}
+                {renderActionBtn('fire', FontAwesome5, '#f97316', ['#ff4d4d', '#f97316'], goToHotSpots)}
               </View>
             </View>
+          </Animated.View>
+        </RevealScalableView>
 
-            {trendingSection}
-          </Animated.View>
-        </Animated.View>
-
-        {/* ⚡️ TAB CONTENT - No translateX, just opacity + pointerEvents */}
-        <View style={styles.content}>
-          <Animated.View
-            style={[styles.tabPane, { opacity: opacity1, zIndex: activeTab === 'index' ? 10 : 1 }]}
-            pointerEvents={pointerEvents1}
-          >
-            <Tab1Screen isActive={activeTab === 'index'} />
-          </Animated.View>
-          <Animated.View
-            style={[styles.tabPane, { opacity: opacity2, zIndex: activeTab === 'tab2' ? 10 : 1 }]}
-            pointerEvents={pointerEvents2}
-          >
-            {mounted.tab2 && <Tab2Screen isActive={activeTab === 'tab2'} />}
-          </Animated.View>
-          <Animated.View
-            style={[styles.tabPane, { opacity: opacity3, zIndex: activeTab === 'tab3' ? 10 : 1 }]}
-            pointerEvents={pointerEvents3}
-          >
-            {mounted.tab3 && <Tab3Screen isActive={activeTab === 'tab3'} />}
-          </Animated.View>
-        </View>
-
-        {/* Floating tab bar */}
-        <Animated.View style={[styles.floatingActions, { opacity: fabOpacity, transform: [{ translateY: fabTranslateY }] }]} pointerEvents="box-none">
-          <View style={[styles.fabContainer, { backgroundColor: theme === 'dark' ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.96)', borderColor: colors.borderLight }]} pointerEvents="auto">
-            <View style={styles.headerTabsContainer} pointerEvents="auto">
-              <Animated.View style={[styles.slidingPill, { shadowColor: colors.tint, transform: [{ translateX: fabSlidingAnim }] }]}>
-                <LinearGradient colors={[colors.tint, '#a855f7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tabGradientFill} />
-              </Animated.View>
-              {tabDefs.map(tab => <TabButton key={tab.key} label={tab.label} isActive={activeTab === tab.key} onPress={() => handleTabPress(tab.key)} inactiveColor={colors.mutedText} />)}
-            </View>
-            <View style={[styles.fabDivider, { backgroundColor: theme === 'dark' ? 'rgba(148, 163, 184, 0.3)' : 'rgba(0, 0, 0, 0.1)' }]} />
-            <View style={styles.fabActions} pointerEvents="auto">
-              {renderActionBtn('notifications', MaterialIcons, colors.tint, [colors.tint, '#a855f7'], goToNotifications, notificationCount)}
-              {renderActionBtn('fire', FontAwesome5, '#f97316', ['#ff4d4d', '#f97316'], goToHotSpots)}
-            </View>
-          </View>
-        </Animated.View>
+        <FeatureActionDrawer
+          visible={!!featureDrawer}
+          drawerKey={featureDrawer}
+          onClose={closeFeatureDrawer}
+        />
       </View>
     </ExploreHeaderProvider>
   );
@@ -342,11 +394,12 @@ export default function ExploreLayout() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { position: 'absolute', top: 0, left: 0, right: 0, height: Platform.OS === 'ios' ? 260 : 250, zIndex: 100 },
+  revealContainer: { flex: 1 },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, height: HEADER_HEIGHT, zIndex: 1100 },
   headerGradient: { ...StyleSheet.absoluteFillObject },
-  headerContent: { flex: 1, paddingTop: Platform.OS === 'ios' ? 55 : StatusBar.currentHeight + 15, paddingHorizontal: 12 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  headerTabsContainer: { flexDirection: 'row', gap: TAB_GAP, backgroundColor: 'rgba(148, 163, 184, 0.15)', borderRadius: 30, padding: TAB_PADDING, position: 'relative', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  headerContent: { flex: 1, paddingTop: Platform.OS === 'ios' ? 46 : StatusBar.currentHeight + 10, paddingHorizontal: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  headerTabsContainer: { flexDirection: 'row', gap: TAB_GAP, backgroundColor: 'rgba(148, 163, 184, 0.12)', borderRadius: 30, padding: TAB_PADDING, position: 'relative', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
   headerTab: { width: TAB_WIDTH, height: TAB_HEIGHT, borderRadius: TAB_HEIGHT / 2, zIndex: 2, flexShrink: 0 },
   slidingPill: { position: 'absolute', top: TAB_PADDING, left: TAB_PADDING, width: TAB_WIDTH, height: TAB_HEIGHT, borderRadius: TAB_HEIGHT / 2, zIndex: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
   tabGradientFill: { flex: 1, borderRadius: 20 },
@@ -358,21 +411,21 @@ const styles = StyleSheet.create({
   rimLight: { ...StyleSheet.absoluteFillObject, borderRadius: 22, opacity: 0.6 },
   actionBtnInner: { flex: 1, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1, overflow: 'hidden' },
   headerBadge: { position: 'absolute', top: 4, right: 4 },
-  trendingSection: { marginTop: 15 },
+  trendingSection: { marginTop: 8 },
   trendingHeaderCompact: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   trendingTitleCompact: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
   hashtagScrollContent: { gap: 10, paddingRight: 40, paddingLeft: 4 },
   hashtagChipCompact: { borderRadius: 22, overflow: 'hidden', height: 40 },
   hashtagGradientCompact: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 10, height: '100%' },
   hashtagText: { color: '#FFF', fontSize: 13, fontWeight: '800' },
-  content: { flex: 1 },
-  tabPane: { ...StyleSheet.absoluteFillObject },
-  floatingActions: { position: 'absolute', bottom: 30, left: 0, right: 0, alignItems: 'center', zIndex: 1000 },
+  content: { flex: 1, backgroundColor: 'transparent' },
+  tabPane: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
+  floatingActions: { position: 'absolute', bottom: 100, left: 0, right: 0, alignItems: 'center', zIndex: 1000 },
   fabContainer: { flexDirection: 'row', padding: 6, borderRadius: 45, gap: 10, borderWidth: 1, elevation: 40, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.5, shadowRadius: 30 },
   fabDivider: { width: 1.5, height: 28, borderRadius: 1, marginHorizontal: 2 },
   fabActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  collapsedHeader: { position: 'absolute', top: 0, left: 0, right: 0, height: Platform.OS === 'ios' ? 105 : 95, zIndex: 150, elevation: 20 },
-  collapsedContent: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: Platform.OS === 'ios' ? 45 : 30 },
+  collapsedHeader: { position: 'absolute', top: 0, left: 0, right: 0, height: Platform.OS === 'ios' ? 92 : 82, zIndex: 1100, elevation: 20 },
+  collapsedContent: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 38 : 24 },
   collapsedIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   collapsedActions: { flexDirection: 'row', gap: 8 },
   hashtagSkeletonCompact: { width: 95, height: 40, borderRadius: 20 }

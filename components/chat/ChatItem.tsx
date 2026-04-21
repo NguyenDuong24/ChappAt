@@ -12,12 +12,12 @@ import VibeAvatar from '@/components/vibe/VibeAvatar';
 import { useAuth } from '@/context/authContext';
 import { useTranslation } from 'react-i18next';
 import { normalizeDisplayText } from '@/utils/textEncoding';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLastMessage = null, unreadCount: externalUnreadCount, chatType, chatRoomId, hotSpotId, hotSpotTitle, onLongPress, isPinned = false, roomType, eventId }: { item: any, noBorder?: boolean, currenUser: any, lastMessage?: DocumentData | null, unreadCount?: number, chatType?: string, chatRoomId?: string, hotSpotId?: string, hotSpotTitle?: string, onLongPress?: () => void, isPinned?: boolean, roomType?: string, eventId?: string }) => {
   const { t } = useTranslation();
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = useThemedColors();
+  const { isDark, palette } = currentThemeColors;
   const router = useRouter();
   const segments = useSegments();
   const [internalLastMessage, setInternalLastMessage] = useState<DocumentData | null>(null);
@@ -179,7 +179,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
     return null;
   }
 
-  const genderIconColor = item.gender === 'male' ? '#667eea' : item.gender === 'female' ? '#f093fb' : '#999';
+  const genderIconColor = item.gender === 'male' ? '#0EA5E9' : item.gender === 'female' ? '#06B6D4' : '#999';
 
   const renderTime = () => {
     if (isLoading) return '';
@@ -273,11 +273,19 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
 
   return (
     <TouchableOpacity
-      style={[styles.container, { backgroundColor: currentThemeColors.background }]}
+      style={[styles.container, { backgroundColor: 'transparent' }]}
       onPress={handlePress}
       onLongPress={onLongPress}
     >
-      <View style={[styles.chatCard, isHotSpot && styles.hotSpotCard, { backgroundColor: isHotSpot ? currentThemeColors.hotSpotsBackground : currentThemeColors.cardBackground }]}>
+      <View style={[
+        styles.chatCard,
+        isHotSpot && styles.hotSpotCard,
+        { 
+          backgroundColor: isHotSpot ? 'rgba(255, 230, 0, 0.08)' : isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.65)',
+          borderColor: isHotSpot ? '#FFCC80' : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
+          borderWidth: 1
+        }
+      ]}>
         {/* Avatar Section */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatarWrapper}>
@@ -294,18 +302,17 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
                 styles.statusIndicator,
                 item.isOnline
                   ? {
-                    backgroundColor: Colors.success,
+                    backgroundColor: currentThemeColors.success,
                     borderColor: currentThemeColors.cardBackground,
-                    shadowColor: Colors.success,
+                    shadowColor: currentThemeColors.success,
                     shadowOffset: { width: 0, height: 2 },
                     shadowOpacity: 0.4,
                     shadowRadius: 4,
-                    elevation: 4,
                   }
                   : {
-                    backgroundColor: Colors.warning,
+                    backgroundColor: currentThemeColors.warning,
                     borderColor: currentThemeColors.cardBackground,
-                    shadowColor: Colors.warning,
+                    shadowColor: currentThemeColors.warning,
                     shadowOffset: { width: 0, height: 2 },
                     shadowOpacity: 0.2,
                     shadowRadius: 2,
@@ -382,7 +389,6 @@ const styles = StyleSheet.create({
   chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 8,
     elevation: 0,

@@ -60,7 +60,7 @@ const MessageActionSheet: React.FC<MessageActionSheetProps> = ({
 }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
   const actions = [
     {

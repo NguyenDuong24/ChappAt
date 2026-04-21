@@ -14,7 +14,7 @@ const NotificationBadge: React.FC<NotificationBadgeProps> = ({
   count,
   size = 'medium',
   color = 'white',
-  backgroundColor = '#f093fb',
+  backgroundColor = '#06B6D4',
   style,
   maxCount = 99
 }) => {

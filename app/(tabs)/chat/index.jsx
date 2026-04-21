@@ -4,9 +4,10 @@ import ChatList from '../../../components/chat/ChatList';
 import { useAuth } from '../../../context/authContext';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { Colors } from '../../../constants/Colors';
+import LiquidScreen from '@/components/liquid/LiquidScreen';
 
 const LoadingView = ({ theme, currentThemeColors }) => (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background, paddingTop: 20 }]}>
+    <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: 20 }]}>
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <View key={i} style={styles.skeletonItem}>
                 <View style={[styles.skeletonAvatar, { backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E1E1E1' }]} />
@@ -23,16 +24,16 @@ const LoadingView = ({ theme, currentThemeColors }) => (
 const ChatScreen = () => {
     const { user, isLoading } = useAuth();
     const { theme } = React.useContext(ThemeContext);
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const currentThemeColors = Colors[theme] || Colors.light;
 
     if (isLoading) {
         return <LoadingView theme={theme} currentThemeColors={currentThemeColors} />;
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        <LiquidScreen themeMode={theme}>
             <ChatList currenUser={user} />
-        </View>
+        </LiquidScreen>
     );
 };
 
@@ -62,3 +63,4 @@ const styles = StyleSheet.create({
 });
 
 export default ChatScreen;
+

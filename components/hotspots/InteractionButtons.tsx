@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 type InteractionButtonsProps = {
   isInterested: boolean;
@@ -20,13 +20,17 @@ const InteractionButtons = ({
   onInteract,
   onCheckIn,
 }: InteractionButtonsProps) => {
+  const colors = useThemedColors();
+  const hs = colors.hotSpots;
+  
   return (
     <View style={styles.interactionContainer}>
       {/* Chỉ hiển thị nút Quan tâm - user không thể tự check-in hay join */}
       <TouchableOpacity
         style={[
           styles.interactionButton,
-          isInterested && styles.interestedButtonActive
+          { borderColor: hs.primary, backgroundColor: hs.surface },
+          isInterested && { backgroundColor: hs.primary, borderColor: hs.primary }
         ]}
         onPress={() => onInteract('interested')}
         activeOpacity={0.8}
@@ -34,11 +38,11 @@ const InteractionButtons = ({
         <FontAwesome
           name={isInterested ? 'star' : 'star-o'}
           size={20}
-          color={isInterested ? '#fff' : Colors.text}
+          color={isInterested ? '#fff' : hs.textSecondary}
         />
         <Text style={[
           styles.interactionText,
-          isInterested && styles.interestedTextActive
+          { color: isInterested ? '#fff' : hs.text }
         ]}>
           {isInterested ? 'Đã quan tâm' : 'Quan tâm'}
         </Text>
@@ -46,9 +50,9 @@ const InteractionButtons = ({
 
       {/* Hiển thị trạng thái check-in nếu đã check-in (chỉ hiển thị, không cho click) */}
       {isCheckedIn && (
-        <View style={[styles.interactionButton, styles.checkedInButton]}>
+        <View style={[styles.interactionButton, { backgroundColor: hs.secondary, borderColor: hs.secondary }]}>
           <FontAwesome name="check-circle" size={20} color="#fff" />
-          <Text style={[styles.interactionText, styles.checkedInText]}>
+          <Text style={[styles.interactionText, { color: '#fff' }]}>
             Đã Check-in
           </Text>
         </View>
@@ -72,37 +76,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    // Theme colors applied dynamically
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 3,
   },
   interactionText: {
     marginLeft: 8,
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    // Color applied dynamically
   },
   interestedButtonActive: {
-    backgroundColor: '#FFB703', // Warm yellow/orange
-    borderColor: '#FFB703',
+    // Styles applied dynamically
   },
   interestedTextActive: {
-    color: '#fff',
+    // Color applied dynamically
   },
   checkedInButton: {
-    backgroundColor: '#10B981', // Emerald green
-    borderColor: '#10B981',
+    // Styles applied dynamically
   },
   checkedInText: {
-    color: '#fff',
+    // Color applied dynamically
   },
 });
 

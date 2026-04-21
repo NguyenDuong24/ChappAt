@@ -1,4 +1,4 @@
-﻿import React, { useContext, useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useContext, useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import {
     View, ActivityIndicator, Alert, Text, RefreshControl,
     Animated, Platform, StyleSheet, InteractionManager
@@ -9,6 +9,7 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { useExploreHeader, HEADER_HEIGHT } from '@/context/ExploreHeaderContext';
 import { useTranslation } from 'react-i18next';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface BaseExploreTabProps {
     isActive: boolean;
@@ -134,8 +135,8 @@ const BaseExploreTab: React.FC<BaseExploreTabProps> = ({
         );
     }, [handleScrollFromContext, myScrollY]);
 
-    const theme = themeContext?.theme || 'light';
-    const colors = theme === 'dark' ? Colors.dark : Colors.light;
+    const colors = useThemedColors();
+    const { palette, isDark } = useContext(ThemeContext) as any;
 
     const renderItem = useCallback(({ item }: any) => (
         <PostCard
@@ -190,19 +191,30 @@ const BaseExploreTab: React.FC<BaseExploreTabProps> = ({
     const contentContainerStyle = useMemo(() => ({
         paddingTop: effectiveHeaderHeight || HEADER_HEIGHT,
         paddingBottom: 120,
-        backgroundColor: colors.background,
-    }), [effectiveHeaderHeight, colors.background]);
+        backgroundColor: 'transparent',
+    }), [effectiveHeaderHeight]);
 
-    if (!canRender || (loadingInitial && posts.length === 0)) {
-        return <LoadingView backgroundColor={colors.background} cardBackground={colors.cardBackground} effectiveHeaderHeight={effectiveHeaderHeight || HEADER_HEIGHT} />;
+    if (!canRender) {
+        if (!isActive) return null;
+        return <LoadingView backgroundColor="transparent" cardBackground={colors.cardBackground} effectiveHeaderHeight={effectiveHeaderHeight || HEADER_HEIGHT} />;
+    }
+
+    if (loadingInitial && posts.length === 0) {
+        return <LoadingView backgroundColor="transparent" cardBackground={colors.cardBackground} effectiveHeaderHeight={effectiveHeaderHeight || HEADER_HEIGHT} />;
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+            style={[styles.container, { 
+                backgroundColor: 'transparent',
+                borderColor: colors.border
+            }]}
+        >
             <Animated.FlatList
                 data={posts}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
+                style={{ backgroundColor: 'transparent' }}
                 contentContainerStyle={contentContainerStyle}
                 refreshControl={refreshControl}
                 onScroll={onScroll}

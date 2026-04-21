@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, FlatList, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { useOptimizedUsers } from '@/hooks/useOptimizedUsers';
-import { Colors } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { useRouter } from 'expo-router';
 
 interface UserListProps {
@@ -12,6 +12,7 @@ interface UserListProps {
 const UserList: React.FC<UserListProps> = ({ currentUserId }) => {
     const { users, loadMoreUsers, hasMore, loading, refreshData } = useOptimizedUsers(currentUserId);
     const router = useRouter();
+    const colors = useThemedColors();
 
     const renderItem = useCallback(({ item }: { item: any }) => (
         <TouchableOpacity
@@ -34,7 +35,7 @@ const UserList: React.FC<UserListProps> = ({ currentUserId }) => {
     const renderFooter = () => {
         if (!loading) return null;
         return (
-            <View style={styles.loader}>
+            <View style={styles.loader}>c
                 <ActivityIndicator size="small" color={Colors.primary} />
             </View>
         );

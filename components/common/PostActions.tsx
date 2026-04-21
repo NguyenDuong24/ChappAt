@@ -36,7 +36,7 @@ const PostActions: React.FC<PostActionsProps> = ({
   const { user } = useAuth();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'dark';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   const isLiked = post.likes && post.likes.includes(currentUserId);
   const [showLikedByModal, setShowLikedByModal] = useState(false);
 
@@ -252,3 +252,4 @@ const styles = StyleSheet.create({
 });
 
 export default React.memo(PostActions);
+

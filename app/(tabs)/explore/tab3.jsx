@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useFollowingPosts, useExploreActions, useExploreState, useExploreLoading } from '@/context/ExploreContext';
 import BaseExploreTab from '@/components/explore/BaseExploreTab';
 
 const Tab3Screen = ({ isActive }: { isActive: boolean }) => {
     const { posts: followingPosts, hasMore } = useFollowingPosts() || { posts: [], hasMore: false };
-    const { loadMoreFollowing, deletePost, toggleLike, refresh, updatePostPrivacy } = useExploreActions() || {};
+    const { loadMoreFollowing, deletePost, toggleLike, refresh, ensureFeedReady, updatePostPrivacy } = useExploreActions() || {};
     const { loadingInitial, isRefreshing } = useExploreState() || {};
     const { loadingFollowing } = useExploreLoading() || {};
+
+    useEffect(() => {
+        if (isActive) {
+            ensureFeedReady?.('following');
+        }
+    }, [isActive, ensureFeedReady]);
 
     return (
         <BaseExploreTab

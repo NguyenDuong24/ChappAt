@@ -1,4 +1,4 @@
-import React, { useState, useContext, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors, PRIMARY_COLOR } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
+import { PRIMARY_COLOR } from '@/constants/Colors';
 import { Vibe, PREDEFINED_VIBES, VIBE_CATEGORIES } from '@/types/vibe';
 import { useAuth } from '@/context/authContext';
 
@@ -32,13 +32,7 @@ const VibePickerModal: React.FC<VibePickerModalProps> = ({
   onClose, 
   userLocation 
 }) => {
-  const themeContext = useContext(ThemeContext);
-  if (!themeContext) {
-    throw new Error('VibePickerModal must be used within a ThemeProvider');
-  }
-  const theme = themeContext.theme || 'light';
-  const colors = theme === 'dark' ? Colors.dark : Colors.light;
-
+  const colors = useThemedColors();
   const { setUserVibe, settingVibe, currentVibe, removeUserVibe } = useAuth();
 
   const [selectedVibe, setSelectedVibe] = useState<Vibe | null>(currentVibe?.vibe || null);
@@ -319,8 +313,8 @@ const VibePickerModal: React.FC<VibePickerModalProps> = ({
               style={[styles.removeCurrentButton, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
               activeOpacity={0.7}
             >
-              <MaterialIcons name="delete-outline" size={18} color={Colors.error} />
-              <Text style={styles.removeCurrentText}>Gỡ vibe hiện tại</Text>
+              <MaterialIcons name="delete-outline" size={18} color={colors.error} />
+              <Text style={[styles.removeCurrentText, { color: colors.error }]}>Gỡ vibe hiện tại</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -525,7 +519,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   removeCurrentText: {
-    color: Colors.error,
+    // Color applied dynamically - error color for remove action
     fontWeight: '600',
   },
 });

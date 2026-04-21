@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useEffect, useMemo, useState, useContext } from 'react';
+import React, { createContext, useCallback, useEffect, useMemo, useState, useContext, useRef } from 'react';
 import { InteractionManager } from 'react-native';
 import { db } from '@/firebaseConfig';
 import { doc, updateDoc, arrayUnion, arrayRemove, deleteDoc, increment } from 'firebase/firestore';
@@ -43,6 +43,36 @@ export const ExploreProvider = ({ children }) => {
     const [loadingInitial, setLoadingInitial] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [activeFeeds, setActiveFeeds] = useState({ latest: true, trending: false, following: false });
+    const [screenActive, setScreenActive] = useState(true);
+    const latestUpdateTaskRef = useRef(null);
+    const trendingUpdateTaskRef = useRef(null);
+    const followingUpdateTaskRef = useRef(null);
+
+    const ensureFeedReady = useCallback((type) => {
+        if (type !== 'trending' && type !== 'following') return;
+        setActiveFeeds(prev => (prev[type] ? prev : { ...prev, [type]: true }));
+    }, []);
+
+    const setExploreScreenActive = useCallback((isActive) => {
+        setScreenActive(!!isActive);
+    }, []);
+
+    const cancelTask = useCallback((taskRef) => {
+        if (taskRef.current?.cancel) {
+            taskRef.current.cancel();
+        }
+        taskRef.current = null;
+    }, []);
+
+    const scheduleAfterInteractions = useCallback((taskRef, fn) => {
+        cancelTask(taskRef);
+        taskRef.current = InteractionManager.runAfterInteractions(() => {
+            requestAnimationFrame(() => {
+                fn();
+            });
+        });
+    }, [cancelTask]);
 
     const prefetchImages = useCallback((posts) => {
         if (!posts || posts.length === 0) return;
@@ -198,79 +228,111 @@ export const ExploreProvider = ({ children }) => {
         setLoadingInitial(true);
         try {
             if (type === 'latest') { setLatestLastDoc(null); setLatestHasMore(true); }
-            else if (type === 'trending') { setTrendingLastDoc(null); setTrendingHasMore(true); setTrendingPosts([]); }
-            else if (type === 'following') { setFollowingLastDoc(null); setFollowingHasMore(true); await fetchFollowingIds(); }
+            else if (type === 'trending') {
+                ensureFeedReady('trending');
+                setTrendingLastDoc(null);
+                setTrendingHasMore(true);
+                setTrendingPosts([]);
+            }
+            else if (type === 'following') {
+                ensureFeedReady('following');
+                setFollowingLastDoc(null);
+                setFollowingHasMore(true);
+                await fetchFollowingIds();
+            }
             setRefreshTrigger(prev => prev + 1);
         } finally { setIsRefreshing(false); }
-    }, [fetchFollowingIds]);
+    }, [fetchFollowingIds, ensureFeedReady]);
 
     useEffect(() => {
+        if (!screenActive) return;
         if (latestPosts.length === 0) setLoadingInitial(true);
         return postService.subscribeToFirstPage({ type: 'latest', pageSize: PAGE_SIZE }, (posts, lastDoc, hasMore) => {
-            setLatestPosts(prev => {
-                const newIds = new Set(posts.map(p => p.id));
-                const remainingPosts = prev.filter(p => !newIds.has(p.id));
-                return [...posts, ...remainingPosts];
+            scheduleAfterInteractions(latestUpdateTaskRef, () => {
+                setLatestPosts(prev => {
+                    const newIds = new Set(posts.map(p => p.id));
+                    const remainingPosts = prev.filter(p => !newIds.has(p.id));
+                    return [...posts, ...remainingPosts];
+                });
+                setLatestLastDoc(prev => prev || lastDoc);
+                setLatestHasMore(hasMore);
+                setLoadingInitial(false);
+                preloadUsersFromPosts(posts);
             });
-            setLatestLastDoc(prev => prev || lastDoc);
-            setLatestHasMore(hasMore);
-            setLoadingInitial(false);
-            preloadUsersFromPosts(posts);
         });
-    }, [refreshTrigger, preloadUsersFromPosts]);
+    }, [screenActive, refreshTrigger, preloadUsersFromPosts, scheduleAfterInteractions]);
 
     useEffect(() => {
+        if (!screenActive) return;
         if (!loadingInitial && !loadingLatest && latestHasMore && latestPosts.length < 10) {
             loadMoreLatest();
         }
-    }, [latestPosts.length, latestHasMore, loadingLatest, loadingInitial, loadMoreLatest]);
+    }, [screenActive, latestPosts.length, latestHasMore, loadingLatest, loadingInitial, loadMoreLatest]);
 
     useEffect(() => {
+        if (!screenActive) return;
+        if (!activeFeeds.trending) return;
         return postService.subscribeToFirstPage({ type: 'trending', pageSize: PAGE_SIZE }, (posts, lastDoc, hasMore) => {
-            setTrendingPosts(prev => {
-                const newIds = new Set(posts.map(p => p.id));
-                const remainingPosts = prev.filter(p => !newIds.has(p.id));
-                return [...posts, ...remainingPosts];
+            scheduleAfterInteractions(trendingUpdateTaskRef, () => {
+                setTrendingPosts(prev => {
+                    const newIds = new Set(posts.map(p => p.id));
+                    const remainingPosts = prev.filter(p => !newIds.has(p.id));
+                    return [...posts, ...remainingPosts];
+                });
+                setTrendingLastDoc(prev => prev || lastDoc);
+                setTrendingHasMore(hasMore);
+                setLoadingInitial(false);
+                preloadUsersFromPosts(posts);
             });
-            setTrendingLastDoc(prev => prev || lastDoc);
-            setTrendingHasMore(hasMore);
-            setLoadingInitial(false);
-            preloadUsersFromPosts(posts);
         });
-    }, [refreshTrigger, preloadUsersFromPosts]);
+    }, [screenActive, activeFeeds.trending, refreshTrigger, preloadUsersFromPosts, scheduleAfterInteractions]);
 
     useEffect(() => {
+        if (!screenActive) return;
+        if (!activeFeeds.trending) return;
         if (!loadingInitial && !loadingTrending && trendingHasMore && trendingPosts.length < 10) {
             loadMoreTrending();
         }
-    }, [trendingPosts.length, trendingHasMore, loadingTrending, loadingInitial, loadMoreTrending]);
+    }, [screenActive, activeFeeds.trending, trendingPosts.length, trendingHasMore, loadingTrending, loadingInitial, loadMoreTrending]);
 
     useEffect(() => {
+        if (!screenActive) return;
+        if (!activeFeeds.following) return;
         if (!user?.uid) return;
         let unsub = () => { };
         fetchFollowingIds().then(ids => {
             if (ids.length > 0) {
                 unsub = postService.subscribeToFirstPage({ type: 'following', followingIds: ids, pageSize: PAGE_SIZE }, (posts, lastDoc, hasMore) => {
-                    setFollowingPosts(prev => {
-                        const newIds = new Set(posts.map(p => p.id));
-                        const remainingPosts = prev.filter(p => !newIds.has(p.id));
-                        return [...posts, ...remainingPosts];
+                    scheduleAfterInteractions(followingUpdateTaskRef, () => {
+                        setFollowingPosts(prev => {
+                            const newIds = new Set(posts.map(p => p.id));
+                            const remainingPosts = prev.filter(p => !newIds.has(p.id));
+                            return [...posts, ...remainingPosts];
+                        });
+                        setFollowingLastDoc(prev => prev || lastDoc);
+                        setFollowingHasMore(hasMore);
+                        setLoadingInitial(false);
+                        preloadUsersFromPosts(posts);
                     });
-                    setFollowingLastDoc(prev => prev || lastDoc);
-                    setFollowingHasMore(hasMore);
-                    setLoadingInitial(false);
-                    preloadUsersFromPosts(posts);
                 });
             } else { setLoadingInitial(false); }
         });
         return () => unsub();
-    }, [user?.uid, fetchFollowingIds, refreshTrigger, preloadUsersFromPosts]);
+    }, [screenActive, activeFeeds.following, user?.uid, fetchFollowingIds, refreshTrigger, preloadUsersFromPosts, scheduleAfterInteractions]);
+
+    useEffect(() => () => {
+        cancelTask(latestUpdateTaskRef);
+        cancelTask(trendingUpdateTaskRef);
+        cancelTask(followingUpdateTaskRef);
+    }, [cancelTask]);
 
     useEffect(() => {
+        if (!screenActive) return;
+        if (!activeFeeds.following) return;
         if (!loadingInitial && !loadingFollowing && followingHasMore && followingPosts.length < 5) {
             loadMoreFollowing();
         }
-    }, [followingPosts.length, followingHasMore, loadingFollowing, loadingInitial, loadMoreFollowing]);
+    }, [screenActive, activeFeeds.following, followingPosts.length, followingHasMore, loadingFollowing, loadingInitial, loadMoreFollowing]);
 
     const latestValue = useMemo(() => ({ posts: latestPosts, hasMore: latestHasMore }), [latestPosts, latestHasMore]);
     const trendingValue = useMemo(() => ({ posts: trendingPosts, hasMore: trendingHasMore }), [trendingPosts, trendingHasMore]);
@@ -286,8 +348,10 @@ export const ExploreProvider = ({ children }) => {
         addComment,
         toggleFollow,
         refresh,
+        ensureFeedReady,
+        setExploreScreenActive,
         updatePostPrivacy,
-    }), [loadMoreLatest, loadMoreTrending, loadMoreFollowing, deletePost, toggleLike, addComment, toggleFollow, refresh, updatePostPrivacy]);
+    }), [loadMoreLatest, loadMoreTrending, loadMoreFollowing, deletePost, toggleLike, addComment, toggleFollow, refresh, ensureFeedReady, setExploreScreenActive, updatePostPrivacy]);
 
     const stateValue = useMemo(() => ({ loadingInitial, isRefreshing, error }), [loadingInitial, isRefreshing, error]);
 

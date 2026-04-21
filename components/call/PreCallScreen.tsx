@@ -148,7 +148,7 @@ export default function PreCallScreen({ onJoinMeeting, onBack }: PreCallScreenPr
   );
 
   return (
-    <LinearGradient colors={['#667eea', '#764ba2']} style={styles.container}>
+    <LinearGradient colors={['#0EA5E9', '#06B6D4']} style={styles.container}>
       <View style={styles.content}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>

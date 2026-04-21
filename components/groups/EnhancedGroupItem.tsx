@@ -14,6 +14,7 @@ import { db } from '@/firebaseConfig';
 import GroupPreviewModal from './GroupPreviewModal';
 import { useTranslation } from 'react-i18next';
 import { normalizeDisplayText } from '@/utils/textEncoding';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface GroupItemProps {
   item: any;
@@ -51,9 +52,9 @@ const EnhancedGroupItem = ({
   isPinned = false
 }: GroupItemProps) => {
   const { t } = useTranslation();
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = useThemedColors();
+  const { isDark, palette } = currentThemeColors;
+  const { theme } = currentThemeColors;
   const router = useRouter();
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
@@ -139,7 +140,7 @@ const EnhancedGroupItem = ({
     const type = item?.type || item?.privacy || (item?.isPublic ? 'public' : 'private');
 
     if (type === 'public' || type === 'Public') {
-      return { icon: 'earth' as const, color: '#667EEA', label: t('groups.public') };
+      return { icon: 'earth' as const, color: '#0EA5E9', label: t('groups.public') };
     }
     return { icon: 'lock' as const, color: '#F59E0B', label: t('groups.private') };
   }, [item?.type, item?.privacy, item?.isPublic, t]);
@@ -197,8 +198,8 @@ const EnhancedGroupItem = ({
       style={[
         styles.container,
         {
-          backgroundColor: currentThemeColors.cardBackground,
-          borderBottomColor: noBorder ? 'transparent' : currentThemeColors.border,
+          backgroundColor: 'transparent',
+          borderBottomColor: noBorder ? 'transparent' : palette.menuBorder,
         },
       ]}
     >
@@ -246,7 +247,7 @@ const EnhancedGroupItem = ({
 
             {/* Online Status Badge */}
             {onlineCount > 0 && (
-              <View style={[styles.onlineBadge, { borderColor: currentThemeColors.cardBackground }]}>
+              <View style={[styles.onlineBadge, { borderColor: 'transparent' }]}>
                 <View style={styles.onlineDot} />
               </View>
             )}
@@ -303,7 +304,7 @@ const EnhancedGroupItem = ({
                 </View>
 
                 {unreadCount > 0 && (
-                  <Badge size={20} style={[styles.badge, { backgroundColor: Colors.primary }]}>
+                  <Badge size={20} style={[styles.badge, { backgroundColor: currentThemeColors.primary }]}>
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </Badge>
                 )}

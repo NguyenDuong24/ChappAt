@@ -135,16 +135,7 @@ class NotificationNavigationService {
       // Final fallback
       if (!navigationSuccess) {
         console.log('🔄 All paths failed, using final fallback...');
-        try {
-          // Navigate to a screen that definitely exists and show alert
-          router.push('/(screens)/social/NotificationsScreen' as any);
-          setTimeout(() => {
-            console.log(`📍 Should show post: ${data.postId}`);
-            // Could show an alert here
-          }, 1000);
-        } catch (fallbackError) {
-          console.log('❌ Even fallback navigation failed');
-        }
+        this.navigateToNotifications();
       }
     } else {
       console.log('❌ No postId in notification data');
@@ -180,14 +171,7 @@ class NotificationNavigationService {
       // Final fallback
       if (!navigationSuccess) {
         console.log('🔄 All paths failed, using final fallback...');
-        try {
-          router.push('/(screens)/social/NotificationsScreen' as any);
-          setTimeout(() => {
-            console.log(`📍 Should show profile: ${userId}`);
-          }, 1000);
-        } catch (fallbackError) {
-          console.log('❌ Even fallback navigation failed');
-        }
+        this.navigateToNotifications();
       }
     } else {
       console.log('❌ No userId in notification data');
@@ -233,18 +217,10 @@ class NotificationNavigationService {
         }
       }
 
-      // Final fallback - navigate to a messages-related screen if available
+      // Final fallback
       if (!navigationSuccess) {
         console.log('🔄 All paths failed, using final fallback...');
-        try {
-          // Try to navigate to any message-related screen that exists
-          router.push('/(screens)/social/NotificationsScreen' as any);
-          setTimeout(() => {
-            console.log(`📍 Should open chat: ${data.chatId}`);
-          }, 1000);
-        } catch (fallbackError) {
-          console.log('❌ Even fallback navigation failed');
-        }
+        this.navigateToNotifications();
       }
     } else if (data.senderId) {
       console.log('🧭 Navigating to chat with sender:', data.senderId);
@@ -295,9 +271,9 @@ class NotificationNavigationService {
   }
 
   private navigateToNotifications() {
-    console.log('🧭 Navigating to notifications screen');
+    console.log('🧭 Navigating to notifications drawer');
     try {
-      router.push('/(screens)/social/NotificationsScreen' as any);
+      router.push('/(tabs)/explore?openDrawer=notification' as any);
     } catch (error) {
       console.log('❌ Notifications navigation failed:', error);
       // Last fallback - go to home

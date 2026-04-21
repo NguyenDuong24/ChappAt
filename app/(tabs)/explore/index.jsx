@@ -1,8 +1,12 @@
-import React from 'react';
+import { useTheme } from '@/context/ThemeContext';
+import LiquidScreen from '@/components/liquid/LiquidScreen';
 import Tab1Screen from './tab1';
 
 export default function ExploreTab() {
+    const { theme } = useTheme();
     return (
-        <Tab1Screen />
+        <LiquidScreen themeMode={theme}>
+            <Tab1Screen isActive={true} />
+        </LiquidScreen>
     );
 }

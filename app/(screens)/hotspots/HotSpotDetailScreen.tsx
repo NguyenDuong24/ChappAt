@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -13,6 +13,7 @@ import {
   FlatList,
   Share,
   Linking,
+  Animated as RNAnimated,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,6 +29,9 @@ import ErrorComponent from '@/components/common/ErrorComponent';
 import HotSpotDetailsContent from '@/components/hotspots/HotSpotDetailsContent';
 import EventDetails from '@/components/hotspots/EventDetails';
 import { Colors } from '@/constants/Colors';
+import { ThemeContext } from '@/context/ThemeContext';
+import { getLiquidPalette, LiquidGlassBackground, LiquidSurface } from '@/components/liquid';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 const CHECK_IN_RADIUS_METERS = 200;
@@ -48,6 +52,11 @@ const HotSpotDetailScreen = () => {
   const { interactWithHotSpot, removeInteraction } = useHotSpots();
   const [isInteracting, setIsInteracting] = useState(false);
   const [checkingIn, setCheckingIn] = useState(false);
+
+  const themeContext = React.useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
+  const isDark = themeContext?.isDark ?? (theme === 'dark');
+  const palette = useMemo(() => themeContext?.palette || getLiquidPalette(theme), [theme, themeContext]);
 
   const handleInteraction = useCallback(async (type: 'interested' | 'joined') => {
     if (!hotSpot || isInteracting) return;
@@ -150,17 +159,27 @@ const HotSpotDetailScreen = () => {
   const handleInviteFriend = () => {
     if (!hotSpot) return;
     router.push({
-      pathname: '/AddFriend',
+      pathname: '/AddFriend' as any,
       params: { hotSpotId: hotSpot.id, hotSpotTitle: hotSpot.title, context: 'inviteToHotSpot' },
     });
   };
 
   if (loading) {
-    return <ActivityIndicator size="large" color={Colors.primary} />;
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <LiquidGlassBackground themeMode={theme} />
+        <ActivityIndicator size="large" color={palette.sphereGradient[0]} />
+      </View>
+    );
   }
 
   if (error || !hotSpot) {
-    return <ErrorComponent message={error || 'Unable to load Hot Spot information.'} onRetry={refetch} />;
+    return (
+      <View style={styles.container}>
+        <LiquidGlassBackground themeMode={theme} />
+        <ErrorComponent message={error || 'Unable to load Hot Spot information.'} onRetry={refetch} />
+      </View>
+    );
   }
 
   const isInterested = hasInteraction('interested');
@@ -168,9 +187,10 @@ const HotSpotDetailScreen = () => {
 
   return (
     <View style={styles.container}>
+      <LiquidGlassBackground themeMode={theme} style={StyleSheet.absoluteFillObject} />
       <StatusBar barStyle="light-content" />
 
-      <ScrollView
+      <RNAnimated.ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         bounces={false}
@@ -217,12 +237,12 @@ const HotSpotDetailScreen = () => {
           )}
 
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
+            colors={['transparent', 'rgba(0,0,0,0.3)', isDark ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.6)']}
             style={styles.heroGradient}
           />
 
           <View style={styles.heroContent}>
-            <View style={styles.categoryBadge}>
+            <View style={[styles.categoryBadge, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.2)' }]}>
               <Text style={styles.categoryText}>{hotSpot.category}</Text>
             </View>
 
@@ -246,61 +266,74 @@ const HotSpotDetailScreen = () => {
         </View>
 
         {/* Main Content Sheet */}
-        <View style={styles.contentSheet}>
-
+        <LiquidSurface
+          themeMode={theme}
+          intensity={isDark ? 10 : 20}
+          borderRadius={32}
+          style={styles.contentSheet}
+        >
           {/* Action Bar */}
           <View style={styles.actionBar}>
             <TouchableOpacity
-              style={[styles.primaryButton, isInterested && styles.primaryButtonActive]}
+              style={[styles.primaryButton, isInterested && { backgroundColor: palette.sphereGradient[0] }]}
               onPress={() => handleInteraction('interested')}
               activeOpacity={0.8}
             >
-              <FontAwesome name={isInterested ? "star" : "star-o"} size={18} color={isInterested ? "#FFF" : "#FFF"} />
+              {isInterested ? (
+                <LinearGradient
+                  colors={palette.sphereGradient as any}
+                  style={StyleSheet.absoluteFill}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+              ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: palette.sphereGradient[0] }]} />
+              )}
+              <FontAwesome name={isInterested ? "star" : "star-o"} size={18} color="#FFF" />
               <Text style={styles.primaryButtonText}>
                 {isInterested ? 'Interested' : 'Mark Interested'}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.secondaryButton, isCheckedIn && styles.secondaryButtonActive]}
+              style={[
+                styles.secondaryButton, 
+                { backgroundColor: isCheckedIn ? '#10B981' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'), borderColor: isCheckedIn ? '#10B981' : 'transparent' }
+              ]}
               onPress={handleCheckIn}
               disabled={isCheckedIn}
             >
               {checkingIn ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
+                <ActivityIndicator size="small" color={palette.sphereGradient[0]} />
               ) : (
                 <>
-                  <FontAwesome5 name="map-marker-alt" size={16} color={isCheckedIn ? "#FFF" : Colors.primary} />
-                  <Text style={[styles.secondaryButtonText, isCheckedIn && styles.secondaryButtonTextActive]}>
+                  <FontAwesome5 name="map-marker-alt" size={16} color={isCheckedIn ? "#FFF" : palette.sphereGradient[0]} />
+                  <Text style={[styles.secondaryButtonText, { color: isCheckedIn ? '#FFF' : palette.textColor }]}>
                     {isCheckedIn ? 'Checked-in' : 'Check-in'}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.iconButton} onPress={handleGetDirections}>
-              <FontAwesome5 name="directions" size={20} color={Colors.light.text} />
+            <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} onPress={handleGetDirections}>
+              <FontAwesome5 name="directions" size={20} color={palette.textColor} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.iconButton} onPress={handleInviteFriend}>
-              <MaterialIcons name="person-add" size={22} color={Colors.light.text} />
+            <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} onPress={handleInviteFriend}>
+              <MaterialIcons name="person-add" size={22} color={palette.textColor} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.iconButton} onPress={handleShare}>
-              <Ionicons name="share-social-outline" size={22} color={Colors.light.text} />
+            <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} onPress={handleShare}>
+              <Ionicons name="share-social-outline" size={22} color={palette.textColor} />
             </TouchableOpacity>
           </View>
 
-          {/* Divider */}
-          <View style={styles.divider} />
-
-          {/* Details Content */}
           <HotSpotDetailsContent hotSpot={hotSpot} />
 
           {/* Event Details */}
           {hotSpot.eventInfo && (
             <>
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} />
               <EventDetails hotSpot={hotSpot} />
             </>
           )}
@@ -308,7 +341,7 @@ const HotSpotDetailScreen = () => {
           {/* Image Gallery Preview (if more than 1 image) */}
           {hotSpot.images.length > 1 && (
             <View style={styles.gallerySection}>
-              <Text style={styles.sectionTitle}>Images</Text>
+              <Text style={[styles.sectionTitle, { color: palette.textColor }]}>Images</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.galleryScroll}>
                 {hotSpot.images.map((img, index) => (
                   <TouchableOpacity key={index} style={styles.galleryImageWrapper}>
@@ -325,8 +358,8 @@ const HotSpotDetailScreen = () => {
           )}
 
           <View style={styles.bottomSpace} />
-        </View>
-      </ScrollView>
+        </LiquidSurface>
+      </RNAnimated.ScrollView>
 
       {/* Floating Back Button */}
       <TouchableOpacity
@@ -345,7 +378,6 @@ const HotSpotDetailScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
   },
   scrollView: {
     flex: 1,
@@ -373,7 +405,6 @@ const styles = StyleSheet.create({
     right: 20,
   },
   categoryBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -433,13 +464,12 @@ const styles = StyleSheet.create({
   },
   contentSheet: {
     flex: 1,
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    marginTop: -24,
-    paddingTop: 24,
+    marginTop: -32,
+    paddingTop: 32,
     paddingHorizontal: 20,
-    minHeight: height - HEADER_HEIGHT + 24,
+    minHeight: height - HEADER_HEIGHT + 32,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   actionBar: {
     flexDirection: 'row',
@@ -450,69 +480,48 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 2,
-    backgroundColor: Colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 16,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  primaryButtonActive: {
-    backgroundColor: '#FFB703',
-    shadowColor: '#FFB703',
+    overflow: 'hidden',
   },
   primaryButtonText: {
     color: '#FFF',
     fontWeight: '700',
     fontSize: 15,
     marginLeft: 8,
+    zIndex: 1,
   },
   secondaryButton: {
     flex: 2,
-    backgroundColor: '#FFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  secondaryButtonActive: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
   },
   secondaryButtonText: {
-    color: Colors.primary,
     fontWeight: '600',
     fontSize: 15,
     marginLeft: 8,
   },
-  secondaryButtonTextActive: {
-    color: '#FFF',
-  },
   iconButton: {
     width: 44,
     height: 44,
-    backgroundColor: '#F5F5F5',
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   divider: {
     height: 1,
-    backgroundColor: '#F0F0F0',
     marginVertical: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1A1A1A',
     marginBottom: 12,
   },
   gallerySection: {
@@ -527,11 +536,6 @@ const styles = StyleSheet.create({
     marginRight: 12,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
   galleryImage: {
     width: 120,
@@ -547,6 +551,7 @@ const styles = StyleSheet.create({
     left: 20,
     borderRadius: 20,
     overflow: 'hidden',
+    zIndex: 10,
   },
   blurContainer: {
     width: 40,
@@ -571,6 +576,3 @@ const styles = StyleSheet.create({
 });
 
 export default HotSpotDetailScreen;
-
-
-

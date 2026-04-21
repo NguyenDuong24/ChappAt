@@ -15,7 +15,7 @@ interface Props {
 export default function ThemedStatusBar({ backgroundColor, style, translucent = false }: Props) {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
   return (
     <StatusBar
@@ -27,3 +27,4 @@ export default function ThemedStatusBar({ backgroundColor, style, translucent = 
     />
   );
 }
+

@@ -26,7 +26,7 @@ interface DataManagementModalProps {
 const DataManagementModal = ({ visible, onClose }: DataManagementModalProps) => {
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   
   const [isLoading, setIsLoading] = useState(false);
   const [storageInfo, setStorageInfo] = useState({
@@ -710,3 +710,4 @@ const styles = StyleSheet.create({
 });
 
 export default DataManagementModal;
+

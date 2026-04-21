@@ -242,7 +242,7 @@ const ListenCallAcceptedScreen = () => {
 
   return (
     <LinearGradient
-      colors={['#667eea', '#764ba2', '#f093fb']}
+      colors={['#0EA5E9', '#06B6D4', '#0891B2']}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -343,7 +343,7 @@ const ListenCallAcceptedScreen = () => {
                   colors={['#FFFFFF', '#E0E0E0']}
                   style={styles.avatarPlaceholder}
                 >
-                  <Ionicons name="person" size={80} color="#667eea" />
+                  <Ionicons name="person" size={80} color="#0EA5E9" />
                 </LinearGradient>
               </Animated.View>
             )}

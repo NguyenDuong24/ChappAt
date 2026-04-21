@@ -139,7 +139,7 @@ const GroupMessageItem: React.FC<GroupMessageItemProps> = React.memo(({
   const [showEditModal, setShowEditModal] = useState(false);
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
+  const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
 
   // Get consistent name color for this user
   const nameColor = useMemo(() =>
@@ -653,3 +653,4 @@ const styles = StyleSheet.create({
 });
 
 export default GroupMessageItem;
+

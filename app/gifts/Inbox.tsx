@@ -1,25 +1,27 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Alert, ActivityIndicator, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  RefreshControl, Alert, ActivityIndicator, Platform
+} from 'react-native';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
-import { Colors } from '@/constants/Colors';
 import { ThemeContext } from '@/context/ThemeContext';
-import { useContext } from 'react';
 import { giftService } from '@/services/giftService';
 import type { GiftReceiptDoc } from '@/services/giftService';
-import { formatDetailedTime } from '@/utils/common';
-import CoinHeader from '@/components/common/CoinHeader';
+import { convertTimestampToDate } from '@/utils/common';
 import { useTranslation } from 'react-i18next';
+import { LiquidGlassBackground, LiquidSurface, getLiquidPalette } from '@/components/liquid';
+import Animated, { FadeInDown, LinearTransition } from 'react-native-reanimated';
 
 export default function GiftsInboxScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
-  const { t } = useTranslation();
+  const isDark = themeCtx?.isDark ?? (theme === 'dark');
+  const palette = useMemo(() => themeCtx?.palette || getLiquidPalette(theme), [theme, themeCtx]);
+  const { t, i18n } = useTranslation();
 
   const [items, setItems] = useState<GiftReceiptDoc[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,7 +30,6 @@ export default function GiftsInboxScreen() {
 
   useEffect(() => {
     if (!user?.uid) return;
-    // Load initial data
     onRefresh();
   }, [user?.uid]);
 
@@ -50,6 +51,8 @@ export default function GiftsInboxScreen() {
     setLoadingAllRead(true);
     try {
       await giftService.markGiftReceiptsReadBatch(user.uid, unread.map((i) => i.id));
+      // Update local state smoothly
+      setItems((prev) => prev.map((i) => ({ ...i, status: 'read' })));
     } finally {
       setLoadingAllRead(false);
     }
@@ -72,7 +75,6 @@ export default function GiftsInboxScreen() {
               setRedeemingId(item.id);
               const res = await giftService.redeemGiftReceipt(user.uid!, item.id);
               Alert.alert(t('common.success'), t('gifts_inbox.redeem_success', { value: res.redeemValue }));
-              // Update local state to mark as redeemed
               setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, redeemed: true, redeemValue: res.redeemValue } : i)));
             } catch (e: any) {
               const msg = e?.message || t('gifts_inbox.redeem_error_default');
@@ -86,212 +88,217 @@ export default function GiftsInboxScreen() {
     );
   };
 
-  const renderItem = ({ item }: { item: GiftReceiptDoc }) => {
-    const created = item.createdAt ? formatDetailedTime(item.createdAt) : '';
+  const formatItemTime = (createdAt: any) => {
+    try {
+      const iso = convertTimestampToDate(createdAt);
+      if (!iso) return '';
+      return new Date(iso).toLocaleString(i18n.language === 'vi' ? 'vi-VN' : 'en-US', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  const renderItem = ({ item, index }: { item: GiftReceiptDoc; index: number }) => {
+    const created = formatItemTime(item.createdAt);
     const isRedeeming = redeemingId === item.id;
     const redeemedText = item.redeemed ? t('gifts_inbox.redeemed_label', { value: item.redeemValue ?? item.gift?.price ?? '' }) : '';
+    const isUnread = item.status !== 'read';
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.card,
-          { backgroundColor: currentThemeColors.surface, borderColor: currentThemeColors.border },
-        ]}
-        activeOpacity={0.8}
-        onPress={() => router.push(`/(tabs)/chat/${item.fromUid}`)}
-      >
-        <View style={styles.row}>
-          <Text style={styles.emoji}>{item.gift?.icon || '🎁'}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: currentThemeColors.text }]} numberOfLines={1}>
-              {item.gift?.name} • 🥖 {item.gift?.price}
-            </Text>
-            <Text style={[styles.subtitle, { color: currentThemeColors.subtleText }]} numberOfLines={1}>{t('gifts_inbox.from_user', { name: item.fromName || item.fromUid })}</Text>
-            <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>{created}</Text>
-            {item.redeemed && (
-              <Text style={[styles.redeemedLabel, { color: '#2e7d32' }]}>{redeemedText}</Text>
-            )}
-          </View>
-          <View style={styles.actions}>
-            {item.status !== 'read' ? (
-              <TouchableOpacity
-                onPress={() => giftService.markGiftReceiptsReadBatch(user?.uid!, [item.id])}
-                style={[styles.readBtn, { borderColor: currentThemeColors.border }]}
-              >
-                <Text style={styles.readBtnText}>{t('gifts_inbox.mark_read')}</Text>
-              </TouchableOpacity>
-            ) : (
-              <Text style={{ fontSize: 12, color: '#4CAF50' }}>{t('gifts_inbox.read')}</Text>
-            )}
+      <Animated.View entering={FadeInDown.delay(index * 50).springify()} layout={LinearTransition}>
+        <LiquidSurface themeMode={theme} borderRadius={20} intensity={isDark ? 8 : 15} style={[styles.card, isUnread && styles.unreadCard]}>
+          <TouchableOpacity
+            style={styles.cardContent}
+            activeOpacity={0.8}
+            onPress={() => router.push({ pathname: '/(tabs)/chat/[id]', params: { id: item.fromUid } })}
+          >
+            <View style={[styles.emojiContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+              <Text style={styles.emoji}>{item.gift?.icon || '🎁'}</Text>
+            </View>
 
-            {!item.redeemed ? (
-              <TouchableOpacity
-                onPress={() => confirmRedeem(item)}
-                disabled={isRedeeming}
-                style={[styles.redeemBtn, { backgroundColor: isRedeeming ? '#bdbdbd' : currentThemeColors.tint }]}
-              >
-                {isRedeeming ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.redeemBtnText}>{t('gifts_inbox.redeem_for', { value: item.gift?.price })}</Text>
-                )}
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-      </TouchableOpacity>
+            <View style={styles.detailsContainer}>
+              <Text style={[styles.itemName, { color: palette.textColor }]} numberOfLines={1}>
+                {item.gift?.name} <Text style={{ opacity: 0.5 }}>•</Text> 🥖 {item.gift?.price}
+              </Text>
+              
+              <View style={styles.fromRow}>
+                <Feather name="user" size={12} color={palette.primary || '#8A2BE2'} />
+                <Text style={[styles.fromText, { color: palette.subtitleColor }]} numberOfLines={1}>
+                  {t('gifts_inbox.from_user', { name: item.fromName || item.fromUid })}
+                </Text>
+              </View>
+
+              <Text style={[styles.time, { color: palette.subtitleColor, opacity: 0.6 }]}>{created}</Text>
+
+              {item.redeemed && (
+                <View style={styles.redeemedBadge}>
+                  <Feather name="check-circle" size={12} color="#4CAF50" />
+                  <Text style={styles.redeemedText}>{redeemedText}</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.actions}>
+              {isUnread ? (
+                <TouchableOpacity
+                  onPress={() => giftService.markGiftReceiptsReadBatch(user?.uid!, [item.id])}
+                  style={[styles.readBtn, { backgroundColor: palette.primary ? palette.primary + '20' : 'rgba(138,43,226,0.2)' }]}
+                >
+                  <Text style={[styles.readBtnText, { color: palette.primary || '#8A2BE2' }]}>{t('gifts_inbox.mark_read')}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.readBadge}>
+                  <Ionicons name="checkmark-done" size={16} color="#4CAF50" />
+                </View>
+              )}
+
+              {!item.redeemed ? (
+                <TouchableOpacity
+                  onPress={() => confirmRedeem(item)}
+                  disabled={isRedeeming}
+                  style={[styles.redeemBtn, { backgroundColor: palette.secondary || '#FF1493', opacity: isRedeeming ? 0.7 : 1 }]}
+                >
+                  {isRedeeming ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.redeemBtnText}>{t('gifts_inbox.redeem_action')} 🥖</Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </TouchableOpacity>
+        </LiquidSurface>
+      </Animated.View>
     );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+    <LiquidGlassBackground theme={theme} style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Custom Header */}
-      <LinearGradient
-        colors={['#FF69B4', '#FF1493']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
+      {/* Premium Header */}
+      <View style={[styles.header, { backgroundColor: palette.primary ? palette.primary + '15' : 'rgba(138,43,226,0.1)' }]}>
         <View style={styles.headerTop}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+          <TouchableOpacity style={[styles.backButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={24} color={palette.textColor} />
           </TouchableOpacity>
 
           <View style={styles.headerTitle}>
-            <Text style={styles.headerEmoji}>🎁</Text>
-            <Text style={styles.headerTitleText}>{t('gifts_inbox.title')}</Text>
+            <Text style={[styles.headerTitleText, { color: palette.textColor }]}>{t('gifts_inbox.title')}</Text>
           </View>
 
           <TouchableOpacity
-            style={[styles.actionButton, loadingAllRead && { opacity: 0.7 }]}
+            style={[styles.actionButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }, loadingAllRead && { opacity: 0.5 }]}
             onPress={markAllRead}
             disabled={loadingAllRead}
           >
             {loadingAllRead ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={palette.textColor} />
             ) : (
-              <Ionicons name="checkmark-done-circle-outline" size={24} color="#fff" />
+              <Ionicons name="checkmark-done-circle-outline" size={22} color={palette.textColor} />
             )}
           </TouchableOpacity>
         </View>
 
-        <View style={styles.headerStats}>
-          <Text style={styles.headerStatsLabel}>{t('gifts_inbox.total_received')}</Text>
-          <Text style={styles.headerStatsValue}>{items.length}</Text>
-        </View>
-      </LinearGradient>
+        <LiquidSurface themeMode={theme} borderRadius={24} intensity={isDark ? 10 : 20} style={styles.statsCard}>
+          <Text style={[styles.statsLabel, { color: palette.subtitleColor }]}>{t('gifts_inbox.total_received')}</Text>
+          <Text style={[styles.statsValue, { color: palette.textColor }]}>{items.length}</Text>
+        </LiquidSurface>
+      </View>
 
       <FlatList
         data={items}
         keyExtractor={(i) => i.id}
         renderItem={renderItem}
-        contentContainerStyle={{ padding: 12, paddingBottom: 24 }}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={palette.primary} 
+            colors={[palette.primary || '#8A2BE2']} 
+          />
+        }
         ListEmptyComponent={() => (
-          <View style={{ padding: 20, alignItems: 'center' }}>
-            <Text style={{ color: currentThemeColors.subtleText }}>{t('gifts_inbox.empty')}</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>📦</Text>
+            <Text style={[styles.emptyText, { color: palette.subtitleColor }]}>{t('gifts_inbox.empty')}</Text>
           </View>
         )}
       />
-    </View>
+    </LiquidGlassBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  card: {
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 12,
-  },
-  row: { flexDirection: 'row', alignItems: 'center' },
-  emoji: { fontSize: 36, marginRight: 12 },
-  title: { fontSize: 16, fontWeight: '700' },
-  subtitle: { fontSize: 12, marginTop: 2 },
-  time: { fontSize: 11, marginTop: 2 },
-  actions: { marginLeft: 8, alignItems: 'flex-end' },
-  readBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 8,
-  },
-  readBtnText: { fontSize: 12, fontWeight: '600' },
-  redeemBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  redeemBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
-  redeemedLabel: { fontSize: 12, marginTop: 6, fontWeight: '600' },
-  // Header Styles
   header: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-    marginBottom: 10,
+    paddingTop: Platform.OS === 'ios' ? 65 : 45,
+    paddingBottom: 25,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: 'hidden',
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 20,
+    zIndex: 1,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerEmoji: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-  headerTitleText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
   },
   actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: { flexDirection: 'row', alignItems: 'center' },
+  headerTitleText: { fontSize: 20, fontWeight: '900', letterSpacing: -0.5 },
+  statsCard: {
     alignItems: 'center',
+    padding: 20,
+    marginBottom: -10, // Helps blend with background curve
+    marginHorizontal: 10,
   },
-  headerStats: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 12,
-    padding: 10,
-    marginHorizontal: 20,
+  statsLabel: { fontSize: 13, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 },
+  statsValue: { fontSize: 36, fontWeight: '900' },
+  listContent: { padding: 16, paddingBottom: 40, paddingTop: 20 },
+  card: { marginBottom: 16, overflow: 'hidden' },
+  unreadCard: { borderWidth: 1, borderColor: 'rgba(138,43,226,0.3)' },
+  cardContent: { flexDirection: 'row', alignItems: 'center', padding: 16 },
+  emojiContainer: {
+    width: 56, height: 56, borderRadius: 28,
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 16,
   },
-  headerStatsLabel: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 12,
-    marginBottom: 4,
+  emoji: { fontSize: 32 },
+  detailsContainer: { flex: 1, justifyContent: 'center' },
+  itemName: { fontSize: 16, fontWeight: '800', marginBottom: 6 },
+  fromRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
+  fromText: { fontSize: 13, fontWeight: '600' },
+  time: { fontSize: 12, fontWeight: '500' },
+  redeemedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8,
+    backgroundColor: 'rgba(76, 175, 80, 0.1)', alignSelf: 'flex-start',
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12
   },
-  headerStatsValue: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+  redeemedText: { fontSize: 11, fontWeight: '700', color: '#4CAF50' },
+  actions: { alignItems: 'flex-end', marginLeft: 12, justifyContent: 'center', gap: 10 },
+  readBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
+  readBtnText: { fontSize: 12, fontWeight: '800' },
+  readBadge: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(76, 175, 80, 0.1)', alignItems: 'center', justifyContent: 'center' },
+  redeemBtn: {
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
   },
+  redeemBtnText: { fontSize: 13, fontWeight: '900', color: '#fff' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80 },
+  emptyEmoji: { fontSize: 60, marginBottom: 16 },
+  emptyText: { fontSize: 16, fontWeight: '700' },
 });

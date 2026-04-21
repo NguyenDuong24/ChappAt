@@ -36,7 +36,7 @@ interface GroupMessageListProps {
 const DaySeparator = React.memo(({ date, currentThemeColors: chatThemeColors }: { date: string, currentThemeColors?: any }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
+  const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
 
   return (
     <View style={styles.daySeparatorContainer}>
@@ -54,7 +54,7 @@ const DaySeparator = React.memo(({ date, currentThemeColors: chatThemeColors }: 
 const ScrollToBottomButton = React.memo(({ onPress, visible, currentThemeColors: chatThemeColors }: { onPress: () => void, visible: boolean, currentThemeColors?: any }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
+  const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
 
   if (!visible) return null;
 
@@ -90,7 +90,7 @@ export default function GroupMessageList({
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
+  const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
   const flatListRef = useRef<FlatList>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
@@ -309,3 +309,4 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 });
+

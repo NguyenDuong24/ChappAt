@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,7 @@ import {
 } from 'react-native';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { useAuth } from '@/context/authContext';
 import { useRouter } from 'expo-router';
 
@@ -18,9 +17,7 @@ interface VibeSectionProps {
 }
 
 const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const colors = theme === 'dark' ? Colors.dark : Colors.light;
+  const colors = useThemedColors();
   const router = useRouter();
 
   const { currentVibe, removeUserVibe, settingVibe } = useAuth();
@@ -151,7 +148,7 @@ const VibeSection: React.FC<VibeSectionProps> = ({ userLocation }) => {
           <Ionicons
             name="add-circle-outline"
             size={20}
-            color={Colors.primary}
+            color={colors.primary}
           />
           <Text style={[styles.addVibeText, { color: colors.text }]}>
             Chia sẻ tâm trạng của bạn

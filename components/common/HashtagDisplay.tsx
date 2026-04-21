@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Chip } from 'react-native-paper';
-import { Colors } from '@/constants/Colors';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface HashtagDisplayProps {
   hashtags: string[];
@@ -18,6 +18,7 @@ const HashtagDisplay: React.FC<HashtagDisplayProps> = React.memo(({
   onHashtagPress,
   style
 }) => {
+  const colors = useThemedColors();
   if (!hashtags || hashtags.length === 0) return null;
 
   const displayHashtags = hashtags.slice(0, maxDisplay);
@@ -34,11 +35,11 @@ const HashtagDisplay: React.FC<HashtagDisplayProps> = React.memo(({
           onPress={() => onHashtagPress?.(hashtag)}
           style={[
             styles.chip,
-            { height: chipHeight, backgroundColor: Colors.primary + '15' }
+            { height: chipHeight, backgroundColor: colors.primary + '15' }
           ]}
           textStyle={[
             styles.chipText,
-            { fontSize, color: Colors.primary }
+            { fontSize, color: colors.primary }
           ]}
           compact
         >
@@ -51,11 +52,11 @@ const HashtagDisplay: React.FC<HashtagDisplayProps> = React.memo(({
           style={[
             styles.chip,
             styles.moreChip,
-            { height: chipHeight, backgroundColor: Colors.accent + '15' }
+            { height: chipHeight, backgroundColor: colors.accent + '15' }
           ]}
           textStyle={[
             styles.chipText,
-            { fontSize, color: Colors.accent }
+            { fontSize, color: colors.accent }
           ]}
           compact
         >

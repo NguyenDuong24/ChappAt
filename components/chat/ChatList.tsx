@@ -1,4 +1,4 @@
-﻿import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Alert } from 'react-native';
 import React, { useEffect, useState, useContext, useCallback, memo, useMemo, useRef } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
@@ -24,6 +24,7 @@ import { roomsService } from '@/services/roomsService';
 import ConversationOptionsModal, { ConversationOption } from '@/components/common/ConversationOptionsModal';
 import { useTranslation } from 'react-i18next';
 import { normalizeDisplayText } from '@/utils/textEncoding';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 // Constants
 const ITEM_HEIGHT = 72;
@@ -107,12 +108,8 @@ const sortChats = (chats: any[], pinnedIds: string[] = []) => {
 
 const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () => void }) => {
     const { t } = useTranslation();
-    const themeContext = useContext(ThemeContext);
-    const theme = themeContext?.theme || 'light';
-    const currentThemeColors = useMemo(() =>
-        theme === 'dark' ? Colors.dark : Colors.light,
-        [theme]
-    );
+    const currentThemeColors = useThemedColors();
+    const { palette, theme } = currentThemeColors;
 
     const [sortedChats, setSortedChats] = useState<any[]>([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -692,26 +689,26 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
         <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor="#667eea"
-            colors={['#667eea']}
+            tintColor="#0EA5E9"
+            colors={['#0EA5E9']}
         />
     ), [refreshing, handleRefresh]);
 
     const contentContainerStyle = useMemo(() => [
         styles.listContainer,
-        { backgroundColor: currentThemeColors.background }
-    ], [currentThemeColors.background]);
+        { backgroundColor: 'transparent' }
+    ], []);
 
     if (sortedChats.length === 0 && !refreshing) {
         return (
-            <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+            <View style={[styles.container, { backgroundColor: 'transparent' }]}>
                 <EmptyState currentThemeColors={currentThemeColors} t={t} />
             </View>
         );
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+        <View style={[styles.container, { backgroundColor: 'transparent' }]}>
             <FlatList
                 data={sortedChats}
                 keyExtractor={keyExtractor}

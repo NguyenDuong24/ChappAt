@@ -5,6 +5,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import { getLiquidPalette } from '@/components/liquid';
 
 // Memoized particles component
 const HeaderParticles = memo(() => {
@@ -26,15 +27,21 @@ const HeaderParticles = memo(() => {
   );
 });
 
-const ChatListHeader = () => {
-  const { theme } = useTheme();
+const ChatListHeader = ({
+  onOpenSearchDrawer,
+  onOpenAddFriendDrawer,
+}) => {
+  const { theme, isDark, palette } = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
+  const liquidPalette = useMemo(() => getLiquidPalette(theme), [theme]);
+  const iconColor = palette.textColor;
+  const buttonBg = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.05)';
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={theme === 'dark' ? ['#1a1a2e', '#16213e'] : ['#4facfe', '#00f2fe']}
+        colors={liquidPalette.appGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
@@ -43,28 +50,40 @@ const ChatListHeader = () => {
 
         <View style={styles.headerContent}>
           <View style={styles.leftSection}>
-            <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="chat-processing" size={26} color="white" />
+            <View style={[styles.iconContainer, { backgroundColor: buttonBg }]}>
+              <MaterialCommunityIcons name="chat-processing" size={26} color={iconColor} />
             </View>
             <View style={styles.titleSection}>
-              <Text style={styles.title}>{t('chat.title')}</Text>
-              <Text style={styles.subtitle}>{t('chat.list_header_subtitle')}</Text>
+              <Text style={[styles.title, { color: iconColor }]}>{t('chat.title')}</Text>
+              <Text style={[styles.subtitle, { color: liquidPalette.subtitleColor }]}>{t('chat.list_header_subtitle')}</Text>
             </View>
           </View>
 
           <View style={styles.rightSection}>
             <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/SearchMessageScreen')}
+              style={[styles.actionButton, { backgroundColor: buttonBg }]}
+              onPress={() => {
+                if (onOpenSearchDrawer) {
+                  onOpenSearchDrawer();
+                  return;
+                }
+                router.push('/SearchMessageScreen');
+              }}
             >
-              <MaterialIcons name="search" size={24} color="white" />
+              <MaterialIcons name="search" size={24} color={iconColor} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, { marginLeft: 12 }]}
-              onPress={() => router.push('/AddFriend')}
+              style={[styles.actionButton, { marginLeft: 12, backgroundColor: buttonBg }]}
+              onPress={() => {
+                if (onOpenAddFriendDrawer) {
+                  onOpenAddFriendDrawer();
+                  return;
+                }
+                router.push('/AddFriend');
+              }}
             >
-              <Ionicons name="person-add" size={22} color="white" />
+              <Ionicons name="person-add" size={22} color={iconColor} />
             </TouchableOpacity>
           </View>
         </View>
@@ -139,7 +158,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
     marginTop: 2,
   },

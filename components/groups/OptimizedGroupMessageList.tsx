@@ -136,7 +136,7 @@ const OptimizedGroupMessageList: React.FC<OptimizedGroupMessageListProps> = ({
           style={styles.loadMoreButton}
           onPress={handleLoadMore}
         >
-          <MaterialCommunityIcons name="refresh" size={20} color="#667eea" />
+          <MaterialCommunityIcons name="refresh" size={20} color="#0EA5E9" />
           <Text style={styles.loadMoreText}>{t('groups.load_more_messages')}</Text>
         </TouchableOpacity>
       )}
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   loadMoreText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#667eea',
+    color: '#0EA5E9',
     marginLeft: 8,
   },
   daySeparatorContainer: {

@@ -1,4 +1,4 @@
-﻿import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -38,7 +38,7 @@ const GroupPreviewModal = ({
   const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   const [joining, setJoining] = useState(false);
   const [requestStatus, setRequestStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
 
@@ -60,7 +60,7 @@ const GroupPreviewModal = ({
 
   if (!group) return null;
 
-  const getGroupAvatar = () => group?.avatarUrl || group?.photoURL || 'https://via.placeholder.com/80x80/667eea/ffffff?text=G';
+  const getGroupAvatar = () => group?.avatarUrl || group?.photoURL || 'https://via.placeholder.com/80x80/0EA5E9/ffffff?text=G';
   const getMemberCount = () => (group?.members ? group.members.length : 0);
   const isPrivate = group?.type === 'private';
 
@@ -115,7 +115,7 @@ const GroupPreviewModal = ({
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.groupHeader}>
-                <LinearGradient colors={theme === 'dark' ? ['#667EEA', '#764BA2'] : ['#4facfe', '#00f2fe']} style={styles.avatarContainer}>
+                <LinearGradient colors={theme === 'dark' ? ['#06B6D4', '#0891B2'] : ['#0EA5E9', '#06B6D4']} style={styles.avatarContainer}>
                   <Image source={{ uri: getGroupAvatar() }} style={styles.avatar} contentFit="cover" transition={200} />
                 </LinearGradient>
 
@@ -129,8 +129,8 @@ const GroupPreviewModal = ({
                     </View>
 
                     <View style={styles.metaItem}>
-                      <MaterialCommunityIcons name={isPrivate ? 'lock' : 'earth'} size={16} color={isPrivate ? '#FF9F43' : '#667EEA'} />
-                      <Text style={[styles.metaText, { color: isPrivate ? '#FF9F43' : '#667EEA' }]}>{isPrivate ? t('group_preview.private_group') : t('group_preview.public_group')}</Text>
+                      <MaterialCommunityIcons name={isPrivate ? 'lock' : 'earth'} size={16} color={isPrivate ? '#FF9F43' : '#0EA5E9'} />
+                      <Text style={[styles.metaText, { color: isPrivate ? '#FF9F43' : '#0EA5E9' }]}>{isPrivate ? t('group_preview.private_group') : t('group_preview.public_group')}</Text>
                     </View>
                   </View>
                 </View>
@@ -143,8 +143,8 @@ const GroupPreviewModal = ({
                 </View>
               )}
 
-              <View style={[styles.previewNotice, { backgroundColor: isPrivate ? 'rgba(255, 159, 67, 0.1)' : 'rgba(102, 126, 234, 0.1)' }]}>
-                <MaterialCommunityIcons name={isPrivate ? 'lock-alert' : 'eye'} size={20} color={isPrivate ? '#FF9F43' : '#667EEA'} />
+              <View style={[styles.previewNotice, { backgroundColor: isPrivate ? 'rgba(255, 159, 67, 0.1)' : 'rgba(14, 165, 233, 0.1)' }]}>
+                <MaterialCommunityIcons name={isPrivate ? 'lock-alert' : 'eye'} size={20} color={isPrivate ? '#FF9F43' : '#0EA5E9'} />
                 <Text style={[styles.previewText, { color: currentThemeColors.subtleText }]}>
                   {isPrivate ? t('group_preview.private_group_note') : t('group_preview.preview_note_public')}
                 </Text>
@@ -230,3 +230,4 @@ const styles = StyleSheet.create({
 });
 
 export default GroupPreviewModal;
+

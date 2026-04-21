@@ -6,8 +6,10 @@ import { db } from '@/firebaseConfig';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Text } from 'react-native-paper';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInRight, FadeOutLeft } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
+import { normalizeDisplayText } from '@/utils/textEncoding';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 // Constants for FlatList optimization
 const ITEM_HEIGHT = 80;
@@ -47,14 +49,8 @@ const EnhancedGroupList = ({
   onLongPressGroup
 }: GroupListProps) => {
   const { t } = useTranslation();
-  const themeContext = useContext(ThemeContext);
-  const theme = (themeContext && typeof themeContext === 'object' && 'theme' in themeContext)
-    ? themeContext.theme
-    : 'light';
-  const currentThemeColors = useMemo(() =>
-    theme === 'dark' ? Colors.dark : Colors.light,
-    [theme]
-  );
+  const currentThemeColors = useThemedColors();
+  const { theme, isDark, palette } = currentThemeColors;
 
   const [sortedGroups, setSortedGroups] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -310,7 +306,7 @@ const EnhancedGroupList = ({
     <RefreshControl
       refreshing={refreshing}
       onRefresh={handleRefresh}
-      colors={['#667eea']}
+      colors={['#0EA5E9']}
       tintColor={currentThemeColors.text}
     />
   ), [refreshing, handleRefresh, currentThemeColors.text]);

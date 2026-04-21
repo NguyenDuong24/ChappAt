@@ -3,7 +3,11 @@ import React, { useEffect, useRef } from 'react';
 import { FontAwesome } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-export default function AddPostButton({ isScroll }) {
+interface AddPostButtonProps {
+  isScroll: boolean;
+}
+
+export default function AddPostButton({ isScroll }: AddPostButtonProps) {
   const animatedValue = useRef(new Animated.Value(0)).current;
   const router = useRouter();
 
@@ -44,7 +48,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#63e6ff',
     zIndex: 100,
     position: 'absolute',
-    bottom: 20,
+    bottom: 90,
     right: 20,
   },
 });

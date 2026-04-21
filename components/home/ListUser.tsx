@@ -12,12 +12,13 @@ import UserCard from './UserCard';
 // Constants for optimization
 const ITEM_HEIGHT = 120; // Approximate height of each user card
 
+import { useThemedColors } from '@/hooks/useThemedColors';
+// ... existing imports ...
+
 function ListUser({ users, onRefresh, refreshing, activeTab = 'home', loadMore, hasMore, loading }: any) {
   const { location } = React.useContext(LocationContext);
   const insets = useSafeAreaInsets();
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = useThemedColors();
   const { user: viewer } = useAuth();
   const viewerShowOnline = viewer?.showOnlineStatus !== false;
 
@@ -60,19 +61,19 @@ function ListUser({ users, onRefresh, refreshing, activeTab = 'home', loadMore, 
   const contentContainerStyle = useMemo(() => [
     styles.listContainer,
     {
-      backgroundColor: currentThemeColors.background,
+      backgroundColor: 'transparent',
       flexGrow: 1,
-      paddingTop: insets.top + 80
+      paddingTop: insets.top -22
     }
-  ], [currentThemeColors.background, insets.top]);
+  ], [insets.top]);
 
   // Memoize refresh control
   const refreshControl = useMemo(() => (
     <RefreshControl
       refreshing={refreshing}
       onRefresh={onRefresh}
-      colors={['#667eea']}
-      tintColor="#667eea"
+      colors={['#0EA5E9']}
+      tintColor="#0EA5E9"
     />
   ), [refreshing, onRefresh]);
 

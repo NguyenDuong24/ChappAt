@@ -28,7 +28,19 @@ export interface NearbyUser {
   };
   bio?: string;
   age?: number;
+  /** 'male' | 'female' | other string from profile */
+  gender?: string;
   lastLocationUpdate?: string;
+  lastLocationUpdateMs?: number;
+}
+
+function normalizeGenderFromFirestore(raw: unknown): string | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw !== 'string') return undefined;
+  const g = raw.trim().toLowerCase();
+  if (g === 'male' || g === 'm' || g === 'nam') return 'male';
+  if (g === 'female' || g === 'f' || g === 'nu' || g === 'nữ') return 'female';
+  return g;
 }
 
 export interface ProximityOptions {
@@ -147,12 +159,11 @@ class ProximityService {
 
           const userData = docSnap.data();
           if (!userData || !userData.location) return null;
+          const lastUpdateMs = this.convertTimestampToMillis(userData.lastLocationUpdate);
 
           // Check if location data is recent enough
           if (!includeOffline && userData.lastLocationUpdate) {
-            const lastUpdate = this.convertTimestampToMillis(userData.lastLocationUpdate);
-
-            if (lastUpdate && Date.now() - lastUpdate > maxAge) {
+            if (lastUpdateMs && Date.now() - lastUpdateMs > maxAge) {
               return null;
             }
           }
@@ -185,6 +196,8 @@ class ProximityService {
 
             const photoURL = await this.resolvePhotoUrl(userData);
 
+            const genderNorm = normalizeGenderFromFirestore(userData?.gender);
+
             return {
               id: docSnap.id,
               name: userData.name || userData.username || 'Unknown',
@@ -197,7 +210,9 @@ class ProximityService {
               },
               bio: typeof userData?.bio === 'string' ? userData.bio : undefined,
               age: typeof userData?.age === 'number' ? userData.age : undefined,
+              gender: genderNorm,
               lastLocationUpdate: this.convertTimestampToString(userData.lastLocationUpdate),
+              lastLocationUpdateMs: lastUpdateMs,
             } as NearbyUser;
           }
           return null;
@@ -300,6 +315,7 @@ class ProximityService {
             bio: typeof userData.bio === 'string' ? userData.bio : undefined,
             age: typeof userData.age === 'number' ? userData.age : undefined,
             lastLocationUpdate: this.convertTimestampToString(userData.lastLocationUpdate),
+            lastLocationUpdateMs: this.convertTimestampToMillis(userData.lastLocationUpdate),
           });
         } else {
           onUpdate(null);

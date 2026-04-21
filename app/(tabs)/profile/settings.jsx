@@ -1,13 +1,9 @@
-import React, { useContext } from 'react';
+import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { ThemeContext } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/authContext';
 import SettingsScreen from '@/components/settings/SettingsScreen';
 
 const Settings = () => {
-  const themeCtx = useContext(ThemeContext);
-  const theme = themeCtx?.theme || 'light';
-  const toggleTheme = themeCtx?.toggleTheme;
   const { logout, user, name, email, icon } = useAuth();
 
   const handleLogout = async () => {
@@ -17,10 +13,6 @@ const Settings = () => {
     } catch (error) {
       console.error('Lỗi khi đăng xuất: ', error);
     }
-  };
-
-  const handleThemeToggle = () => {
-    toggleTheme();
   };
 
   // Compose a lightweight currentUser for SettingsScreen display
@@ -37,8 +29,6 @@ const Settings = () => {
       <SettingsScreen
         currentUser={currentUser}
         onSignOut={handleLogout}
-        onThemeToggle={handleThemeToggle}
-        isDarkMode={theme === 'dark'}
       />
     </View>
   );

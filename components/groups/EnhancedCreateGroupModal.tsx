@@ -1,4 +1,4 @@
-﻿import React, { useState, useContext, useCallback, useEffect } from 'react';
+import React, { useState, useContext, useCallback, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -38,7 +38,7 @@ const CreateGroupModal = ({
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -575,3 +575,4 @@ const styles = StyleSheet.create({
 });
 
 export default CreateGroupModal;
+

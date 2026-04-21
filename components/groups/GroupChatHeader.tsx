@@ -1,6 +1,6 @@
-import React, { useContext, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { Text, Avatar, Menu, Divider } from 'react-native-paper';
+import React, { useContext } from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { Text, Avatar } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -14,20 +14,20 @@ interface GroupChatHeaderProps {
   group: any;
   onBack?: () => void;
   currentThemeColors?: any;
+  onOpenManagementDrawer?: () => void;
 }
 
-const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors }: GroupChatHeaderProps) => {
+const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors, onOpenManagementDrawer }: GroupChatHeaderProps) => {
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = chatThemeColors || (theme === 'dark' ? Colors.dark : Colors.light);
+  const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
   const router = useRouter();
   const { user } = useAuth();
-  const [menuVisible, setMenuVisible] = useState(false);
   const insets = useSafeAreaInsets();
 
   const getGroupAvatar = () => {
-    return group?.avatarUrl || 'https://via.placeholder.com/40x40/667eea/ffffff?text=G';
+    return group?.avatarUrl || 'https://via.placeholder.com/40x40/0EA5E9/ffffff?text=G';
   };
 
   const getMemberCount = () => {
@@ -47,7 +47,10 @@ const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors }:
   };
 
   const handleGroupInfo = () => {
-    setMenuVisible(false);
+    if (onOpenManagementDrawer) {
+      onOpenManagementDrawer();
+      return;
+    }
     router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
   };
 
@@ -172,3 +175,4 @@ const styles = StyleSheet.create({
 });
 
 export default GroupChatHeader;
+

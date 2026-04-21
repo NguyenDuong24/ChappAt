@@ -1,4 +1,4 @@
-﻿import React, { useState, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +19,7 @@ const GroupMessageInput = ({ groupId, currentUser }: GroupMessageInputProps) => 
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const { checkContent } = useContentModeration({
@@ -94,7 +94,7 @@ const GroupMessageInput = ({ groupId, currentUser }: GroupMessageInputProps) => 
         />
 
         <TouchableOpacity
-          style={[styles.sendButton, { backgroundColor: message.trim() ? '#667eea' : '#e5e7eb' }]}
+          style={[styles.sendButton, { backgroundColor: message.trim() ? '#0EA5E9' : '#e5e7eb' }]}
           onPress={sendMessage}
           disabled={!message.trim() || sending}
         >
@@ -140,3 +140,4 @@ const styles = StyleSheet.create({
 });
 
 export default GroupMessageInput;
+

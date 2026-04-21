@@ -17,7 +17,7 @@ import { ChatTheme } from '@/context/ChatThemeContext';
 export default function ChatRoomHeader({ user, router, userId, onThemePress, chatTheme, onBack }: { user: any, router: any, userId: string, onThemePress: any, chatTheme?: ChatTheme, onBack?: () => void }) {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = (theme === 'dark' ? Colors.dark : Colors.light) || {
+  const currentThemeColors = (Colors[theme] || Colors.light) || {
     surface: '#F8FAFC',
     text: '#0F172A',
     subtleText: '#64748B',
@@ -246,7 +246,7 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
               <View
                 style={[
                   styles.onlineIndicator,
-                  { backgroundColor: user?.isOnline ? Colors.success : Colors.warning, width: 10, height: 10, borderRadius: 5 }
+                  { backgroundColor: user?.isOnline ? currentThemeColors.success : currentThemeColors.warning, width: 10, height: 10, borderRadius: 5 }
                 ]}
               />
             )}
@@ -269,13 +269,13 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
             style={[styles.actionButton, { backgroundColor: chatTheme?.receivedMessageColor || currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
             onPress={handleAudioCall}
           >
-            <Ionicons name="call" size={16} color={Colors.success} />
+            <Ionicons name="call" size={16} color={currentThemeColors.success} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: chatTheme?.receivedMessageColor || currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
             onPress={handleVideoCall}
           >
-            <Ionicons name="videocam" size={16} color={Colors.primary} />
+            <Ionicons name="videocam" size={16} color={currentThemeColors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             ref={menuButtonRef}
@@ -328,3 +328,4 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
     </LinearGradient>
   );
 }
+

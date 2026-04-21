@@ -1,0 +1,663 @@
+﻿import React, { useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Switch,
+  Alert,
+  Share,
+  Linking,
+  Modal,
+  Platform,
+} from 'react-native';
+import { Image } from 'expo-image';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { LinearGradient } from 'expo-linear-gradient';
+import FeedbackModalSimple from '@/components/common/FeedbackModalSimple';
+import ReportModalSimple from '@/components/common/ReportModalSimple';
+import HelpSupportModalSimple from '@/components/common/HelpSupportModalSimple';
+import BackupRestoreModal from '@/components/common/BackupRestoreModal';
+import DataManagementModal from '@/components/common/DataManagementModal';
+import TestModal from '@/components/common/TestModal';
+import { useRouter } from 'expo-router';
+import { submitFeedback, submitReport, submitSupportRequest } from '@/services/supportService';
+import { useAuth } from '@/context/authContext';
+import { db } from '@/firebaseConfig';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
+
+interface SettingsScreenProps {
+  currentUser?: any;
+  onSignOut?: () => void;
+  onThemeToggle?: () => void;
+  isDarkMode?: boolean;
+}
+
+const glassGradient = ['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.08)'] as const;
+
+const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = false }: SettingsScreenProps) => {
+  const { t, i18n } = useTranslation();
+  const router = useRouter();
+  const { user, refreshUser } = useAuth();
+
+  const [feedbackVisible, setFeedbackVisible] = useState(false);
+  const [reportVisible, setReportVisible] = useState(false);
+  const [helpVisible, setHelpVisible] = useState(false);
+  const [backupVisible, setBackupVisible] = useState(false);
+  const [dataManagementVisible, setDataManagementVisible] = useState(false);
+  const [testModalVisible, setTestModalVisible] = useState(false);
+  const [languageModalVisible, setLanguageModalVisible] = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState(true);
+
+  const palette = useMemo(
+    () => ({
+      text: '#EDFFF8',
+      subtleText: 'rgba(237,255,248,0.75)',
+      softText: 'rgba(237,255,248,0.62)',
+      border: 'rgba(255,255,255,0.22)',
+      card: 'rgba(255,255,255,0.1)',
+      cardStrong: 'rgba(255,255,255,0.16)',
+      success: '#2FE0AC',
+      warning: '#F6C966',
+      danger: '#FF6B7F',
+      info: '#8BD9FF',
+    }),
+    []
+  );
+
+  const changeLanguage = (lng: string) => {
+    i18n.changeLanguage(lng);
+    setLanguageModalVisible(false);
+  };
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/(tabs)/profile');
+  };
+
+  const openEditProfile = () => {
+    try {
+      router.push('/profile/EditProfile');
+    } catch {
+      try {
+        router.push('/(tabs)/profile/EditProfile');
+      } catch {}
+    }
+  };
+
+  const handleToggleOnlineStatus = async (val: boolean) => {
+    setOnlineStatus(val);
+    try {
+      const uid = currentUser?.uid || user?.uid;
+      if (!uid) return;
+      const ref = doc(db, 'users', uid);
+      await updateDoc(ref, { showOnlineStatus: val });
+      if (val === false) {
+        await updateDoc(ref, { isOnline: false });
+      }
+      try {
+        await refreshUser?.();
+      } catch {}
+    } catch {
+      Alert.alert(t('common.error'), t('settings.online_status_error', { defaultValue: 'Could not update online status' }));
+    }
+  };
+
+  const settingsSections = [
+    {
+      title: t('settings.title'),
+      items: [
+        {
+          icon: 'shield-account-outline',
+          title: t('settings.privacy'),
+          subtitle: t('settings.privacy_desc'),
+          onPress: () => router.push('/(screens)/user/PrivacySettingsScreen'),
+          color: palette.success,
+        },
+        {
+          icon: 'lock-reset',
+          title: t('settings.change_password'),
+          subtitle: t('settings.change_password_desc'),
+          onPress: () => router.push('/(screens)/user/ChangePasswordScreen'),
+          color: palette.warning,
+        },
+      ],
+    },
+    {
+      title: t('chat.title'),
+      items: [
+        {
+          icon: 'account-clock-outline',
+          title: t('settings.online_status'),
+          subtitle: t('settings.online_status_desc'),
+          isSwitch: true,
+          value: onlineStatus,
+          onToggle: handleToggleOnlineStatus,
+          color: palette.success,
+        },
+      ],
+    },
+    {
+      title: t('settings.language'),
+      items: [
+        {
+          icon: 'translate',
+          title: t('settings.select_language'),
+          subtitle: i18n.language === 'vi' ? t('settings.vietnamese') : t('settings.english'),
+          onPress: () => setLanguageModalVisible(true),
+          color: palette.info,
+        },
+      ],
+    },
+    {
+      title: t('settings.appearance'),
+      items: [
+        {
+          icon: 'theme-light-dark',
+          title: t('settings.dark_mode'),
+          subtitle: t('settings.appearance_desc'),
+          isSwitch: true,
+          value: isDarkMode,
+          onToggle: onThemeToggle,
+          color: '#9BC4FF',
+        },
+      ],
+    },
+    {
+      title: t('settings.support'),
+      items: [
+        {
+          icon: 'help-circle-outline',
+          title: t('settings.help_center'),
+          subtitle: t('settings.help_center_desc'),
+          onPress: () => setHelpVisible(true),
+          color: '#9BD0FF',
+        },
+        {
+          icon: 'message-star-outline',
+          title: t('settings.send_feedback'),
+          subtitle: t('settings.send_feedback_desc'),
+          onPress: () => setFeedbackVisible(true),
+          color: palette.success,
+        },
+        {
+          icon: 'flag-outline',
+          title: t('settings.report_issue'),
+          subtitle: t('settings.report_issue_desc'),
+          onPress: () => setReportVisible(true),
+          color: palette.danger,
+        },
+        {
+          icon: 'share-variant-outline',
+          title: t('settings.share_app'),
+          subtitle: t('settings.share_app_desc'),
+          onPress: () => handleShare(),
+          color: palette.info,
+        },
+      ],
+    },
+    {
+      title: t('settings.legal'),
+      items: [
+        {
+          icon: 'file-document-outline',
+          title: t('settings.terms'),
+          subtitle: t('settings.terms_desc'),
+          onPress: () => handleOpenURL('https://nguyenduong24.github.io/ChappAt-Legal-Site/terms.html'),
+          color: '#D4FFE8',
+        },
+        {
+          icon: 'shield-check-outline',
+          title: t('settings.privacy_policy'),
+          subtitle: t('settings.privacy_policy_desc'),
+          onPress: () => handleOpenURL('https://nguyenduong24.github.io/ChappAt-Legal-Site/privacy.html'),
+          color: '#D4FFE8',
+        },
+        {
+          icon: 'information-outline',
+          title: t('settings.about'),
+          subtitle: t('settings.about_desc'),
+          onPress: () => showAppInfo(),
+          color: '#D4FFE8',
+        },
+      ],
+    },
+  ];
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: t('settings.share_message'),
+        title: t('settings.share_title'),
+      });
+    } catch {
+      Alert.alert(t('common.error'), t('settings.share_error', { defaultValue: 'Could not share app' }));
+    }
+  };
+
+  const handleOpenURL = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(t('common.error'), t('common.error_url', { defaultValue: 'Could not open link' }));
+      }
+    } catch {
+      Alert.alert(t('common.error'), t('common.error_url', { defaultValue: 'Could not open link' }));
+    }
+  };
+
+  const showAppInfo = () => {
+    Alert.alert(
+      t('settings.about'),
+      `ChappAt - ${t('home.subtitle')}\n${t('settings.about_desc')}\nB?n quy?n © 2026`,
+      [{ text: t('common.ok') }]
+    );
+  };
+
+  const handleSignOut = () => {
+    Alert.alert(t('profile.logout'), t('settings.logout_confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.logout'),
+        style: 'destructive',
+        onPress: () => onSignOut?.(),
+      },
+    ]);
+  };
+
+  const handleFeedbackSubmit = async (feedback: any) => {
+    try {
+      await submitFeedback(feedback, {
+        uid: currentUser?.uid,
+        email: currentUser?.email,
+        username: currentUser?.username || currentUser?.displayName,
+      });
+    } catch (e) {
+      console.log('submitFeedback error', e);
+      throw e;
+    }
+  };
+
+  const handleReportSubmit = async (report: any) => {
+    try {
+      const userInfo = {
+        uid: currentUser?.uid || user?.uid,
+        email: currentUser?.email || user?.email,
+        username: currentUser?.username || currentUser?.displayName || user?.username || user?.displayName,
+      };
+      const sanitized = { ...report, images: Array.isArray(report?.images) ? report.images : [] };
+      await submitReport(sanitized, userInfo);
+    } catch (e) {
+      console.log('submitReport error:', e);
+      throw e;
+    }
+  };
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const uid = currentUser?.uid || user?.uid;
+        if (!uid) return;
+        const ref = doc(db, 'users', uid);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          const data: any = snap.data();
+          if (typeof data?.showOnlineStatus === 'boolean') {
+            setOnlineStatus(data.showOnlineStatus);
+          }
+        }
+      } catch {}
+    })();
+  }, [currentUser?.uid, user?.uid]);
+
+  const renderSection = (section: any) => (
+    <View key={section.title} style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: palette.softText }]}>{section.title}</Text>
+      <LinearGradient colors={glassGradient} style={styles.sectionContent}>
+        {section.items.map((it: any) =>
+          it.isSwitch ? (
+            <View key={it.title} style={[styles.settingItem, { borderBottomColor: palette.border }]}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+                  <MaterialCommunityIcons name={it.icon} size={20} color={it.color} />
+                </View>
+                <View style={styles.settingContentWrap}>
+                  <Text style={[styles.settingTitle, { color: palette.text }]}>{it.title}</Text>
+                  <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>{it.subtitle}</Text>
+                </View>
+              </View>
+              <Switch
+                value={it.value}
+                onValueChange={it.onToggle}
+                trackColor={{ false: 'rgba(255,255,255,0.25)', true: 'rgba(89,224,177,0.5)' }}
+                thumbColor={it.value ? '#EFFFF8' : '#FFFFFF'}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              key={it.title}
+              style={[styles.settingItem, { borderBottomColor: palette.border }]}
+              onPress={it.onPress}
+              activeOpacity={0.88}
+            >
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+                  <MaterialCommunityIcons name={it.icon} size={20} color={it.color} />
+                </View>
+                <View style={styles.settingContentWrap}>
+                  <Text style={[styles.settingTitle, { color: palette.text }]}>{it.title}</Text>
+                  <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>{it.subtitle}</Text>
+                </View>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={palette.subtleText} />
+            </TouchableOpacity>
+          )
+        )}
+      </LinearGradient>
+    </View>
+  );
+
+  const displayName = currentUser?.displayName || currentUser?.username || user?.displayName || user?.username || t('chat.unknown_user');
+  const displayEmail = currentUser?.email || user?.email || t('settings.no_email');
+  const displayAvatar = currentUser?.profileUrl || user?.profileUrl || user?.photoURL || 'https://via.placeholder.com/80';
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient colors={['#0A6C54', '#0C5D49', '#0A4C3B']} style={StyleSheet.absoluteFillObject} />
+
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.86}>
+          <MaterialCommunityIcons name="chevron-left" size={24} color={palette.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: palette.text }]}>{t('settings.title')}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
+        <LinearGradient colors={glassGradient} style={styles.userInfo}>
+          <Image source={{ uri: displayAvatar }} style={styles.userAvatar} contentFit="cover" />
+          <View style={styles.userDetails}>
+            <Text style={[styles.userName, { color: palette.text }]}>{displayName}</Text>
+            <Text style={[styles.userEmail, { color: palette.subtleText }]}>{displayEmail}</Text>
+          </View>
+          <TouchableOpacity style={styles.editProfileButton} onPress={openEditProfile}>
+            <MaterialCommunityIcons name="pencil" size={18} color={palette.text} />
+          </TouchableOpacity>
+        </LinearGradient>
+
+        {settingsSections.map(renderSection)}
+
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.9}>
+          <LinearGradient colors={['rgba(255,117,138,0.95)', 'rgba(232,84,108,0.95)']} style={styles.signOutGradient}>
+            <MaterialCommunityIcons name="logout" size={18} color="#FFFFFF" />
+            <Text style={styles.signOutText}>{t('profile.logout')}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <Modal visible={languageModalVisible} transparent animationType="fade" onRequestClose={() => setLanguageModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <LinearGradient colors={glassGradient} style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: palette.text }]}>{t('settings.select_language')}</Text>
+              <TouchableOpacity onPress={() => setLanguageModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={palette.text} />
+              </TouchableOpacity>
+            </View>
+
+            {[
+              { key: 'vi', label: t('settings.vietnamese') },
+              { key: 'en', label: t('settings.english') },
+            ].map((lang) => {
+              const selected = i18n.language === lang.key;
+              return (
+                <TouchableOpacity
+                  key={lang.key}
+                  style={[styles.languageOption, selected && styles.languageOptionActive]}
+                  onPress={() => changeLanguage(lang.key)}
+                >
+                  <Text style={[styles.languageText, { color: palette.text }]}>{lang.label}</Text>
+                  {selected && <MaterialCommunityIcons name="check" size={18} color="#9FF7D8" />}
+                </TouchableOpacity>
+              );
+            })}
+          </LinearGradient>
+        </View>
+      </Modal>
+
+      <FeedbackModalSimple visible={feedbackVisible} onClose={() => setFeedbackVisible(false)} onSubmit={handleFeedbackSubmit} />
+
+      <ReportModalSimple
+        visible={reportVisible}
+        onClose={() => setReportVisible(false)}
+        onSubmit={handleReportSubmit}
+        targetType="user"
+        targetInfo={{
+          id: 'app-issue',
+          name: '?ng d?ng ChappAt',
+          content: 'Báo cáo s? c? ?ng d?ng',
+        }}
+        currentUser={currentUser}
+      />
+
+      <HelpSupportModalSimple
+        visible={helpVisible}
+        onClose={() => setHelpVisible(false)}
+        startInContactForm={false}
+        onSubmitContact={async (message: string, email?: string, images?: string[], type?: 'support' | 'bug' | 'suggestion') => {
+          try {
+            await submitSupportRequest(message, email, images, type, {
+              uid: currentUser?.uid || user?.uid,
+              email: currentUser?.email || user?.email,
+              username: currentUser?.username || currentUser?.displayName || user?.username || user?.displayName,
+            });
+            Alert.alert('? ' + t('common.success'), t('settings.support_success'));
+          } catch (e) {
+            console.error('Submit support request error:', e);
+            Alert.alert('? ' + t('common.error'), t('settings.support_error'));
+          }
+        }}
+      />
+
+      <BackupRestoreModal visible={backupVisible} onClose={() => setBackupVisible(false)} />
+      <DataManagementModal visible={dataManagementVisible} onClose={() => setDataManagementVisible(false)} />
+      <TestModal visible={testModalVisible} onClose={() => setTestModalVisible(false)} title="Test Modal" />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 56 : 24,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+  },
+  headerTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  headerSpacer: {
+    width: 38,
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 26,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    marginBottom: 14,
+  },
+  userAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  userEmail: {
+    marginTop: 2,
+    fontSize: 12,
+  },
+  editProfileButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  section: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 7,
+    marginLeft: 2,
+    letterSpacing: 0.7,
+  },
+  sectionContent: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    overflow: 'hidden',
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  settingContentWrap: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  settingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  settingSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  signOutButton: {
+    marginTop: 8,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  signOutGradient: {
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  signOutText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2,12,10,0.6)',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  languageOption: {
+    minHeight: 44,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  languageOptionActive: {
+    backgroundColor: 'rgba(159,247,216,0.16)',
+    borderColor: 'rgba(159,247,216,0.55)',
+  },
+  languageText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
+
+export default SettingsScreen;

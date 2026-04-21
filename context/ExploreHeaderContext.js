@@ -1,8 +1,8 @@
 import React, { createContext, useContext } from 'react';
 import { Platform } from 'react-native';
 
-export const HEADER_HEIGHT = Platform.OS === 'ios' ? 280 : 260;
-export const COLLAPSED_HEADER_HEIGHT = Platform.OS === 'ios' ? 70 : 60;
+export const HEADER_HEIGHT = Platform.OS === 'ios' ? 228 : 212;
+export const COLLAPSED_HEADER_HEIGHT = Platform.OS === 'ios' ? 66 : 56;
 export const SCROLL_DISTANCE = HEADER_HEIGHT - COLLAPSED_HEADER_HEIGHT;
 
 // Create context with default values

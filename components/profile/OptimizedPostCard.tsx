@@ -73,7 +73,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  const colors = theme === 'dark' ? Colors.dark : Colors.light;
+  const colors = Colors[theme] || Colors.light;
   const router = useRouter();
   const { user } = useAuth();
   const viewerShowOnline = user?.showOnlineStatus !== false;
@@ -805,3 +805,4 @@ const styles = StyleSheet.create({
 });
 
 export default OptimizedPostCard;
+

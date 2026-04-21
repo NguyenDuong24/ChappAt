@@ -1,7 +1,5 @@
-import { View, Text } from 'react-native'
 import React from 'react'
 import { Stack } from 'expo-router'
-import HomeHeader from '@/components/home/HomeHeader';
 
 const StackLayout = () => {
   return (
@@ -11,16 +9,14 @@ const StackLayout = () => {
         animation: 'slide_from_right',
         animationDuration: 200,
         gestureEnabled: true,
-        freezeOnBlur: true,
+        freezeOnBlur: false,
+        contentStyle: { backgroundColor: 'transparent' },
       }}
     >
       <Stack.Screen
         name="index"
         options={{
-          headerShown: true,
-          header: () => <HomeHeader />,
-          headerTransparent: true,
-          headerTitle: "",
+          headerShown: false,
           animation: 'fade',
         }}
       />

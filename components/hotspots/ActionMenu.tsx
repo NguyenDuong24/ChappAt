@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, Share, Linking, Platform, Ale
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { HotSpot } from '@/types/hotSpots';
 import { useRouter } from 'expo-router';
+import { useTheme } from '@/context/ThemeContext';
+import LiquidSurface from '@/components/liquid/LiquidSurface';
 
 type ActionMenuProps = {
   hotSpot: HotSpot;
@@ -10,12 +12,13 @@ type ActionMenuProps = {
 
 const ActionMenu = ({ hotSpot }: ActionMenuProps) => {
   const router = useRouter();
+  const { theme } = useTheme();
 
   const handleShare = async () => {
     try {
       await Share.share({
         message: `Check out this hot spot: ${hotSpot.title}! Find it on ChappAt.`,
-        url: 'https://example.com/hotspot/' + hotSpot.id, // Replace with your app's deep link URL
+        url: `https://example.com/hotspot/${hotSpot.id}`,
       });
     } catch (error) {
       console.error('Error sharing hot spot:', error);
@@ -33,35 +36,34 @@ const ActionMenu = ({ hotSpot }: ActionMenuProps) => {
 
   const handleInviteFriend = () => {
     router.push({
-      pathname: '/AddFriend', // Corrected path
+      pathname: '/AddFriend',
       params: { hotSpotId: hotSpot.id, hotSpotTitle: hotSpot.title, context: 'inviteToHotSpot' },
     });
   };
 
   const handleViewReviews = () => {
-    // TODO: Navigate to reviews screen
-    Alert.alert('Tính năng đang phát triển', 'Chức năng xem đánh giá sẽ được thêm trong phiên bản sau.');
+    Alert.alert('Feature in progress', 'Review screen will be added in a coming update.');
   };
 
   return (
-    <View style={styles.actionsContainer}>
+    <LiquidSurface themeMode={theme} style={styles.actionsContainer} intensity={16} borderRadius={18}>
       <TouchableOpacity style={styles.actionButton} onPress={handleGetDirections}>
         <FontAwesome5 name="directions" size={20} color="#4ECDC4" />
-        <Text style={styles.actionText}>Chỉ đường</Text>
+        <Text style={styles.actionText}>Directions</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={handleInviteFriend}>
         <MaterialIcons name="person-add" size={24} color="#4ECDC4" />
-        <Text style={styles.actionText}>Mời bạn</Text>
+        <Text style={styles.actionText}>Invite</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={handleViewReviews}>
         <MaterialIcons name="star" size={24} color="#4ECDC4" />
-        <Text style={styles.actionText}>Đánh giá</Text>
+        <Text style={styles.actionText}>Reviews</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
         <MaterialIcons name="share" size={24} color="#4ECDC4" />
-        <Text style={styles.actionText}>Chia sẻ</Text>
+        <Text style={styles.actionText}>Share</Text>
       </TouchableOpacity>
-    </View>
+    </LiquidSurface>
   );
 };
 
@@ -70,10 +72,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: 15,
-    backgroundColor: '#fff',
+    marginHorizontal: 12,
+    marginVertical: 8,
+    backgroundColor: 'transparent',
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#eee',
+    borderColor: 'rgba(152, 214, 198, 0.35)',
   },
   actionButton: {
     alignItems: 'center',
@@ -83,8 +87,10 @@ const styles = StyleSheet.create({
   actionText: {
     marginTop: 5,
     fontSize: 12,
-    color: '#333',
+    color: '#1A3A34',
+    fontWeight: '600',
   },
 });
 
 export default ActionMenu;
+

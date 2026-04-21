@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Chip } from 'react-native-paper';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { ThemeContext } from '@/context/ThemeContext';
+import { ThemeContext, useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/authContext';
 import { useUserContext } from '@/context/UserContext';
 import { Colors } from '@/constants/Colors';
@@ -31,16 +31,15 @@ interface PostData {
   timestamp: any;
   userID: string;
   username: string;
-  likes?: string[];
+  likes: string[];
   comments?: any[];
   shares?: number;
   address?: string;
 }
 
 const HashtagScreen: React.FC = () => {
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const { theme, isDark, palette } = useTheme();
+  const currentThemeColors = isDark ? Colors.dark : Colors.light;
   const { user } = useAuth();
   const { preloadUsers } = useUserContext();
   const router = useRouter();
@@ -96,7 +95,7 @@ const HashtagScreen: React.FC = () => {
         snapshot = await getDocs(q);
       }
 
-      const pagePosts = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as PostData));
+      const pagePosts = snapshot.docs.map(d => ({ id: d.id, likes: [], ...d.data() as any } as PostData));
       const nextLastDoc = snapshot.docs.length > 0 ? snapshot.docs[snapshot.docs.length - 1] : lastDoc;
 
       const newList = refresh ? pagePosts : [...posts, ...pagePosts.filter(p => !posts.some(e => e.id === p.id))];
@@ -177,8 +176,8 @@ const HashtagScreen: React.FC = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={currentThemeColors.background} />
+      <SafeAreaView style={[styles.container, { backgroundColor: isDark ? 'transparent' : currentThemeColors.background }]}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" />
         {renderHeader()}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
@@ -189,8 +188,8 @@ const HashtagScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={currentThemeColors.background} />
+    <SafeAreaView style={[styles.container, { backgroundColor: isDark ? 'transparent' : currentThemeColors.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" />
       <FlatList
         data={posts}
         renderItem={renderPostItem}

@@ -21,7 +21,7 @@ export default function ButtonToChat({ id }: ButtonToChatProps) {
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const { user } = useAuth();
   const { navigateToListenCallScreen } = useCallNavigation();
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
 
   const handleAudioCall = async () => {
@@ -126,3 +126,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+

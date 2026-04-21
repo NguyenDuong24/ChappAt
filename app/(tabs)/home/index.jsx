@@ -1,18 +1,24 @@
-import React, { useContext, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity, BackHandler, ToastAndroid, Platform } from 'react-native';
+import React, { useContext, useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { View, StyleSheet, Text, TouchableOpacity, BackHandler, ToastAndroid, Platform, useWindowDimensions, InteractionManager } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import ListUser from '@/components/home/ListUser';
-import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
+import { useStateCommon } from '@/context/stateCommon';
 import useHome from './useHome';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTranslation } from 'react-i18next';
+import LiquidScreen from '@/components/liquid/LiquidScreen';
+import HomeHeader from '@/components/home/HomeHeader';
+import { RevealScalableView } from '@/components/reveal';
+import AppDrawer from '@/components/drawer/AppDrawer';
+import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
 
 // Premium Loading State using Skeletons
 const LoadingView = ({ theme, currentThemeColors }) => (
-  <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background, justifyContent: 'flex-start', paddingTop: 100 }]}>
+  <View style={[styles.centerContainer, { backgroundColor: 'transparent', justifyContent: 'flex-start', paddingTop: 100 }]}>
     {[1, 2, 3, 4, 5, 6].map((i) => (
       <View key={i} style={[styles.skeletonCard, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
         <View style={[styles.skeletonAvatar, { backgroundColor: theme === 'dark' ? '#2A2A2A' : '#E2E8F0' }]} />
@@ -32,7 +38,7 @@ const LoadingView = ({ theme, currentThemeColors }) => (
 
 // Empty State with Premium Feel
 const EmptyView = ({ theme, currentThemeColors, t }) => (
-  <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background }]}>
+  <View style={[styles.centerContainer, { backgroundColor: 'transparent' }]}>
     <View style={[styles.emptyGlassContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
       <View style={[styles.emptyIconCircle, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
         <MaterialIcons name="person-search" size={60} color={currentThemeColors.subtleText} />
@@ -45,7 +51,7 @@ const EmptyView = ({ theme, currentThemeColors, t }) => (
 
 // Error State with Retry logic
 const ErrorView = ({ error, onRetry, currentThemeColors, t }) => (
-  <View style={[styles.centerContainer, { backgroundColor: currentThemeColors.background }]}>
+  <View style={[styles.centerContainer, { backgroundColor: 'transparent' }]}>
     <View style={[styles.errorGlassContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
       <MaterialIcons name="error-outline" size={50} color={Colors.warning} />
       <Text style={[styles.errorText, { color: currentThemeColors.text }]}>{error}</Text>
@@ -61,21 +67,82 @@ const ErrorView = ({ error, onRetry, currentThemeColors, t }) => (
 
 function Home() {
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const theme = useContext(ThemeContext)?.theme || 'light';
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
+  const router = useRouter();
+  const { stateCommon } = useStateCommon();
   const currentThemeColors = useMemo(() =>
-    theme === 'dark' ? Colors.dark : Colors.light,
+    Colors[theme] || Colors.light,
     [theme]
   );
 
   const isFocused = useIsFocused();
+  const { width } = useWindowDimensions();
   const lastPressRef = useRef(0);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [drawerTab, setDrawerTab] = useState('filter');
+  const [featureDrawer, setFeatureDrawer] = useState(null);
+  const drawerOffset = useMemo(() => Math.min(width * 0.62, 250), [width]);
+  const revealActive = drawerVisible || !!featureDrawer;
   const { users, loading, refreshing, error, loadMore, hasMore, refresh } = useHome(isFocused);
+  const activeFiltersCount = useMemo(() => {
+    const f = stateCommon?.filter || {};
+    let count = 0;
+    if (f.gender && f.gender !== 'all') count++;
+    if (f.minAge) count++;
+    if (f.maxAge) count++;
+    if (f.distance && f.distance !== 'all') count++;
+    if (f.educationLevel) count++;
+    if (f.job) count++;
+    if (Array.isArray(f.interests) && f.interests.length > 0) count++;
+    return count;
+  }, [stateCommon?.filter]);
+
+  const openFilterDrawer = useCallback(() => {
+    setFeatureDrawer(null);
+    setDrawerTab('filter');
+    setDrawerVisible(true);
+  }, []);
+
+  const openSettingsDrawer = useCallback(() => {
+    setFeatureDrawer(null);
+    setDrawerTab('settings');
+    setDrawerVisible(true);
+  }, []);
+
+  const closeDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
+  const openFeatureDrawer = useCallback((key) => {
+    setDrawerVisible(false);
+    InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(() => {
+        setFeatureDrawer(key);
+      });
+    });
+  }, []);
+
+  const closeFeatureDrawer = useCallback(() => {
+    setFeatureDrawer(null);
+  }, []);
+
+  const openRadar = useCallback(() => {
+    router.push('/ProximityRadar');
+  }, [router]);
 
   // Handle Android Back Button to exit app
   useEffect(() => {
     const onBackPress = () => {
       if (!isFocused) return false;
+      if (featureDrawer) {
+        setFeatureDrawer(null);
+        return true;
+      }
+      if (drawerVisible) {
+        setDrawerVisible(false);
+        return true;
+      }
       const now = Date.now();
       if (now - lastPressRef.current < 2000) {
         BackHandler.exitApp();
@@ -88,7 +155,7 @@ function Home() {
 
     BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-  }, [isFocused]);
+  }, [drawerVisible, featureDrawer, isFocused, t]);
 
   const onRefresh = useCallback(async () => {
     await refresh();
@@ -112,12 +179,39 @@ function Home() {
   }, [loading, users, error, refreshing, refresh, theme, currentThemeColors, onRefresh, loadMore, hasMore, t]);
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      {/* Main Content */}
-      <View style={styles.contentContainer}>
-        {content}
-      </View>
-    </View>
+    <LiquidScreen themeMode={theme}>
+      <RevealScalableView
+        revealed={revealActive}
+        side="left"
+        scale={0.86}
+        offset={drawerOffset}
+        style={styles.revealContainer}
+      >
+        <HomeHeader
+          activeFiltersCount={activeFiltersCount}
+          onOpenFilter={openFilterDrawer}
+          onOpenSettings={openSettingsDrawer}
+          onOpenRadar={openRadar}
+        />
+        <View style={styles.contentContainer}>
+          <View style={styles.contentBody}>
+            {content}
+          </View>
+        </View>
+      </RevealScalableView>
+
+      <AppDrawer
+        visible={drawerVisible}
+        tab={drawerTab}
+        onClose={closeDrawer}
+      />
+
+      <FeatureActionDrawer
+        visible={!!featureDrawer}
+        drawerKey={featureDrawer}
+        onClose={closeFeatureDrawer}
+      />
+    </LiquidScreen>
   );
 };
 
@@ -128,6 +222,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
+    flex: 1,
+    paddingTop: Platform.OS === 'ios' ? 116 : 96,
+  },
+  contentBody: {
+    flex: 1,
+  },
+  revealContainer: {
     flex: 1,
   },
   centerContainer: {
@@ -224,3 +325,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+

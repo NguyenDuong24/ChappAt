@@ -1,13 +1,15 @@
-import React, { useContext, useState } from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Menu } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ThemeContext } from '@/context/ThemeContext';
+import { useThemedColors } from '@/hooks/useThemedColors';
+import { useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { formatTime } from '@/utils/common';
 import { getPrivacyIcon } from '@/utils/postPrivacyUtils';
 import VibeAvatar from '@/components/vibe/VibeAvatar';
 import { UserVibe } from '@/types/vibe';
+import { getLiquidMenuContentStyle, getLiquidMenuItemTitleStyle } from '@/components/liquid';
 
 interface PostHeaderProps {
   userInfo: {
@@ -39,9 +41,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   isFollowing = false,
   onFollowPress
 }) => {
-  const themeCtx = useContext(ThemeContext);
-  const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const colors = useThemedColors();
+  const { theme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
 
   const openMenu = () => setMenuVisible(true);
@@ -70,18 +71,18 @@ const PostHeader: React.FC<PostHeaderProps> = ({
         />
         <View style={styles.userInfo}>
           <View style={styles.usernameContainer}>
-            <Text style={[styles.username, { color: currentThemeColors.text }]}>
+            <Text style={[styles.username, { color: colors.text }]} numberOfLines={1}>
               {userInfo?.username || 'Unknown User'}
             </Text>
             {/* Privacy Icon */}
             <MaterialIcons
               name={getPrivacyIcon(postPrivacy) as any}
               size={14}
-              color={currentThemeColors.subtleText}
+              color={colors.subtleText}
               style={styles.privacyIcon}
             />
           </View>
-          <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
+          <Text style={[styles.time, { color: colors.subtleText }]}>
             {formatTime(timestamp)}
           </Text>
         </View>
@@ -89,17 +90,18 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 
       {!isOwner && (
         <TouchableOpacity
-          style={[
-            styles.followButton,
+          style={[styles.followButton,
             {
-              borderColor: Colors.primary,
-              backgroundColor: isFollowing ? Colors.primary : 'transparent'
+              borderColor: colors.primary,
+              backgroundColor: isFollowing ? colors.primary : 'transparent',
+              opacity: isFollowing ? 1 : 0.85
             }
           ]}
           onPress={onFollowPress}
           disabled={isFollowing}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.followText, { color: isFollowing ? '#fff' : Colors.primary }]}>
+          <Text style={[styles.followText, { color: isFollowing ? '#fff' : colors.primary }]}>
             {isFollowing ? 'Đã theo dõi' : 'Theo dõi'}
           </Text>
         </TouchableOpacity>
@@ -111,27 +113,27 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             visible={menuVisible}
             onDismiss={closeMenu}
             anchor={
-              <TouchableOpacity onPress={openMenu} style={styles.menuButton}>
+              <TouchableOpacity onPress={openMenu} style={styles.menuButton} activeOpacity={0.6}>
                 <MaterialIcons
                   name="more-vert"
                   size={24}
-                  color={currentThemeColors.icon}
+                  color={colors.icon}
                 />
               </TouchableOpacity>
             }
-            contentStyle={[styles.menuContent, { backgroundColor: currentThemeColors.surface }]}
+            contentStyle={[styles.menuContent, getLiquidMenuContentStyle(theme)]}
           >
             <Menu.Item
               onPress={handlePrivacyChange}
               title="Quyền riêng tư"
-              titleStyle={{ fontSize: 14, color: currentThemeColors.text }}
+              titleStyle={getLiquidMenuItemTitleStyle(theme)}
               leadingIcon="shield-account"
               dense
             />
             <Menu.Item
               onPress={handleDeletePost}
               title="Xóa bài viết"
-              titleStyle={{ fontSize: 14, color: '#ff4444' }}
+              titleStyle={[getLiquidMenuItemTitleStyle(theme), { color: '#ff4444' }]}
               leadingIcon="delete"
               dense
             />
@@ -145,8 +147,9 @@ const PostHeader: React.FC<PostHeaderProps> = ({
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+    justifyContent: 'space-between',
   },
   userContainer: {
     flexDirection: 'row',
@@ -162,12 +165,13 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
     marginLeft: 12,
-    marginTop: 2,
+    marginTop: 1,
   },
   username: {
-    fontWeight: '600',
-    fontSize: 16,
-    marginBottom: 2,
+    fontWeight: '700',
+    fontSize: 15,
+    marginBottom: 3,
+    letterSpacing: 0.3,
   },
   usernameContainer: {
     flexDirection: 'row',
@@ -178,17 +182,18 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   time: {
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: 12,
+    fontWeight: '500',
+    opacity: 0.7,
   },
   menuWrapper: {
     justifyContent: 'center',
     alignItems: 'flex-end',
-    marginLeft: 8,
   },
   menuButton: {
-    padding: 4,
-    marginRight: -8, // Adjust to align with edge
+    padding: 8,
+    borderRadius: 8,
+    marginRight: -8,
   },
   menuContent: {
     borderRadius: 12,
@@ -196,15 +201,16 @@ const styles = StyleSheet.create({
     minWidth: 150,
   },
   followButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    borderWidth: 1.5,
     marginLeft: 8,
   },
   followText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
 
@@ -216,6 +222,7 @@ export default React.memo(PostHeader, (prev, next) => {
     prev.postPrivacy === next.postPrivacy &&
     prev.userInfo?.profileUrl === next.userInfo?.profileUrl &&
     prev.userInfo?.username === next.userInfo?.username &&
-    prev.userInfo?.activeFrame === next.userInfo?.activeFrame
+    prev.userInfo?.activeFrame === next.userInfo?.activeFrame &&
+    prev.isOwner === next.isOwner
   );
 });

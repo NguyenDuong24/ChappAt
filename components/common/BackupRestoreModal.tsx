@@ -35,7 +35,7 @@ interface BackupData {
 const BackupRestoreModal = ({ visible, onClose }: BackupRestoreModalProps) => {
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   
   const [isLoading, setIsLoading] = useState(false);
   const [lastBackup, setLastBackup] = useState<string | null>(null);
@@ -622,3 +622,4 @@ const styles = StyleSheet.create({
 });
 
 export default BackupRestoreModal;
+

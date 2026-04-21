@@ -1,26 +1,24 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../context/authContext';
+import { useAuth } from '@/context/authContext';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
-import { useThemedColors } from '@/hooks/useThemedColors';
 
 const ChangePasswordScreen = () => {
   const { t } = useTranslation();
-  const colors = useThemedColors();
   const router = useRouter();
   const { updateUserPassword } = useAuth();
 
@@ -31,6 +29,21 @@ const ChangePasswordScreen = () => {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
+  const palette = useMemo(
+    () => ({
+      text: '#EDFFF8',
+      subtleText: 'rgba(237,255,248,0.78)',
+      softText: 'rgba(237,255,248,0.64)',
+      border: 'rgba(255,255,255,0.22)',
+      inputBg: 'rgba(255,255,255,0.1)',
+      inputBgFocus: 'rgba(255,255,255,0.16)',
+      primary: '#9FF7D8',
+      buttonStart: '#90F5D2',
+      buttonEnd: '#65E7BA',
+    }),
+    []
+  );
 
   const handleUpdatePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -52,125 +65,117 @@ const ChangePasswordScreen = () => {
     try {
       const result = await updateUserPassword(currentPassword, newPassword);
       if (result.success) {
-        Alert.alert(t('common.success'), t('settings.change_password_success', { defaultValue: 'Mật khẩu đã được cập nhật thành công' }));
+        Alert.alert(t('common.success'), t('settings.change_password_success', { defaultValue: 'M?t kh?u d� du?c c?p nh?t th�nh c�ng' }));
         router.back();
       } else {
         Alert.alert(t('common.error'), result.msg);
       }
-    } catch (error) {
+    } catch {
       Alert.alert(t('common.error'), t('common.error_generic'));
     } finally {
       setLoading(false);
     }
   };
 
+  const renderInput = (
+    label: string,
+    value: string,
+    onChangeText: (value: string) => void,
+    secure: boolean,
+    onToggleSecure: () => void,
+    icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'],
+    placeholder: string
+  ) => (
+    <View style={styles.inputBlock}>
+      <Text style={[styles.label, { color: palette.softText }]}>{label}</Text>
+      <View style={[styles.inputWrap, { borderColor: palette.border, backgroundColor: palette.inputBg }]}>
+        <MaterialCommunityIcons name={icon} size={18} color={palette.subtleText} style={styles.inputIcon} />
+        <TextInput
+          style={[styles.input, { color: palette.text }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={palette.softText}
+          secureTextEntry={secure}
+        />
+        <TouchableOpacity onPress={onToggleSecure} hitSlop={10}>
+          <MaterialCommunityIcons
+            name={secure ? 'eye-outline' : 'eye-off-outline'}
+            size={18}
+            color={palette.subtleText}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <LinearGradient
-        colors={colors.isDark ? [colors.background, colors.surface] : ['#F8FAFC', '#EFF6FF']}
-        style={styles.background}
-      />
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+      <LinearGradient colors={['#0A6C54', '#0C5D49', '#0A4C3B']} style={StyleSheet.absoluteFillObject} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.cardBackground }]}>
-          <MaterialCommunityIcons name="chevron-left" size={28} color={colors.text} />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.86}>
+          <MaterialCommunityIcons name="chevron-left" size={24} color={palette.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings.change_password')}</Text>
+        <Text style={[styles.headerTitle, { color: palette.text }]}>{t('settings.change_password')}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.iconContainer}>
-          <LinearGradient
-            colors={[colors.primary, colors.tintDark || colors.primary]}
-            style={styles.iconGradient}
-          >
-            <MaterialCommunityIcons name="lock-reset" size={40} color="#FFFFFF" />
-          </LinearGradient>
-        </View>
-
-        <Text style={[styles.description, { color: colors.subtleText }]}>
-          {t('settings.change_password_desc')}
-        </Text>
-
-        <View style={styles.form}>
-          <View style={styles.inputContainer}>
-            <Text style={[styles.label, { color: colors.text }]}>{t('settings.current_password', { defaultValue: 'Mật khẩu hiện tại' })}</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <MaterialCommunityIcons name="lock-outline" size={20} color={colors.subtleText} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder={t('settings.current_password_placeholder', { defaultValue: 'Nhập mật khẩu hiện tại' })}
-                secureTextEntry={!showCurrent}
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                placeholderTextColor={colors.mutedText}
-              />
-              <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
-                <MaterialCommunityIcons name={showCurrent ? "eye-off-outline" : "eye-outline"} size={20} color={colors.subtleText} />
-              </TouchableOpacity>
-            </View>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.08)']} style={styles.heroCard}>
+          <View style={styles.heroIcon}>
+            <MaterialCommunityIcons name="lock-reset" size={30} color={palette.text} />
           </View>
+          <Text style={[styles.heroTitle, { color: palette.text }]}>{t('settings.change_password')}</Text>
+          <Text style={[styles.heroDescription, { color: palette.subtleText }]}>
+            {t('settings.change_password_desc')}
+          </Text>
+        </LinearGradient>
 
-          <View style={styles.inputContainer}>
-            <Text style={[styles.label, { color: colors.text }]}>{t('settings.new_password', { defaultValue: 'Mật khẩu mới' })}</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <MaterialCommunityIcons name="lock-plus-outline" size={20} color={colors.subtleText} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder={t('settings.new_password_placeholder', { defaultValue: 'Nhập mật khẩu mới' })}
-                secureTextEntry={!showNew}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                placeholderTextColor={colors.mutedText}
-              />
-              <TouchableOpacity onPress={() => setShowNew(!showNew)}>
-                <MaterialCommunityIcons name={showNew ? "eye-off-outline" : "eye-outline"} size={20} color={colors.subtleText} />
-              </TouchableOpacity>
-            </View>
-          </View>
+        <LinearGradient colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.08)']} style={styles.formCard}>
+          {renderInput(
+            t('settings.current_password', { defaultValue: 'M?t kh?u hi?n t?i' }),
+            currentPassword,
+            setCurrentPassword,
+            !showCurrent,
+            () => setShowCurrent((prev) => !prev),
+            'lock-outline',
+            t('settings.current_password_placeholder', { defaultValue: 'Nh?p m?t kh?u hi?n t?i' })
+          )}
 
-          <View style={styles.inputContainer}>
-            <Text style={[styles.label, { color: colors.text }]}>{t('settings.confirm_new_password', { defaultValue: 'Xác nhận mật khẩu mới' })}</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <MaterialCommunityIcons name="lock-check-outline" size={20} color={colors.subtleText} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                placeholder={t('settings.confirm_new_password_placeholder', { defaultValue: 'Nhập lại mật khẩu mới' })}
-                secureTextEntry={!showConfirm}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholderTextColor={colors.mutedText}
-              />
-              <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-                <MaterialCommunityIcons name={showConfirm ? "eye-off-outline" : "eye-outline"} size={20} color={colors.subtleText} />
-              </TouchableOpacity>
-            </View>
-          </View>
+          {renderInput(
+            t('settings.new_password', { defaultValue: 'M?t kh?u m?i' }),
+            newPassword,
+            setNewPassword,
+            !showNew,
+            () => setShowNew((prev) => !prev),
+            'lock-plus-outline',
+            t('settings.new_password_placeholder', { defaultValue: 'Nh?p m?t kh?u m?i' })
+          )}
 
-          <TouchableOpacity
-            style={styles.submitButton}
-            onPress={handleUpdatePassword}
-            disabled={loading}
-          >
-            <LinearGradient
-              colors={[colors.primary, colors.tintDark || colors.primary]}
-              style={styles.submitGradient}
-            >
+          {renderInput(
+            t('settings.confirm_new_password', { defaultValue: 'X�c nh?n m?t kh?u m?i' }),
+            confirmPassword,
+            setConfirmPassword,
+            !showConfirm,
+            () => setShowConfirm((prev) => !prev),
+            'lock-check-outline',
+            t('settings.confirm_new_password_placeholder', { defaultValue: 'Nh?p l?i m?t kh?u m?i' })
+          )}
+
+          <TouchableOpacity style={styles.submitButton} onPress={handleUpdatePassword} disabled={loading} activeOpacity={0.9}>
+            <LinearGradient colors={[palette.buttonStart, palette.buttonEnd]} style={styles.submitGradient}>
               {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
+                <ActivityIndicator color="#0D4A3B" />
               ) : (
                 <>
+                  <MaterialCommunityIcons name="check" size={18} color="#0D4A3B" />
                   <Text style={styles.submitText}>{t('common.save')}</Text>
-                  <MaterialCommunityIcons name="check" size={20} color="#FFFFFF" />
                 </>
               )}
             </LinearGradient>
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -180,111 +185,111 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  background: {
-    ...StyleSheet.absoluteFillObject,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingTop: Platform.OS === 'ios' ? 56 : 24,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 19,
+    fontWeight: '800',
   },
   headerSpacer: {
-    width: 40,
+    width: 38,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingBottom: 28,
   },
-  iconContainer: {
+  heroCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    padding: 16,
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 24,
+    marginBottom: 12,
   },
-  iconGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  heroIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    marginBottom: 10,
   },
-  description: {
-    fontSize: 15,
+  heroTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  heroDescription: {
+    marginTop: 4,
+    fontSize: 12,
     textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-    paddingHorizontal: 20,
   },
-  form: {
-    gap: 20,
+  formCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    padding: 14,
   },
-  inputContainer: {
-    gap: 8,
+  inputBlock: {
+    marginBottom: 10,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 4,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
+    marginLeft: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  inputWrapper: {
+  inputWrap: {
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 46,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    height: 56,
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
   },
   submitButton: {
-    marginTop: 12,
-    borderRadius: 16,
+    marginTop: 6,
+    borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
   submitGradient: {
+    height: 46,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 56,
-    gap: 8,
+    gap: 6,
   },
   submitText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0D4A3B',
   },
 });
 

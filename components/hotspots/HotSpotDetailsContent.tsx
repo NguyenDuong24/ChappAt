@@ -4,7 +4,8 @@ import { HotSpot } from '@/types/hotSpots';
 import HashtagDisplay from '../common/HashtagDisplay';
 import HashtagText from '../common/HashtagText';
 import { useRouter } from 'expo-router';
-import { Colors } from '@/constants/Colors';
+import { ThemeContext } from '@/context/ThemeContext';
+import { getLiquidPalette } from '../liquid';
 
 type HotSpotDetailsContentProps = {
   hotSpot: HotSpot;
@@ -12,6 +13,9 @@ type HotSpotDetailsContentProps = {
 
 const HotSpotDetailsContent = ({ hotSpot }: HotSpotDetailsContentProps) => {
   const router = useRouter();
+  const themeContext = React.useContext(ThemeContext);
+  const theme = themeContext?.theme || 'light';
+  const palette = React.useMemo(() => themeContext?.palette || getLiquidPalette(theme), [theme, themeContext]);
 
   const handleHashtagPress = (hashtag: string) => {
     const cleanHashtag = hashtag.replace('#', '');
@@ -20,18 +24,18 @@ const HotSpotDetailsContent = ({ hotSpot }: HotSpotDetailsContentProps) => {
 
   return (
     <View style={styles.detailsContainer}>
-      <Text style={styles.sectionTitle}>Mô tả</Text>
+      <Text style={[styles.sectionTitle, { color: palette.textColor }]}>Mô tả</Text>
       <HashtagText
         text={hotSpot.description}
         onHashtagPress={handleHashtagPress}
-        textStyle={styles.description}
-        hashtagStyle={styles.hashtagStyle}
+        textStyle={[styles.description, { color: palette.subtitleColor }]}
+        hashtagStyle={[styles.hashtagStyle, { color: palette.sphereGradient[0] }]}
       />
 
       {/* Tags */}
       {hotSpot.tags && hotSpot.tags.length > 0 && (
         <View style={styles.tagsSection}>
-          <Text style={styles.sectionTitle}>Tags</Text>
+          <Text style={[styles.sectionTitle, { color: palette.textColor }]}>Tags</Text>
           <HashtagDisplay
             hashtags={hotSpot.tags}
             maxDisplay={10}
@@ -43,61 +47,61 @@ const HotSpotDetailsContent = ({ hotSpot }: HotSpotDetailsContentProps) => {
 
       {/* Stats */}
       <View style={styles.statsSection}>
-        <Text style={styles.sectionTitle}>Thống kê</Text>
+        <Text style={[styles.sectionTitle, { color: palette.textColor }]}>Thống kê</Text>
         <View style={styles.statsContainer}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{hotSpot.stats.interested}</Text>
-            <Text style={styles.statLabel}>Quan tâm</Text>
+            <Text style={[styles.statValue, { color: palette.sphereGradient[0] }]}>{hotSpot.stats.interested}</Text>
+            <Text style={[styles.statLabel, { color: palette.subtitleColor }]}>Quan tâm</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{hotSpot.stats.joined}</Text>
-            <Text style={styles.statLabel}>Tham gia</Text>
+            <Text style={[styles.statValue, { color: palette.sphereGradient[0] }]}>{hotSpot.stats.joined}</Text>
+            <Text style={[styles.statLabel, { color: palette.subtitleColor }]}>Tham gia</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{hotSpot.stats.checkedIn}</Text>
-            <Text style={styles.statLabel}>Check-in</Text>
+            <Text style={[styles.statValue, { color: palette.sphereGradient[0] }]}>{hotSpot.stats.checkedIn}</Text>
+            <Text style={[styles.statLabel, { color: palette.subtitleColor }]}>Check-in</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{hotSpot.stats.rating.toFixed(1)}</Text>
-            <Text style={styles.statLabel}>Đánh giá</Text>
+            <Text style={[styles.statValue, { color: palette.sphereGradient[0] }]}>{hotSpot.stats.rating.toFixed(1)}</Text>
+            <Text style={[styles.statLabel, { color: palette.subtitleColor }]}>Đánh giá</Text>
           </View>
         </View>
       </View>
 
       {/* Additional Info */}
       <View style={styles.infoSection}>
-        <Text style={styles.sectionTitle}>Thông tin bổ sung</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Loại:</Text>
-          <Text style={styles.infoValue}>
+        <Text style={[styles.sectionTitle, { color: palette.textColor }]}>Thông tin bổ sung</Text>
+        <View style={[styles.infoRow, { borderBottomColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+          <Text style={[styles.infoLabel, { color: palette.subtitleColor }]}>Loại:</Text>
+          <Text style={[styles.infoValue, { color: palette.textColor }]}>
             {hotSpot.type === 'event' ? 'Sự kiện' : 'Địa điểm'}
           </Text>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Danh mục:</Text>
-          <Text style={styles.infoValue}>{hotSpot.category}</Text>
+        <View style={[styles.infoRow, { borderBottomColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+          <Text style={[styles.infoLabel, { color: palette.subtitleColor }]}>Danh mục:</Text>
+          <Text style={[styles.infoValue, { color: palette.textColor }]}>{hotSpot.category}</Text>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Trạng thái:</Text>
-          <Text style={styles.infoValue}>
+        <View style={[styles.infoRow, { borderBottomColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+          <Text style={[styles.infoLabel, { color: palette.subtitleColor }]}>Trạng thái:</Text>
+          <Text style={[styles.infoValue, { color: palette.textColor }]}>
             {hotSpot.isActive ? 'Hoạt động' : 'Không hoạt động'}
           </Text>
         </View>
         {hotSpot.isFeatured && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Nổi bật:</Text>
-            <Text style={[styles.infoValue, styles.featuredText]}>Có</Text>
+          <View style={[styles.infoRow, { borderBottomColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+            <Text style={[styles.infoLabel, { color: palette.subtitleColor }]}>Nổi bật:</Text>
+            <Text style={[styles.infoValue, { color: palette.sphereGradient[0] }]}>Có</Text>
           </View>
         )}
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Ngày tạo:</Text>
-          <Text style={styles.infoValue}>
+        <View style={[styles.infoRow, { borderBottomColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+          <Text style={[styles.infoLabel, { color: palette.subtitleColor }]}>Ngày tạo:</Text>
+          <Text style={[styles.infoValue, { color: palette.textColor }]}>
             {new Date(hotSpot.createdAt).toLocaleDateString('vi-VN')}
           </Text>
         </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Cập nhật:</Text>
-          <Text style={styles.infoValue}>
+        <View style={[styles.infoRow, { borderBottomColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
+          <Text style={[styles.infoLabel, { color: palette.subtitleColor }]}>Cập nhật:</Text>
+          <Text style={[styles.infoValue, { color: palette.textColor }]}>
             {new Date(hotSpot.updatedAt).toLocaleDateString('vi-VN')}
           </Text>
         </View>
@@ -108,7 +112,7 @@ const HotSpotDetailsContent = ({ hotSpot }: HotSpotDetailsContentProps) => {
 
 const styles = StyleSheet.create({
   detailsContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
   },
   sectionTitle: {
     fontSize: 18,
@@ -195,7 +199,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   hashtagStyle: {
-    color: Colors.primary,
     fontWeight: '600',
   },
 });

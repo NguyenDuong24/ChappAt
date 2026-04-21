@@ -14,6 +14,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { GiftItem } from '@/services/giftService';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,13 +29,13 @@ interface GiftPickerProps {
   loading?: boolean;
 }
 
-const CATEGORIES = [
-  { id: 'all', name: 'Tat ca', icon: 'apps' },
-  { id: 'popular', name: 'Pho bien', icon: 'trending-up' },
-  { id: 'love', name: 'Tinh yeu', icon: 'favorite' },
-  { id: 'funny', name: 'Hai huoc', icon: 'mood' },
-  { id: 'luxury', name: 'Sang trong', icon: 'diamond' },
-  { id: 'special', name: 'Dac biet', icon: 'stars' },
+const getGiftsCategories = (t: any) => [
+  { id: 'all', name: t('gift_picker.categories.all'), icon: 'apps' },
+  { id: 'popular', name: t('gift_picker.categories.popular'), icon: 'trending-up' },
+  { id: 'love', name: t('gift_picker.categories.love'), icon: 'favorite' },
+  { id: 'funny', name: t('gift_picker.categories.funny'), icon: 'mood' },
+  { id: 'luxury', name: t('gift_picker.categories.luxury'), icon: 'diamond' },
+  { id: 'special', name: t('gift_picker.categories.special'), icon: 'stars' },
 ];
 
 export default function GiftPicker({
@@ -47,6 +48,8 @@ export default function GiftPicker({
   themeColors,
   loading = false,
 }: GiftPickerProps) {
+  const { t } = useTranslation();
+  const CATEGORIES = useMemo(() => getGiftsCategories(t), [t]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedGiftId, setSelectedGiftId] = useState<string | null>(null);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -138,8 +141,8 @@ export default function GiftPicker({
 
           <View style={styles.headerRow}>
             <View>
-              <Text style={[styles.title, { color: ui.text }]}>Tang qua</Text>
-              <Text style={[styles.subtitle, { color: ui.subtle }]}>Chon mot mon qua de gui ngay</Text>
+              <Text style={[styles.title, { color: ui.text }]}>{t('gift_picker.title')}</Text>
+              <Text style={[styles.subtitle, { color: ui.subtle }]}>{t('gift_picker.subtitle')}</Text>
             </View>
             <TouchableOpacity style={[styles.closeBtn, { backgroundColor: ui.surface, borderColor: ui.border }]} onPress={onClose}>
               <MaterialIcons name="close" size={22} color={ui.subtle} />
@@ -190,7 +193,7 @@ export default function GiftPicker({
               {filteredGifts.length === 0 ? (
                 <View style={styles.centerBox}>
                   <MaterialIcons name="sentiment-dissatisfied" size={46} color={ui.subtle} />
-                  <Text style={[styles.emptyText, { color: ui.subtle }]}>Khong tim thay qua</Text>
+                  <Text style={[styles.emptyText, { color: ui.subtle }]}>{t('gift_picker.empty')}</Text>
                 </View>
               ) : (
                 filteredGifts.map((gift) => {
@@ -242,10 +245,10 @@ export default function GiftPicker({
           <View style={[styles.footer, { borderTopColor: ui.border, backgroundColor: ui.footerBg }]}> 
             {selectedGift ? (
               <Text style={[styles.selectionText, { color: ui.subtle }]} numberOfLines={1}>
-                Da chon: {selectedGift.name} ({selectedGift.price} {selectedGift.currencyType === 'coins' ? 'coin' : 'banh mi'})
+                {t('gift_picker.selected', { name: selectedGift.name, price: selectedGift.price, type: selectedGift.currencyType === 'coins' ? t('wallet.coins') : t('wallet.banhMi') })}
               </Text>
             ) : (
-              <Text style={[styles.selectionText, { color: ui.subtle }]}>Hay chon mot mon qua de gui</Text>
+              <Text style={[styles.selectionText, { color: ui.subtle }]}>{t('gift_picker.select_prompt')}</Text>
             )}
 
             <TouchableOpacity
@@ -261,7 +264,7 @@ export default function GiftPicker({
                 style={styles.sendBtnGradient}
               >
                 <MaterialCommunityIcons name="gift-outline" size={18} color="#fff" />
-                <Text style={styles.sendBtnText}>{canAfford ? 'Gui qua ngay' : 'Khong du so du'}</Text>
+                <Text style={styles.sendBtnText}>{canAfford ? t('gift_picker.send_now') : t('gift_picker.insufficient')}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>

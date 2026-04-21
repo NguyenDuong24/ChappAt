@@ -1,368 +1,366 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    ScrollView,
-    Switch,
-    Alert,
-    Platform,
-    ActivityIndicator,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
+import { useTheme } from '@/context/ThemeContext';
+import { getLiquidPalette } from '@/components/liquid';
 import { db } from '@/firebaseConfig';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
-import { useThemedColors } from '@/hooks/useThemedColors';
+
+const glassGradient = ['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.08)'] as const;
 
 const PrivacySettingsScreen = () => {
-    const { t } = useTranslation();
-    const colors = useThemedColors();
-    const router = useRouter();
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(false);
-    const [initialLoading, setInitialLoading] = useState(true);
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { theme, isDark, palette: contextPalette } = useTheme();
 
-    // Privacy settings
-    const [showOnlineStatus, setShowOnlineStatus] = useState(true);
-    const [showReadReceipts, setShowReadReceipts] = useState(true);
-    const [allowMessageFromStrangers, setAllowMessageFromStrangers] = useState(false);
-    const [showProfileToEveryone, setShowProfileToEveryone] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
 
-    // Security settings
-    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-    const [loginAlerts, setLoginAlerts] = useState(true);
+  const [showOnlineStatus, setShowOnlineStatus] = useState(true);
+  const [showReadReceipts, setShowReadReceipts] = useState(true);
+  const [allowMessageFromStrangers, setAllowMessageFromStrangers] = useState(false);
+  const [showProfileToEveryone, setShowProfileToEveryone] = useState(true);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [loginAlerts, setLoginAlerts] = useState(true);
 
-    useEffect(() => {
-        if (user?.uid) {
-            loadPrivacySettings();
-        }
-    }, [user?.uid]);
-
-    const loadPrivacySettings = async () => {
-        try {
-            setInitialLoading(true);
-            const userRef = doc(db, 'users', user.uid);
-            const userSnap = await getDoc(userRef);
-            if (userSnap.exists()) {
-                const data = userSnap.data();
-                setShowOnlineStatus(data.showOnlineStatus ?? true);
-                setShowReadReceipts(data.showReadReceipts ?? true);
-                setAllowMessageFromStrangers(data.allowMessageFromStrangers ?? false);
-                setShowProfileToEveryone(data.showProfileToEveryone ?? true);
-                setTwoFactorEnabled(data.twoFactorEnabled ?? false);
-                setLoginAlerts(data.loginAlerts ?? true);
-            }
-        } catch (error) {
-            console.error('Error loading privacy settings:', error);
-        } finally {
-            setInitialLoading(false);
-        }
+  const palette = useMemo(() => {
+    if (contextPalette) return {
+      text: contextPalette.textColor,
+      subtleText: contextPalette.subtitleColor,
+      softText: isDark ? 'rgba(255,255,248,0.62)' : 'rgba(11,33,36,0.62)',
+      border: contextPalette.menuBorder || (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)'),
+      success: '#2FE0AC',
+      warning: '#F6C966',
+      info: '#9BD0FF',
     };
-
-    const updateSetting = async (field: string, value: boolean) => {
-        if (!user?.uid) return;
-
-        try {
-            setLoading(true);
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { [field]: value });
-
-            // Update local state
-            switch (field) {
-                case 'showOnlineStatus':
-                    setShowOnlineStatus(value);
-                    break;
-                case 'showReadReceipts':
-                    setShowReadReceipts(value);
-                    break;
-                case 'allowMessageFromStrangers':
-                    setAllowMessageFromStrangers(value);
-                    break;
-                case 'showProfileToEveryone':
-                    setShowProfileToEveryone(value);
-                    break;
-                case 'twoFactorEnabled':
-                    setTwoFactorEnabled(value);
-                    break;
-                case 'loginAlerts':
-                    setLoginAlerts(value);
-                    break;
-            }
-        } catch (error) {
-            console.error('Error updating setting:', error);
-            Alert.alert(t('common.error'), t('settings.update_error', { defaultValue: 'Không thể cập nhật cài đặt' }));
-        } finally {
-            setLoading(false);
-        }
+    const lp = getLiquidPalette(theme);
+    return {
+      text: lp.textColor,
+      subtleText: lp.subtitleColor,
+      softText: isDark ? 'rgba(255,255,248,0.62)' : 'rgba(11,33,36,0.62)',
+      border: lp.menuBorder,
+      success: '#2FE0AC',
+      warning: '#F6C966',
+      info: '#9BD0FF',
     };
+  }, [theme, isDark, contextPalette]);
 
-    const handleTwoFactorToggle = async (value: boolean) => {
-        if (value) {
-            Alert.alert(
-                t('settings.two_factor_title', { defaultValue: 'Bật xác thực 2 yếu tố' }),
-                t('settings.two_factor_desc', { defaultValue: 'Bạn có muốn bật xác thực 2 yếu tố để bảo vệ tài khoản?' }),
-                [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    { text: t('common.confirm'), onPress: () => updateSetting('twoFactorEnabled', true) },
-                ]
-            );
-        } else {
-            updateSetting('twoFactorEnabled', false);
-        }
-    };
+  useEffect(() => {
+    if (user?.uid) {
+      loadPrivacySettings();
+    }
+  }, [user?.uid]);
 
-    const renderSettingItem = (icon: string, title: string, subtitle: string, isSwitch: boolean, value?: boolean, onToggle?: (val: boolean) => void, onPress?: () => void) => (
-        <View style={[styles.settingItem, { borderBottomColor: colors.border }]}>
-            <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: colors.isDark ? colors.surface : '#F5F3FF' }]}>
-                    <MaterialCommunityIcons name={icon as any} size={22} color={colors.primary} />
-                </View>
-                <View style={styles.settingContent}>
-                    <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
-                    <Text style={[styles.settingSubtitle, { color: colors.subtleText }]}>{subtitle}</Text>
-                </View>
-            </View>
-            {isSwitch ? (
-                <Switch
-                    value={value}
-                    onValueChange={onToggle}
-                    trackColor={{ false: colors.isDark ? colors.surface : '#E2E8F0', true: colors.primary }}
-                    thumbColor="#FFFFFF"
-                    disabled={loading}
-                />
-            ) : (
-                <TouchableOpacity onPress={onPress}>
-                    <MaterialCommunityIcons name="chevron-right" size={24} color={colors.mutedText} />
-                </TouchableOpacity>
-            )}
-        </View>
-    );
+  const loadPrivacySettings = async () => {
+    try {
+      setInitialLoading(true);
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const data: any = userSnap.data();
+        setShowOnlineStatus(data.showOnlineStatus ?? true);
+        setShowReadReceipts(data.showReadReceipts ?? true);
+        setAllowMessageFromStrangers(data.allowMessageFromStrangers ?? false);
+        setShowProfileToEveryone(data.showProfileToEveryone ?? true);
+        setTwoFactorEnabled(data.twoFactorEnabled ?? false);
+        setLoginAlerts(data.loginAlerts ?? true);
+      }
+    } catch (error) {
+      console.error('Error loading privacy settings:', error);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
-    const renderSection = (title: string, items: React.ReactNode) => (
-        <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.subtleText }]}>{title}</Text>
-            <View style={[styles.sectionContent, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                {items}
-            </View>
-        </View>
-    );
+  const updateSetting = async (field: string, value: boolean) => {
+    if (!user?.uid) return;
 
-    if (initialLoading) {
-        return (
-            <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-                <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-        );
+    try {
+      setLoading(true);
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { [field]: value });
+
+      switch (field) {
+        case 'showOnlineStatus':
+          setShowOnlineStatus(value);
+          break;
+        case 'showReadReceipts':
+          setShowReadReceipts(value);
+          break;
+        case 'allowMessageFromStrangers':
+          setAllowMessageFromStrangers(value);
+          break;
+        case 'showProfileToEveryone':
+          setShowProfileToEveryone(value);
+          break;
+        case 'twoFactorEnabled':
+          setTwoFactorEnabled(value);
+          break;
+        case 'loginAlerts':
+          setLoginAlerts(value);
+          break;
+      }
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      Alert.alert(t('common.error'), t('settings.update_error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTwoFactorToggle = async (value: boolean) => {
+    if (!value) {
+      updateSetting('twoFactorEnabled', false);
+      return;
     }
 
-    return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <LinearGradient
-                colors={colors.isDark ? [colors.background, colors.surface] : ['#F8FAFC', '#EFF6FF']}
-                style={styles.background}
-            />
-
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.cardBackground }]}>
-                    <MaterialCommunityIcons name="chevron-left" size={28} color={colors.text} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings.privacy')}</Text>
-                <View style={styles.headerSpacer} />
-            </View>
-
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {renderSection(
-                    t('settings.account_privacy', { defaultValue: 'Quyền riêng tư tài khoản' }),
-                    <>
-                        {renderSettingItem(
-                            'account-eye',
-                            t('settings.online_status'),
-                            t('settings.online_status_desc'),
-                            true,
-                            showOnlineStatus,
-                            (val) => updateSetting('showOnlineStatus', val)
-                        )}
-                        {renderSettingItem(
-                            'account-card-details',
-                            t('settings.public_profile', { defaultValue: 'Hiển thị profile công khai' }),
-                            t('settings.public_profile_desc', { defaultValue: 'Cho phép mọi người xem thông tin profile của bạn' }),
-                            true,
-                            showProfileToEveryone,
-                            (val) => updateSetting('showProfileToEveryone', val)
-                        )}
-                    </>
-                )}
-
-                {renderSection(
-                    t('settings.chat_privacy', { defaultValue: 'Quyền riêng tư chat' }),
-                    <>
-                        {renderSettingItem(
-                            'check-all',
-                            t('settings.read_receipts', { defaultValue: 'Hiển thị xác nhận đã đọc' }),
-                            t('settings.read_receipts_desc', { defaultValue: 'Cho người khác biết bạn đã đọc tin nhắn' }),
-                            true,
-                            showReadReceipts,
-                            (val) => updateSetting('showReadReceipts', val)
-                        )}
-                        {renderSettingItem(
-                            'message-text-outline',
-                            t('settings.stranger_messages', { defaultValue: 'Cho phép tin nhắn từ người lạ' }),
-                            t('settings.stranger_messages_desc', { defaultValue: 'Nhận tin nhắn từ người không có trong danh bạ' }),
-                            true,
-                            allowMessageFromStrangers,
-                            (val) => updateSetting('allowMessageFromStrangers', val)
-                        )}
-                    </>
-                )}
-
-                {renderSection(
-                    t('settings.account_security', { defaultValue: 'Bảo mật tài khoản' }),
-                    <>
-                        {renderSettingItem(
-                            'shield-check',
-                            t('settings.two_factor', { defaultValue: 'Xác thực 2 yếu tố' }),
-                            t('settings.two_factor_desc_short', { defaultValue: 'Bảo vệ tài khoản với xác thực bổ sung' }),
-                            true,
-                            twoFactorEnabled,
-                            handleTwoFactorToggle
-                        )}
-                        {renderSettingItem(
-                            'bell-alert',
-                            t('settings.login_alerts', { defaultValue: 'Thông báo đăng nhập' }),
-                            t('settings.login_alerts_desc', { defaultValue: 'Nhận thông báo khi có đăng nhập mới' }),
-                            true,
-                            loginAlerts,
-                            (val) => updateSetting('loginAlerts', val)
-                        )}
-                    </>
-                )}
-
-                {renderSection(
-                    t('settings.blocking', { defaultValue: 'Chặn và hạn chế' }),
-                    <>
-                        {renderSettingItem(
-                            'account-cancel',
-                            t('settings.blocked_users', { defaultValue: 'Danh sách người bị chặn' }),
-                            t('settings.blocked_users_desc', { defaultValue: 'Quản lý người dùng đã bị chặn' }),
-                            false,
-                            undefined,
-                            undefined,
-                            () => Alert.alert(t('common.info'), t('common.coming_soon', { defaultValue: 'Tính năng này sẽ sớm ra mắt' }))
-                        )}
-                    </>
-                )}
-
-                <View style={styles.bottomPadding} />
-            </ScrollView>
-        </View>
+    Alert.alert(
+      t('settings.two_factor_title'),
+      t('settings.two_factor_desc'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.confirm'), onPress: () => updateSetting('twoFactorEnabled', true) },
+      ]
     );
+  };
+
+  const renderSettingItem = (
+    icon: string,
+    title: string,
+    subtitle: string,
+    value: boolean,
+    onToggle: (val: boolean) => void,
+    color: string
+  ) => (
+    <View style={[styles.settingItem, { borderBottomColor: palette.border }]}>
+      <View style={styles.settingLeft}>
+        <View style={styles.settingIcon}>
+          <MaterialCommunityIcons name={icon as any} size={20} color={color} />
+        </View>
+        <View style={styles.settingContent}>
+          <Text style={[styles.settingTitle, { color: palette.text }]}>{title}</Text>
+          <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>{subtitle}</Text>
+        </View>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onToggle}
+        trackColor={{ false: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', true: 'rgba(89,224,177,0.48)' }}
+        thumbColor={value ? '#EFFFF8' : '#FFFFFF'}
+        disabled={loading}
+      />
+    </View>
+  );
+
+  const renderSection = (title: string, content: React.ReactNode) => (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: palette.softText }]}>{title}</Text>
+      <LinearGradient colors={glassGradient} style={styles.sectionCard}>
+        {content}
+      </LinearGradient>
+    </View>
+  );
+
+  if (initialLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LinearGradient colors={['#0A6C54', '#0A4C3B']} style={StyleSheet.absoluteFillObject} />
+        <ActivityIndicator size="large" color={'#EFFFF8'} />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient colors={['#0A6C54', '#0A4C3B']} style={StyleSheet.absoluteFillObject} />
+
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.86}>
+          <MaterialCommunityIcons name="chevron-left" size={24} color={palette.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: palette.text }]}>{t('settings.privacy')}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
+        {renderSection(
+          t('settings.account_privacy'),
+          <>
+            {renderSettingItem(
+              'account-eye-outline',
+              t('settings.online_status'),
+              t('settings.online_status_desc'),
+              showOnlineStatus,
+              (val) => updateSetting('showOnlineStatus', val),
+              palette.success
+            )}
+            {renderSettingItem(
+              'account-card-details-outline',
+              t('settings.public_profile'),
+              t('settings.public_profile_desc'),
+              showProfileToEveryone,
+              (val) => updateSetting('showProfileToEveryone', val),
+              palette.info
+            )}
+          </>
+        )}
+
+        {renderSection(
+          t('settings.chat_privacy'),
+          <>
+            {renderSettingItem(
+              'check-all',
+              t('settings.read_receipts'),
+              t('settings.read_receipts_desc'),
+              showReadReceipts,
+              (val) => updateSetting('showReadReceipts', val),
+              palette.success
+            )}
+            {renderSettingItem(
+              'message-text-outline',
+              t('settings.stranger_messages'),
+              t('settings.stranger_messages_desc'),
+              allowMessageFromStrangers,
+              (val) => updateSetting('allowMessageFromStrangers', val),
+              palette.warning
+            )}
+          </>
+        )}
+
+        {renderSection(
+          t('settings.account_security'),
+          <>
+            {renderSettingItem(
+              'shield-check-outline',
+              t('settings.two_factor'),
+              t('settings.two_factor_desc_short'),
+              twoFactorEnabled,
+              handleTwoFactorToggle,
+              palette.warning
+            )}
+            {renderSettingItem(
+              'bell-alert-outline',
+              t('settings.login_alerts'),
+              t('settings.login_alerts_desc'),
+              loginAlerts,
+              (val) => updateSetting('loginAlerts', val),
+              palette.info
+            )}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    background: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-    },
-    headerSpacer: {
-        width: 40,
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 20,
-    },
-    section: {
-        marginBottom: 24,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        marginBottom: 12,
-        marginLeft: 4,
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-    },
-    sectionContent: {
-        borderRadius: 20,
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.03,
-        shadowRadius: 12,
-        elevation: 2,
-        borderWidth: 1,
-    },
-    settingItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-    },
-    settingLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    settingIcon: {
-        width: 42,
-        height: 42,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 14,
-    },
-    settingContent: {
-        flex: 1,
-    },
-    settingTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 2,
-    },
-    settingSubtitle: {
-        fontSize: 13,
-        lineHeight: 18,
-    },
-    bottomPadding: {
-        height: 40,
-    },
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 56 : 24,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+  },
+  headerTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  headerSpacer: {
+    width: 38,
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 26,
+  },
+  section: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 7,
+    marginLeft: 2,
+    letterSpacing: 0.7,
+  },
+  sectionCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    overflow: 'hidden',
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  settingContent: {
+    flex: 1,
+    paddingRight: 8,
+  },
+  settingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  settingSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+  },
 });
 
 export default PrivacySettingsScreen;

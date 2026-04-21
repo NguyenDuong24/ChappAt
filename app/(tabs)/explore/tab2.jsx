@@ -1,12 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTrendingPosts, useExploreActions, useExploreState, useExploreLoading } from '@/context/ExploreContext';
 import BaseExploreTab from '@/components/explore/BaseExploreTab';
 
 const Tab2Screen = ({ isActive }: { isActive: boolean }) => {
     const { posts: trendingPosts, hasMore } = useTrendingPosts() || { posts: [], hasMore: false };
-    const { loadMoreTrending, deletePost, toggleLike, refresh, updatePostPrivacy } = useExploreActions() || {};
+    const { loadMoreTrending, deletePost, toggleLike, refresh, ensureFeedReady, updatePostPrivacy } = useExploreActions() || {};
     const { loadingInitial, isRefreshing } = useExploreState() || {};
     const { loadingTrending } = useExploreLoading() || {};
+
+    useEffect(() => {
+        if (isActive) {
+            ensureFeedReady?.('trending');
+        }
+    }, [isActive, ensureFeedReady]);
 
     return (
         <BaseExploreTab

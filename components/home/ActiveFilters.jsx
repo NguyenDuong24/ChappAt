@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 const ActiveFilters = ({ filters, onClearFilter, onClearAll }) => {
   const { t } = useTranslation();
   const theme = useContext(ThemeContext)?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
 
   const hasActiveFilters = filters?.gender || filters?.minAge || filters?.maxAge;
 
@@ -114,3 +114,4 @@ const styles = StyleSheet.create({
 });
 
 export default ActiveFilters;
+

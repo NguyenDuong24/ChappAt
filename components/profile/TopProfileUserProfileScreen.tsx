@@ -17,6 +17,7 @@ import { followService } from '@/services/followService';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useTranslation } from 'react-i18next';
+import { getLiquidMenuContentStyle, getLiquidMenuItemTitleStyle } from '@/components/liquid';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COVER_HEIGHT = 200;
@@ -234,18 +235,18 @@ const TopProfileUserProfileScreen = ({ user }: { user: any }) => {
                   <Feather name="more-horizontal" size={20} color={currentThemeColors.text} />
                 </TouchableOpacity>
               }
-              contentStyle={{ backgroundColor: isDark ? '#1E1E2E' : '#fff', borderRadius: 16 }}
+              contentStyle={getLiquidMenuContentStyle(theme)}
             >
               <Menu.Item
                 onPress={() => { setShowMenu(false); handleBlockToggle(); }}
                 title={isBlocked ? t('profile.unblock_user') : t('profile.block_user')}
-                titleStyle={{ color: isBlocked ? '#10B981' : '#EF4444', fontSize: 14, fontWeight: '600' }}
+                titleStyle={[getLiquidMenuItemTitleStyle(theme), { color: isBlocked ? '#10B981' : '#EF4444' }]}
                 leadingIcon={isBlocked ? 'lock-open-check-outline' : 'block-helper'}
               />
               <Menu.Item
                 onPress={() => { setShowMenu(false); Alert.alert(t('profile.report'), t('profile.report_not_implemented')); }}
                 title={t('profile.report')}
-                titleStyle={{ color: currentThemeColors.text, fontSize: 14, fontWeight: '600' }}
+                titleStyle={getLiquidMenuItemTitleStyle(theme)}
                 leadingIcon="flag-outline"
               />
             </Menu>

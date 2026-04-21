@@ -239,7 +239,7 @@ const PostActions = memo(({
     };
 
     return (
-        <View style={styles.actionsContainer}>
+        <View style={[styles.actionsContainer, { borderTopColor: colors.border }]}>
             <TouchableOpacity style={styles.actionButton} onPress={handleLikePress} activeOpacity={0.7}>
                 <Animated.View style={{ transform: [{ scale: likeScale }] }}>
                     <Ionicons
@@ -277,6 +277,7 @@ const PostCard: React.FC<PostCardProps> = ({
     const { t } = useTranslation();
     const { user: authUser, activeFrame: authActiveFrame, currentVibe: authCurrentVibe } = useAuth();
     const colors = useThemedColors();
+    const { isDark } = colors;
     const { getUserInfo, userCache } = useUserContext();
     const followingIdsCtx = useFollowingIds() as any;
     const followingIds = followingIdsCtx?.followingIds || [];
@@ -423,9 +424,16 @@ const PostCard: React.FC<PostCardProps> = ({
 
 
     return (
-        <View
-            style={[styles.container, { backgroundColor: colors.cardBackground || colors.background }]}
-        >
+        <View style={[styles.container, { 
+            borderColor: colors.border,
+            backgroundColor: colors.background
+        }]}>
+            <LinearGradient
+                colors={colors.palette.cardGradient as [string, string, ...string[]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+            />
             <PostHeader
                 userInfo={userInfo}
                 timestamp={post.timestamp}
@@ -444,7 +452,7 @@ const PostCard: React.FC<PostCardProps> = ({
                     text={post.content}
                     onHashtagPress={handleHashtagPress}
                     textStyle={[styles.contentText, { color: colors.text }]}
-                    hashtagStyle={styles.hashtagStyle}
+                    hashtagStyle={[styles.hashtagStyle, { color: colors.primary }]}
                 />
             )}
 
@@ -461,7 +469,7 @@ const PostCard: React.FC<PostCardProps> = ({
             {post.images && post.images.length > 0 && <PostImages images={post.images as string[]} />}
 
             {post.address && (
-                <View style={styles.addressContainer}>
+                <View style={[styles.addressContainer, { backgroundColor: colors.surface }]}>
                     <View style={[styles.locationIconCircle, { backgroundColor: colors.primary + '15' }]}>
                         <EvilIcons name="location" size={16} color={colors.primary} />
                     </View>
@@ -482,7 +490,7 @@ const PostCard: React.FC<PostCardProps> = ({
             />
 
             {showComments && (
-                <View style={[styles.commentsSection]}>
+                <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
                     <View style={[styles.commentInputContainer, {
                         backgroundColor: colors.surface || 'rgba(0,0,0,0.03)',
                         borderColor: colors.border
@@ -509,7 +517,7 @@ const PostCard: React.FC<PostCardProps> = ({
                             activeOpacity={0.8}
                         >
                             <LinearGradient
-                                colors={['#667eea', '#764ba2']}
+                                colors={colors.palette.cardGradient as [string, string, ...string[]]}
                                 style={styles.sendGradient}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
@@ -541,39 +549,44 @@ const PostCard: React.FC<PostCardProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-        padding: containerPadding,
+        padding: 16,
         marginBottom: 12,
-        borderRadius: 18,
-        marginHorizontal: containerMargin,
+        borderRadius: 20,
+        marginHorizontal: 12,
         borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
+        overflow: 'hidden',
+        // Theme-aware border color applied dynamically
     },
     contentText: {
         fontSize: 15,
-        lineHeight: 22,
+        lineHeight: 23,
         marginBottom: 12,
-        letterSpacing: 0.2
+        letterSpacing: 0.3,
+        fontWeight: '500'
     },
     hashtagStyle: {
-        color: '#6366F1',
-        fontWeight: '600'
+        // Theme-aware color applied dynamically
+        fontWeight: '700'
     },
     hashtagsContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        marginBottom: 12
+        marginBottom: 12,
+        gap: 6
     },
     imageContainer: {
         marginBottom: 12,
     },
     multiImageContainer: {
         flexDirection: 'row',
-        height: 260
+        height: 260,
+        borderRadius: 14,
+        overflow: 'hidden'
     },
     singleImage: {
         width: '100%',
         height: 320,
-        borderRadius: 12
+        borderRadius: 14
     },
     twoImages: {
         flex: 1,
@@ -610,7 +623,7 @@ const styles = StyleSheet.create({
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        // Theme-aware overlay color applied dynamically
         justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 8
@@ -622,82 +635,96 @@ const styles = StyleSheet.create({
     },
     addressContainer: {
         flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        backgroundColor: 'rgba(0,0,0,0.02)',
-        borderRadius: 12
+        alignItems: 'flex-start',
+        marginBottom: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 11,
+        // Theme-aware background color applied dynamically
+        borderRadius: 12,
+        marginHorizontal: 0
     },
     locationIconCircle: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 8
+        marginRight: 10,
+        marginTop: 1
     },
     addressText: {
         fontSize: 13,
-        fontWeight: '500',
-        flex: 1
+        fontWeight: '600',
+        flex: 1,
+        lineHeight: 18
     },
     dividerLine: {
         height: 1,
-        marginVertical: 12,
-        backgroundColor: '#f1f5f9', // Solid light color instead of opacity
+        marginVertical: 14,
+        // Theme-aware border color applied dynamically
     },
     actionsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12, // Increased for impact
+        paddingVertical: 14,
         borderTopWidth: 1,
-        borderTopColor: '#f1f5f9',
+        marginHorizontal: -16,
+        marginTop: 14,
+        paddingHorizontal: 16,
+        // Theme-aware border color applied dynamically
     },
     actionButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 24,
-        paddingVertical: 4
+        marginRight: 28,
+        paddingVertical: 6,
+        paddingHorizontal: 2
     },
     actionCount: {
         marginLeft: 8,
-        fontSize: 14,
-        fontWeight: '600'
+        fontSize: 13,
+        fontWeight: '700',
+        minWidth: 24
     },
     commentsSection: {
         marginTop: 12,
-        paddingTop: 12,
+        paddingTop: 14,
         borderTopWidth: 1,
-        borderTopColor: 'rgba(0,0,0,0.05)'
+        marginHorizontal: -16,
+        paddingHorizontal: 16,
+        // Theme-aware border color applied dynamically
     },
     commentInputContainer: {
         flexDirection: 'row',
-        alignItems: 'center',
-        padding: 10,
+        alignItems: 'flex-end',
+        padding: 12,
         borderRadius: 24,
-        marginBottom: 12,
-        borderWidth: 1
+        marginBottom: 14,
+        borderWidth: 1.5,
+        gap: 8
     },
     commentAvatar: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        marginRight: 10
+        marginRight: 2
     },
     commentInput: {
         flex: 1,
         fontSize: 14,
-        paddingVertical: 6,
+        paddingVertical: 8,
         maxHeight: 100,
-        lineHeight: 20
+        lineHeight: 20,
+        fontWeight: '500'
     },
     sendButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 38,
+        height: 38,
+        borderRadius: 19,
         overflow: 'hidden',
-        marginLeft: 8
+        marginLeft: 6,
+        justifyContent: 'center',
+        alignItems: 'center'
     },
     sendGradient: {
         width: '100%',
@@ -707,28 +734,32 @@ const styles = StyleSheet.create({
     },
     comment: {
         flexDirection: 'row',
-        marginBottom: 12
+        marginBottom: 14,
+        gap: 10
     },
     commentContent: {
         flex: 1,
         padding: 12,
-        borderRadius: 16
+        borderRadius: 14
     },
     commentUser: {
         fontWeight: '700',
         fontSize: 13,
-        marginBottom: 4
+        marginBottom: 4,
+        letterSpacing: 0.2
     },
     commentText: {
         fontSize: 14,
-        lineHeight: 20
+        lineHeight: 20,
+        fontWeight: '500'
     },
     commentMeta: {
         marginTop: 6
     },
     commentTime: {
         fontSize: 11,
-        opacity: 0.7
+        opacity: 0.65,
+        fontWeight: '500'
     },
     commentsList: {
         marginTop: 4

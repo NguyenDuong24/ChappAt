@@ -154,7 +154,7 @@ const DraggableLocalVideo = React.memo(function DraggableLocalVideo({ localParti
           />
         ) : (
           <LinearGradient
-            colors={['#667eea', '#764ba2']}
+            colors={['#0EA5E9', '#06B6D4']}
             style={styles.localVideoPlaceholder}
           >
             <Ionicons name="person-circle" size={40} color="#FFFFFF" />
@@ -394,7 +394,7 @@ function JoinScreen({ getMeetingId }: { getMeetingId: (id: string | null) => voi
 
   return (
     <LinearGradient
-      colors={['#667eea', '#764ba2']}
+      colors={['#0EA5E9', '#06B6D4']}
       style={styles.container}
     >
       <StatusBar barStyle="light-content" />
@@ -630,7 +630,7 @@ const ParticipantView = React.memo(function ParticipantView({ participantId, cal
         />
       ) : (
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={['#0EA5E9', '#06B6D4']}
           style={styles.noVideoContainer}
         >
           <View style={styles.avatarContainer}>

@@ -33,7 +33,7 @@ const EditMessageModal: React.FC<EditMessageModalProps> = ({
     const { t } = useTranslation();
     const themeCtx = useContext(ThemeContext);
     const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const currentThemeColors = Colors[theme] || Colors.light;
     const [editedText, setEditedText] = useState(originalText || '');
 
     const handleSave = () => {
@@ -214,3 +214,4 @@ const styles = StyleSheet.create({
 });
 
 export default EditMessageModal;
+

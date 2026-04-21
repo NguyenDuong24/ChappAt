@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { EventInvite } from '@/types/eventInvites';
 import { eventInviteService } from '@/services/eventInviteService';
 import { useAuth } from '@/context/authContext';
@@ -23,6 +24,9 @@ const EventChatHeader: React.FC<EventChatHeaderProps> = ({
   onInviteUpdate
 }) => {
   const { user } = useAuth();
+  const colors = useThemedColors();
+  const hs = colors.hotSpots;
+  
   const [confirming, setConfirming] = useState(false);
   const [timeLeft, setTimeLeft] = useState<string>('');
 
@@ -102,9 +106,9 @@ const EventChatHeader: React.FC<EventChatHeaderProps> = ({
   };
 
   const getStatusColor = (): [string, string, ...string[]] => {
-    if (bothConfirmed) return ['#10B981', '#059669'];
-    if (userConfirmed || otherConfirmed) return ['#F59E0B', '#D97706'];
-    return ['#6B7280', '#4B5563'];
+    if (bothConfirmed) return [hs.primary, hs.secondary];
+    if (userConfirmed || otherConfirmed) return [hs.accent, hs.secondary];
+    return [hs.textSecondary, hs.textTertiary];
   };
 
   return (
@@ -125,7 +129,7 @@ const EventChatHeader: React.FC<EventChatHeaderProps> = ({
 
       <View style={styles.infoRow}>
         <View style={styles.timeLeftContainer}>
-          <MaterialIcons name="schedule" size={16} color="#666" />
+          <MaterialIcons name="schedule" size={16} color={hs.textSecondary} />
           <Text style={styles.timeLeftText}>Còn {timeLeft} đến sự kiện</Text>
         </View>
       </View>
@@ -137,7 +141,7 @@ const EventChatHeader: React.FC<EventChatHeaderProps> = ({
           disabled={userConfirmed || confirming}
         >
           <LinearGradient
-            colors={userConfirmed ? ['#ccc', '#999'] : ['#EC4899', '#8B5CF6']}
+            colors={userConfirmed ? [hs.textSecondary, hs.textTertiary] : [hs.primary, hs.secondary]}
             style={styles.confirmButtonGradient}
           >
             {confirming ? (
@@ -161,7 +165,7 @@ const EventChatHeader: React.FC<EventChatHeaderProps> = ({
       {bothConfirmed && (
         <View style={styles.matchedContainer}>
           <LinearGradient
-            colors={['#10B981', '#059669']}
+            colors={[hs.primary, hs.secondary]}
             style={styles.matchedBadge}
           >
             <MaterialIcons name="favorite" size={16} color="white" />

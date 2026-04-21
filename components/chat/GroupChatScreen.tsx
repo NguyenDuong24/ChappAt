@@ -40,7 +40,7 @@ const GroupChatScreen: React.FC<GroupChatScreenProps> = ({
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme ?? 'light';
   const { user } = useAuth();
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   const flatListRef = useRef<FlatList>(null);
   const { playMessageReceivedSound, playMessageSentSound } = useSound();
   const previousMessageCountRef = useRef(0);
@@ -376,3 +376,4 @@ const styles = StyleSheet.create({
 });
 
 export default GroupChatScreen;
+

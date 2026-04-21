@@ -212,10 +212,10 @@ export default function CoinWalletScreen() {
       claimedRewardRef.current[type] = false;
       try { ad.show(); } catch (e) {
         isShowingAdRef.current = false;
-        Alert.alert(t('common.error'), 'Không thể mở quảng cáo.');
+        Alert.alert(t('common.error'), t('wallet.ad_error'));
       }
     } else {
-      Alert.alert(t('common.loading'), 'Quảng cáo đang được tải...');
+      Alert.alert(t('common.loading'), t('wallet.ad_loading'));
       try { ad?.load(); } catch (_) { }
     }
   }, [rewardAd, giftAd, rewardAdLoaded, giftAdLoaded, t]);
@@ -243,16 +243,16 @@ export default function CoinWalletScreen() {
     const { type, metadata, amount } = tx;
     if (type === 'reward') return { title: t('wallet.watch_ad'), description: t('wallet.watch_ad_desc'), icon: 'play-circle-outline' as any, color: '#4CAF50' };
     if (type === 'topup') {
-      if (metadata?.type === 'gift_redeem') return { title: 'Đổi quà tặng', description: 'Nhận coin từ quà tặng', icon: 'gift-outline' as any, color: '#4CAF50' };
-      if (metadata?.source === 'vietqr') return { title: 'Nạp qua VietQR', description: `GD: ${metadata.orderId?.slice(-8) || 'N/A'}`, icon: 'wallet-outline' as any, color: '#4CAF50' };
-      return { title: t('wallet.topup'), description: 'Nạp tiền vào ví', icon: 'add-circle-outline' as any, color: '#4CAF50' };
+      if (metadata?.type === 'gift_redeem') return { title: t('wallet.redeem_gift'), description: t('wallet.redeem_gift_desc'), icon: 'gift-outline' as any, color: '#4CAF50' };
+      if (metadata?.source === 'vietqr') return { title: t('wallet.topup_vietqr'), description: t('wallet.topup_vietqr_desc', { orderId: metadata.orderId?.slice(-8) || 'N/A' }), icon: 'wallet-outline' as any, color: '#4CAF50' };
+      return { title: t('wallet.topup'), description: t('wallet.topup_desc'), icon: 'add-circle-outline' as any, color: '#4CAF50' };
     }
     if (type === 'spend') {
-      if (metadata?.type === 'shop_purchase') return { title: t('store.title'), description: metadata.itemName || 'Vật phẩm', icon: 'cart-outline' as any, color: '#F44336' };
-      if (metadata?.type === 'gift') return { title: 'Tặng quà', description: 'Tặng quà cho bạn bè', icon: 'heart-outline' as any, color: '#F44336' };
-      return { title: t('wallet.spend'), description: metadata?.purpose || 'Sử dụng dịch vụ', icon: 'remove-circle-outline' as any, color: '#F44336' };
+      if (metadata?.type === 'shop_purchase') return { title: t('store.title'), description: metadata.itemName || t('store.item'), icon: 'cart-outline' as any, color: '#F44336' };
+      if (metadata?.type === 'gift') return { title: t('wallet.send_gift'), description: t('wallet.send_gift_desc'), icon: 'heart-outline' as any, color: '#F44336' };
+      return { title: t('wallet.spend'), description: metadata?.purpose || t('wallet.spend_desc'), icon: 'remove-circle-outline' as any, color: '#F44336' };
     }
-    return { title: type.charAt(0).toUpperCase() + type.slice(1), description: 'Giao dịch', icon: (amount > 0 ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline') as any, color: amount > 0 ? '#4CAF50' : '#F44336' };
+    return { title: type.charAt(0).toUpperCase() + type.slice(1), description: t('wallet.transaction'), icon: (amount > 0 ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline') as any, color: amount > 0 ? '#4CAF50' : '#F44336' };
   }, [t]);
 
   // ✅ Pre-compute details for all transactions — stable when transactions don't change
@@ -264,7 +264,7 @@ export default function CoinWalletScreen() {
   return (
     <View style={styles.container}>
       {/* Fixed Header */}
-      <LinearGradient colors={['#667eea', '#764ba2']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+      <LinearGradient colors={['#0EA5E9', '#06B6D4']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
             <Ionicons name="arrow-back" size={24} color="#fff" />

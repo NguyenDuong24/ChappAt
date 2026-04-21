@@ -14,7 +14,7 @@ export const BlockedChatView: React.FC<BlockedChatViewProps> = ({ reason, onBack
     const { t } = useTranslation();
     const themeContext = useContext(ThemeContext);
     const theme = themeContext?.theme || 'light';
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const currentThemeColors = Colors[theme] || Colors.light;
 
     const isBlockedByUser = reason === 'chat.blocked_subtitle';
 
@@ -119,3 +119,4 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
 });
+

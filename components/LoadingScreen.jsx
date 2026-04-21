@@ -1,0 +1,468 @@
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Alert,
+  ScrollView, ActivityIndicator, Platform, RefreshControl,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { coinServerApi, getErrorMessage } from '../../../src/services/coinServerApi';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BackHandler } from 'react-native';
+import CoinPurchaseSection from '../../../components/payment/CoinPurchaseSection';
+import { RewardedAd, RewardedAdEventType, TestIds, AdEventType } from 'react-native-google-mobile-ads';
+import { useTranslation } from 'react-i18next';
+
+const PROD_REWARDED_AD_UNIT_ID = 'ca-app-pub-9844251118980104/4096893807';
+
+export const options = { headerShown: false };
+
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  currencyType?: string;
+  createdAt?: Date | string;
+  metadata?: any;
+}
+
+const CACHED_BALANCE_KEY = '@chappat:cached_balance_v2';
+
+// ─── Memo'd TransactionItem — defined OUTSIDE to never be recreated ───
+const TransactionItem = memo(({ tx, details, locale, t }: {
+  tx: Transaction;
+  details: { title: string; description: string; icon: any; color: string };
+  locale: string;
+  t: any;
+}) => (
+  <View style={styles.txItem}>
+    <View style={[styles.txIcon, { backgroundColor: details.color + '15' }]}>
+      <Ionicons name={details.icon} size={22} color={details.color} />
+    </View>
+    <View style={styles.txDetails}>
+      <Text style={styles.txType}>{details.title}</Text>
+      <Text style={styles.txDescription} numberOfLines={1}>{details.description}</Text>
+      <Text style={styles.txDate}>
+        {tx.createdAt
+          ? new Date(tx.createdAt as any).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
+            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+          })
+          : ''}
+      </Text>
+    </View>
+    <View style={styles.txAmountContainer}>
+      <Text style={[styles.txAmount, { color: tx.amount > 0 ? '#4CAF50' : '#F44336' }]}>
+        {tx.amount > 0 ? '+' : ''}{tx.amount}
+      </Text>
+      <Text style={styles.txCurrency}>
+        {tx.currencyType === 'coins' ? t('wallet.coins') : t('wallet.banhMi')}
+      </Text>
+    </View>
+  </View>
+));
+
+// ─── Main Screen ───
+export default function CoinWalletScreen() {
+  const { t, i18n } = useTranslation();
+  const router = useRouter();
+  const { from } = useLocalSearchParams<{ from: string }>();
+
+  const [coins, setCoins] = useState<number>(0);
+  const [banhMi, setBanhMi] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
+  const [rewardAdLoaded, setRewardAdLoaded] = useState(false);
+  const [giftAdLoaded, setGiftAdLoaded] = useState(false);
+  const [rewardAd, setRewardAd] = useState<RewardedAd | null>(null);
+  const [giftAd, setGiftAd] = useState<RewardedAd | null>(null);
+
+  const isShowingAdRef = useRef(false);
+  const claimedRewardRef = useRef<{ reward: boolean; gift: boolean }>({ reward: false, gift: false });
+  const pendingAdIdRef = useRef<string>('');
+  const isMountedRef = useRef(true);
+
+  const handleBackPress = useCallback(() => {
+    if (from === 'profile') {
+      router.replace('/(tabs)/profile');
+    } else {
+      if (router.canGoBack()) router.back();
+      else router.replace('/(tabs)/home');
+    }
+    return true;
+  }, [from, router]);
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+    return () => backHandler.remove();
+  }, [handleBackPress]);
+
+  const loadBalance = useCallback(async (showLoading = false) => {
+    try {
+      if (showLoading) setLoading(true);
+      const result = await coinServerApi.getBalance();
+      if (!isMountedRef.current) return;
+      setCoins(result.coins);
+      setBanhMi(result.banhMi);
+      try {
+        await AsyncStorage.setItem(CACHED_BALANCE_KEY, JSON.stringify({ coins: result.coins, banhMi: result.banhMi }));
+      } catch (_) { }
+    } catch (error) {
+      console.error('Load balance error:', error);
+    } finally {
+      if (showLoading && isMountedRef.current) setLoading(false);
+    }
+  }, []);
+
+  const loadTransactions = useCallback(async () => {
+    try {
+      const result = await coinServerApi.getTransactions(20);
+      if (isMountedRef.current) setTransactions(result.transactions);
+    } catch (error) {
+      console.error('Load transactions error:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    (async () => {
+      // Show cached balance instantly
+      try {
+        const cached = await AsyncStorage.getItem(CACHED_BALANCE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          setCoins(parsed.coins || 0);
+          setBanhMi(parsed.banhMi || 0);
+        }
+      } catch (_) { }
+
+      try {
+        await Promise.all([loadBalance(false), loadTransactions()]);
+      } catch (_) { }
+      finally {
+        if (isMountedRef.current) setInitialLoading(false);
+      }
+    })();
+
+    // Init ads after a small delay to not block first paint
+    const adTimer = setTimeout(() => loadAds(), 800);
+
+    return () => {
+      isMountedRef.current = false;
+      clearTimeout(adTimer);
+    };
+  }, [loadBalance, loadTransactions]);
+
+  const loadAds = useCallback(() => {
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
+    const adUnitId = __DEV__ ? TestIds.REWARDED : PROD_REWARDED_AD_UNIT_ID;
+
+    const reward = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
+    reward.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setRewardAdLoaded(true); });
+    reward.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('reward'));
+    reward.addAdEventListener(AdEventType.CLOSED, () => {
+      if (isMountedRef.current) { setRewardAdLoaded(false); isShowingAdRef.current = false; reward.load(); }
+    });
+    reward.load();
+    setRewardAd(reward);
+
+    const gift = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
+    gift.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setGiftAdLoaded(true); });
+    gift.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('gift'));
+    gift.addAdEventListener(AdEventType.CLOSED, () => {
+      if (isMountedRef.current) { setGiftAdLoaded(false); isShowingAdRef.current = false; gift.load(); }
+    });
+    gift.load();
+    setGiftAd(gift);
+  }, []);
+
+  const handleAdEarned = useCallback(async (type: 'reward' | 'gift') => {
+    if (claimedRewardRef.current[type]) return;
+    claimedRewardRef.current[type] = true;
+    const adId = pendingAdIdRef.current || `${type}_ad_${Date.now()}`;
+    try {
+      setLoading(true);
+      if (type === 'reward') {
+        const result = await coinServerApi.reward(adId, { source: 'rewarded_ad' });
+        setBanhMi(result.newBalance);
+        loadBalance(false);
+        Alert.alert(t('common.success'), `+${result.amount} ${t('wallet.banhMi')}!`);
+      } else {
+        const result = await coinServerApi.rewardGift(adId, { source: 'rewarded_ad_gift' });
+        Alert.alert(t('common.success'), result.message || t('wallet.lucky_gift'));
+      }
+      loadTransactions();
+    } catch (error) {
+      Alert.alert(t('common.error'), getErrorMessage(error as any));
+    } finally {
+      setLoading(false);
+      setTimeout(() => { claimedRewardRef.current[type] = false; }, 1000);
+    }
+  }, [t, loadBalance, loadTransactions]);
+
+  const showAd = useCallback((type: 'reward' | 'gift') => {
+    if (isShowingAdRef.current) return;
+    const ad = type === 'reward' ? rewardAd : giftAd;
+    const isLoaded = type === 'reward' ? rewardAdLoaded : giftAdLoaded;
+    if (ad && isLoaded) {
+      isShowingAdRef.current = true;
+      pendingAdIdRef.current = `${type}_${Date.now()}`;
+      claimedRewardRef.current[type] = false;
+      try { ad.show(); } catch (e) {
+        isShowingAdRef.current = false;
+        Alert.alert(t('common.error'), t('wallet.ad_error'));
+      }
+    } else {
+      Alert.alert(t('common.loading'), t('wallet.ad_loading'));
+      try { ad?.load(); } catch (_) { }
+    }
+  }, [rewardAd, giftAd, rewardAdLoaded, giftAdLoaded, t]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    Promise.all([loadBalance(false), loadTransactions()]).finally(() => {
+      if (isMountedRef.current) setRefreshing(false);
+    });
+  }, [loadBalance, loadTransactions]);
+
+  // ✅ Stable callback passed to CoinPurchaseSection — prevents re-render
+  const handlePurchaseSuccess = useCallback(() => {
+    loadBalance(true);
+  }, [loadBalance]);
+
+  // ✅ Memoized stats
+  const stats = useMemo(() => ({
+    earned: transactions.filter(tx => tx.amount > 0).reduce((s, tx) => s + tx.amount, 0),
+    spent: Math.abs(transactions.filter(tx => tx.amount < 0).reduce((s, tx) => s + tx.amount, 0)),
+  }), [transactions]);
+
+  // ✅ Memoized transaction details (one object per tx, stable references)
+  const getTransactionDetails = useCallback((tx: Transaction) => {
+    const { type, metadata, amount } = tx;
+    if (type === 'reward') return { title: t('wallet.watch_ad'), description: t('wallet.watch_ad_desc'), icon: 'play-circle-outline' as any, color: '#4CAF50' };
+    if (type === 'topup') {
+      if (metadata?.type === 'gift_redeem') return { title: t('wallet.redeem_gift'), description: t('wallet.redeem_gift_desc'), icon: 'gift-outline' as any, color: '#4CAF50' };
+      if (metadata?.source === 'vietqr') return { title: t('wallet.topup_vietqr'), description: t('wallet.topup_vietqr_desc', { orderId: metadata.orderId?.slice(-8) || 'N/A' }), icon: 'wallet-outline' as any, color: '#4CAF50' };
+      return { title: t('wallet.topup'), description: t('wallet.topup_desc'), icon: 'add-circle-outline' as any, color: '#4CAF50' };
+    }
+    if (type === 'spend') {
+      if (metadata?.type === 'shop_purchase') return { title: t('store.title'), description: metadata.itemName || t('store.item'), icon: 'cart-outline' as any, color: '#F44336' };
+      if (metadata?.type === 'gift') return { title: t('wallet.send_gift'), description: t('wallet.send_gift_desc'), icon: 'heart-outline' as any, color: '#F44336' };
+      return { title: t('wallet.spend'), description: metadata?.purpose || t('wallet.spend_desc'), icon: 'remove-circle-outline' as any, color: '#F44336' };
+    }
+    return { title: type.charAt(0).toUpperCase() + type.slice(1), description: t('wallet.transaction'), icon: (amount > 0 ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline') as any, color: amount > 0 ? '#4CAF50' : '#F44336' };
+  }, [t]);
+
+  // ✅ Pre-compute details for all transactions — stable when transactions don't change
+  const txWithDetails = useMemo(() =>
+    transactions.map(tx => ({ tx, details: getTransactionDetails(tx) })),
+    [transactions, getTransactionDetails]
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* Fixed Header */}
+      <LinearGradient colors={['#0EA5E9', '#06B6D4']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.headerTitle}>
+            <Ionicons name="wallet" size={24} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.headerTitleText}>{t('wallet.title')}</Text>
+          </View>
+          <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
+            <Ionicons name="refresh" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerBalance}>
+          <View style={styles.balanceContainer}>
+            <View style={styles.balanceItem}>
+              <Text style={styles.headerBalanceLabel}>{t('wallet.coins')}</Text>
+              <View style={styles.headerBalanceAmount}>
+                <Ionicons name="diamond" size={20} color="#ffd700" style={{ marginRight: 6 }} />
+                <Text style={styles.headerBalanceValue}>{coins.toLocaleString()}</Text>
+              </View>
+            </View>
+            <View style={styles.balanceDivider} />
+            <View style={styles.balanceItem}>
+              <Text style={styles.headerBalanceLabel}>{t('wallet.banhMi')}</Text>
+              <View style={styles.headerBalanceAmount}>
+                <MaterialCommunityIcons name="baguette" size={20} color="#FFD700" style={{ marginRight: 6 }} />
+                <Text style={styles.headerBalanceValue}>{banhMi.toLocaleString()}</Text>
+              </View>
+            </View>
+          </View>
+          {initialLoading && <ActivityIndicator size="small" color="#fff" style={{ marginTop: 8 }} />}
+        </View>
+      </LinearGradient>
+
+      {/* Scrollable body */}
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Stats */}
+        <View style={styles.statsCard}>
+          <View style={styles.statItem}>
+            <Ionicons name="trending-up" size={24} color="#4CAF50" />
+            <View style={styles.statText}>
+              <Text style={styles.statLabel}>{t('wallet.earned')}</Text>
+              <Text style={styles.statValue}>{stats.earned.toLocaleString()}</Text>
+            </View>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Ionicons name="trending-down" size={24} color="#F44336" />
+            <View style={styles.statText}>
+              <Text style={styles.statLabel}>{t('wallet.spent')}</Text>
+              <Text style={styles.statValue}>{stats.spent.toLocaleString()}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* VietQR Purchase — stable callback prevents re-render */}
+        <CoinPurchaseSection onPurchaseSuccess={handlePurchaseSuccess} />
+
+        {/* Ad Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('wallet.free_coins')}</Text>
+          <View style={styles.adCard}>
+            <View style={styles.adInfo}>
+              <Ionicons name="play-circle" size={40} color="#4CAF50" />
+              <View style={styles.adTextContainer}>
+                <Text style={styles.adTitle}>{t('wallet.watch_ad')}</Text>
+                <Text style={styles.adSubtitle}>{t('wallet.watch_ad_desc')}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.watchBtn, (!rewardAdLoaded && !__DEV__) && styles.disabledBtn]}
+              onPress={() => showAd('reward')}
+              disabled={loading}
+            >
+              <Text style={styles.watchBtnText}>{rewardAdLoaded || __DEV__ ? t('wallet.watch_now') : t('common.loading')}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.adCard, { marginTop: 12 }]}>
+            <View style={styles.adInfo}>
+              <Ionicons name="gift" size={40} color="#9C27B0" />
+              <View style={styles.adTextContainer}>
+                <Text style={styles.adTitle}>{t('wallet.lucky_gift')}</Text>
+                <Text style={styles.adSubtitle}>{t('wallet.lucky_gift_desc')}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.watchBtn, { backgroundColor: '#9C27B0' }, (!giftAdLoaded && !__DEV__) && styles.disabledBtn]}
+              onPress={() => showAd('gift')}
+              disabled={loading}
+            >
+              <Text style={styles.watchBtnText}>{giftAdLoaded || __DEV__ ? t('wallet.open_gift') : t('common.loading')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Transaction History */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('wallet.history')}</Text>
+          <View style={styles.transactionList}>
+            {initialLoading ? (
+              <View style={styles.loadingList}>
+                <ActivityIndicator size="small" color="#555" />
+              </View>
+            ) : txWithDetails.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="time-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>{t('wallet.no_transactions')}</Text>
+              </View>
+            ) : (
+              txWithDetails.map(({ tx, details }) => (
+                <TransactionItem
+                  key={tx.id}
+                  tx={tx}
+                  details={details}
+                  locale={i18n.language}
+                  t={t}
+                />
+              ))
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {loading && !initialLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F5F7FA' },
+  header: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
+  },
+  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  refreshButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
+  headerTitleText: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  headerBalance: { alignItems: 'center', paddingTop: 8 },
+  balanceContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' },
+  balanceItem: { alignItems: 'center', flex: 1 },
+  balanceDivider: { width: 1, height: 40, backgroundColor: 'rgba(255,255,255,0.3)', marginHorizontal: 10 },
+  headerBalanceLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginBottom: 6 },
+  headerBalanceAmount: { flexDirection: 'row', alignItems: 'center' },
+  headerBalanceValue: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  body: { flex: 1 },
+  bodyContent: { paddingBottom: 40 },
+  statsCard: {
+    backgroundColor: '#fff', borderRadius: 16, padding: 16, margin: 16, marginTop: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
+  },
+  statItem: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  statText: { marginLeft: 10 },
+  statLabel: { fontSize: 12, color: '#757575', marginBottom: 2 },
+  statValue: { fontSize: 18, fontWeight: 'bold', color: '#333' },
+  statDivider: { width: 1, height: 40, backgroundColor: '#E0E0E0', marginHorizontal: 12 },
+  section: { marginBottom: 20, paddingHorizontal: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A', marginBottom: 12 },
+  adCard: {
+    backgroundColor: '#fff', borderRadius: 12, padding: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+  },
+  adInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  adTextContainer: { marginLeft: 12 },
+  adTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
+  adSubtitle: { fontSize: 13, color: '#757575' },
+  watchBtn: { backgroundColor: '#4CAF50', paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
+  disabledBtn: { backgroundColor: '#E0E0E0' },
+  watchBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  transactionList: { backgroundColor: '#fff', borderRadius: 12 },
+  txItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  txIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  txDetails: { flex: 1 },
+  txType: { fontSize: 15, fontWeight: '700', color: '#333' },
+  txDescription: { fontSize: 13, color: '#666', marginTop: 1 },
+  txDate: { fontSize: 11, color: '#999', marginTop: 4 },
+  txAmountContainer: { alignItems: 'flex-end' },
+  txAmount: { fontSize: 16, fontWeight: '800' },
+  txCurrency: { fontSize: 10, color: '#999', fontWeight: '600', textTransform: 'uppercase' },
+  emptyState: { alignItems: 'center', justifyContent: 'center', padding: 40 },
+  emptyText: { marginTop: 12, color: '#999', fontSize: 14 },
+  loadingList: { alignItems: 'center', justifyContent: 'center', padding: 20 },
+  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
+});

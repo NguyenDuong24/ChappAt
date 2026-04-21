@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
@@ -47,7 +47,7 @@ export default function GroupPreviewScreen() {
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -183,7 +183,7 @@ export default function GroupPreviewScreen() {
   };
 
   const getGroupAvatar = () => {
-    return group?.avatarUrl || 'https://via.placeholder.com/100x100/667eea/ffffff?text=G';
+    return group?.avatarUrl || 'https://via.placeholder.com/100x100/0EA5E9/ffffff?text=G';
   };
 
   const formatTime = (timestamp: any) => {
@@ -227,7 +227,7 @@ export default function GroupPreviewScreen() {
       <ThemedStatusBar />
 
       <LinearGradient
-        colors={theme === 'dark' ? ['#1a1a2e', '#16213e'] : ['#4facfe', '#00f2fe']}
+        colors={theme === 'dark' ? ['#06B6D4', '#0891B2'] : ['#0EA5E9', '#06B6D4']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top }]}
@@ -300,7 +300,7 @@ export default function GroupPreviewScreen() {
                     <View key={member.uid} style={styles.memberItem}>
                       <Avatar.Image
                         size={40}
-                        source={{ uri: member.profileUrl || 'https://via.placeholder.com/40x40/667eea/ffffff?text=U' }}
+                        source={{ uri: member.profileUrl || 'https://via.placeholder.com/40x40/0EA5E9/ffffff?text=U' }}
                       />
                       <View style={styles.memberInfo}>
                         <Text style={[styles.memberName, { color: currentThemeColors.text }]} numberOfLines={1}>
@@ -329,7 +329,7 @@ export default function GroupPreviewScreen() {
                     <View key={message.id} style={styles.messageItem}>
                       <Avatar.Image
                         size={32}
-                        source={{ uri: message.profileUrl || 'https://via.placeholder.com/32x32/667eea/ffffff?text=U' }}
+                        source={{ uri: message.profileUrl || 'https://via.placeholder.com/32x32/0EA5E9/ffffff?text=U' }}
                       />
                       <View style={styles.messageContent}>
                         <View style={styles.messageHeader}>
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   joinButton: {
-    backgroundColor: '#667eea',
+    backgroundColor: '#0EA5E9',
   },
   joinButtonContent: {
     paddingVertical: 8,
@@ -547,3 +547,4 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
 });
+

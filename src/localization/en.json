@@ -35,7 +35,10 @@
             "yesterday": "Yesterday"
         },
         "close": "Close",
-        "info": "Info"
+        "info": "Info",
+        "hello": "Hello",
+        "select": "Select...",
+        "select_option": "Select an option"
     },
     "signup": {
         "cancel_title": "Cancel registration?",
@@ -290,7 +293,18 @@
         "lucky_gift_desc": "Watch ad to get gift",
         "watch_now": "Watch Now",
         "open_gift": "Open Gift",
-        "no_transactions": "No transactions yet"
+        "no_transactions": "No transactions yet",
+        "redeem_gift": "Redeem Gift",
+        "redeem_gift_desc": "Receive coins from gifts",
+        "topup_vietqr": "Top up via VietQR",
+        "topup_vietqr_desc": "Order ID: {{orderId}}",
+        "topup_desc": "Top up wallet",
+        "send_gift": "Send Gift",
+        "send_gift_desc": "Send gifts to friends",
+        "spend_desc": "Use service",
+        "transaction": "Transaction",
+        "ad_error": "Could not open advertisement.",
+        "ad_loading": "Advertisement is loading..."
     },
     "store": {
         "title": "Store",
@@ -316,6 +330,7 @@
         "equip": "Equip",
         "avatar_frames": "Avatar Frames",
         "boosts": "Boosts",
+        "vip_title": "VIP",
         "items": {
             "vip_1m": {
                 "name": "VIP 1 Month",
@@ -438,7 +453,64 @@
         "two_factor_desc": "Add an extra layer of protection to your account",
         "two_factor_desc_short": "Extra protection for your account",
         "two_factor_title": "Two-factor authentication",
-        "update_error": "Could not update settings"
+        "update_error": "Could not update settings",
+        "quick_menu": "Quick Menu",
+        "preferences": "Preferences",
+        "sign_out": "Sign Out session",
+        "edit_profile": "Edit Profile",
+        "wallet": "Wallet",
+        "store": "Store"
+    },
+    "groups_tab": {
+        "title": "Groups",
+        "groups_count": "{{count}} Groups",
+        "search_results_count": "{{count}} items",
+        "search_placeholder": "Find conversations...",
+        "search_placeholder_public": "Discover communities...",
+        "empty_title": "No groups joined",
+        "empty_subtitle": "Start a community or join one to see it here."
+    },
+    "drawer": {
+        "notifications": {
+            "title": "Notifications",
+            "subtitle": "Stay updated with your social activity."
+        },
+        "chatSearch": {
+            "title": "Search Messages",
+            "subtitle": "Quickly find past conversations."
+        },
+        "groupSearch": {
+            "title": "Discover Communities",
+            "subtitle": "Find groups that match your interests."
+        },
+        "addFriend": {
+            "title": "Find New Friends",
+            "subtitle": "Search users or find people nearby."
+        },
+        "groupManagement": {
+            "title": "Manage Groups",
+            "subtitle": "Control members and group settings."
+        },
+        "createGroup": {
+            "title": "Create New Group",
+            "subtitle": "Build a community and start chatting."
+        },
+        "set_avatar": "Set Group Avatar",
+        "group_name": "GROUP NAME",
+        "description": "DESCRIPTION (OPTIONAL)",
+        "privacy_settings": "PRIVACY SETTINGS",
+        "launch_community": "Launch Community",
+        "close_drawer": "Close Drawer",
+        "public": "Public",
+        "private": "Private",
+        "secure_feature": "Secure & Encrypted Messaging",
+        "matching_results": "MATCHING RESULTS",
+        "recent_activity": "RECENT ACTIVITY",
+        "your_groups": "YOUR GROUPS",
+        "items_count": "{{count}} items",
+        "no_items": "No items found.",
+        "start_discovering": "START DISCOVERING",
+        "search_guide": "Search for everything in one place. Results appear instantly as you type."
     },
     "hotspots": {
         "title": "Hot Spots",
@@ -820,6 +892,7 @@
     },
     "create_post": {
         "title": "Create Post",
+        "hashtags": "Hashtags",
         "post_button": "Post",
         "public": "Public",
         "anonymous": "Anonymous",
@@ -888,7 +961,7 @@
         "pricing_cancel_anytime": "Cancel anytime",
         "pricing_secure_payment": "Secure payment via MoMo",
         "vietqr_info": "Secure payment via VietQR transfer",
-        "sms_title": "?? Auto-confirmation via SMS Banking",
+        "sms_title": "Auto-confirmation via SMS Banking",
         "sms_desc": "Transfer to upgrade Pro. The app auto-detects Vietcombank SMS and confirms in under 1 minute. No manual confirmation needed!",
         "already_pro_short": "Already Pro",
         "upgrade_now": "Upgrade now"
@@ -1227,16 +1300,6 @@
         "empty_search": "No friends found",
         "empty_default": "No friends yet"
     },
-    "groups_tab": {
-        "title": "Group Chat",
-        "search_results_count": "{{count}} results",
-        "groups_count": "{{count}} groups",
-        "search_placeholder_public": "Search public groups or ID...",
-        "search_placeholder": "Search groups...",
-        "search_mode_count": "Search: {{count}} results",
-        "empty_title": "No groups found",
-        "empty_subtitle": "Try another keyword or group ID"
-    },
     "group_create": {
         "add_group_image": "Add group image",
         "group_name": "Group name",
@@ -1295,5 +1358,22 @@
         "anonymous": "Anonymous",
         "someone": "Someone",
         "comment_error": "Unable to add comment"
+    },
+    "gift_picker": {
+        "title": "Send Gift",
+        "subtitle": "Choose a gift to send now",
+        "categories": {
+            "all": "All",
+            "popular": "Popular",
+            "love": "Love",
+            "funny": "Funny",
+            "luxury": "Luxury",
+            "special": "Special"
+        },
+        "empty": "No gifts found",
+        "selected": "Selected: {{name}} ({{price}} {{type}})",
+        "select_prompt": "Please choose a gift to send",
+        "send_now": "Send Gift Now",
+        "insufficient": "Insufficient balance"
     }
 }

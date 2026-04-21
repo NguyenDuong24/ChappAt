@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react';
-import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity, ImageBackground, BackHandler, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -19,6 +19,9 @@ import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
 import GiftBurst from '@/components/chat/GiftBurst';
 import { LinearGradient } from 'expo-linear-gradient';
 import { uploadLocalFileToStorage } from '@/utils/storageUpload';
+import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
+import { type FeatureDrawerKey } from '@/components/drawer/AppDrawer';
+import { RevealScalableView } from '@/components/reveal';
 
 export default function GroupChatScreen() {
   return (
@@ -35,6 +38,7 @@ function GroupChatContent() {
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const scrollViewRef = useRef<any>(null);
 
   const [group, setGroup] = useState<any>(null);
@@ -48,9 +52,13 @@ function GroupChatContent() {
   const [reportTarget, setReportTarget] = useState<any>(null);
   const [scrollToEndTrigger, setScrollToEndTrigger] = useState(0);
   const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
+  const [featureDrawer, setFeatureDrawer] = useState<FeatureDrawerKey | null>(null);
 
   const { currentTheme, currentEffect, loadTheme, loadEffect } = useChatTheme();
   const chatThemeForUI = useMemo(() => currentTheme?.id === 'default' ? undefined : currentTheme, [currentTheme]);
+
+  const drawerOffset = useMemo(() => Math.min(width * 0.62, 250), [width]);
+  const revealActive = !!featureDrawer;
 
   // Load theme and effect when entering room
   useEffect(() => {
@@ -65,7 +73,7 @@ function GroupChatContent() {
   }, [id, loadTheme, loadEffect]);
 
   const currentThemeColors = useMemo(() => {
-    const baseColors = (theme === 'dark' ? Colors.dark : Colors.light) || Colors.light;
+    const baseColors = (Colors[theme] || Colors.light) || Colors.light;
 
     if (!chatThemeForUI) {
       return baseColors;
@@ -227,6 +235,25 @@ function GroupChatContent() {
     router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId } });
   }, [router]);
 
+  const openManagementDrawer = useCallback(() => {
+    setFeatureDrawer('groupManagement');
+  }, []);
+
+  const closeFeatureDrawer = useCallback(() => {
+    setFeatureDrawer(null);
+  }, []);
+
+  useEffect(() => {
+    if (!featureDrawer) {
+      return undefined;
+    }
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setFeatureDrawer(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [featureDrawer]);
+
   const openReportForMessage = useCallback((message: any) => {
     try {
       const messageType = message?.imageUrl ? 'image' : 'text';
@@ -312,7 +339,7 @@ function GroupChatContent() {
               type: 'image',
             });
           } catch (flagErr) {
-            console.warn('⚠️ [uploadImage] Failed to log flagged content:', flagErr);
+            console.warn('âš ï¸  [uploadImage] Failed to log flagged content:', flagErr);
           }
         }
       }
@@ -321,46 +348,6 @@ function GroupChatContent() {
       setError(`${t('groups.send_image_error')}: ${(error as any).message}`);
     }
   }, [id, user, t]);
-
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: currentThemeColors.background }]}>
-        <Text style={[styles.loadingText, { color: currentThemeColors.text }]}>
-          {t('groups.loading')}
-        </Text>
-      </View>
-    );
-  }
-
-  if (error || !group) {
-    return (
-      <View style={[styles.errorContainer, { backgroundColor: currentThemeColors.background }]}>
-        <Text style={[styles.errorText, { color: currentThemeColors.text }]}>
-          {error || t('groups.not_found')}
-        </Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => {
-            setError(null);
-            setLoading(true);
-            setRetryKey(prev => prev + 1);
-          }}
-        >
-          <Text style={[styles.buttonText, { color: currentThemeColors.tint }]}>
-            {t('common.retry')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={[styles.buttonText, { color: currentThemeColors.tint }]}>
-            {t('common.back')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   const renderContent = () => (
     <KeyboardAvoidingView
@@ -372,6 +359,7 @@ function GroupChatContent() {
           group={group}
           onBack={() => router.back()}
           currentThemeColors={currentThemeColors}
+          onOpenManagementDrawer={openManagementDrawer}
         />
         <View style={styles.messagesContainer}>
           <GroupMessageList
@@ -404,10 +392,10 @@ function GroupChatContent() {
             <View style={[styles.replyBar, { backgroundColor: currentThemeColors.tint }]} />
             <View style={styles.replyContent}>
               <Text style={[styles.replyLabel, { color: currentThemeColors.tint }]}>
-                ↩ {t('groups.reply_to', { name: replyTo.senderName })}
+                â†© {t('groups.reply_to', { name: replyTo.senderName })}
               </Text>
               <Text style={[styles.replyText, { color: currentThemeColors.text }]} numberOfLines={1}>
-                {replyTo.imageUrl ? `📷 ${t('groups.image')}` : replyTo.text}
+                {replyTo.imageUrl ? `ðŸ“· ${t('groups.image')}` : replyTo.text}
               </Text>
             </View>
             <TouchableOpacity
@@ -415,7 +403,7 @@ function GroupChatContent() {
               style={[styles.cancelReply, { backgroundColor: currentThemeColors.border }]}
               activeOpacity={0.7}
             >
-              <Text style={[styles.cancelText, { color: currentThemeColors.subtleText }]}>✕</Text>
+              <Text style={[styles.cancelText, { color: currentThemeColors.subtleText }]}>âœ•</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -458,32 +446,63 @@ function GroupChatContent() {
     </KeyboardAvoidingView>
   );
 
+  const mainUi = (
+    <RevealScalableView
+      revealed={revealActive}
+      side="left"
+      scale={0.86}
+      offset={drawerOffset}
+      style={{ flex: 1 }}
+    >
+      {renderContent()}
+    </RevealScalableView>
+  );
+
+  const drawers = (
+    <FeatureActionDrawer
+      visible={!!featureDrawer}
+      drawerKey={featureDrawer}
+      onClose={closeFeatureDrawer}
+      paramsByKey={{
+        groupManagement: { id: String(id || '') },
+      }}
+    />
+  );
+
   if (currentTheme.backgroundImage) {
     return (
-      <ImageBackground
-        source={{ uri: currentTheme.backgroundImage }}
-        style={{ flex: 1 }}
-        resizeMode="cover"
-      >
-        {currentTheme.gradientColors && currentTheme.gradientColors.length > 0 ? (
-          <LinearGradient
-            colors={currentTheme.gradientColors as [string, string, ...string[]]}
-            style={{ flex: 1 }}
-          >
+      <View style={{ flex: 1 }}>
+        <ImageBackground
+          source={{ uri: currentTheme.backgroundImage }}
+          style={{ flex: 1 }}
+          resizeMode="cover"
+        >
+          {currentTheme.gradientColors && currentTheme.gradientColors.length > 0 ? (
+            <LinearGradient
+              colors={currentTheme.gradientColors as [string, string, ...string[]]}
+              style={{ flex: 1 }}
+            >
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                {mainUi}
+              </View>
+            </LinearGradient>
+          ) : (
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
-              {renderContent()}
+              {mainUi}
             </View>
-          </LinearGradient>
-        ) : (
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.1)' }}>
-            {renderContent()}
-          </View>
-        )}
-      </ImageBackground>
+          )}
+        </ImageBackground>
+        {drawers}
+      </View>
     );
   }
 
-  return renderContent();
+  return (
+    <View style={{ flex: 1, backgroundColor: currentThemeColors.background }}>
+      {mainUi}
+      {drawers}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -569,3 +588,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+

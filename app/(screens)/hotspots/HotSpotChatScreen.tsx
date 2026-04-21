@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useEffect, useState, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -72,7 +72,7 @@ interface Message {
   reactions?: Record<string, string[]>; // emoji -> [userIds]
 }
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+const REACTION_EMOJIS = ['??', '??', '??', '??', '??', '??'];
 
 const normalizeMojibakeText = (value: string = ''): string => {
   const text = String(value || '');
@@ -93,7 +93,7 @@ const HotSpotChatScreen = () => {
   const { user } = useAuth();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   const { playMessageReceivedSound, playMessageSentSound } = useSound();
   const previousMessageCountRef = useRef(0);
 
@@ -925,7 +925,7 @@ const HotSpotChatScreen = () => {
 
         <View style={styles.inputWrapper}>
           <TouchableOpacity onPress={() => setShowGifts(true)} style={styles.iconButton}>
-            <Text style={{ fontSize: 18 }}>🎁</Text>
+            <Text style={{ fontSize: 18 }}>??</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={handleImagePicker} style={styles.iconButton}>
@@ -1462,4 +1462,5 @@ const styles = StyleSheet.create({
 });
 
 export default HotSpotChatScreen;
+
 

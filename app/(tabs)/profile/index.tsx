@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useContext, useMemo, useRef, memo } from 'react';
-import { StyleSheet, View, FlatList, RefreshControl, InteractionManager } from 'react-native';
+import { StyleSheet, FlatList, RefreshControl, InteractionManager, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
@@ -11,9 +11,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { convertTimestampToDate } from '@/utils/common';
 import { PrivacyLevel } from '@/utils/postPrivacyUtils';
 import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
 import { useRefresh } from '@/context/RefreshContext';
+import LiquidScreen from '@/components/liquid/LiquidScreen';
+import { RevealScalableView } from '@/components/reveal';
+import AppDrawer, { FeatureDrawerKey } from '@/components/drawer/AppDrawer';
+import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
 
 // Define a Post shape compatible with PostCard props
 interface Comment {
@@ -65,14 +68,16 @@ const ProfileScreen = memo(() => {
   const [posts, setPosts] = useState<PostForCard[]>([]);
   const [isScroll, setIsScroll] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<'filter' | 'settings'>('settings');
+  const [featureDrawer, setFeatureDrawer] = useState<FeatureDrawerKey | null>(null);
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const drawerOffset = useMemo(() => Math.min(width * 0.62, 250), [width]);
+  const revealActive = drawerVisible || !!featureDrawer;
 
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
-  const currentThemeColors = useMemo(() =>
-    theme === 'dark' ? Colors.dark : Colors.light,
-    [theme]
-  );
 
   // Refs for optimization
   const lastFetchTimeRef = useRef<number>(0);
@@ -242,8 +247,36 @@ const ProfileScreen = memo(() => {
   }, []);
 
   const handleEditProfile = useCallback(() => {
+    const navigate = (router as any)?.navigate;
+    if (typeof navigate === 'function') {
+      navigate('/(tabs)/profile/EditProfile');
+      return;
+    }
     router.push('/(tabs)/profile/EditProfile');
   }, [router]);
+
+  const handleOpenSettings = useCallback(() => {
+    setFeatureDrawer(null);
+    setDrawerTab('settings');
+    setDrawerVisible(true);
+  }, []);
+
+  const handleCloseDrawer = useCallback(() => {
+    setDrawerVisible(false);
+  }, []);
+
+  const handleOpenFeatureDrawer = useCallback((key: FeatureDrawerKey) => {
+    setDrawerVisible(false);
+    InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(() => {
+        setFeatureDrawer(key);
+      });
+    });
+  }, []);
+
+  const handleCloseFeatureDrawer = useCallback(() => {
+    setFeatureDrawer(null);
+  }, []);
 
   const renderPost = useCallback(({ item }: { item: PostForCard }) => (
     <MemoizedPostCard
@@ -259,8 +292,13 @@ const ProfileScreen = memo(() => {
   const keyExtractor = useCallback((item: PostForCard) => item.id, []);
 
   const ListHeader = useMemo(() => (
-    <MemoizedTopProfile onEditProfile={handleEditProfile} />
-  ), [handleEditProfile]);
+    <>
+      <MemoizedTopProfile
+        onEditProfile={handleEditProfile}
+        onOpenSettings={handleOpenSettings}
+      />
+    </>
+  ), [handleEditProfile, handleOpenFeatureDrawer, handleOpenSettings]);
 
 
   const handleScroll = useCallback(() => setIsScroll(true), []);
@@ -270,42 +308,63 @@ const ProfileScreen = memo(() => {
     <RefreshControl
       refreshing={refreshing}
       onRefresh={onRefresh}
-      tintColor="#667eea"
-      colors={['#667eea']}
+      tintColor="#0EA5E9"
+      colors={['#0EA5E9']}
     />
   ), [refreshing, onRefresh]);
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
-      <AddPostButton isScroll={isScroll} />
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={keyExtractor}
-        ListHeaderComponent={ListHeader}
-        contentContainerStyle={styles.flatListContainer}
-        onScroll={handleScroll}
-        onMomentumScrollEnd={handleScrollEnd}
-        refreshControl={refreshControl}
-        showsVerticalScrollIndicator={false}
-        // Performance optimizations
-        initialNumToRender={3}
-        maxToRenderPerBatch={2}
-        windowSize={5}
-        removeClippedSubviews={true}
-        updateCellsBatchingPeriod={100}
-        scrollEventThrottle={16}
+    <LiquidScreen themeMode={theme}>
+      <RevealScalableView
+        revealed={revealActive}
+        side="left"
+        scale={0.86}
+        offset={drawerOffset}
+        style={styles.revealContainer}
+      >
+        <AddPostButton isScroll={isScroll} />
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={keyExtractor}
+          ListHeaderComponent={ListHeader}
+          contentContainerStyle={styles.flatListContainer}
+          onScroll={handleScroll}
+          onMomentumScrollEnd={handleScrollEnd}
+          refreshControl={refreshControl}
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={!drawerVisible}
+          // Performance optimizations
+          initialNumToRender={3}
+          maxToRenderPerBatch={2}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={100}
+          scrollEventThrottle={16}
+        />
+      </RevealScalableView>
+
+      <AppDrawer
+        visible={drawerVisible}
+        tab={drawerTab}
+        onClose={handleCloseDrawer}
       />
-    </View>
+
+      <FeatureActionDrawer
+        visible={!!featureDrawer}
+        drawerKey={featureDrawer}
+        onClose={handleCloseFeatureDrawer}
+      />
+    </LiquidScreen>
   );
 });
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   flatListContainer: {
-    paddingBottom: 20,
+    paddingBottom: 100,
+  },
+  revealContainer: {
+    flex: 1,
   },
 });
 

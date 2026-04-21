@@ -611,7 +611,7 @@ export default function GroupVoiceRoom() {
   if (loading || !meetingId || !token) {
     return (
       <View style={styles.loadingContainer}>
-        <LinearGradient colors={['#667eea', '#764ba2']} style={styles.gradient}>
+        <LinearGradient colors={['#0EA5E9', '#06B6D4']} style={styles.gradient}>
           <ActivityIndicator size="large" color="#fff" />
           <Text style={styles.loadingText}>{t('group_voice.joining_room')}</Text>
         </LinearGradient>

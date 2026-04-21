@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
   Share,
   Linking,
   Modal,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -23,21 +25,26 @@ import TestModal from '@/components/common/TestModal';
 import { useRouter } from 'expo-router';
 import { submitFeedback, submitReport, submitSupportRequest } from '@/services/supportService';
 import { useAuth } from '@/context/authContext';
+import { useTheme } from '@/context/ThemeContext';
+import { getLiquidPalette } from '@/components/liquid';
+import { getThemeColors, getThemeDisplayName } from '@/constants/Colors';
 import { db } from '@/firebaseConfig';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
 
 interface SettingsScreenProps {
   currentUser?: any;
   onSignOut?: () => void;
-  onThemeToggle?: () => void;
-  isDarkMode?: boolean;
 }
 
-const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = false }: SettingsScreenProps) => {
-  const { t, i18n } = useTranslation();
+const glassGradient = ['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.08)'] as const;
 
-  // Modal states
+const SettingsScreen = ({ currentUser, onSignOut }: SettingsScreenProps) => {
+  const { t, i18n } = useTranslation();
+  const router = useRouter();
+  const { user, refreshUser } = useAuth();
+  const { theme, isDark, palette: contextPalette, themes, setTheme } = useTheme();
+
   const [feedbackVisible, setFeedbackVisible] = useState(false);
   const [reportVisible, setReportVisible] = useState(false);
   const [helpVisible, setHelpVisible] = useState(false);
@@ -45,46 +52,62 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
   const [dataManagementVisible, setDataManagementVisible] = useState(false);
   const [testModalVisible, setTestModalVisible] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
-
-  // Settings states
-  const [notifications, setNotifications] = useState(true);
-  const [messagePreview, setMessagePreview] = useState(true);
+  const [themeModalVisible, setThemeModalVisible] = useState(false);
   const [onlineStatus, setOnlineStatus] = useState(true);
-  const [readReceipts, setReadReceipts] = useState(true);
-  const [dataUsage, setDataUsage] = useState(false);
 
-  const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const palette = useMemo(() => {
+    if (contextPalette) return {
+      text: contextPalette.textColor,
+      subtleText: contextPalette.subtitleColor,
+      softText: isDark ? 'rgba(255,255,248,0.62)' : 'rgba(11,33,36,0.62)',
+      border: contextPalette.menuBorder || (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)'),
+      card: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+      cardStrong: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      success: '#2FE0AC',
+      warning: '#F6C966',
+      danger: '#FF6B7F',
+      info: '#8BD9FF',
+    };
+
+    const lp = getLiquidPalette(theme);
+    return {
+      text: lp.textColor,
+      subtleText: lp.subtitleColor,
+      softText: isDark ? 'rgba(255,255,248,0.62)' : 'rgba(11,33,36,0.62)',
+      border: lp.menuBorder,
+      card: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+      cardStrong: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      success: '#2FE0AC',
+      warning: '#F6C966',
+      danger: '#FF6B7F',
+      info: '#8BD9FF',
+    };
+  }, [theme, isDark, contextPalette]);
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
     setLanguageModalVisible(false);
   };
 
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/(tabs)/profile');
+  };
+
   const openEditProfile = () => {
     try {
-      // Primary (group names like (tabs) are omitted in path resolution)
       router.push('/profile/EditProfile');
-    } catch (e) {
-      // Fallback in case explicit grouped path is needed
-      try { router.push('/(tabs)/profile/EditProfile'); } catch { }
+    } catch {
+      try {
+        router.push('/(tabs)/profile/EditProfile');
+      } catch {}
     }
   };
 
-  const colors = {
-    background: isDarkMode ? '#0F172A' : '#FFFFFF',
-    surface: isDarkMode ? '#1E293B' : '#F8FAFC',
-    text: isDarkMode ? '#F8FAFC' : '#0F172A',
-    subtleText: isDarkMode ? '#94A3B8' : '#64748B',
-    border: isDarkMode ? '#374151' : '#E2E8F0',
-    primary: '#6366F1',
-    success: '#10B981',
-    warning: '#F59E0B',
-    danger: '#EF4444',
-  };
-
-  // Hoisted function so it can be used in settingsSections before its definition
-  async function handleToggleOnlineStatus(val: boolean) {
+  const handleToggleOnlineStatus = async (val: boolean) => {
     setOnlineStatus(val);
     try {
       const uid = currentUser?.uid || user?.uid;
@@ -94,29 +117,31 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       if (val === false) {
         await updateDoc(ref, { isOnline: false });
       }
-      try { await refreshUser?.(); } catch { }
-    } catch (e) {
-      Alert.alert(t('common.error'), t('settings.online_status_error', { defaultValue: 'Could not update online status' }));
+      try {
+        await refreshUser?.();
+      } catch {}
+    } catch {
+      Alert.alert(t('common.error'), t('settings.online_status_error'));
     }
-  }
+  };
 
   const settingsSections = [
     {
       title: t('settings.title'),
       items: [
         {
-          icon: 'shield-account',
+          icon: 'shield-account-outline',
           title: t('settings.privacy'),
           subtitle: t('settings.privacy_desc'),
           onPress: () => router.push('/(screens)/user/PrivacySettingsScreen'),
-          color: colors.success,
+          color: palette.success,
         },
         {
-          icon: 'key',
+          icon: 'lock-reset',
           title: t('settings.change_password'),
           subtitle: t('settings.change_password_desc'),
           onPress: () => router.push('/(screens)/user/ChangePasswordScreen'),
-          color: colors.warning,
+          color: palette.warning,
         },
       ],
     },
@@ -124,14 +149,14 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       title: t('chat.title'),
       items: [
         {
-          icon: 'account-clock',
+          icon: 'account-clock-outline',
           title: t('settings.online_status'),
           subtitle: t('settings.online_status_desc'),
           isSwitch: true,
           value: onlineStatus,
           onToggle: handleToggleOnlineStatus,
-          color: colors.success,
-        }
+          color: palette.success,
+        },
       ],
     },
     {
@@ -142,8 +167,8 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
           title: t('settings.select_language'),
           subtitle: i18n.language === 'vi' ? t('settings.vietnamese') : t('settings.english'),
           onPress: () => setLanguageModalVisible(true),
-          color: colors.primary,
-        }
+          color: palette.info,
+        },
       ],
     },
     {
@@ -152,44 +177,42 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
         {
           icon: 'theme-light-dark',
           title: t('settings.dark_mode'),
-          subtitle: t('settings.appearance_desc'),
-          isSwitch: true,
-          value: isDarkMode,
-          onToggle: onThemeToggle,
-          color: colors.primary,
-        }
+          subtitle: `${t('settings.appearance_desc')} · ${getThemeDisplayName(theme)}`,
+          onPress: () => setThemeModalVisible(true),
+          color: '#9BC4FF',
+        },
       ],
     },
     {
       title: t('settings.support'),
       items: [
         {
-          icon: 'help-circle',
+          icon: 'help-circle-outline',
           title: t('settings.help_center'),
           subtitle: t('settings.help_center_desc'),
           onPress: () => setHelpVisible(true),
-          color: colors.primary,
+          color: '#9BD0FF',
         },
         {
-          icon: 'message-star',
+          icon: 'message-star-outline',
           title: t('settings.send_feedback'),
           subtitle: t('settings.send_feedback_desc'),
           onPress: () => setFeedbackVisible(true),
-          color: colors.success,
+          color: palette.success,
         },
         {
-          icon: 'flag',
+          icon: 'flag-outline',
           title: t('settings.report_issue'),
           subtitle: t('settings.report_issue_desc'),
           onPress: () => setReportVisible(true),
-          color: colors.danger,
+          color: palette.danger,
         },
         {
-          icon: 'share-variant',
+          icon: 'share-variant-outline',
           title: t('settings.share_app'),
           subtitle: t('settings.share_app_desc'),
           onPress: () => handleShare(),
-          color: colors.primary,
+          color: palette.info,
         },
       ],
     },
@@ -197,28 +220,28 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       title: t('settings.legal'),
       items: [
         {
-          icon: 'file-document',
+          icon: 'file-document-outline',
           title: t('settings.terms'),
           subtitle: t('settings.terms_desc'),
           onPress: () => handleOpenURL('https://nguyenduong24.github.io/ChappAt-Legal-Site/terms.html'),
-          color: colors.subtleText,
+          color: '#D4FFE8',
         },
         {
-          icon: 'shield-check',
+          icon: 'shield-check-outline',
           title: t('settings.privacy_policy'),
           subtitle: t('settings.privacy_policy_desc'),
           onPress: () => handleOpenURL('https://nguyenduong24.github.io/ChappAt-Legal-Site/privacy.html'),
-          color: colors.subtleText,
+          color: '#D4FFE8',
         },
         {
-          icon: 'information',
+          icon: 'information-outline',
           title: t('settings.about'),
           subtitle: t('settings.about_desc'),
           onPress: () => showAppInfo(),
-          color: colors.subtleText,
+          color: '#D4FFE8',
         },
       ],
-    }
+    },
   ];
 
   const handleShare = async () => {
@@ -227,8 +250,8 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
         message: t('settings.share_message'),
         title: t('settings.share_title'),
       });
-    } catch (error) {
-      Alert.alert(t('common.error'), t('settings.share_error', { defaultValue: 'Could not share app' }));
+    } catch {
+      Alert.alert(t('common.error'), t('settings.share_error'));
     }
   };
 
@@ -238,42 +261,38 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       if (supported) {
         await Linking.openURL(url);
       } else {
-        Alert.alert(t('common.error'), t('common.error_url', { defaultValue: 'Could not open link' }));
+        Alert.alert(t('common.error'), t('common.error_url'));
       }
-    } catch (error) {
-      Alert.alert(t('common.error'), t('common.error_url', { defaultValue: 'Could not open link' }));
+    } catch {
+      Alert.alert(t('common.error'), t('common.error_url'));
     }
   };
 
   const showAppInfo = () => {
     Alert.alert(
       t('settings.about'),
-      `ChappAt - ${t('home.subtitle')}\n${t('settings.about_desc')}\nBản quyền © 2025\n\nPhát triển bởi: Your Team`,
+      `ChappAt - ${t('home.subtitle')}\n${t('settings.about_desc')}\nCopyright © 2026`,
       [{ text: t('common.ok') }]
     );
   };
 
   const handleSignOut = () => {
-    Alert.alert(
-      t('profile.logout'),
-      t('settings.logout_confirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('profile.logout'),
-          style: 'destructive',
-          onPress: () => onSignOut?.(),
-        },
-      ]
-    );
+    Alert.alert(t('profile.logout'), t('settings.logout_confirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.logout'),
+        style: 'destructive',
+        onPress: () => onSignOut?.(),
+      },
+    ]);
   };
 
   const handleFeedbackSubmit = async (feedback: any) => {
     try {
       await submitFeedback(feedback, {
-        uid: currentUser?.uid,
-        email: currentUser?.email,
-        username: currentUser?.username || currentUser?.displayName,
+        uid: currentUser?.uid || user?.uid,
+        email: currentUser?.email || user?.email,
+        username: currentUser?.username || currentUser?.displayName || user?.username || user?.displayName,
       });
     } catch (e) {
       console.log('submitFeedback error', e);
@@ -291,13 +310,12 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
       const sanitized = { ...report, images: Array.isArray(report?.images) ? report.images : [] };
       await submitReport(sanitized, userInfo);
     } catch (e) {
-      console.log('❌ submitReport error:', e);
+      console.log('submitReport error:', e);
       throw e;
     }
   };
 
-  React.useEffect(() => {
-    // bootstrap from user doc
+  useState(() => {
     (async () => {
       try {
         const uid = currentUser?.uid || user?.uid;
@@ -310,129 +328,171 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
             setOnlineStatus(data.showOnlineStatus);
           }
         }
-      } catch { }
+      } catch {}
     })();
-  }, [currentUser?.uid, user?.uid]);
+  });
 
   const renderSection = (section: any) => (
     <View key={section.title} style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
-      <View style={[styles.sectionContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        {section.items.map((it: any) => (
+      <Text style={[styles.sectionTitle, { color: palette.softText }]}>{section.title}</Text>
+      <LinearGradient colors={glassGradient} style={styles.sectionContent}>
+        {section.items.map((it: any) =>
           it.isSwitch ? (
-            <View key={it.title} style={[styles.settingItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <View key={it.title} style={[styles.settingItem, { borderBottomColor: palette.border }]}>
               <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: `${it.color}20` }]}>
+                <View style={[styles.settingIcon, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
                   <MaterialCommunityIcons name={it.icon} size={20} color={it.color} />
                 </View>
-                <View style={styles.settingContent}>
-                  <Text style={[styles.settingTitle, { color: colors.text }]}>{it.title}</Text>
-                  <Text style={[styles.settingSubtitle, { color: colors.subtleText }]}>{it.subtitle}</Text>
+                <View style={styles.settingContentWrap}>
+                  <Text style={[styles.settingTitle, { color: palette.text }]}>{it.title}</Text>
+                  <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>{it.subtitle}</Text>
                 </View>
               </View>
               <Switch
                 value={it.value}
                 onValueChange={it.onToggle}
-                trackColor={{ false: colors.border, true: `${it.color}40` }}
-                thumbColor={it.value ? it.color : colors.subtleText}
+                trackColor={{ false: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', true: 'rgba(89,224,177,0.5)' }}
+                thumbColor={it.value ? '#EFFFF8' : '#FFFFFF'}
               />
             </View>
           ) : (
-            <TouchableOpacity key={it.title} style={[styles.settingItem, { backgroundColor: colors.surface, borderBottomColor: colors.border }]} onPress={it.onPress}>
+            <TouchableOpacity
+              key={it.title}
+              style={[styles.settingItem, { borderBottomColor: palette.border }]}
+              onPress={it.onPress}
+              activeOpacity={0.88}
+            >
               <View style={styles.settingLeft}>
-                <View style={[styles.settingIcon, { backgroundColor: `${it.color}20` }]}>
+                <View style={[styles.settingIcon, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
                   <MaterialCommunityIcons name={it.icon} size={20} color={it.color} />
                 </View>
-                <View style={styles.settingContent}>
-                  <Text style={[styles.settingTitle, { color: colors.text }]}>{it.title}</Text>
-                  <Text style={[styles.settingSubtitle, { color: colors.subtleText }]}>{it.subtitle}</Text>
+                <View style={styles.settingContentWrap}>
+                  <Text style={[styles.settingTitle, { color: palette.text }]}>{it.title}</Text>
+                  <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>{it.subtitle}</Text>
                 </View>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.subtleText} />
+              <MaterialCommunityIcons name="chevron-right" size={20} color={palette.subtleText} />
             </TouchableOpacity>
           )
-        ))}
-      </View>
+        )}
+      </LinearGradient>
     </View>
   );
 
+  const displayName = currentUser?.displayName || currentUser?.username || user?.displayName || user?.username || t('chat.unknown_user');
+  const displayEmail = currentUser?.email || user?.email || t('settings.no_email');
+  const displayAvatar = currentUser?.profileUrl || user?.profileUrl || user?.photoURL || 'https://via.placeholder.com/80';
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* User Info Display */}
-        <View style={[styles.userInfo, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Image source={{ uri: user?.profileUrl || 'https://via.placeholder.com/50' }} style={styles.userAvatar} contentFit="cover" />
+    <View style={styles.container}>
+      <LinearGradient colors={palette.border ? [palette.border, palette.border] : ['#0A6C54', '#0A4C3B']} style={StyleSheet.absoluteFillObject} />
+
+      <View style={styles.header}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.86}>
+          <MaterialCommunityIcons name="chevron-left" size={24} color={palette.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: palette.text }]}>{t('settings.title')}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
+        <LinearGradient colors={glassGradient} style={styles.userInfo}>
+          <Image source={{ uri: displayAvatar }} style={styles.userAvatar} contentFit="cover" />
           <View style={styles.userDetails}>
-            <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || user?.username || t('chat.unknown_user')}</Text>
-            <Text style={[styles.userEmail, { color: colors.subtleText }]}>{user?.email || t('settings.no_email')}</Text>
+            <Text style={[styles.userName, { color: palette.text }]}>{displayName}</Text>
+            <Text style={[styles.userEmail, { color: palette.subtleText }]}>{displayEmail}</Text>
           </View>
           <TouchableOpacity style={styles.editProfileButton} onPress={openEditProfile}>
-            <MaterialCommunityIcons name="pencil" size={20} color={colors.primary} />
+            <MaterialCommunityIcons name="pencil" size={18} color={palette.text} />
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
 
-        {/* Settings Sections */}
         {settingsSections.map(renderSection)}
 
-        {/* Sign Out Button */}
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <LinearGradient
-            colors={['#EF4444', '#DC2626']}
-            style={styles.signOutGradient}
-          >
-            <MaterialCommunityIcons name="logout" size={20} color="#FFFFFF" />
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut} activeOpacity={0.9}>
+          <LinearGradient colors={['rgba(255,117,138,0.95)', 'rgba(232,84,108,0.95)']} style={styles.signOutGradient}>
+            <MaterialCommunityIcons name="logout" size={18} color="#FFFFFF" />
             <Text style={styles.signOutText}>{t('profile.logout')}</Text>
           </LinearGradient>
         </TouchableOpacity>
-
-        <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* Language Selection Modal */}
-      <Modal
-        visible={languageModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setLanguageModalVisible(false)}
-      >
+      <Modal visible={languageModalVisible} transparent animationType="fade" onRequestClose={() => setLanguageModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <LinearGradient colors={glassGradient} style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>{t('settings.select_language')}</Text>
+              <Text style={[styles.modalTitle, { color: palette.text }]}>{t('settings.select_language')}</Text>
               <TouchableOpacity onPress={() => setLanguageModalVisible(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+                <MaterialCommunityIcons name="close" size={22} color={palette.text} />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={[styles.languageOption, i18n.language === 'vi' && { backgroundColor: `${colors.primary}20` }]}
-              onPress={() => changeLanguage('vi')}
-            >
-              <Text style={[styles.languageText, { color: colors.text }, i18n.language === 'vi' && { color: colors.primary, fontWeight: 'bold' }]}>
-                {t('settings.vietnamese')}
-              </Text>
-              {i18n.language === 'vi' && <MaterialCommunityIcons name="check" size={20} color={colors.primary} />}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.languageOption, i18n.language === 'en' && { backgroundColor: `${colors.primary}20` }]}
-              onPress={() => changeLanguage('en')}
-            >
-              <Text style={[styles.languageText, { color: colors.text }, i18n.language === 'en' && { color: colors.primary, fontWeight: 'bold' }]}>
-                {t('settings.english')}
-              </Text>
-              {i18n.language === 'en' && <MaterialCommunityIcons name="check" size={20} color={colors.primary} />}
-            </TouchableOpacity>
-          </View>
+            {[
+              { key: 'vi', label: t('settings.vietnamese') },
+              { key: 'en', label: t('settings.english') },
+            ].map((lang) => {
+              const selected = i18n.language === lang.key;
+              return (
+                <TouchableOpacity
+                  key={lang.key}
+                  style={[styles.languageOption, selected && styles.languageOptionActive]}
+                  onPress={() => changeLanguage(lang.key)}
+                >
+                  <Text style={[styles.languageText, { color: palette.text }]}>{lang.label}</Text>
+                  {selected && <MaterialCommunityIcons name="check" size={18} color="#9FF7D8" />}
+                </TouchableOpacity>
+              );
+            })}
+          </LinearGradient>
         </View>
       </Modal>
 
-      {/* Modals */}
-      <FeedbackModalSimple
-        visible={feedbackVisible}
-        onClose={() => setFeedbackVisible(false)}
-        onSubmit={handleFeedbackSubmit}
-      />
+      <Modal visible={themeModalVisible} transparent animationType="fade" onRequestClose={() => setThemeModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <LinearGradient colors={glassGradient} style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: palette.text }]}>{t('settings.appearance')}</Text>
+              <TouchableOpacity onPress={() => setThemeModalVisible(false)}>
+                <MaterialCommunityIcons name="close" size={22} color={palette.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.themePickerScroll} showsVerticalScrollIndicator={false}>
+              {themes.map((themeKey) => {
+                const themeColors = getThemeColors(themeKey);
+                const selected = theme === themeKey;
+
+                return (
+                  <TouchableOpacity
+                    key={themeKey}
+                    style={[
+                      styles.themeOption,
+                      selected && styles.themeOptionActive,
+                    ]}
+                    onPress={() => {
+                      setTheme(themeKey);
+                      setThemeModalVisible(false);
+                    }}
+                  >
+                    <View style={styles.themeOptionLeft}>
+                      <View style={[styles.themePreviewSwatch, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}>
+                        <View style={[styles.themePreviewDot, { backgroundColor: themeColors.tint }]} />
+                      </View>
+                      <View style={styles.settingContentWrap}>
+                        <Text style={[styles.settingTitle, { color: palette.text }]}>{getThemeDisplayName(themeKey)}</Text>
+                        <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>{themeKey}</Text>
+                      </View>
+                    </View>
+                    {selected && <MaterialCommunityIcons name="check-circle" size={20} color="#9FF7D8" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </LinearGradient>
+        </View>
+      </Modal>
+
+      <FeedbackModalSimple visible={feedbackVisible} onClose={() => setFeedbackVisible(false)} onSubmit={handleFeedbackSubmit} />
 
       <ReportModalSimple
         visible={reportVisible}
@@ -441,8 +501,8 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
         targetType="user"
         targetInfo={{
           id: 'app-issue',
-          name: 'Ứng dụng ChappAt',
-          content: 'Báo cáo sự cố ứng dụng',
+          name: t('common.app_name', { defaultValue: 'ChappAt App' }),
+          content: t('settings.report_issue'),
         }}
         currentUser={currentUser}
       />
@@ -458,29 +518,17 @@ const SettingsScreen = ({ currentUser, onSignOut, onThemeToggle, isDarkMode = fa
               email: currentUser?.email || user?.email,
               username: currentUser?.username || currentUser?.displayName || user?.username || user?.displayName,
             });
-            Alert.alert('✅ ' + t('common.success'), t('settings.support_success'));
+            Alert.alert(t('common.success'), t('settings.support_success'));
           } catch (e) {
             console.error('Submit support request error:', e);
-            Alert.alert('❌ ' + t('common.error'), t('settings.support_error'));
+            Alert.alert(t('common.error'), t('settings.support_error'));
           }
         }}
       />
 
-      <BackupRestoreModal
-        visible={backupVisible}
-        onClose={() => setBackupVisible(false)}
-      />
-
-      <DataManagementModal
-        visible={dataManagementVisible}
-        onClose={() => setDataManagementVisible(false)}
-      />
-
-      <TestModal
-        visible={testModalVisible}
-        onClose={() => setTestModalVisible(false)}
-        title="Test Modal"
-      />
+      <BackupRestoreModal visible={backupVisible} onClose={() => setBackupVisible(false)} />
+      <DataManagementModal visible={dataManagementVisible} onClose={() => setDataManagementVisible(false)} />
+      <TestModal visible={testModalVisible} onClose={() => setTestModalVisible(false)} title="Test Modal" />
     </View>
   );
 };
@@ -490,68 +538,95 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 56 : 24,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  headerSpacer: {
+    width: 38,
   },
   content: {
     flex: 1,
-    marginTop: 10,
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 26,
   },
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    margin: 20,
-    padding: 16,
-    borderRadius: 16,
+    borderRadius: 20,
+    padding: 14,
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    marginBottom: 14,
   },
   userAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
   },
   userDetails: {
     flex: 1,
   },
   userName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: '700',
   },
   userEmail: {
-    fontSize: 14,
+    marginTop: 2,
+    fontSize: 12,
   },
   editProfileButton: {
-    padding: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   section: {
-    marginBottom: 24,
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
     marginBottom: 12,
   },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 7,
+    marginLeft: 2,
+    letterSpacing: 0.7,
+  },
   sectionContent: {
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
     overflow: 'hidden',
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
   },
@@ -561,77 +636,125 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
+    marginRight: 10,
   },
-  settingContent: {
+  settingContentWrap: {
     flex: 1,
+    paddingRight: 8,
   },
   settingTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 2,
+    fontSize: 14,
+    fontWeight: '700',
   },
   settingSubtitle: {
-    fontSize: 14,
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
   },
   signOutButton: {
-    marginHorizontal: 20,
-    marginVertical: 20,
-    borderRadius: 12,
+    marginTop: 8,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   signOutGradient: {
-    flexDirection: 'row',
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    flexDirection: 'row',
     gap: 8,
   },
   signOutText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  bottomPadding: {
-    height: 40,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2,12,10,0.6)',
+    padding: 20,
   },
   modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '700',
   },
   languageOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    minHeight: 44,
     borderRadius: 12,
+    paddingHorizontal: 12,
     marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  languageOptionActive: {
+    backgroundColor: 'rgba(159,247,216,0.16)',
+    borderColor: 'rgba(159,247,216,0.55)',
   },
   languageText: {
-    fontSize: 16,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  themePickerScroll: {
+    maxHeight: 360,
+  },
+  themeOption: {
+    minHeight: 54,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  themeOptionActive: {
+    backgroundColor: 'rgba(159,247,216,0.16)',
+    borderColor: 'rgba(159,247,216,0.55)',
+  },
+  themeOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  themePreviewSwatch: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  themePreviewDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
 });
 

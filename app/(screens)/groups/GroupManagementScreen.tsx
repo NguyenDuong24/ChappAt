@@ -38,6 +38,7 @@ import { storage } from '@/firebaseConfig';
 import { nanoid } from 'nanoid';
 import { ChatThemeProvider, useChatTheme } from '@/context/ChatThemeContext';
 import ChatThemePicker from '@/components/chat/ChatThemePicker';
+import { getLiquidMenuContentStyle } from '@/components/liquid';
 
 export default function GroupManagementScreen() {
     return (
@@ -54,7 +55,7 @@ function GroupManagementContent() {
     const router = useRouter();
     const themeCtx = useContext(ThemeContext);
     const theme = themeCtx?.theme || 'light';
-    const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+    const currentThemeColors = Colors[theme] || Colors.light;
     const insets = useSafeAreaInsets();
 
     const [group, setGroup] = useState<GroupWithRoles | null>(null);
@@ -529,6 +530,7 @@ function GroupManagementContent() {
                     <Menu
                         visible={menuVisible === member.uid}
                         onDismiss={() => setMenuVisible(null)}
+                        contentStyle={getLiquidMenuContentStyle(theme)}
                         anchor={
                             <IconButton
                                 icon="dots-vertical"
@@ -1396,3 +1398,4 @@ const styles = StyleSheet.create({
         marginLeft: 12,
     },
 });
+

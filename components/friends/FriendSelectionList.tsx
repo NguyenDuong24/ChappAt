@@ -28,7 +28,7 @@ const FriendSelectionList = ({
 }: FriendSelectionListProps) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = theme === 'dark' ? Colors.dark : Colors.light;
+  const currentThemeColors = Colors[theme] || Colors.light;
   
   const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +118,7 @@ const FriendSelectionList = ({
             <Avatar.Text
               size={40}
               label={item.displayName?.charAt(0)?.toUpperCase() || '?'}
-              style={{ backgroundColor: '#667eea' }}
+              style={{ backgroundColor: '#0EA5E9' }}
             />
           )}
           <View style={styles.textContainer}>
@@ -147,7 +147,7 @@ const FriendSelectionList = ({
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#667eea" />
+        <ActivityIndicator size="large" color="#0EA5E9" />
       </View>
     );
   }
@@ -246,3 +246,4 @@ const styles = StyleSheet.create({
 });
 
 export default FriendSelectionList;
+

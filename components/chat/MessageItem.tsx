@@ -42,7 +42,7 @@ export default function MessageItem({
     const [showEditModal, setShowEditModal] = useState(false);
     const themeCtx = useContext(ThemeContext);
     const theme = themeCtx?.theme || 'light';
-    const currentThemeColors = (theme === 'dark' ? Colors.dark : Colors.light) || {
+    const currentThemeColors = (Colors[theme] || Colors.light) || {
         surface: '#F8FAFC',
         text: '#0F172A',
         subtleText: '#64748B',

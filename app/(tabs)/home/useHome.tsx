@@ -106,7 +106,18 @@ const useHome = (isFocused: boolean = true) => {
     if (lastTriggerKeyRef.current === key) return;
     lastTriggerKeyRef.current = key;
 
-    setLoading(true);
+    // Only show loading indicator on initial load (no data yet).
+    // When re-focusing a tab or re-fetching with existing data, load silently
+    // so the current list stays visible instead of flashing a skeleton screen.
+    setUsers((prev) => {
+      if (prev.length === 0) {
+        // No data yet – show the skeleton loading screen
+        setLoading(true);
+      }
+      // Keep existing data visible while fetching in background
+      return prev;
+    });
+
     if (unsubRef.current) unsubRef.current();
 
     const constraints = buildConstraints(false);
@@ -155,7 +166,8 @@ const useHome = (isFocused: boolean = true) => {
   }, [loading, hasMore, lastDoc, buildConstraints, sortUsers]);
 
   const handleRefresh = useCallback(() => {
-    setUsers([]); // Clear users to show loading state more clearly
+    // Do NOT clear users — keep showing the old list while refreshing
+    // to avoid a blank flash on pull-to-refresh.
     setRefreshing(true);
     setRefreshTrigger(prev => prev + 1);
   }, []);

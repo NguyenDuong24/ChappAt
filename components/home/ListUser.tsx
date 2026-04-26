@@ -294,8 +294,8 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
     transform: [{ scale: 0.72 + dotThreeAnim.value * 0.28 }],
   }));
 
-  const handleSend = useCallback(async () => {
-    const text = prompt.trim();
+  const sendMessage = useCallback(async (rawText: string) => {
+    const text = rawText.trim();
     if (!text || aiMode === 'thinking') return;
     if (pendingReplyRef.current) clearTimeout(pendingReplyRef.current);
     setAiMode('thinking');
@@ -340,7 +340,8 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
       ]);
       setMatchSummary(assistantText);
       setMatches(nextMatches);
-      setQuickReplies(response.needsMoreInfo ? getQuickReplyOptions(response.intent) : []);
+      const serverReplies = Array.isArray(response.suggestedReplies) ? response.suggestedReplies : [];
+      setQuickReplies(response.needsMoreInfo ? (serverReplies.length ? serverReplies : getQuickReplyOptions(response.intent)) : []);
       setAiMode('replying');
     } catch (error: any) {
       const errorMessage = error?.message || 'AI Matchmaker đang bận, vui lòng thử lại sau.';
@@ -354,7 +355,11 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
     } finally {
       pendingReplyRef.current = null;
     }
-  }, [aiMode, location?.coords, messages, prompt]);
+  }, [aiMode, location?.coords, messages]);
+
+  const handleSend = useCallback(() => {
+    sendMessage(prompt);
+  }, [prompt, sendMessage]);
 
   const handlePromptChange = useCallback((value: string) => {
     setPrompt(value);
@@ -420,7 +425,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
 
         {messages.length > 0 && !matches.length ? (
           <Animated.View entering={FadeInUp.duration(220)} style={styles.messageStack}>
-            {messages.slice(-1).map((message, index) => (
+            {messages.slice(-3).map((message, index) => (
               <View
                 key={`${message.role}-${index}-${message.text}`}
                 style={[
@@ -440,7 +445,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
               <Pressable
                 key={reply}
                 style={styles.quickReplyChip}
-                onPress={() => setPrompt(reply)}
+                onPress={() => sendMessage(reply)}
               >
                 <Text style={styles.quickReplyText}>{reply}</Text>
               </Pressable>
@@ -523,6 +528,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
             style={styles.promptInput}
             onSubmitEditing={handleSend}
             onBlur={handlePromptBlur}
+            editable={aiMode !== 'thinking'}
             returnKeyType="send"
           />
           <Pressable onPress={handleSend} disabled={!prompt.trim() || aiMode === 'thinking'} style={styles.promptButtonWrap}>

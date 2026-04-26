@@ -4,7 +4,7 @@ const API_BASE_URL =
   (process.env.EXPO_PUBLIC_SAIGON_SERVER_API_URL ||
     'https://saigondating-server.onrender.com/api').replace(/\/$/, '');
 
-const REQUEST_TIMEOUT_MS = 15000;
+const REQUEST_TIMEOUT_MS = 30000;
 
 export interface AiMatchmakerLocation {
   latitude: number;
@@ -46,6 +46,7 @@ export interface AiMatchmakerResponse {
   source: 'ai' | 'heuristic';
   needsMoreInfo?: boolean;
   assistantMessage: string;
+  suggestedReplies?: string[];
   count: number;
   matches: AiMatchmakerMatch[];
 }

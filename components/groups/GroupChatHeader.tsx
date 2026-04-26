@@ -51,7 +51,7 @@ const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors, o
       onOpenManagementDrawer();
       return;
     }
-    router.push(`/(screens)/groups/GroupManagementScreen?id=${group.id}`);
+    router.push(`/groups/${group.id}`);
   };
 
   const handleJoinVoiceChat = () => {

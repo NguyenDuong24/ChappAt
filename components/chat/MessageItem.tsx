@@ -1,11 +1,10 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import React, { useState, useContext, useMemo } from 'react';
 import { Image } from 'expo-image';
 import { formatTime, getRoomId } from '../../utils/common';
 import CustomImage from '../common/CustomImage';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import GiftMessage from './GiftMessage';
 import AudioMessage from './AudioMessage';
 import MessageActionSheet from './MessageActionSheet';
@@ -16,6 +15,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useChatTheme } from '@/context/ChatThemeContext';
 import VibeAvatar from '../vibe/VibeAvatar';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface MessageItemProps {
     message: any;
@@ -26,6 +26,8 @@ interface MessageItemProps {
     isHighlighted?: boolean;
     onReport?: (message: any) => void;
 }
+
+const IMAGE_BUBBLE_WIDTH = Math.min(Dimensions.get('window').width * 0.62, 260);
 
 export default function MessageItem({
     message,
@@ -42,14 +44,7 @@ export default function MessageItem({
     const [showEditModal, setShowEditModal] = useState(false);
     const themeCtx = useContext(ThemeContext);
     const theme = themeCtx?.theme || 'light';
-    const currentThemeColors = (Colors[theme] || Colors.light) || {
-        surface: '#F8FAFC',
-        text: '#0F172A',
-        subtleText: '#64748B',
-        border: '#E2E8F0',
-        backgroundHeader: '#F1F5F9',
-        tint: '#6366F1',
-    };
+    const currentThemeColors = useThemedColors();
     const { id: routePeerId } = useLocalSearchParams<{ id?: string }>();
     const currentUid = currentUser?.uid ?? currentUser?.id ?? currentUser?.userId;
     const otherUid = otherUser?.uid ?? otherUser?.id ?? otherUser?.userId ?? (routePeerId as string | undefined);
@@ -57,7 +52,21 @@ export default function MessageItem({
     const roomId = computedRoomId || (message?.roomId as string | undefined) || (message?.chatId as string | undefined) || '';
 
     // Messenger-style colors using chat theme
-    const { currentTheme: chatTheme } = useChatTheme();
+    const { currentTheme: selectedChatTheme } = useChatTheme();
+    const fallbackChatTheme = selectedChatTheme || {
+        id: 'default',
+        sentMessageColor: currentThemeColors.primary,
+        receivedMessageColor: currentThemeColors.inputBackground || currentThemeColors.surface,
+        textColor: currentThemeColors.text,
+    };
+    const chatTheme = fallbackChatTheme.id === 'default'
+        ? {
+            ...fallbackChatTheme,
+            sentMessageColor: currentThemeColors.primary,
+            receivedMessageColor: currentThemeColors.inputBackground || currentThemeColors.surface,
+            textColor: currentThemeColors.text,
+        }
+        : fallbackChatTheme;
     const sentBubbleColor = chatTheme.sentMessageColor;
     const receivedBubbleColor = chatTheme.receivedMessageColor;
     const bubbleColors: readonly [string, string] = isCurrentUser ? [sentBubbleColor, sentBubbleColor] : [receivedBubbleColor, receivedBubbleColor];
@@ -302,22 +311,26 @@ export default function MessageItem({
                                         themeColors={currentThemeColors}
                                     />
                                 ) : message?.imageUrl ? (
-                                    <View style={styles.imageWrapper}>
+                                    <View style={styles.imageMessageContainer}>
+                                        <View
+                                            style={[
+                                                styles.imageWrapper,
+                                                {
+                                                    borderColor: isCurrentUser ? 'rgba(255,255,255,0.22)' : 'rgba(15,23,42,0.1)',
+                                                    backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.04)',
+                                                },
+                                            ]}
+                                        >
                                         <CustomImage
                                             source={message.imageUrl}
                                             style={styles.messageImage}
                                             onLongPress={handleLongPress}
                                         />
-                                        {message.text && (
-                                            <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : chatTheme.textColor, marginTop: 8 }]}>
-                                                {message.text}
-                                            </Text>
-                                        )}
                                         <LinearGradient
-                                            colors={['transparent', 'rgba(0,0,0,0.4)']}
+                                            colors={['transparent', 'rgba(0,0,0,0.5)']}
                                             style={styles.imageOverlay}
                                         >
-                                            <View style={styles.timeStatusRow}>
+                                            <View style={styles.imageMetaPill}>
                                                 <Text style={[styles.timeText, { color: '#FFFFFF' }]}>
                                                     {formatMessageTime()}
                                                 </Text>
@@ -336,6 +349,22 @@ export default function MessageItem({
                                                 )}
                                             </View>
                                         </LinearGradient>
+                                    </View>
+                                        {message.text ? (
+                                            <View
+                                                style={[
+                                                    styles.imageCaptionContainer,
+                                                    {
+                                                        backgroundColor: isCurrentUser ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.06)',
+                                                        borderColor: isCurrentUser ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.1)',
+                                                    },
+                                                ]}
+                                            >
+                                                <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : chatTheme.textColor }]}>
+                                                    {message.text}
+                                                </Text>
+                                            </View>
+                                        ) : null}
                                     </View>
                                 ) : (
                                     <View style={{ width: '100%' }}>
@@ -600,24 +629,47 @@ const styles = StyleSheet.create({
     },
     imageBubble: {
         overflow: 'hidden',
-        borderRadius: 20,
+        borderRadius: 24,
+    },
+    imageMessageContainer: {
+        gap: 8,
     },
     imageWrapper: {
         position: 'relative',
+        width: IMAGE_BUBBLE_WIDTH,
+        borderRadius: 18,
+        overflow: 'hidden',
+        borderWidth: 1,
     },
     messageImage: {
-        width: 200,
-        height: 200,
-        borderRadius: 18,
+        width: '100%',
+        aspectRatio: 4 / 5,
     },
     imageOverlay: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        padding: 12,
-        borderBottomLeftRadius: 20,
-        borderBottomRightRadius: 20,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        alignItems: 'flex-end',
+    },
+    imageMetaPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(2, 6, 23, 0.55)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.18)',
+    },
+    imageCaptionContainer: {
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 14,
+        borderWidth: 1,
     },
     bubbleContent: {
         paddingHorizontal: 14,

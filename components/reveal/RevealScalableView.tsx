@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import Animated, {
   interpolate,
-  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -51,19 +50,6 @@ const RevealScalableView = ({
         { translateY: interpolate(progress.value, [0, 1], [0, 10], Extrapolate.CLAMP) },
         { scale: interpolate(progress.value, [0, 1], [1, scale], Extrapolate.CLAMP) },
       ],
-      borderRadius: interpolate(progress.value, [0, 1], [0, 36], Extrapolate.CLAMP),
-      borderWidth: interpolate(progress.value, [0, 1], [0, 1], Extrapolate.CLAMP),
-      borderColor: interpolateColor(
-        progress.value,
-        [0, 1],
-        ['rgba(255,255,255,0)', 'rgba(255,255,255,0.22)']
-      ),
-      shadowOpacity: interpolate(progress.value, [0, 1], [0, 0.25], Extrapolate.CLAMP),
-      backgroundColor: interpolateColor(
-        progress.value,
-        [0, 1],
-        ['transparent', 'rgba(0,0,0,0.02)']
-      ),
     };
   });
 
@@ -72,7 +58,7 @@ const RevealScalableView = ({
       pointerEvents={revealed && disabledInteraction ? 'none' : 'auto'}
       renderToHardwareTextureAndroid={revealed}
       shouldRasterizeIOS={revealed}
-      style={[styles.base, style, animatedStyle]}
+      style={[styles.base, style, revealed && styles.revealedFrame, animatedStyle]}
     >
       {children}
     </Animated.View>
@@ -82,10 +68,11 @@ const RevealScalableView = ({
 const styles = {
   base: {
     flex: 1,
-    shadowColor: '#03131A',
-    shadowOffset: { width: 0, height: 12 },
-    shadowRadius: 24,
     overflow: 'hidden' as const,
+  },
+  revealedFrame: {
+    borderRadius: 32,
+    backgroundColor: 'rgba(0,0,0,0.02)',
   },
 };
 

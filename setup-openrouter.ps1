@@ -12,7 +12,7 @@ if (Test-Path ".env") {
     exit 1
 }
 
-# Check if OPENROUTER_API_KEY exists in .env
+# Check if OpenRouter settings exist in .env
 $envContent = Get-Content ".env" -Raw
 if ($envContent -match "OPENROUTER_API_KEY") {
     Write-Host "✅ OPENROUTER_API_KEY already configured" -ForegroundColor Green
@@ -28,12 +28,23 @@ if ($envContent -match "OPENROUTER_API_KEY") {
         Add-Content ".env" ""
         Add-Content ".env" "# OPENROUTER CONFIGURATION"
         Add-Content ".env" "OPENROUTER_API_KEY=$apiKey"
-        Add-Content ".env" "OPENROUTER_MODEL=meta-llama/llama-3-8b-instruct"
+        Add-Content ".env" "AI_BASE_URL=https://openrouter.ai/api/v1"
+        Add-Content ".env" "AI_MODEL=google/gemma-4-26b-a4b-it:free"
         Write-Host "✅ API Key added to .env" -ForegroundColor Green
     } else {
         Write-Host "❌ API Key not provided" -ForegroundColor Red
         exit 1
     }
+}
+
+if ($envContent -notmatch "AI_BASE_URL") {
+    Add-Content ".env" "AI_BASE_URL=https://openrouter.ai/api/v1"
+    Write-Host "✅ AI_BASE_URL added to .env" -ForegroundColor Green
+}
+
+if ($envContent -notmatch "AI_MODEL") {
+    Add-Content ".env" "AI_MODEL=google/gemma-4-26b-a4b-it:free"
+    Write-Host "✅ AI_MODEL added to .env" -ForegroundColor Green
 }
 
 Write-Host ""
@@ -56,6 +67,7 @@ Write-Host "  node openrouter-cli.mjs ""What is React?"" --model claude-haiku" -
 Write-Host "  node openrouter-cli.mjs ""Write code"" --stream" -ForegroundColor White
 Write-Host ""
 Write-Host "Available models:" -ForegroundColor Cyan
+Write-Host "  gemma-free (FREE)" -ForegroundColor Yellow
 Write-Host "  llama-3-8b (FREE)" -ForegroundColor Yellow
 Write-Host "  llama-2-7b (FREE)" -ForegroundColor Yellow
 Write-Host "  mistral (FREE)" -ForegroundColor Yellow

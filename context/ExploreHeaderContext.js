@@ -1,7 +1,8 @@
 import React, { createContext, useContext } from 'react';
 import { Platform } from 'react-native';
 
-export const HEADER_HEIGHT = Platform.OS === 'ios' ? 228 : 212;
+// Keep this in sync with explore/_layout header visual height so feed never overlaps header blocks
+export const HEADER_HEIGHT = Platform.OS === 'ios' ? 292 : 276;
 export const COLLAPSED_HEADER_HEIGHT = Platform.OS === 'ios' ? 66 : 56;
 export const SCROLL_DISTANCE = HEADER_HEIGHT - COLLAPSED_HEADER_HEIGHT;
 

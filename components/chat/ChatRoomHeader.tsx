@@ -1,9 +1,7 @@
-import React, { useContext, useState, useRef } from 'react';
+import React, { useContext, useState, useRef, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 // import { Appbar } from 'react-native-paper'; // not used
-import { Avatar } from 'react-native-paper';
 import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/authContext';
 // removed unused: addDoc, collection, db, createMeeting, token
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -13,17 +11,12 @@ import { useCallNavigation } from '@/hooks/useNewCallNavigation';
 import VibeAvatar from '@/components/vibe/VibeAvatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatTheme } from '@/context/ChatThemeContext';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 export default function ChatRoomHeader({ user, router, userId, onThemePress, chatTheme, onBack }: { user: any, router: any, userId: string, onThemePress: any, chatTheme?: ChatTheme, onBack?: () => void }) {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const currentThemeColors = (Colors[theme] || Colors.light) || {
-    surface: '#F8FAFC',
-    text: '#0F172A',
-    subtleText: '#64748B',
-    border: '#E2E8F0',
-    backgroundHeader: '#F1F5F9',
-  };
+  const currentThemeColors = useThemedColors();
   const { user: userCurrent } = useAuth();
   const viewerShowOnline = userCurrent?.showOnlineStatus !== false;
   const { navigateToListenCallScreen } = useCallNavigation();
@@ -39,11 +32,18 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
     ? 'rgba(255, 255, 255, 0.34)'
     : (theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : '#6366F1');
   const menuButtonIconColor = '#FFFFFF';
-  const menuBackgroundColor = theme === 'dark' ? '#111827' : '#0F172A';
-  const menuBorderColor = theme === 'dark' ? 'rgba(148, 163, 184, 0.32)' : 'rgba(165, 180, 252, 0.34)';
-  const menuTextColor = '#F8FAFC';
-  const menuIconColor = '#A5B4FC';
+  const menuBackgroundColor = currentThemeColors.palette?.menuBackground || (theme === 'dark' ? '#111827' : '#FFFFFF');
+  const menuBorderColor = currentThemeColors.border;
+  const menuTextColor = currentThemeColors.text;
+  const menuIconColor = currentThemeColors.primary;
   const displayName = user?.username || user?.displayName || user?.name || 'Unknown User';
+  const headerGradientColors = useMemo<readonly [string, string, ...string[]]>(() => {
+    const colors = chatTheme
+      ? (chatTheme.sentMessageGradient || chatTheme.gradientColors || [chatTheme.backgroundColor, chatTheme.backgroundColor])
+      : (theme === 'dark' ? ['#1E293B', '#334155'] : ['#FFFFFF', '#F8FAFC']);
+    if (colors.length >= 2) return colors as [string, string, ...string[]];
+    return [colors[0] || '#FFFFFF', colors[0] || '#FFFFFF'];
+  }, [chatTheme, theme]);
 
   const handleAudioCall = async () => {
     try {
@@ -218,7 +218,7 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
 
   return (
     <LinearGradient
-      colors={chatTheme ? [chatTheme.backgroundColor, chatTheme.backgroundColor] : (theme === 'dark' ? ['#1E293B', '#334155'] : ['#FFFFFF', '#F8FAFC'])}
+      colors={headerGradientColors}
       style={[styles.headerContainer, { paddingTop: insets.top }]}
     >
       <View style={styles.headerContent}>

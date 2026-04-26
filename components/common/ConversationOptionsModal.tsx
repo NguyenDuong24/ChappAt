@@ -11,6 +11,8 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 type OptionVariant = 'default' | 'danger';
 
@@ -38,8 +40,8 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation();
-  const { theme } = useTheme();
-  const currentThemeColors = Colors[theme] || Colors.light;
+  const { theme, isDark, palette } = useTheme();
+  const currentThemeColors = useThemedColors();
 
   const styles = useMemo(() => StyleSheet.create({
     overlay: {
@@ -53,9 +55,13 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
       paddingTop: 12,
       paddingHorizontal: 16,
       paddingBottom: 24,
-      backgroundColor: currentThemeColors.cardBackground,
+      backgroundColor: palette.menuBackground,
       borderTopWidth: 1,
       borderColor: currentThemeColors.border,
+      overflow: 'hidden',
+    },
+    sheetTint: {
+      ...StyleSheet.absoluteFillObject,
     },
     handle: {
       alignSelf: 'center',
@@ -87,7 +93,7 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      backgroundColor: theme === 'dark' ? '#1f2937' : '#f8fafc',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)',
       borderWidth: 1,
       borderColor: currentThemeColors.border,
     },
@@ -114,14 +120,16 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
       borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme === 'dark' ? '#334155' : '#e2e8f0',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.06)',
+      borderWidth: 1,
+      borderColor: currentThemeColors.border,
     },
     closeText: {
       fontSize: 15,
       fontWeight: '700',
       color: currentThemeColors.text,
     },
-  }), [theme, currentThemeColors]);
+  }), [isDark, palette.menuBackground, currentThemeColors]);
 
   const handleOptionPress = async (option: ConversationOption) => {
     onClose();
@@ -142,6 +150,12 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
     >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => { }}>
+          <LinearGradient
+            colors={[currentThemeColors.primary + '18', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.sheetTint}
+          />
           <View style={styles.handle} />
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -160,7 +174,7 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
                     <MaterialCommunityIcons
                       name={option.icon}
                       size={20}
-                      color={isDanger ? Colors.error : currentThemeColors.tint}
+                      color={isDanger ? Colors.error : currentThemeColors.primary}
                       style={isDanger ? styles.dangerIcon : undefined}
                     />
                     <Text style={[styles.optionLabel, isDanger && styles.dangerLabel]}>
@@ -187,4 +201,3 @@ const ConversationOptionsModal: React.FC<ConversationOptionsModalProps> = ({
 };
 
 export default ConversationOptionsModal;
-

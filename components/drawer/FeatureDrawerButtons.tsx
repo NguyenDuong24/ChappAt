@@ -14,10 +14,9 @@ const actions: Array<{
   icon: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
 }> = [
   { key: 'notification', label: 'Notify', icon: 'bell-badge-outline' },
-  { key: 'chatSearch', label: 'Chat', icon: 'message-search-outline' },
+  { key: 'chatSearch', label: 'Chat', icon: 'message-text-outline' },
   { key: 'groupSearch', label: 'Group', icon: 'account-group-outline' },
   { key: 'addFriend', label: 'Friend', icon: 'account-plus-outline' },
-  { key: 'groupManagement', label: 'Manage', icon: 'shield-crown-outline' },
 ];
 
 const FeatureDrawerButtons = ({ onOpenFeatureDrawer, compact = false }: FeatureDrawerButtonsProps) => {

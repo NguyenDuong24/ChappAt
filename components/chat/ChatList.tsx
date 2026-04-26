@@ -1,5 +1,5 @@
 import { View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator, Alert } from 'react-native';
-import React, { useEffect, useState, useContext, useCallback, memo, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, memo, useMemo, useRef } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 import {
     doc,
@@ -12,19 +12,19 @@ import {
     limit,
     orderBy,
     startAfter,
-    DocumentSnapshot
+    DocumentSnapshot,
+    updateDoc
 } from 'firebase/firestore';
 import ChatItem from './ChatItem';
 import { db } from '@/firebaseConfig';
 import { useRefresh } from '@/context/RefreshContext';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { roomsService } from '@/services/roomsService';
 import ConversationOptionsModal, { ConversationOption } from '@/components/common/ConversationOptionsModal';
 import { useTranslation } from 'react-i18next';
 import { normalizeDisplayText } from '@/utils/textEncoding';
 import { useThemedColors } from '@/hooks/useThemedColors';
+import { useRouter } from 'expo-router';
 
 // Constants
 const ITEM_HEIGHT = 72;
@@ -108,8 +108,8 @@ const sortChats = (chats: any[], pinnedIds: string[] = []) => {
 
 const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () => void }) => {
     const { t } = useTranslation();
+    const router = useRouter();
     const currentThemeColors = useThemedColors();
-    const { palette, theme } = currentThemeColors;
 
     const [sortedChats, setSortedChats] = useState<any[]>([]);
     const [refreshing, setRefreshing] = useState(false);
@@ -621,6 +621,48 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
 
         return [
             {
+                key: 'open',
+                label: t('chat.open_chat', { defaultValue: 'Open chat' }),
+                icon: 'message-text-outline',
+                onPress: () => {
+                    if (selectedChat.chatType === 'hotspot') {
+                        router.push({
+                            pathname: '/(screens)/hotspots/HotSpotChatScreen',
+                            params: {
+                                chatRoomId: selectedChat.chatRoomId,
+                                hotSpotId: selectedChat.hotSpotId || '',
+                                hotSpotTitle: selectedChat.hotSpotTitle || '',
+                            },
+                        });
+                        return;
+                    }
+                    router.push(`/chat/${selectedChat.user?.id}` as any);
+                }
+            },
+            ...(selectedChat.user?.id ? [{
+                key: 'profile',
+                label: t('chat.view_profile', { defaultValue: 'View profile' }),
+                icon: 'account-circle-outline' as const,
+                onPress: () => {
+                    router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId: selectedChat.user.id } });
+                }
+            }] : []),
+            ...(selectedChat.unreadCount > 0 && selectedChat.chatType === 'regular' ? [{
+                key: 'mark_read',
+                label: t('chat.mark_read', { defaultValue: 'Mark as read' }),
+                icon: 'check-all' as const,
+                onPress: async () => {
+                    await updateDoc(doc(db, 'rooms', selectedChat.chatRoomId), {
+                        [`unreadCounts.${currenUser.uid}`]: 0
+                    });
+                    setSortedChats(prev => prev.map(chat => (
+                        chat.chatRoomId === selectedChat.chatRoomId
+                            ? { ...chat, unreadCount: 0 }
+                            : chat
+                    )));
+                }
+            }] : []),
+            {
                 key: 'pin',
                 label: isPinned ? t('chat.list_options.unpin') : t('chat.list_options.pin'),
                 icon: isPinned ? 'pin-off-outline' : 'pin-outline',
@@ -657,7 +699,7 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                 }
             }
         ];
-    }, [selectedChat, currenUser?.uid, currenUser?.pinnedChatIds, t]);
+    }, [selectedChat, currenUser?.uid, currenUser?.pinnedChatIds, t, router]);
 
     const keyExtractor = useCallback((item: any) => item.id, []);
 
@@ -748,7 +790,7 @@ const styles = StyleSheet.create({
     },
     listContainer: {
         paddingTop: 8,
-        paddingBottom: 20,
+        paddingBottom: 110,
     },
     emptyContainer: {
         flex: 1,
@@ -785,4 +827,3 @@ const styles = StyleSheet.create({
 });
 
 export default memo(ChatList);
-

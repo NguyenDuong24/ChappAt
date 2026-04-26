@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Animated, {
   interpolate,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -28,6 +29,8 @@ interface RevealSideSheetProps {
   topInset?: number;
   bottomInset?: number;
   allowBackdropDismiss?: boolean;
+  deferContentMount?: boolean;
+  contentMountDelayMs?: number;
   panelStyle?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
 }
@@ -42,22 +45,61 @@ const RevealSideSheet = ({
   topInset = Platform.OS === 'ios' ? 52 : 16,
   bottomInset = 16,
   allowBackdropDismiss = true,
+  deferContentMount = true,
+  contentMountDelayMs = 80,
   panelStyle,
   contentContainerStyle,
 }: RevealSideSheetProps) => {
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(width * widthRatio, maxWidth);
-  const progress = useSharedValue(0); // Always start from 0 to ensure animation from mount
+  const progress = useSharedValue(0);
+  const [mounted, setMounted] = useState(visible);
+  const [contentReady, setContentReady] = useState(!deferContentMount || visible);
+  const contentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const finishClose = useCallback(() => {
+    setMounted(false);
+    setContentReady(!deferContentMount);
+  }, [deferContentMount]);
 
   useEffect(() => {
+    if (contentTimerRef.current) {
+      clearTimeout(contentTimerRef.current);
+      contentTimerRef.current = null;
+    }
+
+    if (visible) {
+      setMounted(true);
+      if (deferContentMount) {
+        setContentReady(false);
+        contentTimerRef.current = setTimeout(() => {
+          setContentReady(true);
+          contentTimerRef.current = null;
+        }, contentMountDelayMs);
+      } else {
+        setContentReady(true);
+      }
+    }
+
     progress.value = withSpring(visible ? 1 : 0, {
       damping: 34,
       stiffness: 220,
       mass: 0.9,
       restDisplacementThreshold: 0.001,
       restSpeedThreshold: 0.001,
+    }, (finished) => {
+      if (finished && !visible) {
+        runOnJS(finishClose)();
+      }
     });
-  }, [progress, visible]);
+
+    return () => {
+      if (contentTimerRef.current) {
+        clearTimeout(contentTimerRef.current);
+        contentTimerRef.current = null;
+      }
+    };
+  }, [contentMountDelayMs, deferContentMount, finishClose, progress, visible]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: interpolate(progress.value, [0, 0.8], [0, 1], Extrapolate.CLAMP),
@@ -91,6 +133,8 @@ const RevealSideSheet = ({
     ]
   }));
 
+  if (!mounted) return null;
+
   return (
     <View pointerEvents={visible ? 'auto' : 'box-none'} style={styles.root}>
       <Animated.View pointerEvents={visible ? 'auto' : 'none'} style={[styles.backdrop, backdropStyle]}>
@@ -113,7 +157,7 @@ const RevealSideSheet = ({
         ]}
       >
         <Animated.View style={[styles.content, contentContainerStyle, innerContentStyle]}>
-          {children}
+          {contentReady ? children : null}
         </Animated.View>
       </Animated.View>
     </View>

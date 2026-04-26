@@ -53,6 +53,7 @@ import OptimizedChatInput from '@/components/chat/OptimizedChatInput';
 import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
 import GiftPicker from '@/components/chat/GiftPicker';
 import GiftBurst from '@/components/chat/GiftBurst';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 function ChatRoomContent() {
     const { t } = useTranslation();
@@ -183,10 +184,15 @@ function ChatRoomContent() {
     }, [roomId]);
     const themeContext = useContext(ThemeContext);
     const theme = themeContext?.theme || 'light'; // Safely access theme with fallback
+    const appThemeColors = useThemedColors();
+    const hasCustomRoomBackdrop = Boolean(currentTheme?.backgroundImage || (currentTheme?.gradientColors && currentTheme.gradientColors.length > 0));
 
     // Memoize theme colors to prevent unnecessary re-calculations
     const currentThemeColors = useMemo(() => {
-        const baseColors = (Colors[theme] || Colors.light) || Colors.light;
+        const baseColors = {
+            ...((Colors[theme] || Colors.light) || Colors.light),
+            ...appThemeColors,
+        };
 
         if (!baseColors) {
             console.error('Colors.light or Colors.dark is undefined!', { theme, Colors });
@@ -209,11 +215,16 @@ function ChatRoomContent() {
 
         return {
             ...baseColors,
-            background: chatThemeForUI.backgroundColor,
+            background: hasCustomRoomBackdrop ? 'transparent' : chatThemeForUI.backgroundColor,
             text: chatThemeForUI.textColor,
             tint: chatThemeForUI.sentMessageColor,
+            surface: themeContext?.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)',
+            cardBackground: themeContext?.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.72)',
+            inputBackground: themeContext?.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.78)',
+            border: themeContext?.palette?.menuBorder || baseColors.border || 'rgba(148,163,184,0.24)',
+            separator: themeContext?.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)',
         };
-    }, [theme, chatThemeForUI]);
+    }, [theme, appThemeColors, chatThemeForUI, hasCustomRoomBackdrop, themeContext?.isDark, themeContext?.palette?.menuBorder]);
     const { addReply, isLoading } = useMessageActions();
     const { checkContent, isChecking } = useContentModeration({
         autoBlock: true,
@@ -998,9 +1009,9 @@ function ChatRoomContent() {
 
             {/* Pinned Messages */}
             {pinnedMessages.length > 0 && (
-                <View style={[styles.pinnedContainer, { backgroundColor: currentThemeColors.surface }]}>
+                <View style={[styles.pinnedContainer, { backgroundColor: currentThemeColors.surface, borderBottomColor: currentThemeColors.separator || currentThemeColors.border }]}>
                     <TouchableOpacity
-                        style={styles.pinnedContent}
+                        style={[styles.pinnedContent, { backgroundColor: currentThemeColors.inputBackground || 'rgba(0,0,0,0.03)', borderColor: currentThemeColors.border }]}
                         onPress={() => scrollToPinnedMessage(pinnedMessages[0].id)}
                     >
                         <MaterialIcons name="push-pin" size={16} color={currentThemeColors.tint} />
@@ -1092,7 +1103,7 @@ function ChatRoomContent() {
                 effect={enableBackgroundEffects ? effectiveEffect : 'none'}
                 themeId={currentTheme.id}
                 themeColor={currentThemeColors.tint}
-                backgroundColor={currentThemeColors.background}
+                backgroundColor={chatThemeForUI?.backgroundColor || currentThemeColors.appBackground || currentThemeColors.background}
             />
 
             <GiftBurst
@@ -1164,6 +1175,7 @@ const styles = StyleSheet.create({
         padding: 8,
         borderRadius: 8,
         backgroundColor: 'rgba(0,0,0,0.03)',
+        borderWidth: 1,
     },
     pinnedTextContainer: {
         marginLeft: 8,

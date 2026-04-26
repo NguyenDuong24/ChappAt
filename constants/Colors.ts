@@ -262,6 +262,82 @@ const slate: Record<string, any> = {
   menuBorder: 'rgba(88, 166, 255, 0.22)',
 };
 
+const prism: Record<string, any> = {
+  text: '#14213D',
+  background: '#F7FAFC',
+  surface: 'rgba(255, 255, 255, 0.95)',
+  tint: '#0EA5A8',
+  tintLight: '#F9738A',
+  tintDark: '#0F766E',
+  icon: '#0EA5A8',
+  subtleText: 'rgba(20, 33, 61, 0.58)',
+  border: '#DCE8EF',
+  gradientBackground: ['#F7FAFC', '#EEF8F6', '#FFF5F6'],
+  gradientPrimary: ['#0EA5A8', '#F9738A'],
+  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(238, 248, 246, 0.78)'],
+  glowTop: ['rgba(14, 165, 168, 0.14)', 'rgba(14, 165, 168, 0)'],
+  glowBottom: ['rgba(249, 115, 138, 0.10)', 'rgba(249, 115, 138, 0)'],
+  menuBackground: 'rgba(250, 253, 253, 0.98)',
+  menuBorder: 'rgba(14, 165, 168, 0.26)',
+};
+
+const orchard: Record<string, any> = {
+  text: '#173225',
+  background: '#F6FBF5',
+  surface: 'rgba(255, 255, 255, 0.95)',
+  tint: '#2F855A',
+  tintLight: '#E0A458',
+  tintDark: '#276749',
+  icon: '#2F855A',
+  subtleText: 'rgba(23, 50, 37, 0.58)',
+  border: '#DDEDDC',
+  gradientBackground: ['#F6FBF5', '#EDF7EE', '#FFF8EA'],
+  gradientPrimary: ['#2F855A', '#E0A458'],
+  gradientCard: ['rgba(255, 255, 255, 0.95)', 'rgba(237, 247, 238, 0.80)'],
+  glowTop: ['rgba(47, 133, 90, 0.14)', 'rgba(47, 133, 90, 0)'],
+  glowBottom: ['rgba(224, 164, 88, 0.10)', 'rgba(224, 164, 88, 0)'],
+  menuBackground: 'rgba(251, 254, 250, 0.98)',
+  menuBorder: 'rgba(47, 133, 90, 0.26)',
+};
+
+const nocturne: Record<string, any> = {
+  text: '#EEF6F2',
+  background: '#07110E',
+  surface: 'rgba(13, 28, 24, 0.84)',
+  tint: '#2DD4BF',
+  tintLight: '#F59E0B',
+  tintDark: '#0F766E',
+  icon: '#2DD4BF',
+  subtleText: 'rgba(238, 246, 242, 0.58)',
+  border: '#18332B',
+  gradientBackground: ['#07110E', '#0D1C18', '#14120A'],
+  gradientPrimary: ['#2DD4BF', '#F59E0B'],
+  gradientCard: ['rgba(13, 28, 24, 0.84)', 'rgba(20, 18, 10, 0.62)'],
+  glowTop: ['rgba(45, 212, 191, 0.20)', 'rgba(45, 212, 191, 0)'],
+  glowBottom: ['rgba(245, 158, 11, 0.14)', 'rgba(245, 158, 11, 0)'],
+  menuBackground: 'rgba(5, 12, 10, 0.97)',
+  menuBorder: 'rgba(45, 212, 191, 0.24)',
+};
+
+const rosewood: Record<string, any> = {
+  text: '#FFEFF4',
+  background: '#13070B',
+  surface: 'rgba(34, 12, 18, 0.84)',
+  tint: '#FB7185',
+  tintLight: '#38BDF8',
+  tintDark: '#BE123C',
+  icon: '#FB7185',
+  subtleText: 'rgba(255, 239, 244, 0.58)',
+  border: '#3A1620',
+  gradientBackground: ['#13070B', '#220C12', '#071722'],
+  gradientPrimary: ['#FB7185', '#38BDF8'],
+  gradientCard: ['rgba(34, 12, 18, 0.84)', 'rgba(7, 23, 34, 0.62)'],
+  glowTop: ['rgba(251, 113, 133, 0.22)', 'rgba(251, 113, 133, 0)'],
+  glowBottom: ['rgba(56, 189, 248, 0.12)', 'rgba(56, 189, 248, 0)'],
+  menuBackground: 'rgba(15, 5, 9, 0.97)',
+  menuBorder: 'rgba(251, 113, 133, 0.24)',
+};
+
 // ============================================================
 // COLORS MAP
 // ============================================================
@@ -275,6 +351,8 @@ export const Colors: Record<string, any> = {
   cloud,
   lavender,
   sand,
+  prism,
+  orchard,
   // Dark
   obsidian,
   sapphire,
@@ -283,6 +361,8 @@ export const Colors: Record<string, any> = {
   carbon,
   copper,
   slate,
+  nocturne,
+  rosewood,
   // Semantic (global — không phải theme object)
   success: '#10B981',
   error: '#EF4444',

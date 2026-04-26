@@ -20,10 +20,9 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('IncomingCallScreen') ||
       segments.includes('ListenCallAcceptedScreen');
     const inGroupChat = segments[0] === 'groups';
-    const inGroupManagementScreen = segments[0]?.toLowerCase().includes('groupmanagementscreen');
     // Cho phép các màn hình gifts (ví dụ: /gifts/Inbox)
     const inGifts = segments[0] === 'gifts';
-    const inAuthenticatedScreens = inApp || inChat || inCallScreens || inGroupChat || inGroupManagementScreen || inGifts ||
+    const inAuthenticatedScreens = inApp || inChat || inCallScreens || inGroupChat || inGifts ||
       segments.includes('UserProfileScreen') ||
       segments.includes('AddFriend') ||
       segments.includes('explore') ||
@@ -45,7 +44,6 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('ProximityRadar') ||
       segments.includes('GroupVoiceRoom') ||
       segments.includes('CoinWalletScreen') ||
-      segments.includes('GroupManagementScreen') ||
       segments.includes('HotSpotDetailScreen') ||
       segments.includes('ProUpgradeScreen') ||
       segments.includes('StoreScreen') ||

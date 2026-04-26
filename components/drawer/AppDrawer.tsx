@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import { ThemeContext, useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/authContext';
 import { useStateCommon } from '@/context/stateCommon';
@@ -23,9 +22,8 @@ import { DEFAULT_FILTER } from '@/utils/filterStorage';
 import { getInterestsArray, normalizeInterestsArray } from '@/utils/interests';
 import educationData from '@/assets/data/educationData.json';
 import { RevealSideSheet } from '@/components/reveal';
-import { LiquidSurface, getLiquidPalette, LiquidGlassBackground } from '@/components/liquid';
+import { LiquidSurface, getLiquidPalette } from '@/components/liquid';
 import { useTranslation } from 'react-i18next';
-import Animated, { FadeIn, FadeOut, Layout } from 'react-native-reanimated';
 
 type DrawerTab = 'filter' | 'settings';
 export type FeatureDrawerKey =
@@ -107,6 +105,7 @@ const AppDrawer = ({ visible, tab, onClose }: AppDrawerProps) => {
   }, []);
 
   const [isFilterContentReady, setIsFilterContentReady] = useState(false);
+  const [isDrawerContentReady, setIsDrawerContentReady] = useState(false);
   const [filterDraft, setFilterDraft] = useState<FilterState>(() =>
     normalizeFilter({ ...DEFAULT_FILTER, ...(stateCommon?.filter || {}) })
   );
@@ -116,12 +115,27 @@ const AppDrawer = ({ visible, tab, onClose }: AppDrawerProps) => {
   const glassPanelBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)';
   const glassBorder = palette.menuBorder;
   const sectionTitleColor = palette.subtitleColor;
+  const sheetPanelStyle = useMemo(() => ({ backgroundColor: palette.menuBackground }), [palette.menuBackground]);
 
   useEffect(() => {
     if (visible) {
       setFilterDraft(normalizeFilter({ ...DEFAULT_FILTER, ...(stateCommon?.filter || {}) }));
     }
   }, [visible, stateCommon?.filter]);
+
+  useEffect(() => {
+    if (!visible) {
+      setIsDrawerContentReady(false);
+      return;
+    }
+
+    setIsDrawerContentReady(false);
+    const timer = setTimeout(() => {
+      setIsDrawerContentReady(true);
+    }, 96);
+
+    return () => clearTimeout(timer);
+  }, [tab, visible]);
 
   useEffect(() => {
     if (!visible || tab !== 'filter') {
@@ -207,6 +221,8 @@ const AppDrawer = ({ visible, tab, onClose }: AppDrawerProps) => {
       side="left"
       widthRatio={0.9}
       maxWidth={480}
+      contentMountDelayMs={96}
+      panelStyle={sheetPanelStyle}
     >
       <LiquidSurface
         themeMode={theme}
@@ -214,8 +230,6 @@ const AppDrawer = ({ visible, tab, onClose }: AppDrawerProps) => {
         intensity={isDarkTheme(theme) ? 44 : 58}
         style={styles.outerContainer}
       >
-        <LiquidGlassBackground themeMode={theme} style={StyleSheet.absoluteFillObject} />
-
         <View style={styles.container}>
           <View style={styles.header}>
             <View style={styles.userRow}>
@@ -230,13 +244,18 @@ const AppDrawer = ({ visible, tab, onClose }: AppDrawerProps) => {
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton} activeOpacity={0.8}>
-              <BlurView intensity={isDarkTheme(theme) ? 30 : 50} tint={isDarkTheme(theme) ? 'dark' : 'light'} style={styles.closeBlur}>
+              <View style={[styles.closeBlur, { backgroundColor: glassPanelBg, borderColor: glassBorder }]}>
                 <MaterialCommunityIcons name="close" size={20} color={textColor} />
-              </BlurView>
+              </View>
             </TouchableOpacity>
           </View>
 
-          {tab === 'filter' ? (
+          {!isDrawerContentReady ? (
+            <View style={styles.filterLoadingWrap}>
+              <MaterialCommunityIcons name={tab === 'filter' ? 'tune-variant' : 'cog-outline'} size={28} color={subtextColor} />
+              <Text style={[styles.filterLoadingText, { color: subtextColor }]}>Preparing drawer...</Text>
+            </View>
+          ) : tab === 'filter' ? (
             <>
               {!isFilterContentReady ? (
                 <View style={styles.filterLoadingWrap}>

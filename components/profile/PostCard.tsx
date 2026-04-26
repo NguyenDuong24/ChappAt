@@ -7,13 +7,10 @@ import {
     Alert,
     Dimensions,
     TextInput,
-    Animated,
-    Platform
+    Animated
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Menu, Provider, Button } from 'react-native-paper';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import EvilIcons from '@expo/vector-icons/EvilIcons';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { deleteDoc, doc } from 'firebase/firestore';
@@ -33,9 +30,7 @@ import PrivacySelector from '../common/PrivacySelector';
 import PostHeader from '../common/PostHeader';
 import { removeHashtagStats } from '@/utils/hashtagUtils';
 import { updatePostPrivacy, PrivacyLevel } from '@/utils/postPrivacyUtils';
-import contentModerationService from '@/services/contentModerationService';
 import optimizedSocialService from '@/services/optimizedSocialService';
-import { followService } from '@/services/followService';
 import { useFollowingIds, useExploreActions } from '@/context/ExploreContext';
 import { useTranslation } from 'react-i18next';
 
@@ -240,23 +235,45 @@ const PostActions = memo(({
 
     return (
         <View style={[styles.actionsContainer, { borderTopColor: colors.border }]}>
-            <TouchableOpacity style={styles.actionButton} onPress={handleLikePress} activeOpacity={0.7}>
-                <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-                    <Ionicons
-                        name={isLiked ? 'heart' : 'heart-outline'}
-                        size={22}
+            <TouchableOpacity
+                style={[
+                    styles.actionButton,
+                    {
+                        backgroundColor: isLiked ? '#EC48991A' : colors.isDark ? 'rgba(255,255,255,0.06)' : '#F8FAFC',
+                        borderColor: isLiked ? '#EC489933' : colors.border,
+                    },
+                ]}
+                onPress={handleLikePress}
+                activeOpacity={0.72}
+            >
+                <Animated.View style={[styles.actionIconWrap, { transform: [{ scale: likeScale }] }]}>
+                    <Feather
+                        name="heart"
+                        size={19}
                         color={isLiked ? '#EC4899' : colors.icon}
                     />
                 </Animated.View>
                 <Text style={[styles.actionCount, { color: isLiked ? '#EC4899' : colors.text }]}>
-                    {likesCount > 0 ? likesCount : ''}
+                    {likesCount > 0 ? likesCount : '0'}
                 </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionButton} onPress={onCommentToggle} activeOpacity={0.7}>
-                <Ionicons name="chatbubble-outline" size={21} color={showComments ? colors.primary : colors.icon} />
+            <TouchableOpacity
+                style={[
+                    styles.actionButton,
+                    {
+                        backgroundColor: showComments ? colors.primary + '14' : colors.isDark ? 'rgba(255,255,255,0.06)' : '#F8FAFC',
+                        borderColor: showComments ? colors.primary + '30' : colors.border,
+                    },
+                ]}
+                onPress={onCommentToggle}
+                activeOpacity={0.72}
+            >
+                <View style={styles.actionIconWrap}>
+                    <Feather name="message-circle" size={19} color={showComments ? colors.primary : colors.icon} />
+                </View>
                 <Text style={[styles.actionCount, { color: showComments ? colors.primary : colors.text }]}>
-                    {commentsCount > 0 ? commentsCount : ''}
+                    {commentsCount > 0 ? commentsCount : '0'}
                 </Text>
             </TouchableOpacity>
 
@@ -421,76 +438,133 @@ const PostCard: React.FC<PostCardProps> = ({
     const handlePrivacySelectorToggle = useCallback(() => setShowPrivacySelector(true), []);
     const handlePrivacySelectorClose = useCallback(() => setShowPrivacySelector(false), []);
     const handleCommentToggle = useCallback(() => setShowComments(prev => !prev), []);
+    const cardEntrance = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        cardEntrance.setValue(0);
+        Animated.spring(cardEntrance, {
+            toValue: 1,
+            damping: 18,
+            stiffness: 170,
+            mass: 0.9,
+            useNativeDriver: true,
+        }).start();
+    }, [post.id, cardEntrance]);
 
 
     return (
-        <View style={[styles.container, { 
-            borderColor: colors.border,
-            backgroundColor: colors.background
-        }]}>
-            <LinearGradient
-                colors={colors.palette.cardGradient as [string, string, ...string[]]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-            />
-            <PostHeader
-                userInfo={userInfo}
-                timestamp={post.timestamp}
-                userId={post.userID}
-                isOwner={owner}
-                postPrivacy={post.privacy || 'public'}
-                onUserPress={handleUserPress}
-                onDeletePost={handleDeletePost}
-                onPrivacyChange={handlePrivacySelectorToggle}
-                isFollowing={isFollowing}
-                onFollowPress={handleFollow}
-            />
-
-            {post.content && (
-                <HashtagText
-                    text={post.content}
-                    onHashtagPress={handleHashtagPress}
-                    textStyle={[styles.contentText, { color: colors.text }]}
-                    hashtagStyle={[styles.hashtagStyle, { color: colors.primary }]}
+        <Animated.View
+            style={[
+                styles.cardMotion,
+                {
+                    opacity: cardEntrance,
+                    transform: [
+                        {
+                            translateY: cardEntrance.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [14, 0],
+                            }),
+                        },
+                        {
+                            scale: cardEntrance.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.985, 1],
+                            }),
+                        },
+                    ],
+                },
+            ]}
+        >
+            <View style={[styles.container, {
+                borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)',
+                backgroundColor: isDark ? 'rgba(17,24,39,0.94)' : '#FFFFFF'
+            }]}>
+                <LinearGradient
+                    colors={isDark ? ['rgba(30,41,59,0.98)', 'rgba(15,23,42,0.96)'] : ['#FFFFFF', '#FFFDFC']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFillObject}
                 />
-            )}
-
-            {post.hashtags && post.hashtags.length > 0 && (
-                <HashtagDisplay
-                    hashtags={post.hashtags}
-                    maxDisplay={5}
-                    size="small"
-                    onHashtagPress={handleHashtagPress}
-                    style={styles.hashtagsContainer}
+                <LinearGradient
+                    colors={isDark ? ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.00)'] : ['rgba(255,255,255,0.88)', 'rgba(255,255,255,0.00)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0.4, y: 1 }}
+                    style={styles.cardHighlight}
+                    pointerEvents="none"
                 />
-            )}
+                <LinearGradient
+                    colors={[colors.primary + (isDark ? '18' : '0D'), 'transparent']}
+                    start={{ x: 0.2, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.cardAccent}
+                    pointerEvents="none"
+                />
+                <View style={styles.cardBody}>
+                    <PostHeader
+                        userInfo={userInfo}
+                        timestamp={post.timestamp}
+                        userId={post.userID}
+                        isOwner={owner}
+                        postPrivacy={post.privacy || 'public'}
+                        onUserPress={handleUserPress}
+                        onDeletePost={handleDeletePost}
+                        onPrivacyChange={handlePrivacySelectorToggle}
+                        isFollowing={isFollowing}
+                        onFollowPress={handleFollow}
+                    />
 
-            {post.images && post.images.length > 0 && <PostImages images={post.images as string[]} />}
+                    <View style={styles.contentColumn}>
+                        {post.content && (
+                            <HashtagText
+                                text={post.content}
+                                onHashtagPress={handleHashtagPress}
+                                textStyle={[styles.contentText, { color: colors.text }]}
+                                hashtagStyle={[styles.hashtagStyle, { color: colors.primary }]}
+                            />
+                        )}
 
-            {post.address && (
-                <View style={[styles.addressContainer, { backgroundColor: colors.surface }]}>
-                    <View style={[styles.locationIconCircle, { backgroundColor: colors.primary + '15' }]}>
-                        <EvilIcons name="location" size={16} color={colors.primary} />
+                        {post.hashtags && post.hashtags.length > 0 && (
+                            <HashtagDisplay
+                                hashtags={post.hashtags}
+                                maxDisplay={5}
+                                size="small"
+                                onHashtagPress={handleHashtagPress}
+                                style={styles.hashtagsContainer}
+                            />
+                        )}
                     </View>
-                    <Text style={[styles.addressText, { color: colors.subtleText }]}>{post.address}</Text>
                 </View>
-            )}
+
+                {post.images && post.images.length > 0 && <PostImages images={post.images as string[]} />}
+
+                {post.address && (
+                    <View style={styles.cardBodyAfterMedia}>
+                        <View style={[styles.addressContainer, {
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#F8FAFC',
+                            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)',
+                        }]}>
+                            <View style={[styles.locationIconCircle, { backgroundColor: colors.primary + '18' }]}>
+                                <EvilIcons name="location" size={16} color={colors.primary} />
+                            </View>
+                            <Text style={[styles.addressText, { color: colors.subtleText }]}>{post.address}</Text>
+                        </View>
+                    </View>
+                )}
 
 
 
-            <PostActions
-                isLiked={post.likes.includes(currentUserId || '')}
-                likesCount={post.likes.length}
-                commentsCount={localComments.length}
-                onLike={handleLikeWithNotification}
-                onCommentToggle={handleCommentToggle}
-                showComments={showComments}
-                colors={colors}
-            />
+                <PostActions
+                    isLiked={post.likes.includes(currentUserId || '')}
+                    likesCount={post.likes.length}
+                    commentsCount={localComments.length}
+                    onLike={handleLikeWithNotification}
+                    onCommentToggle={handleCommentToggle}
+                    showComments={showComments}
+                    colors={colors}
+                />
 
-            {showComments && (
-                <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
+                {showComments && (
+                    <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
                     <View style={[styles.commentInputContainer, {
                         backgroundColor: colors.surface || 'rgba(0,0,0,0.03)',
                         borderColor: colors.border
@@ -517,7 +591,7 @@ const PostCard: React.FC<PostCardProps> = ({
                             activeOpacity={0.8}
                         >
                             <LinearGradient
-                                colors={colors.palette.cardGradient as [string, string, ...string[]]}
+                                colors={[colors.primary, colors.secondary || colors.primary]}
                                 style={styles.sendGradient}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
@@ -529,40 +603,68 @@ const PostCard: React.FC<PostCardProps> = ({
                     <View style={styles.commentsList}>
                         {localComments.slice(0, 5).map((c, i) => <CommentItem key={c.id || i} comment={c} colors={colors} />)}
                     </View>
-                </View>
-            )}
+                    </View>
+                )}
 
-            {showPrivacySelector && (
-                <PrivacySelector
-                    visible={showPrivacySelector}
-                    currentPrivacy={post.privacy || 'public'}
-                    onSelect={async (p) => {
-                        if (await updatePostPrivacy(post.id, p)) onPrivacyChange?.(post.id, p);
-                        setShowPrivacySelector(false);
-                    }}
-                    onClose={() => setShowPrivacySelector(false)}
-                />
-            )}
-        </View>
+                {showPrivacySelector && (
+                    <PrivacySelector
+                        visible={showPrivacySelector}
+                        currentPrivacy={post.privacy || 'public'}
+                        onSelect={async (p) => {
+                            if (await updatePostPrivacy(post.id, p)) onPrivacyChange?.(post.id, p);
+                            setShowPrivacySelector(false);
+                        }}
+                        onClose={() => setShowPrivacySelector(false)}
+                    />
+                )}
+            </View>
+        </Animated.View>
     );
 };
 
 const styles = StyleSheet.create({
+    cardMotion: {
+        marginBottom: 10,
+    },
     container: {
-        padding: 16,
-        marginBottom: 12,
-        borderRadius: 20,
+        marginBottom: 16,
+        borderRadius: 24,
         marginHorizontal: 12,
         borderWidth: 1,
         overflow: 'hidden',
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.10,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 5,
         // Theme-aware border color applied dynamically
+    },
+    cardBody: {
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 4,
+    },
+    cardBodyAfterMedia: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+    },
+    contentColumn: {
+        marginLeft: 0,
+        marginRight: 0,
+        marginTop: 4,
+    },
+    cardHighlight: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    cardAccent: {
+        ...StyleSheet.absoluteFillObject,
     },
     contentText: {
         fontSize: 15,
-        lineHeight: 23,
-        marginBottom: 12,
-        letterSpacing: 0.3,
-        fontWeight: '500'
+        lineHeight: 22,
+        marginBottom: 10,
+        letterSpacing: -0.1,
+        fontWeight: '400'
     },
     hashtagStyle: {
         // Theme-aware color applied dynamically
@@ -571,22 +673,24 @@ const styles = StyleSheet.create({
     hashtagsContainer: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        marginBottom: 12,
-        gap: 6
+        marginBottom: 10,
+        gap: 8
     },
     imageContainer: {
-        marginBottom: 12,
+        marginTop: 4,
+        marginBottom: 2,
+        backgroundColor: 'rgba(15,23,42,0.04)',
     },
     multiImageContainer: {
         flexDirection: 'row',
         height: 260,
-        borderRadius: 14,
+        borderRadius: 0,
         overflow: 'hidden'
     },
     singleImage: {
         width: '100%',
         height: 320,
-        borderRadius: 14
+        borderRadius: 0
     },
     twoImages: {
         flex: 1,
@@ -636,11 +740,12 @@ const styles = StyleSheet.create({
     addressContainer: {
         flexDirection: 'row',
         alignItems: 'flex-start',
-        marginBottom: 14,
-        paddingHorizontal: 14,
-        paddingVertical: 11,
+        marginBottom: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
         // Theme-aware background color applied dynamically
-        borderRadius: 12,
+        borderRadius: 16,
+        borderWidth: 1,
         marginHorizontal: 0
     },
     locationIconCircle: {
@@ -653,10 +758,10 @@ const styles = StyleSheet.create({
         marginTop: 1
     },
     addressText: {
-        fontSize: 13,
-        fontWeight: '600',
+        fontSize: 14,
+        fontWeight: '500',
         flex: 1,
-        lineHeight: 18
+        lineHeight: 22
     },
     dividerLine: {
         height: 1,
@@ -666,37 +771,50 @@ const styles = StyleSheet.create({
     actionsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
+        justifyContent: 'flex-start',
+        paddingTop: 12,
+        paddingBottom: 14,
         borderTopWidth: 1,
-        marginHorizontal: -16,
-        marginTop: 14,
-        paddingHorizontal: 16,
+        marginHorizontal: 16,
+        marginTop: 12,
+        paddingHorizontal: 0,
+        gap: 10,
         // Theme-aware border color applied dynamically
     },
     actionButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 28,
-        paddingVertical: 6,
-        paddingHorizontal: 2
+        justifyContent: 'center',
+        minWidth: 74,
+        height: 38,
+        paddingHorizontal: 13,
+        borderRadius: 19,
+        borderWidth: 1,
+    },
+    actionIconWrap: {
+        width: 22,
+        height: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     actionCount: {
-        marginLeft: 8,
+        marginLeft: 6,
         fontSize: 13,
-        fontWeight: '700',
-        minWidth: 24
+        fontWeight: '800',
+        minWidth: 12
     },
     commentsSection: {
-        marginTop: 12,
+        marginTop: 0,
         paddingTop: 14,
         borderTopWidth: 1,
-        marginHorizontal: -16,
-        paddingHorizontal: 16,
+        marginHorizontal: 16,
+        paddingHorizontal: 0,
+        paddingBottom: 16,
         // Theme-aware border color applied dynamically
     },
     commentInputContainer: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
+        alignItems: 'center',
         padding: 12,
         borderRadius: 24,
         marginBottom: 14,
@@ -750,8 +868,8 @@ const styles = StyleSheet.create({
     },
     commentText: {
         fontSize: 14,
-        lineHeight: 20,
-        fontWeight: '500'
+        lineHeight: 22,
+        fontWeight: '400'
     },
     commentMeta: {
         marginTop: 6

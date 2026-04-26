@@ -22,7 +22,6 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/authContext';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import useHotSpotsData, { UIHotSpot } from '@/hooks/useHotSpotsData';
@@ -31,7 +30,7 @@ import EventInvitesModal from '@/components/hotspots/EventInvitesModal';
 import { eventInviteService } from '@/services/eventInviteService';
 import { LiquidGlassBackground, LiquidSurface, getLiquidPalette } from '@/components/liquid';
 import { BlurView } from 'expo-blur';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
@@ -57,7 +56,7 @@ const CATEGORIES: Category[] = [
 
 // ==================== SUB-COMPONENTS ====================
 
-const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onSpotPress, actionLoading, t, THEME, theme, palette }: any) => {
+const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onSpotPress, actionLoading, t, theme, palette, darkMode }: any) => {
   const safeText = (value: any, fallback: string = ''): string => {
     if (value === null || value === undefined) return fallback;
     if (typeof value === 'string') return value;
@@ -66,7 +65,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
     return fallback;
   };
 
-  const isDark = theme === 'dark';
+  const isDark = Boolean(darkMode);
 
   return (
     <Animated.View entering={FadeInDown.springify()}>
@@ -74,7 +73,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
         themeMode={theme}
         borderRadius={28}
         intensity={isDark ? 10 : 20}
-        style={styles.card}
+        style={[styles.card, { borderColor: palette.menuBorder }]}
       >
         <TouchableOpacity
           onPress={() => onSpotPress(item)}
@@ -159,11 +158,11 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
             </Text>
             
             <View style={styles.metaRow}>
-              <View style={[styles.metaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+              <View style={[styles.metaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.70)', borderColor: palette.menuBorder }]}>
                 <Ionicons name="pricetag-outline" size={13} color={palette.sphereGradient[0]} />
                 <Text style={[styles.metaChipText, { color: palette.subtitleColor }]}>{safeText(item.category, 'General')}</Text>
               </View>
-              <View style={[styles.metaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+              <View style={[styles.metaChip, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.70)', borderColor: palette.menuBorder }]}>
                 <Ionicons name="people-outline" size={13} color={palette.sphereGradient[0]} />
                 <Text style={[styles.metaChipText, { color: palette.subtitleColor }]}>{item.interestedCount ?? 0}</Text>
               </View>
@@ -199,8 +198,8 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
               <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  item.isInterested ? styles.actionButtonActive : { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' },
-                  { flex: 1, paddingVertical: 12 }
+                  item.isInterested ? styles.actionButtonActive : { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.72)' },
+                  { flex: 1, paddingVertical: 12, borderColor: item.isInterested ? 'transparent' : palette.menuBorder }
                 ]}
                 onPress={() => onInterested(item.id)}
                 disabled={actionLoading[item.id]}
@@ -235,7 +234,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
             </View>
 
             {/* Participants Section */}
-            <View style={styles.participantsSection}>
+            <View style={[styles.participantsSection, { borderTopColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)' }]}>
               <TouchableOpacity
                 style={styles.avatarStack}
                 onPress={() => onShowInterestedUsers(item.id, safeText(item.title, 'Hot Spot'))}
@@ -256,7 +255,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
                     </Text>
                   </View>
                 )}
-                <View style={[styles.viewMoreIndicator, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
+                <View style={[styles.viewMoreIndicator, { backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.70)', borderColor: palette.menuBorder }]}>
                   <Ionicons name="chevron-forward" size={14} color={palette.sphereGradient[0]} />
                 </View>
               </TouchableOpacity>
@@ -445,11 +444,23 @@ const HotSpotsScreen = () => {
     });
 
     return (
-      <RNAnimated.View style={[styles.header, { transform: [{ translateY: headerTranslateY }] }, { borderBottomColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderBottomWidth: 1 }]}>
-        <BlurView intensity={Platform.OS === 'ios' ? 40 : 100} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+      <RNAnimated.View style={[styles.header, { transform: [{ translateY: headerTranslateY }] }, { borderBottomColor: palette.menuBorder, borderBottomWidth: 1 }]}>
+        <LinearGradient
+          colors={palette.appGradient as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <LinearGradient
+          colors={[`${palette.sphereGradient[0]}30`, `${palette.sphereGradient[1] || palette.sphereGradient[0]}18`, 'transparent']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <BlurView intensity={Platform.OS === 'ios' ? 30 : 70} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
         
         <View style={styles.headerContent}>
-          <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderColor: 'transparent' }]} onPress={() => router.back()}>
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.72)', borderColor: palette.menuBorder }]} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={palette.textColor} />
           </TouchableOpacity>
 
@@ -460,7 +471,7 @@ const HotSpotsScreen = () => {
 
           <View style={styles.actionsRow}>
             <TouchableOpacity
-              style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', borderColor: 'transparent' }]}
+              style={[styles.iconButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.72)', borderColor: palette.menuBorder }]}
               onPress={() => setShowInvitesModal(true)}
             >
               <Ionicons name="mail-outline" size={24} color={palette.textColor} />
@@ -475,7 +486,7 @@ const HotSpotsScreen = () => {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <View style={[styles.searchInner, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)', borderRadius: 20 }]}>
+          <View style={[styles.searchInner, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.76)', borderColor: palette.menuBorder, borderRadius: 20 }]}>
             <Ionicons name="search" size={20} color={palette.subtitleColor} style={{ marginLeft: 12 }} />
             <TextInput
               style={[styles.searchInput, { color: palette.textColor }]}
@@ -498,34 +509,40 @@ const HotSpotsScreen = () => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesScroll}
         >
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat.key}
-              onPress={() => handleCategorySelect(cat.key)}
-              activeOpacity={0.8}
-            >
-              <LiquidSurface
-                themeMode={theme}
-                borderRadius={16}
-                intensity={selectedCategory === cat.key ? 30 : 5}
+          {CATEGORIES.map((cat) => {
+            const active = selectedCategory === cat.key;
+            return (
+              <TouchableOpacity
+                key={cat.key}
+                onPress={() => handleCategorySelect(cat.key)}
+                activeOpacity={0.84}
                 style={[
-                  styles.categoryChip, 
-                  selectedCategory === cat.key ? { backgroundColor: palette.sphereGradient[0] } : {}
+                  styles.categoryChip,
+                  {
+                    backgroundColor: active ? 'transparent' : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.74)'),
+                    borderColor: active ? 'transparent' : palette.menuBorder,
+                  }
                 ]}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 }}>
-                  <MaterialIcons
-                    name={cat.icon}
-                    size={18}
-                    color={selectedCategory === cat.key ? "white" : palette.textColor}
+                {active && (
+                  <LinearGradient
+                    colors={cat.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={StyleSheet.absoluteFillObject}
                   />
-                  <Text style={[styles.categoryText, { color: selectedCategory === cat.key ? "white" : palette.textColor }]}>
-                    {t(cat.label)}
-                  </Text>
-                </View>
-              </LiquidSurface>
-            </TouchableOpacity>
-          ))}
+                )}
+                <MaterialIcons
+                  name={cat.icon}
+                  size={18}
+                  color={active ? '#FFFFFF' : cat.gradient[0]}
+                />
+                <Text style={[styles.categoryText, { color: active ? '#FFFFFF' : palette.textColor }]}>
+                  {t(cat.label)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {/* Time Filters */}
@@ -551,12 +568,12 @@ const HotSpotsScreen = () => {
   };
 
   const renderLoadingSkeleton = () => (
-    <View style={styles.skeletonCard}>
-      <View style={styles.skeletonImage} />
+    <View style={[styles.skeletonCard, { backgroundColor: palette.cardGradient[0], borderColor: palette.menuBorder }]}>
+      <View style={[styles.skeletonImage, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)' }]} />
       <View style={styles.skeletonContent}>
-        <View style={[styles.skeletonLine, { width: '80%' }]} />
-        <View style={[styles.skeletonLine, { width: '60%', marginTop: 8 }]} />
-        <View style={[styles.skeletonLine, { width: '40%', marginTop: 8 }]} />
+        <View style={[styles.skeletonLine, { width: '80%', backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.09)' }]} />
+        <View style={[styles.skeletonLine, { width: '60%', marginTop: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)' }]} />
+        <View style={[styles.skeletonLine, { width: '40%', marginTop: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)' }]} />
       </View>
     </View>
   );
@@ -597,7 +614,7 @@ const HotSpotsScreen = () => {
       {featuredSpots.length > 0 && (
         <View style={styles.featuredSection}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t('hotspots.featured')}</Text>
+            <Text style={[styles.sectionTitle, { color: palette.textColor }]}>{t('hotspots.featured')}</Text>
             <TouchableOpacity
               style={styles.toggleButton}
               onPress={() => setShowFeatured(!showFeatured)}
@@ -632,9 +649,9 @@ const HotSpotsScreen = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="search-outline" size={64} color={THEME.hotSpots.textSecondary} />
-      <Text style={styles.emptyTitle}>{t('hotspots.no_results_title')}</Text>
-      <Text style={styles.emptySubtitle}>{t('hotspots.no_results_subtitle')}</Text>
+      <Ionicons name="search-outline" size={64} color={palette.subtitleColor} />
+      <Text style={[styles.emptyTitle, { color: palette.textColor }]}>{t('hotspots.no_results_title')}</Text>
+      <Text style={[styles.emptySubtitle, { color: palette.subtitleColor }]}>{t('hotspots.no_results_subtitle')}</Text>
     </View>
   );
 
@@ -643,10 +660,7 @@ const HotSpotsScreen = () => {
   if (loading && hotSpots.length === 0) {
     return (
       <View style={styles.container}>
-        <LinearGradient
-          colors={['rgba(139, 92, 246, 0.05)', 'rgba(236, 72, 153, 0.05)', 'rgba(245, 158, 11, 0.05)']}
-          style={StyleSheet.absoluteFill}
-        />
+        <LiquidGlassBackground themeMode={theme} style={StyleSheet.absoluteFillObject} />
         {renderHeader()}
         <FlatList
           data={[1, 2, 3, 4]}
@@ -677,9 +691,9 @@ const HotSpotsScreen = () => {
             onSpotPress={handleSpotPress}
             actionLoading={actionLoading}
             t={t}
-            THEME={THEME}
             theme={theme}
             palette={palette}
+            darkMode={isDark}
           />
         )}
         ListHeaderComponent={renderListHeader}
@@ -863,6 +877,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 10,
+    gap: 7,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
@@ -966,7 +983,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   imageContainer: {
     height: 320,
@@ -1185,6 +1201,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     marginBottom: 20,
     overflow: 'hidden',
+    borderWidth: 1,
   },
   skeletonImage: {
     height: 260,

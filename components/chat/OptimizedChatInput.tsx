@@ -20,6 +20,7 @@ interface OptimizedChatInputProps {
         surface: string;
         border: string;
         tint: string;
+        inputBackground?: string;
     };
     replyTo?: {
         text?: string;
@@ -60,7 +61,8 @@ const OptimizedChatInput: React.FC<OptimizedChatInputProps> = memo(({
         }
     }, [onSend, sendDisabled]);
 
-    const inputBackgroundColor = currentTheme?.receivedMessageColor || currentThemeColors.surface;
+    const hasRoomBackdrop = Boolean(currentTheme?.backgroundImage || (currentTheme?.gradientColors && currentTheme.gradientColors.length > 0));
+    const inputBackgroundColor = currentTheme?.receivedMessageColor || currentThemeColors.inputBackground || currentThemeColors.surface;
     const textColor = currentTheme?.textColor || currentThemeColors.text;
     const placeholderColor = currentTheme?.textColor
         ? `${currentTheme.textColor}80` // 50% opacity
@@ -72,7 +74,7 @@ const OptimizedChatInput: React.FC<OptimizedChatInputProps> = memo(({
         <View style={[
             styles.container,
             {
-                backgroundColor: currentTheme?.backgroundColor || currentThemeColors.background,
+                backgroundColor: hasRoomBackdrop ? (currentThemeColors.surface || 'rgba(255,255,255,0.08)') : (currentTheme?.backgroundColor || currentThemeColors.background),
                 borderTopColor: currentTheme?.receivedMessageColor || currentThemeColors.border
             }
         ]}>
@@ -99,7 +101,7 @@ const OptimizedChatInput: React.FC<OptimizedChatInputProps> = memo(({
                 <View style={styles.inputContainer}>
                     {/* Image Picker Button */}
                     <TouchableOpacity
-                        style={[styles.iconButton, { backgroundColor: inputBackgroundColor }]}
+                        style={[styles.iconButton, { backgroundColor: inputBackgroundColor, borderColor: currentThemeColors.border }]}
                         onPress={onImagePress}
                     >
                         <Ionicons name="image-outline" size={22} color={iconColor} />
@@ -107,14 +109,14 @@ const OptimizedChatInput: React.FC<OptimizedChatInputProps> = memo(({
 
                     {/* Gift Button */}
                     <TouchableOpacity
-                        style={[styles.iconButton, { backgroundColor: inputBackgroundColor }]}
+                        style={[styles.iconButton, { backgroundColor: inputBackgroundColor, borderColor: currentThemeColors.border }]}
                         onPress={onGiftPress}
                     >
                         <MaterialIcons name="card-giftcard" size={22} color={iconColor} />
                     </TouchableOpacity>
 
                     {/* Text Input */}
-                    <View style={[styles.inputWrapper, { backgroundColor: inputBackgroundColor }]}>
+                    <View style={[styles.inputWrapper, { backgroundColor: inputBackgroundColor, borderColor: currentThemeColors.border }]}>
                         <TextInput
                             style={[styles.textInput, { color: textColor }]}
                             placeholder="Type a message"
@@ -144,7 +146,7 @@ const OptimizedChatInput: React.FC<OptimizedChatInputProps> = memo(({
                         </TouchableOpacity>
                     ) : (
                         <TouchableOpacity
-                            style={[styles.iconButton, { backgroundColor: inputBackgroundColor }]}
+                            style={[styles.iconButton, { backgroundColor: inputBackgroundColor, borderColor: currentThemeColors.border }]}
                             onPress={() => setIsRecording(true)}
                         >
                             <MaterialIcons name="mic" size={24} color={iconColor} />
@@ -178,6 +180,7 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: StyleSheet.hairlineWidth,
     },
     inputWrapper: {
         flex: 1,
@@ -187,6 +190,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: Platform.OS === 'ios' ? 10 : 8,
         justifyContent: 'center',
+        borderWidth: StyleSheet.hairlineWidth,
     },
     textInput: {
         fontSize: 16,

@@ -15,6 +15,8 @@ import {
     FlatList,
     SafeAreaView,
     Easing,
+    Linking,
+    useWindowDimensions,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -33,10 +35,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { useThemedColors } from '../hooks/useThemedColors';
 
-const { width, height } = Dimensions.get('window');
-const RADAR_SIZE = Math.min(width * 0.95, height * 0.5);
-const RADAR_RADIUS = RADAR_SIZE / 2 - 30;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const OFFLINE_MAX_AGE_MS = 10 * 60 * 1000;
+const ENCOUNTER_DEDUP_WINDOW_MS = 10 * 60 * 1000;
 const CLUSTER_PIXEL_THRESHOLD = 40; // px – markers closer than this get grouped
 
 type RadarCluster = {
@@ -60,6 +61,7 @@ const AGE_PRESET_RANGES: Record<Exclude<AgePreset, 'all'>, { min: number; max: n
 const DEFAULT_AVATAR = 'https://ui-avatars.com/api/?background=00ffff&color=000&size=150&name=U';
 
 const ProximityRadar = () => {
+    const { width, height } = useWindowDimensions();
     const { user } = useAuth();
     const router = useRouter();
     const { palette, isDark } = useTheme();
@@ -70,7 +72,6 @@ const ProximityRadar = () => {
     const [displayHeading, setDisplayHeading] = useState(0);
     const [selectedUser, setSelectedUser] = useState<NearbyUser | null>(null);
     const [myLocation, setMyLocation] = useState<Location.LocationObject | null>(null);
-    const [locationPermission, setLocationPermission] = useState(false);
     const [searchRadius, setSearchRadius] = useState(5000);
     const [scanFilter, setScanFilter] = useState<ScanFilter>('online');
     const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
@@ -80,6 +81,9 @@ const ProximityRadar = () => {
     const [showUserList, setShowUserList] = useState(true);
     const [scanError, setScanError] = useState<string | null>(null);
     const [clusterUsers, setClusterUsers] = useState<NearbyUser[] | null>(null); // users in a tapped cluster
+    const scanRequestIdRef = useRef(0);
+    const isFindingNearbyRef = useRef(false);
+    const encounterCooldownRef = useRef<Map<string, number>>(new Map());
 
     // Animation refs
     const radarRotation = useRef(new RNAnimated.Value(0)).current;
@@ -101,6 +105,8 @@ const ProximityRadar = () => {
     const radiusOptions = useMemo(() => [50, 100, 500, 1000, 2000, 5000, 10000, 20000], []);
 
     const displayRange = useMemo(() => Math.max(searchRadius, 50), [searchRadius]);
+    const radarSize = useMemo(() => Math.min(width * 0.95, height * 0.5), [width, height]);
+    const radarRadius = useMemo(() => radarSize / 2 - 30, [radarSize]);
 
     const uiColors = useMemo(() => ({
         accent: themedColors.primary || palette.textColor,
@@ -152,7 +158,10 @@ const ProximityRadar = () => {
     // Find nearby users
     const findNearbyUsers = useCallback(async () => {
         if (!myLocation || !myLocation.coords || !user?.uid) return;
+        if (isFindingNearbyRef.current) return;
 
+        isFindingNearbyRef.current = true;
+        const requestId = ++scanRequestIdRef.current;
         try {
             setIsLoading(true);
             setScanError(null);
@@ -163,6 +172,7 @@ const ProximityRadar = () => {
                 includeOffline: scanFilter !== 'online',
                 maxAge: OFFLINE_MAX_AGE_MS,
             });
+            if (requestId !== scanRequestIdRef.current) return;
 
             // The service already returns distance and bearing, no need to recalculate
             // but we add defensive checks just in case
@@ -179,11 +189,15 @@ const ProximityRadar = () => {
                 return true;
             });
 
-            // Record encounters for users within 100m
-            filteredUsers.forEach(u => {
-                if (u.distance < 100) {
-                    encounterService.recordEncounter(user.uid, u.id, u.distance, u.location);
-                }
+            // Record encounters for users within 100m (deduplicated in a time window)
+            const now = Date.now();
+            filteredUsers.forEach((u) => {
+                if (u.distance >= 100) return;
+                const encounterKey = [user.uid, u.id].sort().join(':');
+                const lastLoggedAt = encounterCooldownRef.current.get(encounterKey) ?? 0;
+                if (now - lastLoggedAt < ENCOUNTER_DEDUP_WINDOW_MS) return;
+                encounterCooldownRef.current.set(encounterKey, now);
+                void encounterService.recordEncounter(user.uid, u.id, u.distance, u.location);
             });
 
             setNearbyUsers(filteredUsers);
@@ -192,11 +206,15 @@ const ProximityRadar = () => {
             console.error('Error finding nearby users:', error);
             setScanError(error?.message || 'Có lỗi khi tìm kiếm');
         } finally {
+            isFindingNearbyRef.current = false;
+            if (requestId !== scanRequestIdRef.current) return;
             setIsLoading(false);
         }
     }, [myLocation, scanFilter, searchRadius, user?.uid, isUserOnline]);
     // Stop scanning (do not clear nearbyUsers - keep previous list)
     const stopScanning = useCallback(async () => {
+        scanRequestIdRef.current += 1;
+        isFindingNearbyRef.current = false;
         setScanning(false);
 
         if (radarAnimation.current) {
@@ -230,14 +248,13 @@ const ProximityRadar = () => {
                 'Ứng dụng cần quyền truy cập vị trí để tìm người xung quanh.',
                 [
                     { text: 'Hủy', style: 'cancel' },
-                    { text: 'Cài đặt', onPress: () => Location.requestForegroundPermissionsAsync() }
+                    { text: 'Cài đặt', onPress: () => void Linking.openSettings() }
                 ]
             );
             return;
         }
 
         setScanning(true);
-        setLocationPermission(true);
         setIsLoading(true);
 
         try {
@@ -300,9 +317,10 @@ const ProximityRadar = () => {
         pulseAnimation.current.start();
     }, [findNearbyUsers, pulseAnim, radarRotation, stopScanning, user?.uid]);
 
-    // Magnetometer
+    // Magnetometer (only active while scanning to reduce battery usage)
     useEffect(() => {
         let magnetometerSubscription: any;
+        if (!scanning) return;
 
         const startMagnetometer = async () => {
             const isAvailable = await Magnetometer.isAvailableAsync();
@@ -340,7 +358,7 @@ const ProximityRadar = () => {
                 }
             });
 
-            Magnetometer.setUpdateInterval(20); // 50fps for smoother animation
+            Magnetometer.setUpdateInterval(80);
         };
 
         startMagnetometer();
@@ -350,7 +368,7 @@ const ProximityRadar = () => {
                 magnetometerSubscription.remove();
             }
         };
-    }, []);
+    }, [scanning]);
 
     // Refresh interval
     useEffect(() => {
@@ -397,8 +415,10 @@ const ProximityRadar = () => {
         // Step 1 – compute pixel positions
         const items = filteredNearbyUsers.map((u) => {
             const ratio = Math.min(u.distance / displayRange, 1);
-            const r = ratio * RADAR_RADIUS;
-            const rad = (u.bearing * Math.PI) / 180;
+            const r = ratio * radarRadius;
+            // Keep marker orientation readable by plotting relative to current heading
+            const relativeBearing = getRelativeAngle(u.bearing, displayHeading);
+            const rad = (relativeBearing * Math.PI) / 180;
             return { user: u, x: r * Math.sin(rad), y: -r * Math.cos(rad) };
         });
 
@@ -427,7 +447,7 @@ const ProximityRadar = () => {
             clusters.push({ users: group.map((g) => g.user), cx, cy });
         }
         return clusters;
-    }, [filteredNearbyUsers, displayRange]);
+    }, [filteredNearbyUsers, displayRange, radarRadius, displayHeading, getRelativeAngle]);
 
     // Render clusters / single markers
     const radarMarkers = useMemo(() => {
@@ -682,19 +702,15 @@ const ProximityRadar = () => {
         outputRange: ['0deg', '360deg'],
     });
 
-    // Reanimated style for map rotation
-    const animatedMapStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ rotate: `${-headingShared.value}deg` }],
-        };
-    });
-
     // Reanimated style for compass rotation
     const animatedCompassStyle = useAnimatedStyle(() => {
         return {
             transform: [{ rotate: `${-headingShared.value}deg` }],
         };
     });
+    const selectedUserRelativeAngle = selectedUser
+        ? getRelativeAngle(selectedUser.bearing || 0, displayHeading || 0)
+        : 0;
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: uiColors.bg }]}>
@@ -729,7 +745,7 @@ const ProximityRadar = () => {
 
 
                     {/* Radar Container */}
-                    <View style={styles.radarContainer}>
+                    <View style={[styles.radarContainer, { width: radarSize, height: radarSize }]}>
                         {/* Radar Background Rings */}
                         <View style={styles.radarRings}>
                             {[0.25, 0.5, 0.75, 1].map((ratio, index) => (
@@ -739,9 +755,9 @@ const ProximityRadar = () => {
                                         styles.radarRing,
                                         { borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(15, 23, 42, 0.15)' },
                                         {
-                                            width: RADAR_SIZE * ratio,
-                                            height: RADAR_SIZE * ratio,
-                                            borderRadius: (RADAR_SIZE * ratio) / 2,
+                                            width: radarSize * ratio,
+                                            height: radarSize * ratio,
+                                            borderRadius: (radarSize * ratio) / 2,
                                         },
                                     ]}
                                 >
@@ -763,12 +779,13 @@ const ProximityRadar = () => {
                             <RNAnimated.View
                                 style={[
                                     styles.radarSweep,
+                                    { width: radarSize, height: radarSize },
                                     { transform: [{ rotate: radarRotate }] },
                                 ]}
                             >
                                 <LinearGradient
                                     colors={['transparent', 'rgba(0, 255, 255, 0.3)', 'rgba(0, 255, 255, 0.6)']}
-                                    style={styles.sweepGradient}
+                                    style={[styles.sweepGradient, { width: radarSize / 2 }]}
                                     start={{ x: 0, y: 0.5 }}
                                     end={{ x: 1, y: 0.5 }}
                                 />
@@ -787,33 +804,33 @@ const ProximityRadar = () => {
                             </View>
                         </RNAnimated.View>
 
-                        {/* Users on Radar - Rotatable Container */}
-                        {radarClusters.length > 0 && (
-                            <Animated.View
-                                style={[
-                                    styles.usersContainer,
-                                    animatedMapStyle
-                                ]}
-                            >
-                                {radarMarkers}
-                            </Animated.View>
-                        )}
+                    {/* Users on Radar - Rotatable Container */}
+                    {radarClusters.length > 0 && (
+                        <Animated.View
+                            style={[
+                                styles.usersContainer
+                            ]}
+                        >
+                            {radarMarkers}
+                        </Animated.View>
+                    )}
 
                         {/* Compass Directions */}
-                        <Animated.View style={[
+                        <Animated.View pointerEvents="none" style={[
                             styles.compassContainer,
+                            { width: radarSize, height: radarSize },
                             animatedCompassStyle
                         ]}>
-                            <View style={[styles.compassDirection, styles.compassNorth]}>
+                            <View style={[styles.compassDirection, { top: 3, left: radarSize / 2 - 11 }]}>
                                 <Text style={[styles.compassText, styles.northText]}>N</Text>
                             </View>
-                            <View style={[styles.compassDirection, styles.compassSouth]}>
+                            <View style={[styles.compassDirection, { bottom: 3, left: radarSize / 2 - 11 }]}>
                                 <Text style={styles.compassText}>S</Text>
                             </View>
-                            <View style={[styles.compassDirection, styles.compassEast]}>
+                            <View style={[styles.compassDirection, { right: 3, top: radarSize / 2 - 11 }]}>
                                 <Text style={styles.compassText}>E</Text>
                             </View>
-                            <View style={[styles.compassDirection, styles.compassWest]}>
+                            <View style={[styles.compassDirection, { left: 3, top: radarSize / 2 - 11 }]}>
                                 <Text style={styles.compassText}>W</Text>
                             </View>
                         </Animated.View>
@@ -1132,9 +1149,14 @@ const ProximityRadar = () => {
                                         </View>
 
                                         <View style={styles.modalStatItem}>
-                                            <Ionicons name="navigate" size={22} color={uiColors.accent} />
+                                            <Ionicons
+                                                name="arrow-up"
+                                                size={22}
+                                                color={uiColors.accent}
+                                                style={{ transform: [{ rotate: `${selectedUserRelativeAngle}deg` }] }}
+                                            />
                                             <Text style={[styles.modalStatValue, { color: uiColors.text }]}>
-                                                {getRelativeAngle(selectedUser.bearing || 0, displayHeading || 0).toFixed(0)}°
+                                                {selectedUserRelativeAngle.toFixed(0)}°
                                             </Text>
                                             <Text style={[styles.modalStatLabel, { color: uiColors.secondary }]}>Tương đối</Text>
                                         </View>
@@ -1296,8 +1318,6 @@ const styles = StyleSheet.create({
     },
 
     radarContainer: {
-        width: RADAR_SIZE,
-        height: RADAR_SIZE,
         alignSelf: 'center',
         justifyContent: 'center',
         alignItems: 'center',
@@ -1343,13 +1363,10 @@ const styles = StyleSheet.create({
     },
     radarSweep: {
         position: 'absolute',
-        width: RADAR_SIZE,
-        height: RADAR_SIZE,
         justifyContent: 'center',
         alignItems: 'flex-end',
     },
     sweepGradient: {
-        width: RADAR_SIZE / 2,
         height: 3,
         borderRadius: 2,
     },
@@ -1440,8 +1457,6 @@ const styles = StyleSheet.create({
     },
     compassContainer: {
         position: 'absolute',
-        width: RADAR_SIZE,
-        height: RADAR_SIZE,
     },
     compassDirection: {
         position: 'absolute',
@@ -1449,22 +1464,6 @@ const styles = StyleSheet.create({
         height: 22,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    compassNorth: {
-        top: 3,
-        left: RADAR_SIZE / 2 - 11,
-    },
-    compassSouth: {
-        bottom: 3,
-        left: RADAR_SIZE / 2 - 11,
-    },
-    compassEast: {
-        right: 3,
-        top: RADAR_SIZE / 2 - 11,
-    },
-    compassWest: {
-        left: 3,
-        top: RADAR_SIZE / 2 - 11,
     },
     compassText: {
         color: 'rgba(0, 255, 255, 0.6)',
@@ -1534,7 +1533,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 6,
         justifyContent: 'flex-end',
-        maxWidth: width * 0.62,
+        maxWidth: SCREEN_WIDTH * 0.62,
     },
     filterRow: {
         flexDirection: 'row',
@@ -1564,7 +1563,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: 8,
         justifyContent: 'flex-end',
-        maxWidth: width * 0.72,
+        maxWidth: SCREEN_WIDTH * 0.72,
         alignSelf: 'flex-end',
     },
     filterChip: {
@@ -1770,7 +1769,7 @@ const styles = StyleSheet.create({
     modalContent: {
         borderRadius: 20,
         padding: 24,
-        width: width * 0.88,
+        width: SCREEN_WIDTH * 0.88,
         alignItems: 'center',
         borderWidth: 1.5,
     },

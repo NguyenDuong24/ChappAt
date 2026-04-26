@@ -5,8 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { collection, addDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useChatTheme, ChatTheme, ChatEffect } from '@/context/ChatThemeContext';
-import { Colors } from '@/constants/Colors';
-import { ThemeContext } from '@/context/ThemeContext';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 interface ChatThemePickerProps {
   visible: boolean;
@@ -19,14 +18,7 @@ interface ChatThemePickerProps {
 
 const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roomId, currentUser, isGroup = false, isAdmin = false }) => {
   const { themes, currentTheme, setTheme, effects, currentEffect, setEffect } = useChatTheme();
-  const { theme: appTheme } = React.useContext(ThemeContext) || { theme: 'light' };
-  const currentThemeColors = (appTheme === 'dark' ? Colors.dark : Colors.light) || {
-    surface: '#F8FAFC',
-    text: '#0F172A',
-    subtleText: '#64748B',
-    border: '#E2E8F0',
-    backgroundHeader: '#F1F5F9',
-  };
+  const currentThemeColors = useThemedColors();
   const [activeTab, setActiveTab] = useState<'theme' | 'effect'>('theme');
 
   const handleThemeSelect = async (theme: ChatTheme) => {
@@ -236,7 +228,7 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
         onPress={onClose}
         style={styles.backdrop}
       />
-      <View style={[styles.container, { backgroundColor: currentThemeColors.surface }]}>
+      <View style={[styles.container, { backgroundColor: currentThemeColors.palette?.menuBackground || currentThemeColors.surface, borderTopColor: currentThemeColors.border }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: currentThemeColors.text }]}>
             Tùy chỉnh phòng chat
@@ -252,18 +244,18 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
             style={[
               styles.tab,
               activeTab === 'theme' && styles.activeTab,
-              { borderBottomColor: activeTab === 'theme' ? Colors.primary : 'transparent' }
+              { borderBottomColor: activeTab === 'theme' ? currentThemeColors.primary : 'transparent' }
             ]}
             onPress={() => setActiveTab('theme')}
           >
             <MaterialIcons
               name="palette"
               size={20}
-              color={activeTab === 'theme' ? Colors.primary : currentThemeColors.subtleText}
+              color={activeTab === 'theme' ? currentThemeColors.primary : currentThemeColors.subtleText}
             />
             <Text style={[
               styles.tabText,
-              { color: activeTab === 'theme' ? Colors.primary : currentThemeColors.subtleText }
+              { color: activeTab === 'theme' ? currentThemeColors.primary : currentThemeColors.subtleText }
             ]}>
               Chủ đề
             </Text>
@@ -273,18 +265,18 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
             style={[
               styles.tab,
               activeTab === 'effect' && styles.activeTab,
-              { borderBottomColor: activeTab === 'effect' ? Colors.primary : 'transparent' }
+              { borderBottomColor: activeTab === 'effect' ? currentThemeColors.primary : 'transparent' }
             ]}
             onPress={() => setActiveTab('effect')}
           >
             <MaterialIcons
               name="auto-awesome"
               size={20}
-              color={activeTab === 'effect' ? Colors.primary : currentThemeColors.subtleText}
+              color={activeTab === 'effect' ? currentThemeColors.primary : currentThemeColors.subtleText}
             />
             <Text style={[
               styles.tabText,
-              { color: activeTab === 'effect' ? Colors.primary : currentThemeColors.subtleText }
+              { color: activeTab === 'effect' ? currentThemeColors.primary : currentThemeColors.subtleText }
             ]}>
               Hiệu ứng
             </Text>
@@ -393,7 +385,7 @@ const ChatThemePicker: React.FC<ChatThemePickerProps> = ({ visible, onClose, roo
                   ]}
                 >
                   {/* Effect Preview */}
-                  <View style={[styles.effectPreview, { backgroundColor: currentThemeColors.backgroundHeader }]}>
+                  <View style={[styles.effectPreview, { backgroundColor: currentThemeColors.inputBackground || currentThemeColors.surface }]}>
                     <Text style={styles.effectPreviewEmoji}>{effect.preview}</Text>
                   </View>
 
@@ -436,6 +428,7 @@ const styles = StyleSheet.create({
     maxHeight: '75%',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    borderTopWidth: 1,
     paddingTop: 16,
   },
   header: {

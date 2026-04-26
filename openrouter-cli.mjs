@@ -19,16 +19,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const BASE_URL = 'https://openrouter.ai/api/v1';
+const BASE_URL = process.env.AI_BASE_URL || process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
 
 const DEFAULT_CONFIG = {
-  model: 'meta-llama/llama-3-8b-instruct',
+  model: process.env.AI_MODEL || process.env.OPENROUTER_MODEL || 'google/gemma-4-26b-a4b-it:free',
   temperature: 0.7,
   maxTokens: 2048,
   stream: false
 };
 
 const MODELS = {
+  'gemma-free': 'google/gemma-4-26b-a4b-it:free',
   'llama-3-8b': 'meta-llama/llama-3-8b-instruct',
   'llama-2-7b': 'meta-llama/llama-2-7b-chat',
   'claude-opus': 'claude-3-opus',

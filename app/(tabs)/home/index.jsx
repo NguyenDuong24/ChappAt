@@ -7,14 +7,17 @@ import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { useStateCommon } from '@/context/stateCommon';
 import useHome from './useHome';
+import { useAuth } from '@/context/authContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useTranslation } from 'react-i18next';
 import LiquidScreen from '@/components/liquid/LiquidScreen';
-import HomeHeader from '@/components/home/HomeHeader';
+import HomeHeader, { HOME_HEADER_HEIGHT } from '@/components/home/HomeHeader';
 import { RevealScalableView } from '@/components/reveal';
 import AppDrawer from '@/components/drawer/AppDrawer';
 import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
+import { db } from '@/firebaseConfig';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 // Premium Loading State using Skeletons
 const LoadingView = ({ theme, currentThemeColors }) => (
@@ -70,6 +73,7 @@ function Home() {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
   const router = useRouter();
+  const { user } = useAuth();
   const { stateCommon } = useStateCommon();
   const currentThemeColors = useMemo(() =>
     Colors[theme] || Colors.light,
@@ -82,9 +86,10 @@ function Home() {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [drawerTab, setDrawerTab] = useState('filter');
   const [featureDrawer, setFeatureDrawer] = useState(null);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const drawerOffset = useMemo(() => Math.min(width * 0.62, 250), [width]);
   const revealActive = drawerVisible || !!featureDrawer;
-  const { users, loading, refreshing, error, loadMore, hasMore, refresh } = useHome(isFocused);
+  const { users, loading, refreshing, error, loadMore, hasMore, handleRefresh } = useHome(isFocused);
   const activeFiltersCount = useMemo(() => {
     const f = stateCommon?.filter || {};
     let count = 0;
@@ -131,6 +136,29 @@ function Home() {
     router.push('/ProximityRadar');
   }, [router]);
 
+  const openNotificationDrawer = useCallback(() => {
+    openFeatureDrawer('notification');
+  }, [openFeatureDrawer]);
+
+  // Listen for unread notifications
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const q = query(
+      collection(db, 'notifications'),
+      where('receiverId', '==', user.uid),
+      where('isRead', '==', false)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      setUnreadNotificationsCount(snapshot.size);
+    }, (err) => {
+      console.log('Error listening for notifications:', err);
+    });
+
+    return () => unsub();
+  }, [user?.uid]);
+
   // Handle Android Back Button to exit app
   useEffect(() => {
     const onBackPress = () => {
@@ -158,12 +186,12 @@ function Home() {
   }, [drawerVisible, featureDrawer, isFocused, t]);
 
   const onRefresh = useCallback(async () => {
-    await refresh();
-  }, [refresh]);
+    await handleRefresh();
+  }, [handleRefresh]);
 
   const content = useMemo(() => {
     if (loading && users.length === 0) return <LoadingView theme={theme} currentThemeColors={currentThemeColors} />;
-    if (error && users.length === 0) return <ErrorView error={error} onRetry={refresh} currentThemeColors={currentThemeColors} t={t} />;
+    if (error && users.length === 0) return <ErrorView error={error} onRetry={handleRefresh} currentThemeColors={currentThemeColors} t={t} />;
     if (!loading && users.length === 0) return <EmptyView theme={theme} currentThemeColors={currentThemeColors} t={t} />;
 
     return (
@@ -174,9 +202,10 @@ function Home() {
         loadMore={loadMore}
         hasMore={hasMore}
         loading={loading}
+        onOpenFilter={openFilterDrawer}
       />
     );
-  }, [loading, users, error, refreshing, refresh, theme, currentThemeColors, onRefresh, loadMore, hasMore, t]);
+  }, [loading, users, error, refreshing, handleRefresh, theme, currentThemeColors, onRefresh, loadMore, hasMore, t, openFilterDrawer]);
 
   return (
     <LiquidScreen themeMode={theme}>
@@ -188,8 +217,8 @@ function Home() {
         style={styles.revealContainer}
       >
         <HomeHeader
-          activeFiltersCount={activeFiltersCount}
-          onOpenFilter={openFilterDrawer}
+          activeFiltersCount={unreadNotificationsCount}
+          onOpenFilter={openNotificationDrawer}
           onOpenSettings={openSettingsDrawer}
           onOpenRadar={openRadar}
         />
@@ -223,7 +252,8 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 116 : 96,
+    paddingTop: HOME_HEADER_HEIGHT,
+    backgroundColor: 'transparent',
   },
   contentBody: {
     flex: 1,
@@ -325,4 +355,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

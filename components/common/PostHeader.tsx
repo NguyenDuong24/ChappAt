@@ -204,12 +204,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 18,
-    borderWidth: 1.5,
+    borderWidth: 1.2,
     marginLeft: 8,
   },
   followText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     letterSpacing: 0.2,
   },
 });

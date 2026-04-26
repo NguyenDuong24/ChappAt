@@ -1,30 +1,13 @@
-import React, { memo, useMemo } from 'react';
-import { Platform, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import Entypo from '@expo/vector-icons/Entypo';
+import React, { memo } from 'react';
+import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useAuth } from '@/context/authContext';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
-const HeaderParticles = memo(() => {
-  const particleStyles = useMemo(
-    () =>
-      [...Array(6)].map((_, i) => ({
-        left: `${18 + i * 14}%`,
-        top: `${28 + (i % 2) * 38}%`,
-        opacity: 0.25 + i * 0.1,
-      })),
-    []
-  );
-
-  return (
-    <View style={styles.particlesContainer} pointerEvents="none">
-      {particleStyles.map((style, index) => (
-        <View key={index} style={[styles.particle, style]} />
-      ))}
-    </View>
-  );
-});
-
-import { useTheme } from '@/context/ThemeContext';
+export const HOME_HEADER_HEIGHT = Platform.OS === 'ios' ? 108 : (StatusBar.currentHeight || 24) + 68;
 
 const HomeHeader = ({
   activeFiltersCount = 0,
@@ -32,49 +15,70 @@ const HomeHeader = ({
   onOpenSettings,
   onOpenRadar,
 }) => {
-  const { palette, isDark } = useTheme();
-  
-  const iconColor = isDark ? '#FFF' : '#111';
+  const { user } = useAuth();
+  const colors = useThemedColors();
+  const avatar = user?.profileUrl || user?.photoURL || user?.avatarUrl;
+  const displayName = user?.username || user?.displayName || 'bạn';
+  const headerGradient = colors.palette?.appGradient || colors.gradientBackground || [colors.background, colors.surface, colors.background];
+  const accentGradient = colors.palette?.sphereGradient || colors.gradientPrimary || ['#FF35B8', '#8B5CF6', '#22D3EE'];
+
   return (
-    <View style={styles.container}>
+    <Animated.View entering={FadeInDown.duration(520).springify()} style={styles.container}>
       <LinearGradient
-        colors={palette.appGradient}
+        colors={headerGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.headerGradient}
+        style={[styles.header, { borderColor: colors.border }]}
       >
-        <HeaderParticles />
-
-        <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.circleButton} onPress={onOpenFilter} activeOpacity={0.86}>
-            <MaterialIcons name="tune" size={22} color={iconColor} />
-            {activeFiltersCount > 0 && (
-              <View style={styles.filterBadge}>
-                <Text style={styles.filterBadgeText}>{activeFiltersCount}</Text>
-              </View>
+        <View style={styles.identityRow}>
+          {/* Avatar */}
+          <Pressable
+            style={[styles.avatarWrap, { borderColor: colors.border }]}
+            onPress={onOpenSettings}
+          >
+            {avatar ? (
+              <Image source={{ uri: avatar }} style={styles.avatar} contentFit="cover" transition={180} />
+            ) : (
+              <LinearGradient colors={accentGradient} style={styles.avatarFallback}>
+                <Ionicons name="person" size={22} color="#fff" />
+              </LinearGradient>
             )}
-          </TouchableOpacity>
+            <View style={[styles.onlineDot, { borderColor: colors.background || '#0A0E1F' }]} />
+          </Pressable>
 
-          <View style={styles.titleContainer}>
-            <Text style={[styles.appTitle, { color: palette.textColor }]}>ChapAt</Text>
-            <Text style={[styles.appSubtitle, { color: palette.textColor, opacity: 0.8 }]}>Discover people around you</Text>
+          {/* Greeting */}
+          <View style={styles.titleBlock}>
+            <View style={styles.greetRow}>
+              <Text style={[styles.title, { color: colors.text }]}>Hi, {displayName} 👋</Text>
+            </View>
+            <Text style={[styles.subtitle, { color: colors.subtleText }]} numberOfLines={1}>
+              Find your vibe today
+            </Text>
           </View>
 
-          <View style={styles.rightActions}>
-            <TouchableOpacity style={styles.circleButton} onPress={onOpenSettings} activeOpacity={0.86}>
-              <MaterialIcons name="menu" size={22} color={iconColor} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.circleButton}
+          {/* Action buttons */}
+          <View style={styles.actions}>
+            <Pressable
+              style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.07)', borderColor: colors.border }]}
               onPress={onOpenRadar}
-              activeOpacity={0.86}
             >
-              <Entypo name="rss" size={19} color={iconColor} />
-            </TouchableOpacity>
+              <Ionicons name="location-outline" size={20} color={colors.text} />
+            </Pressable>
+            <Pressable
+              style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.07)', borderColor: colors.border }]}
+              onPress={onOpenFilter}
+            >
+              <Ionicons name="notifications-outline" size={20} color={colors.text} />
+              {activeFiltersCount > 0 ? (
+                <View style={styles.notifyBadge}>
+                  <Text style={styles.notifyText}>{activeFiltersCount > 99 ? '99+' : activeFiltersCount}</Text>
+                </View>
+              ) : null}
+            </Pressable>
           </View>
         </View>
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -84,89 +88,104 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    height: HOME_HEADER_HEIGHT,
     zIndex: 1000,
-    elevation: 6,
   },
-  headerGradient: {
-    paddingTop: Platform.OS === 'ios' ? 48 : (StatusBar.currentHeight || 24),
-    paddingBottom: 13,
-    paddingHorizontal: 14,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
-    shadowColor: '#001A13',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
+  header: {
+    minHeight: HOME_HEADER_HEIGHT,
+    paddingTop: Platform.OS === 'ios' ? 52 : (StatusBar.currentHeight || 24) + 10,
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 0,
   },
-  particlesContainer: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    top: 0,
-    left: 0,
-  },
-  particle: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.32)',
-  },
-  headerContent: {
+  identityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 52,
+    gap: 12,
   },
-  circleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  avatarWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    position: 'relative',
+    zIndex: 1,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+  avatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    overflow: 'hidden',
   },
-  rightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  filterBadge: {
+  onlineDot: {
     position: 'absolute',
-    top: -1,
     right: -1,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#FF5A6F',
+    bottom: -1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 2,
+    backgroundColor: '#22C55E',
+    zIndex: 10,
+  },
+  titleBlock: {
+    flex: 1,
+  },
+  greetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  subtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+    opacity: 0.7,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.9)',
-    paddingHorizontal: 4,
   },
-  filterBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  titleContainer: {
-    flex: 1,
+  notifyBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#0A0E1F',
   },
-  appTitle: {
-    fontSize: 29,
-    fontWeight: '800',
-    color: '#F2FFF9',
-    letterSpacing: 0.7,
-  },
-  appSubtitle: {
-    fontSize: 12,
-    color: 'rgba(242,255,249,0.85)',
-    marginTop: -1,
+  notifyText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '900',
   },
 });
 
-export default HomeHeader;
+export default memo(HomeHeader);

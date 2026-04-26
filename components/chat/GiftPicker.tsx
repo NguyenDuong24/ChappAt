@@ -54,34 +54,45 @@ export default function GiftPicker({
   const [selectedGiftId, setSelectedGiftId] = useState<string | null>(null);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(height));
-  const isDark = themeColors?.text === '#FFFFFF' || themeColors?.text === '#fff';
+  const isDark = Boolean(themeColors?.isDark);
 
   const ui = useMemo(() => {
+    const primary = themeColors?.primary || themeColors?.tint || '#4F46E5';
+    const secondary = themeColors?.secondary || primary;
+    const border = themeColors?.border || (isDark ? '#26354D' : '#D9E2F0');
+    const text = themeColors?.text || (isDark ? '#F8FAFC' : '#0F172A');
+    const subtle = themeColors?.subtleText || (isDark ? '#9FB1C9' : '#5B6B84');
+    const sheetBg = themeColors?.palette?.menuBackground || (isDark ? '#0B1220' : '#FFFFFF');
+    const surface = themeColors?.inputBackground || (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.80)');
+    const surfaceElevated = themeColors?.surfaceElevated || themeColors?.softPrimary || (isDark ? '#17243A' : '#EEF2FF');
+    const footerBg = themeColors?.surface || (isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9');
     if (isDark) {
       return {
-        sheetBg: '#0B1220',
-        surface: '#111A2B',
-        surfaceElevated: '#17243A',
-        border: '#26354D',
-        text: '#F8FAFC',
-        subtle: '#9FB1C9',
-        primary: '#5B6EE1',
-        primarySoft: '#2B3A66',
-        footerBg: '#0E1626',
+        sheetBg,
+        surface,
+        surfaceElevated,
+        border,
+        text,
+        subtle,
+        primary,
+        secondary,
+        primarySoft: themeColors?.softPrimary || `${primary}22`,
+        footerBg,
       };
     }
     return {
-      sheetBg: '#FFFFFF',
-      surface: '#F8FAFC',
-      surfaceElevated: '#EEF2FF',
-      border: '#D9E2F0',
-      text: '#0F172A',
-      subtle: '#5B6B84',
-      primary: '#4F46E5',
-      primarySoft: '#E0E7FF',
-      footerBg: '#F1F5F9',
+      sheetBg,
+      surface,
+      surfaceElevated,
+      border,
+      text,
+      subtle,
+      primary,
+      secondary,
+      primarySoft: themeColors?.softPrimary || `${primary}16`,
+      footerBg,
     };
-  }, [isDark]);
+  }, [isDark, themeColors]);
 
   useEffect(() => {
     if (visible) {
@@ -122,7 +133,7 @@ export default function GiftPicker({
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents={visible ? 'auto' : 'none'}>
-      <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}> 
+      <Animated.View style={[styles.backdrop, { opacity: fadeAnim, backgroundColor: themeColors?.backdrop || 'rgba(0,0,0,0.42)' }]}>
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
 
@@ -258,7 +269,7 @@ export default function GiftPicker({
               activeOpacity={0.9}
             >
               <LinearGradient
-                colors={selectedGift && canAfford ? [ui.primary, '#4338CA'] : ['#94A3B8', '#64748B']}
+                colors={selectedGift && canAfford ? [ui.primary, ui.secondary] : ['#94A3B8', '#64748B']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.sendBtnGradient}

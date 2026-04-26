@@ -112,7 +112,6 @@ const MainLayout = () => {
                     <Stack.Screen name="(screens)/hotspots/HotSpotsScreen" />
                     <Stack.Screen name="(screens)/hotspots/HotSpotDetailScreen" />
                     <Stack.Screen name="(screens)/hotspots/HotSpotChatScreen" />
-                    <Stack.Screen name="(screens)/groups/GroupManagementScreen" />
                     <Stack.Screen name="(screens)/groups/GroupVoiceRoom" />
                     <Stack.Screen name="(screens)/store/StoreScreen" />
                     <Stack.Screen name="(screens)/user/VibeScreen" />

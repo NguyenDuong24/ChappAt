@@ -180,6 +180,13 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
   }
 
   const genderIconColor = item.gender === 'male' ? '#0EA5E9' : item.gender === 'female' ? '#06B6D4' : '#999';
+  const cardBackground = isHotSpot
+    ? (isDark ? 'rgba(249,115,22,0.12)' : 'rgba(255,247,237,0.92)')
+    : (isDark ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.76)');
+  const cardBorder = isHotSpot
+    ? (isDark ? 'rgba(251,146,60,0.42)' : 'rgba(251,146,60,0.32)')
+    : currentThemeColors.border;
+  const softIconSurface = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.045)';
 
   const renderTime = () => {
     if (isLoading) return '';
@@ -281,11 +288,21 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
         styles.chatCard,
         isHotSpot && styles.hotSpotCard,
         { 
-          backgroundColor: isHotSpot ? 'rgba(255, 230, 0, 0.08)' : isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(255, 255, 255, 0.65)',
-          borderColor: isHotSpot ? '#FFCC80' : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
-          borderWidth: 1
+          backgroundColor: cardBackground,
+          borderColor: cardBorder,
+          shadowColor: isHotSpot ? '#F97316' : currentThemeColors.shadow,
         }
       ]}>
+        <LinearGradient
+          colors={isHotSpot
+            ? ['rgba(249,115,22,0.14)', 'transparent']
+            : [currentThemeColors.primary + '10', 'transparent']
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
+        />
         {/* Avatar Section */}
         <View style={styles.avatarContainer}>
           <View style={styles.avatarWrapper}>
@@ -330,13 +347,13 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
                 {renderUsername()}
               </Text>
               {(isHotSpot || chatType === 'hotspot') && (
-                <View style={[styles.hotSpotBadge, { backgroundColor: currentThemeColors.hotSpotsSurfaceLight, borderColor: currentThemeColors.hotSpotsAccent }]}>
-                  <MaterialCommunityIcons name="fire" size={12} color={currentThemeColors.hotSpotsPrimary} />
-                  <Text style={[styles.hotSpotBadgeText, { color: currentThemeColors.hotSpotsPrimary }]}>Hot Spot</Text>
+                <View style={[styles.hotSpotBadge, { backgroundColor: isDark ? 'rgba(249,115,22,0.16)' : 'rgba(255,237,213,0.9)', borderColor: '#F97316' }]}>
+                  <MaterialCommunityIcons name="fire" size={12} color="#F97316" />
+                  <Text style={[styles.hotSpotBadgeText, { color: '#EA580C' }]}>Hot Spot</Text>
                 </View>
               )}
               {item.gender && (
-                <View style={[styles.genderContainer, { backgroundColor: currentThemeColors.inputBackground }]}>
+                <View style={[styles.genderContainer, { backgroundColor: softIconSurface, borderColor: currentThemeColors.border }]}>
                   <MaterialCommunityIcons
                     name={item.gender === 'male' ? 'gender-male' : 'gender-female'}
                     size={16}
@@ -364,7 +381,7 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
 
             </View>
             {unreadCount > 0 && (
-              <View style={[styles.unreadBadge, { backgroundColor: '#F43F5E', position: 'absolute', top: 30, right: 0 }]}>
+              <View style={[styles.unreadBadge, { backgroundColor: currentThemeColors.error || '#F43F5E', position: 'absolute', top: 30, right: 0 }]}>
                 <Text style={styles.unreadText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
               </View>
             )}
@@ -391,11 +408,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 16,
     padding: 8,
-    elevation: 0,
+    borderWidth: 1,
+    overflow: 'hidden',
+    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
     marginVertical: 2,
   },
   hotSpotCard: {
@@ -465,6 +484,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   age: {
     fontSize: 12,

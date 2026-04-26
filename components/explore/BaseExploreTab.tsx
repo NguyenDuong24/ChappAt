@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     footerContainer: { paddingVertical: 20, alignItems: 'center' },
     loadingMoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 10 },
     loadingMoreText: { fontSize: 14, fontWeight: '600', opacity: 0.8 },
-    skeletonCard: { width: '94%', alignSelf: 'center', borderRadius: 16, padding: 16, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8 },
+    skeletonCard: { width: '100%', alignSelf: 'stretch', borderRadius: 0, padding: 16, marginBottom: 16, elevation: 0, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0, shadowRadius: 0 },
     skeletonHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     skeletonAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#E1E1E1' },
     skeletonHeaderText: { marginLeft: 12, flex: 1 },

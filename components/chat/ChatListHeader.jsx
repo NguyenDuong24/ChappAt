@@ -36,7 +36,8 @@ const ChatListHeader = ({
   const { t } = useTranslation();
   const liquidPalette = useMemo(() => getLiquidPalette(theme), [theme]);
   const iconColor = palette.textColor;
-  const buttonBg = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.05)';
+  const buttonBg = isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.72)';
+  const buttonBorder = palette.menuBorder;
 
   return (
     <View style={styles.container}>
@@ -50,8 +51,8 @@ const ChatListHeader = ({
 
         <View style={styles.headerContent}>
           <View style={styles.leftSection}>
-            <View style={[styles.iconContainer, { backgroundColor: buttonBg }]}>
-              <MaterialCommunityIcons name="chat-processing" size={26} color={iconColor} />
+            <View style={[styles.iconContainer, { backgroundColor: buttonBg, borderColor: buttonBorder }]}>
+              <MaterialCommunityIcons name="chat-processing" size={26} color="#8B5CF6" />
             </View>
             <View style={styles.titleSection}>
               <Text style={[styles.title, { color: iconColor }]}>{t('chat.title')}</Text>
@@ -61,7 +62,7 @@ const ChatListHeader = ({
 
           <View style={styles.rightSection}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: buttonBg }]}
+              style={[styles.actionButton, { backgroundColor: buttonBg, borderColor: buttonBorder }]}
               onPress={() => {
                 if (onOpenSearchDrawer) {
                   onOpenSearchDrawer();
@@ -70,11 +71,11 @@ const ChatListHeader = ({
                 router.push('/SearchMessageScreen');
               }}
             >
-              <MaterialIcons name="search" size={24} color={iconColor} />
+              <MaterialIcons name="search" size={24} color="#0EA5E9" />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, { marginLeft: 12, backgroundColor: buttonBg }]}
+              style={[styles.actionButton, { marginLeft: 12, backgroundColor: buttonBg, borderColor: buttonBorder }]}
               onPress={() => {
                 if (onOpenAddFriendDrawer) {
                   onOpenAddFriendDrawer();
@@ -83,7 +84,7 @@ const ChatListHeader = ({
                 router.push('/AddFriend');
               }}
             >
-              <Ionicons name="person-add" size={22} color={iconColor} />
+              <Ionicons name="person-add" size={22} color="#10B981" />
             </TouchableOpacity>
           </View>
         </View>
@@ -146,6 +147,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    borderWidth: 1,
   },
   titleSection: {
     flex: 1,
@@ -172,6 +174,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
   },
 });
 

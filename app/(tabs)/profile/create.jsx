@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, ScrollView, FlatList, Dimensions, Alert, Modal } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, ScrollView, FlatList, Dimensions, Alert, Modal, TextInput as RNTextInput } from 'react-native';
 import { Image } from 'expo-image';
-import { TextInput, Button, Chip } from 'react-native-paper';
+import { Button, Chip } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import {
@@ -400,18 +400,16 @@ const CreatePostScreen = () => {
           </View>
 
           {/* Content Input */}
-          <View style={styles.contentContainer}>
-            <TextInput
+          <View style={[styles.contentContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+            <RNTextInput
               value={content}
               onChangeText={setContent}
               multiline
+              textAlignVertical="top"
               numberOfLines={6}
-              textColor={palette.textColor}
               placeholder={t('create_post.placeholder')}
               placeholderTextColor={palette.subtitleColor}
-              activeUnderlineColor="transparent"
-              underlineColor="transparent"
-              style={[styles.textArea, { backgroundColor: 'transparent' }]}
+              style={[styles.textArea, { color: palette.textColor, backgroundColor: 'transparent' }]}
             />
           </View>
 
@@ -437,13 +435,20 @@ const CreatePostScreen = () => {
           {/* Action Row */}
           <View style={styles.actionRow}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}
+              style={[styles.actionButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}
               onPress={pickImage}
               disabled={loading || image.length >= 4}
             >
-              <Ionicons name="camera" size={22} color={palette.sphereGradient[0]} />
+              <LinearGradient
+                colors={palette.sphereGradient}
+                style={styles.iconGradientBg}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="images" size={16} color="#fff" />
+              </LinearGradient>
               <Text style={[styles.actionButtonText, { color: palette.textColor }]}>
-                {t('create_post.add_image')}
+                {t('create_post.add_image')} {image.length > 0 ? `(${image.length}/4)` : ''}
               </Text>
             </TouchableOpacity>
           </View>
@@ -455,15 +460,14 @@ const CreatePostScreen = () => {
             {t('create_post.hashtags')}
           </Text>
           
-          <View style={styles.customHashtagInput}>
-            <TextInput
+          <View style={[styles.customHashtagInput, { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', borderRadius: 24, paddingLeft: 16, paddingRight: 4, paddingVertical: 4, borderWidth: 1, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+            <Ionicons name="pricetag-outline" size={18} color={palette.subtitleColor} />
+            <RNTextInput
               value={customHashtag}
               onChangeText={(text) => setCustomHashtag(text.startsWith('#') || text === '' ? text : '#' + text)}
               placeholder={t('create_post.hashtag_placeholder')}
               placeholderTextColor={palette.subtitleColor}
-              textColor={palette.textColor}
-              activeUnderlineColor={palette.sphereGradient[0]}
-              style={[styles.hashtagInput, { backgroundColor: 'transparent' }]}
+              style={[styles.hashtagInput, { color: palette.textColor, marginLeft: 8 }]}
               onSubmitEditing={addCustomHashtag}
               autoCapitalize="none"
               autoCorrect={false}
@@ -667,45 +671,52 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   actionRow: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
     paddingTop: 16,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
+    padding: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
     gap: 8,
+    paddingRight: 16,
+  },
+  iconGradientBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   actionButtonText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
   },
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     marginBottom: 12,
   },
   subSectionTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   customHashtagInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   hashtagInput: {
     flex: 1,
-    height: 44,
+    height: 40,
+    fontSize: 15,
   },
   addHashtagButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },

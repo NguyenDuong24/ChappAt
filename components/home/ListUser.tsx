@@ -34,7 +34,7 @@ const MUTED = '#A7B0C5';
 const AI_STATUS = {
   idle: { label: 'Nói tự nhiên, mình lọc giúp', icon: 'sparkles' as const },
   listening: { label: 'Mình đang nghe bạn', icon: 'ear-outline' as const },
-  thinking: { label: 'Đang lọc vibe phù hợp', icon: 'bulb-outline' as const },
+  thinking: { label: 'Mình đang nghĩ câu trả lời', icon: 'bulb-outline' as const },
   replying: { label: 'Mình nghe bạn đây', icon: 'chatbubble-ellipses-outline' as const },
 };
 
@@ -323,12 +323,13 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
           : null,
       });
       const nextMatches = Array.isArray(response.matches) ? response.matches : [];
+      const responseMode = response.mode || (response.needsMoreInfo ? 'clarify' : nextMatches.length ? 'results' : 'chat');
       const assistantText = response.assistantMessage || (
-        response.needsMoreInfo
+        responseMode === 'clarify'
           ? 'Bạn nói thêm một chút để mình tìm đúng người hơn nhé.'
-          : nextMatches.length
+          : responseMode === 'results' && nextMatches.length
           ? `Mình tìm thấy ${nextMatches.length} hồ sơ phù hợp với bạn.`
-          : 'Hiện chưa có hồ sơ thật nào khớp đủ tốt. Bạn thử mô tả rộng hơn một chút nhé.'
+          : 'Mình đang nghe bạn đây. Khi nào bạn muốn mình tìm người phù hợp thì cứ nói rõ nhé.'
       );
 
       setMessages([
@@ -338,10 +339,14 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
           text: assistantText,
         },
       ]);
-      setMatchSummary(assistantText);
-      setMatches(nextMatches);
+      setMatchSummary(responseMode === 'results' ? assistantText : '');
+      setMatches(responseMode === 'results' ? nextMatches : []);
       const serverReplies = Array.isArray(response.suggestedReplies) ? response.suggestedReplies : [];
-      setQuickReplies(response.needsMoreInfo ? (serverReplies.length ? serverReplies : getQuickReplyOptions(response.intent)) : []);
+      setQuickReplies(
+        responseMode === 'clarify'
+          ? (serverReplies.length ? serverReplies : getQuickReplyOptions(response.intent))
+          : []
+      );
       setAiMode('replying');
     } catch (error: any) {
       const errorMessage = error?.message || 'AI Matchmaker đang bận, vui lòng thử lại sau.';
@@ -393,9 +398,9 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
 
         <View style={styles.aiMainRow}>
           <View style={styles.aiCopyBlock}>
-            <Text style={styles.aiTitle}>Mình tìm đúng vibe cho {viewerName}</Text>
-            <Text style={styles.aiIntro}>Cứ nói tự nhiên như đang nhắn với bạn.</Text>
-            <Text style={styles.aiIntro}>Thiếu gì mình hỏi thêm, đủ rồi mình lọc hồ sơ.</Text>
+            <Text style={styles.aiTitle}>Cứ nói chuyện tự nhiên với mình nhé, {viewerName}</Text>
+            <Text style={styles.aiIntro}>Mình có thể trò chuyện bình thường như một người thật.</Text>
+            <Text style={styles.aiIntro}>Khi nào bạn muốn tìm người phù hợp, mình sẽ gom ngữ cảnh đã nói để lọc giúp.</Text>
 
             <View style={styles.aiStateLine}>
               <Ionicons name={aiStatus.icon} size={11} color="#DDD6FE" />
@@ -523,7 +528,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
           <TextInput
             value={prompt}
             onChangeText={handlePromptChange}
-            placeholder="Ví dụ: nữ thích cafe, 23-28, gần quận 1..."
+            placeholder="Nhắn gì cũng được... hoặc khi sẵn sàng thì nói rõ kiểu người bạn muốn tìm"
             placeholderTextColor="#7F89A8"
             style={styles.promptInput}
             onSubmitEditing={handleSend}

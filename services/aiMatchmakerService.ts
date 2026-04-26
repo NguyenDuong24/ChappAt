@@ -44,6 +44,7 @@ export interface AiMatchmakerResponse {
   prompt: string;
   intent: Record<string, any>;
   source: 'ai' | 'heuristic';
+  mode?: 'chat' | 'clarify' | 'results';
   needsMoreInfo?: boolean;
   assistantMessage: string;
   suggestedReplies?: string[];

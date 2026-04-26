@@ -32,10 +32,22 @@ const TEXT = '#F8FAFC';
 const MUTED = '#A7B0C5';
 
 const AI_STATUS = {
-  idle: { label: 'Sẵn sàng hỗ trợ', icon: 'sparkles' as const },
-  listening: { label: 'Đang lắng nghe', icon: 'ear-outline' as const },
-  thinking: { label: 'Đang suy nghĩ', icon: 'bulb-outline' as const },
-  replying: { label: 'Đã có gợi ý', icon: 'chatbubble-ellipses-outline' as const },
+  idle: { label: 'Nói tự nhiên, mình lọc giúp', icon: 'sparkles' as const },
+  listening: { label: 'Mình đang nghe bạn', icon: 'ear-outline' as const },
+  thinking: { label: 'Đang lọc vibe phù hợp', icon: 'bulb-outline' as const },
+  replying: { label: 'Mình nghe bạn đây', icon: 'chatbubble-ellipses-outline' as const },
+};
+
+const getQuickReplyOptions = (intent: Record<string, any> = {}) => {
+  if (!Array.isArray(intent.genders) || intent.genders.length === 0) {
+    return ['Không giới hạn', 'Nữ 22-28 ở Sài Gòn', 'Nam thích cafe'];
+  }
+
+  if (!intent.minAge && !intent.maxAge) {
+    return ['22-28 tuổi', '25-32 tuổi, nghiêm túc', 'Chill trước rồi tính'];
+  }
+
+  return ['Quanh Sài Gòn', 'Thích cafe và phim', 'Muốn hẹn hò nghiêm túc'];
 };
 
 /* ─── helpers ─── */
@@ -136,6 +148,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
   const [matches, setMatches] = useState<any[]>([]);
   const [matchSummary, setMatchSummary] = useState('');
   const [showAllMatches, setShowAllMatches] = useState(false);
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const viewerName = viewer?.username || viewer?.displayName || viewer?.name || 'bạn';
   const pendingReplyRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const displayMode = aiMode === 'thinking'
@@ -290,6 +303,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
     setMatches([]);
     setMatchSummary('');
     setShowAllMatches(false);
+    setQuickReplies([]);
     const nextConversation = [
       ...messages,
       { role: 'user' as const, text },
@@ -326,6 +340,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
       ]);
       setMatchSummary(assistantText);
       setMatches(nextMatches);
+      setQuickReplies(response.needsMoreInfo ? getQuickReplyOptions(response.intent) : []);
       setAiMode('replying');
     } catch (error: any) {
       const errorMessage = error?.message || 'AI Matchmaker đang bận, vui lòng thử lại sau.';
@@ -334,6 +349,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
         { role: 'assistant', text: errorMessage },
       ]);
       setMatches([]);
+      setQuickReplies([]);
       setAiMode('replying');
     } finally {
       pendingReplyRef.current = null;
@@ -372,9 +388,9 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
 
         <View style={styles.aiMainRow}>
           <View style={styles.aiCopyBlock}>
-            <Text style={styles.aiTitle}>Xin chào {viewerName}! 👋</Text>
-            <Text style={styles.aiIntro}>Mình là trợ lý AI của bạn.</Text>
-            <Text style={styles.aiIntro}>Bạn muốn gặp ai hôm nay?</Text>
+            <Text style={styles.aiTitle}>Mình tìm đúng vibe cho {viewerName}</Text>
+            <Text style={styles.aiIntro}>Cứ nói tự nhiên như đang nhắn với bạn.</Text>
+            <Text style={styles.aiIntro}>Thiếu gì mình hỏi thêm, đủ rồi mình lọc hồ sơ.</Text>
 
             <View style={styles.aiStateLine}>
               <Ionicons name={aiStatus.icon} size={11} color="#DDD6FE" />
@@ -402,7 +418,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
           </View>
         </View>
 
-        {messages.length && !matches.length ? (
+        {messages.length > 0 && !matches.length ? (
           <Animated.View entering={FadeInUp.duration(220)} style={styles.messageStack}>
             {messages.slice(-1).map((message, index) => (
               <View
@@ -412,8 +428,22 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
                   message.role === 'user' ? styles.userBubble : styles.assistantBubble,
                 ]}
               >
-                <Text style={styles.messageText} numberOfLines={2}>{message.text}</Text>
+                <Text style={styles.messageText}>{message.text}</Text>
               </View>
+            ))}
+          </Animated.View>
+        ) : null}
+
+        {quickReplies.length > 0 && !matches.length ? (
+          <Animated.View entering={FadeInUp.duration(180)} style={styles.quickReplyRow}>
+            {quickReplies.map((reply) => (
+              <Pressable
+                key={reply}
+                style={styles.quickReplyChip}
+                onPress={() => setPrompt(reply)}
+              >
+                <Text style={styles.quickReplyText}>{reply}</Text>
+              </Pressable>
             ))}
           </Animated.View>
         ) : null}
@@ -428,6 +458,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
                   setMessages([]);
                   setMatchSummary('');
                   setShowAllMatches(false);
+                  setQuickReplies([]);
                   setAiMode('idle');
                 }}
                 style={styles.aiCloseButton}
@@ -487,7 +518,7 @@ function AiDiscoveryPanel({ users, viewer, colors, location }: any) {
           <TextInput
             value={prompt}
             onChangeText={handlePromptChange}
-            placeholder="Nhập điều bạn đang tìm..."
+            placeholder="Ví dụ: nữ thích cafe, 23-28, gần quận 1..."
             placeholderTextColor="#7F89A8"
             style={styles.promptInput}
             onSubmitEditing={handleSend}
@@ -936,17 +967,17 @@ const styles = StyleSheet.create({
   aiCard: {
     marginHorizontal: 12,
     marginBottom: 12,
-    borderRadius: 18,
+    borderRadius: 22,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.42)',
-    backgroundColor: '#070B18',
+    borderColor: 'rgba(167, 139, 250, 0.28)',
+    backgroundColor: '#0A0E1F',
   },
   aiGradient: {
-    minHeight: 232,
-    padding: 12,
+    minHeight: 222,
+    padding: 13,
     paddingTop: 12,
-    gap: 7,
+    gap: 8,
   },
   aiGlowRight: {
     position: 'absolute',
@@ -983,15 +1014,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 4,
-    marginBottom: 4,
+    paddingTop: 2,
+    marginBottom: 2,
   },
   botStage: {
-    width: 120,
-    height: 100,
+    width: 104,
+    height: 92,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: -10,
+    marginRight: -12,
   },
   botAura: {
     position: 'absolute',
@@ -1182,15 +1213,15 @@ const styles = StyleSheet.create({
   },
   aiTitle: {
     color: TEXT,
-    fontSize: 17,
+    fontSize: 16,
     lineHeight: 20,
     fontWeight: '900',
   },
   aiIntro: {
     color: '#D7DCEB',
     fontSize: 11,
-    lineHeight: 14,
-    fontWeight: '700',
+    lineHeight: 15,
+    fontWeight: '600',
   },
   aiStateLine: {
     flexDirection: 'row',
@@ -1218,11 +1249,11 @@ const styles = StyleSheet.create({
   promptBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.075)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(248,250,252,0.09)',
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    paddingLeft: 12,
+    paddingLeft: 14,
     paddingRight: 5,
     paddingVertical: 4,
     gap: 8,
@@ -1230,7 +1261,7 @@ const styles = StyleSheet.create({
   },
   promptInput: {
     flex: 1,
-    minHeight: 32,
+    minHeight: 34,
     color: TEXT,
     fontSize: 13,
     fontWeight: '500',
@@ -1251,10 +1282,10 @@ const styles = StyleSheet.create({
     zIndex: 3,
   },
   messageBubble: {
-    maxWidth: '82%',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    maxWidth: '92%',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
   userBubble: {
     alignSelf: 'flex-end',
@@ -1263,15 +1294,34 @@ const styles = StyleSheet.create({
   },
   assistantBubble: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(11,16,36,0.92)',
-    borderColor: 'rgba(139,92,246,0.35)',
+    backgroundColor: 'rgba(15,23,42,0.92)',
+    borderColor: 'rgba(148,163,184,0.22)',
     borderWidth: 1,
   },
   messageText: {
     color: TEXT,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    lineHeight: 16,
+    lineHeight: 17,
+  },
+  quickReplyRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    zIndex: 3,
+  },
+  quickReplyChip: {
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(196,181,253,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(196,181,253,0.26)',
+  },
+  quickReplyText: {
+    color: '#EDE9FE',
+    fontSize: 11,
+    fontWeight: '800',
   },
   aiResultPanel: {
     padding: 9,

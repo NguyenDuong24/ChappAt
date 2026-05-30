@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useMemo } from "react";
-import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword, sendEmailVerification } from 'firebase/auth';
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot, deleteDoc, collection, query, where, limit, getDocs } from "firebase/firestore";
 import { convertToAge } from '../utils/common';
@@ -9,6 +9,7 @@ import { vibeService } from '../services/vibeService';
 import { PREDEFINED_VIBES } from '../types/vibe';
 import { walletService } from '../services/walletService';
 import ExpoPushNotificationService from '../services/expoPushNotificationService';
+import { sendProductionEmailVerification } from '../utils/emailVerification';
 
 // PERFORMANCE: Enable/disable debug mode
 const DEBUG_MODE = false;
@@ -30,6 +31,9 @@ export const AuthContextProvider = ({ children }) => {
     const [educationLevel, setEducationLevel] = useState('');
     const [university, setUniversity] = useState('');
     const [job, setJob] = useState('');
+    const [hometown, setHometown] = useState('');
+    const [district, setDistrict] = useState('');
+    const [interests, setInterests] = useState([]);
     const [loading, setLoading] = useState(true);
     // New: track whether user is in onboarding (profile incomplete)
     const [isOnboarding, setIsOnboarding] = useState(false);
@@ -93,6 +97,9 @@ export const AuthContextProvider = ({ children }) => {
             setEducationLevel('');
             setUniversity('');
             setJob('');
+            setHometown('');
+            setDistrict('');
+            setInterests([]);
             setIsOnboarding(false);
             setSignupType(null);
             didUserEditSignup.current = { name: false, gender: false, age: false, icon: false };
@@ -253,7 +260,7 @@ export const AuthContextProvider = ({ children }) => {
                         // Silently handle permission errors during logout
                         const errorStr = String(e?.message || e?.code || e);
                         if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
-                            console.error("Error updating profileCompleted:", e);
+                            console.error("Error upmatch profileCompleted:", e);
                         }
                     });
                 }
@@ -261,19 +268,24 @@ export const AuthContextProvider = ({ children }) => {
                 // only set pendingProfile if not logged out
                 setIsAuthenticated(prev => prev !== 'pendingProfile' ? 'pendingProfile' : prev);
             }
-            // Sync pinnedChatIds and other critical user data
+            // Sync all user profile data from Firestore in real-time
             setUser(prev => {
                 if (!prev) return prev;
-                // Check if pinnedChatIds changed
-                const prevPins = prev.pinnedChatIds || [];
-                const newPins = data.pinnedChatIds || [];
 
-                const isDifferent = prevPins.length !== newPins.length ||
-                    !prevPins.every((val, index) => val === newPins[index]);
+                // Compare if any property in Firestore data has changed compared to user state
+                const isDifferent = Object.keys(data).some(key => {
+                    if (typeof data[key] === 'object' && data[key] !== null) {
+                        return JSON.stringify(prev[key]) !== JSON.stringify(data[key]);
+                    }
+                    return prev[key] !== data[key];
+                });
 
                 if (isDifferent) {
-                    console.log('📌 AuthContext: Syncing pinnedChatIds:', newPins);
-                    return { ...prev, pinnedChatIds: newPins };
+                    console.log('📌 AuthContext: Real-time syncing user profile data from Firestore');
+                    return {
+                        ...prev,
+                        ...data,
+                    };
                 }
                 return prev;
             });
@@ -448,30 +460,34 @@ export const AuthContextProvider = ({ children }) => {
                         setIsAuthenticated(true); // fallback
                         setIsOnboarding(false);
                         await updateUserData(userFB.uid);
-                        // Still try to start vibe subscription
-                        startVibeSubscription(userFB.uid);
                     }
                 } else {
+                    console.log('👤 onAuthStateChanged: user is null (Logged Out)');
+                    // IMPORTANT: Stop everything first to avoid permission errors
+                    stopAllListeners();
+                    cleanupNotifications();
+                    
                     // Clear all user-related state safely
-                    stopVibeSubscription();
-                    cleanupNotifications(); // Cleanup notifications
                     setUser(null);
+                    setCoins(0);
+                    setBanhMi(0);
                     setName('');
                     setEmail('');
                     setAge('');
                     setGender('');
                     setIcon('');
                     setBio('');
+                    setEducationLevel('');
+                    setUniversity('');
+                    setJob('');
                     setIsAuthenticated(false);
                     setIsOnboarding(false);
                     didUserEditSignup.current = { name: false, gender: false, age: false, icon: false };
+                    
                     // Clear vibe state
                     setCurrentVibe(null);
                     setSettingVibe(false);
                     setVibeError(null);
-                    // Reset coins
-                    setCoins(0);
-                    setBanhMi(0);
                     // Clear notification state
                     setNotificationToken(null);
                     setNotificationInitialized(false);
@@ -777,7 +793,7 @@ export const AuthContextProvider = ({ children }) => {
                     } else {
                         console.log('➡️ Incomplete profile -> onboarding');
                         setSignupType('google');
-                        router.replace('/signup/GenderSelectionScreen');
+                        router.replace('/signup/ProfileSetupScreen');
                     }
                 } catch (e) { console.log('Profile check error', e); }
             } else if (result.cancelled) {
@@ -810,7 +826,7 @@ export const AuthContextProvider = ({ children }) => {
                     } else {
                         console.log('➡️ Incomplete profile (FB) -> onboarding');
                         setSignupType('google');
-                        router.replace('/signup/GenderSelectionScreen');
+                        router.replace('/signup/ProfileSetupScreen');
                     }
                 } catch (e) { console.log('Profile check error', e); }
             }
@@ -822,21 +838,31 @@ export const AuthContextProvider = ({ children }) => {
     };
 
     const logout = async (options = {}) => {
-        const { forceFullSocial = true } = options; // default: clear Google/Facebook sessions
+        const { forceFullSocial = true } = options; 
+        console.log('🚪 Initiating logout process... forceFullSocial:', forceFullSocial);
+        
         try {
-            // IMPORTANT: Stop all Firestore listeners FIRST to prevent permission errors
+            // 1. Capture UID before clearing state
+            const uid = user?.uid;
+
+            // 2. Stop all Firestore listeners IMMEDIATELY
+            // This prevents "Missing or insufficient permissions" errors if some screen
+            // is still trying to read data after we sign out.
             stopAllListeners();
             cleanupNotifications();
 
-            if (user?.uid) {
+            // 3. Update online status (best effort)
+            if (uid) {
                 try {
-                    await updateIsOnline(user.uid, false);
-                } catch (_e) {
-                    // Ignore errors if already logged out
+                    // Don't await this if we want speed, but it's safer to attempt it before signing out
+                    await updateIsOnline(uid, false);
+                } catch (e) {
+                    console.log('⚠️ Could not update online status during logout (expected if permission denied):', e.message);
                 }
             }
 
-            // Clear local state early
+            // 4. Clear local state early for immediate UI response
+            setIsAuthenticated(false);
             setUser(null);
             setName('');
             setEmail('');
@@ -844,28 +870,35 @@ export const AuthContextProvider = ({ children }) => {
             setGender('');
             setIcon('');
             setBio('');
-            setIsAuthenticated(false);
             setIsOnboarding(false);
-            didUserEditSignup.current = { name: false, gender: false, age: false, icon: false };
-
+            
             // Clear vibe state
             setCurrentVibe(null);
             setSettingVibe(false);
             setVibeError(null);
 
+            // 5. Perform actual sign out
             if (forceFullSocial) {
-                // Uses revokeAccess for Google inside socialAuth
+                console.log('🔄 Calling signOutFromSocial...');
                 await signOutFromSocial();
             } else {
-                await signOut(auth); // basic firebase only
+                console.log('🔄 Calling basic firebase signOut...');
+                await signOut(auth);
             }
+            
+            console.log('✅ Logout process completed successfully');
+            return { success: true };
         } catch (error) {
-            console.error('Error logging out:', error);
+            console.error('❌ Error during logout process:', error);
+            
+            // Emergency cleanup
             setUser(null);
             setIsAuthenticated(false);
             setIsOnboarding(false);
-            stopVibeSubscription();
+            stopAllListeners();
             setCurrentVibe(null);
+            
+            return { success: false, error: error.message };
         }
     };
 
@@ -931,8 +964,21 @@ export const AuthContextProvider = ({ children }) => {
         }
     };
 
-    const register = async (emailArg, passwordArg, usernameArg, profileUrlArg, bioArg, ageArg, genderArg, educationLevelArg, universityArg, jobArg) => {
+    const register = async (emailArg, passwordArg, profileArg = {}) => {
         try {
+            const profileData = typeof profileArg === 'object' && profileArg !== null
+                ? profileArg
+                : {
+                    username: arguments[2],
+                    profileUrl: arguments[3],
+                    bio: arguments[4],
+                    age: arguments[5],
+                    gender: arguments[6],
+                    educationLevel: arguments[7],
+                    university: arguments[8],
+                    job: arguments[9],
+                };
+
             // Prefer explicit args, fallback to values gathered during onboarding
             const em = (emailArg || email || '').trim();
             const pw = (passwordArg || password || '').trim();
@@ -940,21 +986,24 @@ export const AuthContextProvider = ({ children }) => {
                 return { success: false, msg: 'Missing email or password' };
             }
 
-            // We may not have all fields yet at password step — use what we have
-            const usernameFinal = (usernameArg || name || '').trim();
-            const profileUrlFinal = (profileUrlArg || icon || '').trim();
-            const bioFinal = (bioArg ?? bio ?? '').toString();
-            const ageFinal = convertToAge(ageArg ?? age);
-            const genderFinal = (genderArg || gender || '').toString();
-            const educationLevelFinal = (educationLevelArg || educationLevel || '').toString();
-            const universityFinal = (universityArg || university || '').toString();
-            const jobFinal = (jobArg || job || '').toString();
+            // Chỉ dùng dữ liệu user nhập/chọn trong signup, không fallback sang displayName/photoURL từ mail/social auth.
+            const usernameFinal = (profileData.username ?? name ?? '').toString().trim();
+            const profileUrlFinal = (profileData.profileUrl ?? icon ?? '').toString().trim();
+            const bioFinal = (profileData.bio ?? bio ?? '').toString();
+            const ageFinal = convertToAge(profileData.age ?? age);
+            const genderFinal = (profileData.gender || gender || '').toString();
+            const educationLevelFinal = (profileData.educationLevel || educationLevel || '').toString();
+            const universityFinal = (profileData.university || university || '').toString();
+            const jobFinal = (profileData.job || job || '').toString();
+            const hometownFinal = (profileData.hometown || hometown || '').toString();
+            const districtFinal = (profileData.district || district || '').toString();
+            const interestsFinal = Array.isArray(profileData.interests) ? profileData.interests : (Array.isArray(interests) ? interests : []);
+            const profileCompleted = Boolean(usernameFinal && genderFinal && ageFinal && profileUrlFinal);
 
             const response = await createUserWithEmailAndPassword(auth, em, pw);
             const uid = response?.user?.uid;
-            console.log('got results: ', response?.user);
 
-            await setDoc(doc(db, "users", uid), {
+            const userDoc = {
                 username: usernameFinal || null,
                 profileUrl: profileUrlFinal || null,
                 email: em,
@@ -965,23 +1014,35 @@ export const AuthContextProvider = ({ children }) => {
                 educationLevel: educationLevelFinal || null,
                 university: universityFinal || null,
                 job: jobFinal || null,
-                coins: 1000, // initial coin balance set to 1000 Bánh mì
-                profileCompleted: Boolean(usernameFinal && genderFinal && ageFinal && profileUrlFinal) || false,
+                hometown: hometownFinal || null,
+                district: districtFinal || null,
+                interests: interestsFinal,
+                coins: 1000,
+                profileCompleted,
                 createdAt: new Date(),
                 updatedAt: new Date(),
-            });
+            };
 
-            // Keep Firebase Auth profile in sync so UI using displayName/photoURL sees chosen values
+            await setDoc(doc(db, "users", uid), userDoc);
+
             try {
                 if (usernameFinal || profileUrlFinal) {
                     await updateProfile(response.user, {
-                        displayName: usernameFinal || response.user.displayName || undefined,
-                        photoURL: profileUrlFinal || response.user.photoURL || undefined,
+                        displayName: usernameFinal || null,
+                        photoURL: profileUrlFinal || null,
                     });
                 }
             } catch (e) {
                 console.warn('updateProfile failed (non-fatal):', e?.message);
             }
+
+            setUser({
+                ...response.user,
+                ...userDoc,
+                email: userDoc.email,
+            });
+            setIsAuthenticated(profileCompleted);
+            setIsOnboarding(!profileCompleted);
 
             return { success: true, data: response?.user };
         } catch (error) {
@@ -996,11 +1057,20 @@ export const AuthContextProvider = ({ children }) => {
 
     const signUpWithEmail = async (email, password) => {
         try {
+            if (auth.currentUser?.email === email) {
+                setUser(auth.currentUser);
+                setEmail(email);
+                setPassword(password);
+                setIsAuthenticated('pendingProfile');
+                setIsOnboarding(true);
+                setSignupType('email');
+                return { success: true, user: auth.currentUser };
+            }
+
             const response = await createUserWithEmailAndPassword(auth, email, password);
             const user = response.user;
 
-            // Send verification email
-            await sendEmailVerification(user);
+            await sendProductionEmailVerification(user);
 
             // Create initial user document
             await setDoc(doc(db, "users", user.uid), {
@@ -1011,6 +1081,13 @@ export const AuthContextProvider = ({ children }) => {
                 updatedAt: new Date(),
                 coins: 1000, // Grant initial coins
             });
+
+            setUser(user);
+            setEmail(email);
+            setPassword(password);
+            setIsAuthenticated('pendingProfile');
+            setIsOnboarding(true);
+            setSignupType('email');
 
             return { success: true, user };
         } catch (error) {
@@ -1064,15 +1141,30 @@ export const AuthContextProvider = ({ children }) => {
 
     const updateUserProfile = async (profileData) => {
         try {
-            if (!user?.uid) {
+            const currentUser = user || auth.currentUser;
+            const uid = currentUser?.uid;
+            if (!uid) {
                 return { success: false, msg: 'Chưa đăng nhập' };
             }
 
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, {
+            const userRef = doc(db, 'users', uid);
+            await setDoc(userRef, {
+                uid,
+                email: currentUser?.email || profileData.email || email || null,
                 ...profileData,
                 updatedAt: new Date(),
-            });
+            }, { merge: true });
+
+            if (auth.currentUser && (profileData.username || profileData.profileUrl)) {
+                try {
+                    await updateProfile(auth.currentUser, {
+                        displayName: profileData.username || auth.currentUser.displayName || undefined,
+                        photoURL: profileData.profileUrl || auth.currentUser.photoURL || undefined,
+                    });
+                } catch (e) {
+                    console.warn('updateProfile failed (non-fatal):', e?.message);
+                }
+            }
 
             // Update local state
             if (profileData.username) setName(profileData.username);
@@ -1092,7 +1184,7 @@ export const AuthContextProvider = ({ children }) => {
 
             return { success: true };
         } catch (error) {
-            console.error('Error updating user profile:', error);
+            console.error('Error upmatch user profile:', error);
             return { success: false, msg: error.message };
         }
     };
@@ -1110,6 +1202,9 @@ export const AuthContextProvider = ({ children }) => {
         educationLevel, setEducationLevel,
         university, setUniversity,
         job, setJob,
+        hometown, setHometown,
+        district, setDistrict,
+        interests, setInterests,
         refreshUser,
         cancelRegistration,
         isOnboarding,
@@ -1143,7 +1238,7 @@ export const AuthContextProvider = ({ children }) => {
     }), [
         user, isAuthenticated, login, register, logout, logoutAndForceNextGoogleChooser,
         loginWithGoogle, loginWithGoogleForceChoose, loginWithFacebook,
-        gender, name, age, email, icon, password, bio, educationLevel, university, job,
+        gender, name, age, email, icon, password, bio, educationLevel, university, job, hometown, district, interests,
         refreshUser, cancelRegistration, isOnboarding, signupType,
         updateUserProfile, coins, banhMi, getWalletBalance, topupCoins, spendCoins, purchaseWithCoins,
         currentVibe, setUserVibe, removeUserVibe, loadUserVibe, settingVibe, vibeError, debugVibeData,

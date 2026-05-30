@@ -254,6 +254,26 @@ class FollowService {
       return false;
     }
   }
+
+  /**
+   * Get all blocked users for a blocker
+   */
+  async getBlockedUsers(blockerId: string): Promise<{ id: string; blockedId: string }[]> {
+    try {
+      const q = query(
+        collection(db, 'blocks'),
+        where('blockerId', '==', blockerId)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        blockedId: doc.data().blockedId,
+      }));
+    } catch (error) {
+      console.error('❌ Error getting blocked users:', error);
+      return [];
+    }
+  }
 }
 
 export const followService = new FollowService();

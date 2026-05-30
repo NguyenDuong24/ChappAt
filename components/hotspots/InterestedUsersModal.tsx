@@ -11,7 +11,7 @@ import {
   Dimensions
 } from 'react-native';
 import { Image } from 'expo-image';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserProfile } from '@/types/eventInvites';
 import { eventInviteService } from '@/services/eventInviteService';

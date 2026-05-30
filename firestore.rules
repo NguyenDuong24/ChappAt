@@ -12,9 +12,12 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Check if the user is an admin (requires a 'role' field in user document)
+    // Check if the user is an admin. Prefer Firebase custom claims; the role
+    // field remains for older admin-web screens.
     function isAdmin() {
-      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() &&
+        (request.auth.token.admin == true ||
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     function roomDoc(roomId) {
@@ -30,7 +33,10 @@ service cloud.firestore {
     }
 
     function isGroupMember(groupId) {
-      return isAuthenticated() && request.auth.uid in groupDoc(groupId).members;
+      let group = groupDoc(groupId);
+      return isAuthenticated() &&
+        ((('members' in group) && request.auth.uid in group.members) ||
+         (('memberIds' in group) && request.auth.uid in group.memberIds));
     }
 
     function hotSpotChatDoc(chatId) {
@@ -41,22 +47,130 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid in hotSpotChatDoc(chatId).participants;
     }
 
+    function hasBoundedList(maxLimit) {
+      return request.query.limit != null && request.query.limit <= maxLimit;
+    }
+
+    function isPostOwner() {
+      return isAuthenticated() &&
+        (resource.data.userID == request.auth.uid || resource.data.userId == request.auth.uid);
+    }
+
+    function isValidPostCreate() {
+      return request.resource.data.userID == request.auth.uid &&
+        (!('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid) &&
+        request.resource.data.content is string &&
+        request.resource.data.content.size() <= 3000 &&
+        request.resource.data.images is list &&
+        request.resource.data.images.size() <= 4 &&
+        (!('privacy' in request.resource.data) ||
+          request.resource.data.privacy in ['public', 'friends', 'private']);
+    }
+
+    function isPostEngagementUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['likes', 'likesCount', 'commentsCount', 'shares', 'updatedAt']);
+    }
+
+    function sensitiveUserFields() {
+      return [
+        'role',
+        'admin',
+        'isAdmin',
+        'isPremium',
+        'subscriptionStatus',
+        'subscriptionExpiresAt',
+        'plan',
+        'entitlements',
+        'coins',
+        'banhMi',
+        'wallet',
+        'balance',
+        'level'
+      ];
+    }
+
+    function isValidUserCreate(userId) {
+      return isOwner(userId) &&
+        !request.resource.data.keys().hasAny(['role', 'admin', 'isAdmin']) &&
+        (!('coins' in request.resource.data) || request.resource.data.coins == 1000) &&
+        (!('banhMi' in request.resource.data) || request.resource.data.banhMi == 0) &&
+        (!('isPremium' in request.resource.data) || request.resource.data.isPremium == false) &&
+        (!('subscriptionStatus' in request.resource.data) ||
+          request.resource.data.subscriptionStatus in ['inactive', 'free']);
+    }
+
+    function isSafeUserUpdate() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(sensitiveUserFields());
+    }
+
+    function isValidMessagePayload(data) {
+      return (!('text' in data) || (data.text is string && data.text.size() <= 2000)) &&
+        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2048)) &&
+        (!('fileUrl' in data) || (data.fileUrl is string && data.fileUrl.size() <= 2048)) &&
+        (!('audioUrl' in data) || (data.audioUrl is string && data.audioUrl.size() <= 2048)) &&
+        (!('senderName' in data) || (data.senderName is string && data.senderName.size() <= 80)) &&
+        (!('profileUrl' in data) || (data.profileUrl is string && data.profileUrl.size() <= 2048));
+    }
+
+    function isGroupManager() {
+      return isAuthenticated() &&
+        (resource.data.createdBy == request.auth.uid ||
+         (('admins' in resource.data) && request.auth.uid in resource.data.admins) ||
+         (('memberRoles' in resource.data) && resource.data.memberRoles[request.auth.uid] == 'admin') ||
+         isAdmin());
+    }
+
+    function protectedGroupFields() {
+      return ['createdBy', 'ownerId', 'members', 'admins', 'memberRoles', 'roles', 'permissions'];
+    }
+
+    function isSafeGroupUpdate() {
+      return request.auth.uid in resource.data.members &&
+        request.auth.uid in request.resource.data.members &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedGroupFields()) ||
+          isGroupManager());
+    }
+
+    function isCallParticipant() {
+      return isAuthenticated() &&
+        (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+    }
+
+    function isValidCallStatusUpdate() {
+      return request.resource.data.callerId == resource.data.callerId &&
+        request.resource.data.receiverId == resource.data.receiverId &&
+        request.resource.data.meetingId == resource.data.meetingId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'updatedAt',
+          'acceptedAt',
+          'declinedAt',
+          'cancelledAt',
+          'cancelledBy',
+          'endedAt',
+          'timeoutReason'
+        ]) &&
+        request.resource.data.status in ['ringing', 'accepted', 'declined', 'rejected', 'cancelled', 'ended'];
+    }
+
     // Rules for users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      // Prevent users from escalating their own privileges
-      allow write: if isOwner(userId) && 
-                    !request.resource.data.diff(resource.data).affectedKeys()
-                    .hasAny(['role', 'isPremium', 'coins', 'level']);
-      // Only admins can change roles/coins directly via Firestore
-      allow update: if isAdmin();
+      allow create: if isValidUserCreate(userId);
+      allow update: if (isOwner(userId) && isSafeUserUpdate()) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /wallet/{walletDocId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if false;
+      }
     }
 
     // Rules for user_encounters (Crossing Paths)
     match /user_encounters/{userId} {
       match /history/{encounterId} {
-        allow read: if isOwner(userId);
-        allow write: if isAuthenticated(); // Both users involved can record
+        allow read, write: if isOwner(userId) || isAdmin();
       }
     }
 
@@ -74,20 +188,64 @@ service cloud.firestore {
     match /userVibes/{vibeId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
-        (resource == null || resource.data.userId == request.auth.uid);
+        ((resource == null && request.resource.data.userId == request.auth.uid) || 
+         (resource != null && resource.data.userId == request.auth.uid));
     }
 
     // Rules for calls collection
     match /calls/{callId} {
-      allow read, update, delete: if isAuthenticated() && 
-        (resource.data.callerId == request.auth.uid || resource.data.receiverId == request.auth.uid);
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.callerId;
+      allow read: if isCallParticipant();
+      allow create: if false; // Calls are created by saigondating-server with Admin SDK.
+      allow update: if isCallParticipant() && isValidCallStatusUpdate();
+      allow delete: if isAdmin();
     }
 
     // Rules for badWords collection
     match /badWords/{document} {
       allow read: if true;
       allow write: if isAdmin(); 
+    }
+
+    // Social posts. Lists must be paginated; comments live in a subcollection
+    // so the main post document does not grow without bound.
+    match /posts/{postId} {
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated() && hasBoundedList(50);
+      allow create: if isAuthenticated() && isValidPostCreate();
+      allow update: if isPostOwner() || (isAuthenticated() && isPostEngagementUpdate());
+      allow delete: if isPostOwner() || isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() <= 500;
+        allow update, delete: if isAuthenticated() &&
+          (resource.data.userId == request.auth.uid || isAdmin());
+      }
+    }
+
+    match /follows/{followId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.followerId == request.auth.uid &&
+        request.resource.data.followingId is string &&
+        request.resource.data.followingId != request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        (resource.data.followerId == request.auth.uid || isAdmin());
+      allow update: if false;
+    }
+
+    match /blocks/{blockId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.blockerId == request.auth.uid &&
+        request.resource.data.blockedId is string &&
+        request.resource.data.blockedId != request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        (resource.data.blockerId == request.auth.uid || isAdmin());
+      allow update: if false;
     }
 
     // Rules for private chat rooms
@@ -97,12 +255,14 @@ service cloud.firestore {
                     && request.auth.uid in request.resource.data.participants;
       allow update: if isAuthenticated()
                     && request.auth.uid in resource.data.participants
-                    && request.auth.uid in request.resource.data.participants;
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants == resource.data.participants;
 
       match /messages/{messageId} {
         allow read: if isRoomParticipant(roomId);
         allow create: if isRoomParticipant(roomId)
-                      && request.resource.data.uid == request.auth.uid;
+                      && request.resource.data.uid == request.auth.uid
+                      && isValidMessagePayload(request.resource.data);
         allow update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       }
     }
@@ -111,15 +271,17 @@ service cloud.firestore {
     match /groups/{groupId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated()
-                    && request.auth.uid in request.resource.data.members;
+                    && request.auth.uid in request.resource.data.members
+                    && (!('createdBy' in request.resource.data) ||
+                      request.resource.data.createdBy == request.auth.uid);
       allow update: if isAuthenticated()
-                    && request.auth.uid in resource.data.members
-                    && request.auth.uid in request.resource.data.members;
+                    && isSafeGroupUpdate();
 
       match /messages/{messageId} {
         allow read: if isGroupMember(groupId);
         allow create: if isGroupMember(groupId)
-                      && request.resource.data.uid == request.auth.uid;
+                      && request.resource.data.uid == request.auth.uid
+                      && isValidMessagePayload(request.resource.data);
         allow update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
       }
     }
@@ -191,7 +353,8 @@ service cloud.firestore {
       match /messages/{messageId} {
         allow read: if isHotSpotChatParticipant(chatId);
         allow create: if isHotSpotChatParticipant(chatId) &&
-          request.resource.data.senderId == request.auth.uid;
+          request.resource.data.senderId == request.auth.uid &&
+          isValidMessagePayload(request.resource.data);
         allow update, delete: if isAuthenticated() &&
           (resource.data.senderId == request.auth.uid || isAdmin());
       }
@@ -225,4 +388,3 @@ service cloud.firestore {
     }
   }
 }
-

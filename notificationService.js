@@ -4,14 +4,14 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db, auth } from './firebaseConfig';
-import { doc, updateDoc, onSnapshot, collection, query, where, getDoc, deleteField } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, onSnapshot, collection, query, where, getDoc, deleteField } from 'firebase/firestore';
 
 // Cấu hình notification handler cho background/foreground
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    console.log('📱 Handling notification:', notification.request.content.title);
     return {
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: false, // Temporarily disable sound to avoid ExoPlayer thread issue
       shouldSetBadge: true,
       // Quan trọng: Luôn hiển thị notification
@@ -151,8 +151,8 @@ class NotificationService {
 
       const userRef = doc(db, 'users', user.uid);
 
-      // Lưu token với cả safe key và original token
-      await updateDoc(userRef, {
+      // Lưu token với cả safe key và original token (sử dụng setDoc với merge: true để tự động tạo document nếu chưa tồn tại)
+      await setDoc(userRef, {
         [`expoPushTokens.${safeTokenKey}`]: {
           token: token,  // Token gốc để gửi notification
           timestamp: new Date().toISOString(),
@@ -162,7 +162,7 @@ class NotificationService {
         // Cập nhật current token để dễ truy cập
         currentExpoPushToken: token,
         lastTokenUpdate: new Date().toISOString()
-      });
+      }, { merge: true });
 
       console.log('✅ Token saved to Firestore with safe key:', safeTokenKey);
     } catch (error) {
@@ -180,7 +180,7 @@ class NotificationService {
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#6366F1',
-        sound: 'default',
+        sound: undefined,
         showBadge: true,
         enableLights: true,
         enableVibrate: true,
@@ -192,7 +192,7 @@ class NotificationService {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#4CAF50',
-        sound: 'default',
+        sound: undefined,
         showBadge: true,
         enableLights: true,
         enableVibrate: true,
@@ -204,7 +204,7 @@ class NotificationService {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 1000, 500, 1000],
         lightColor: '#2196F3',
-        sound: 'default',
+        sound: undefined,
         showBadge: true,
         enableLights: true,
         enableVibrate: true,
@@ -216,7 +216,7 @@ class NotificationService {
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#FF9800',
-        sound: 'default',
+        sound: undefined,
         showBadge: true,
         enableLights: true,
         enableVibrate: true,
@@ -229,7 +229,7 @@ class NotificationService {
         importance: Notifications.AndroidImportance.DEFAULT,
         vibrationPattern: [0, 150, 150, 150],
         lightColor: '#9E9E9E',
-        sound: 'default',
+        sound: undefined,
         showBadge: false,
         enableLights: false,
         enableVibrate: true,
@@ -245,7 +245,6 @@ class NotificationService {
     // Listen for foreground notifications
     this.notificationListener = Notifications.addNotificationReceivedListener(
       (notification) => {
-        console.log('📱 Notification received:', notification);
         this.handleNotificationReceived(notification);
       }
     );
@@ -328,12 +327,12 @@ class NotificationService {
 
   cleanup() {
     if (this.notificationListener) {
-      Notifications.removeNotificationSubscription(this.notificationListener);
+      if (this.notificationListener && typeof this.notificationListener.remove === "function") this.notificationListener.remove();
       this.notificationListener = null;
     }
 
     if (this.responseListener) {
-      Notifications.removeNotificationSubscription(this.responseListener);
+      if (this.responseListener && typeof this.responseListener.remove === "function") this.responseListener.remove();
       this.responseListener = null;
     }
 
@@ -436,3 +435,6 @@ class NotificationService {
 
 // Export singleton instance
 export default new NotificationService();
+
+
+

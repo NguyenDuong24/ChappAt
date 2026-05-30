@@ -13,16 +13,18 @@ import {
     Clipboard,
     Linking,
     Share,
+    Platform,
+    ToastAndroid,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { getAuth } from 'firebase/auth';
 import { PaymentResult, PaymentStatus, vietqrPaymentService, startPaymentPolling, startRealTimePaymentListener } from '../../services/vietqrPaymentService';
 import { diagnosticService } from '../../services/diagnosticService';
 import { useTranslation } from 'react-i18next';
-
 interface VietQRPaymentModalProps {
     visible: boolean;
     onClose: () => void;
@@ -114,65 +116,21 @@ export default function VietQRPaymentModal({
                     onPaymentSuccess(completedStatus);
                 },
                 (error) => {
-                    console.log('[VietQRModal] Real-time listener error:', error);
-                    // If real-time fails, fallback to polling
-                    startFallbackPolling();
+                    console.error('[VietQRModal] Polling failed:', error);
+                    const stackError = new Error(`[VietQRModal] Polling failed: ${error}`);
+                    console.error('[VietQRModal] Call Stack:', stackError.stack);
+                    setStatus('failed');
+                    setMessage(error);
+                    setPollingController(null);
+                    onPaymentFailed(error);
+                    if (Platform.OS === 'android') {
+                        ToastAndroid.show(`Thanh toán lỗi: ${error}`, ToastAndroid.LONG);
+                    }
                 },
                 10 * 60 * 1000
             );
 
             setPollingController(listeningController);
-        } catch (error) {
-            console.error('[VietQRModal] Error starting real-time listener:', error);
-            // Fallback to polling on error
-            startFallbackPolling();
-        }
-    };
-
-    const startFallbackPolling = () => {
-        if (!paymentResult?.orderId) {
-            console.warn('[VietQRModal] No orderId for fallback polling');
-            return;
-        }
-
-        console.log('[VietQRModal] Starting fallback polling');
-        setMessage(t('vietqr_modal.waiting_polling'));
-
-        try {
-            const pollingController = startPaymentPolling(
-                paymentResult.orderId,
-                (newStatus) => {
-                    setPollCounter((prev) => prev + 1);
-                    console.log('[VietQRModal] Poll attempt:', newStatus.status);
-                },
-                (completedStatus) => {
-                    const method = completedStatus.verificationMethod || 'polling';
-                    setVerificationMethod(method as any);
-
-                    if (method === 'sms_banking') {
-                        setMessage(t('vietqr_modal.success_sms'));
-                    } else if (method === 'manual') {
-                        setMessage(t('vietqr_modal.success_manual'));
-                    } else {
-                        setMessage(t('vietqr_modal.success_generic'));
-                    }
-
-                    setStatus('success');
-                    setPollingController(null);
-                    onPaymentSuccess(completedStatus);
-                },
-                (error) => {
-                    console.error('[VietQRModal] Polling failed:', error);
-                    setStatus('failed');
-                    setMessage(error);
-                    setPollingController(null);
-                    onPaymentFailed(error);
-                },
-                3000,
-                10 * 60 * 1000
-            );
-
-            setPollingController(pollingController);
         } catch (error: any) {
             console.error('[VietQRModal] Error starting fallback polling:', error);
             setStatus('failed');
@@ -257,7 +215,7 @@ export default function VietQRPaymentModal({
             return;
         }
 
-        // ✅ Use pre-filled description from modal (no user input needed)
+        // Use pre-filled description from modal (no user input needed)
         const descriptionToVerify = paymentResult.description;
 
         if (!descriptionToVerify?.trim()) {
@@ -283,7 +241,7 @@ export default function VietQRPaymentModal({
             console.log('[VietQRModal] Manual verification success:', result);
             onPaymentSuccess(result as PaymentStatus);
         } catch (error: any) {
-            // ⚠️ IMPORTANT: Keep modal open on failure - user can retry
+            // IMPORTANT: Keep modal open on failure - user can retry
             setStatus('failed');
             const errorMsg = error?.message || t('vietqr_modal.verify_failed');
             setMessage(errorMsg);
@@ -787,3 +745,6 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     }
 });
+
+
+

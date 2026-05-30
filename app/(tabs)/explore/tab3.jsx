@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useFollowingPosts, useExploreActions, useExploreState, useExploreLoading } from '@/context/ExploreContext';
 import BaseExploreTab from '@/components/explore/BaseExploreTab';
 
-const Tab3Screen = ({ isActive }: { isActive: boolean }) => {
+const Tab3Screen = ({ isActive, onScroll }, ref) => {
     const { posts: followingPosts, hasMore } = useFollowingPosts() || { posts: [], hasMore: false };
     const { loadMoreFollowing, deletePost, toggleLike, refresh, ensureFeedReady, updatePostPrivacy } = useExploreActions() || {};
     const { loadingInitial, isRefreshing } = useExploreState() || {};
@@ -16,6 +16,8 @@ const Tab3Screen = ({ isActive }: { isActive: boolean }) => {
 
     return (
         <BaseExploreTab
+            ref={ref}
+            onTabScroll={onScroll}
             isActive={isActive}
             posts={followingPosts}
             hasMore={hasMore}
@@ -33,4 +35,4 @@ const Tab3Screen = ({ isActive }: { isActive: boolean }) => {
     );
 };
 
-export default React.memo(Tab3Screen);
+export default React.memo(React.forwardRef(Tab3Screen));

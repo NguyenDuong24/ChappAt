@@ -183,7 +183,7 @@ class NotificationIntegrationService {
       const unreadCount = await this.getUnreadCount();
       await Notifications.setBadgeCountAsync(unreadCount);
     } catch (error) {
-      console.error('Error updating badge count:', error);
+      console.error('Error upmatch badge count:', error);
     }
   }
 

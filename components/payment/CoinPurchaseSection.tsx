@@ -6,10 +6,13 @@ import {
     TouchableOpacity,
     Alert,
     ActivityIndicator,
+    Platform,
+    ToastAndroid,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import VietQRPaymentModal from './VietQRPaymentModal';
 import {
     vietqrPaymentService,
@@ -19,19 +22,83 @@ import {
     PaymentStatus,
     getPaymentErrorMessage,
 } from '../../services/vietqrPaymentService';
-
+import { unifiedPaymentService, UnifiedProduct, UNIFIED_PRODUCTS } from '../../services/unifiedPaymentService';
 interface CoinPurchaseSectionProps {
-    onPurchaseSuccess: (newBalance: number) => void;
+    onPurchaseSuccess: (newBalance: number, localTx?: any) => void;
 }
 
 export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseSectionProps) {
     const router = useRouter();
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [selectedPackage, setSelectedPackage] = useState<CoinPackage | null>(null);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
+    const [iapPurchasing, setIapPurchasing] = useState<string | null>(null);
 
+    const isNativeStore = unifiedPaymentService.usesInAppPurchases();
+
+    // ── IAP Purchase (Google Play / App Store) ─────────────
+    const handleIAPPurchase = async (product: UnifiedProduct) => {
+        try {
+            setIapPurchasing(product.packageId);
+
+            const result = await unifiedPaymentService.purchaseCoins(product, '');
+
+            if (!result.success) {
+                if (result.error === 'cancelled') {
+                    // User cancelled — no alert needed
+                    return;
+                }
+                Alert.alert('Lỗi thanh toán', result.error || 'Không thể hoàn tất giao dịch.');
+                return;
+            }
+
+            const purchasedCoins = result.coinsAwarded;
+            const purchasedBonus = result.bonusAwarded;
+
+            const localTx = {
+                id: `local_${result.transactionId || Date.now()}`,
+                type: 'topup',
+                amount: purchasedCoins + purchasedBonus,
+                currencyType: 'coins',
+                createdAt: new Date(),
+                metadata: {
+                    transactionId: result.transactionId,
+                    source: result.provider,
+                    packageId: product.packageId,
+                },
+            };
+
+            onPurchaseSuccess(purchasedCoins, localTx);
+
+            router.push({
+                pathname: '/(screens)/wallet/PaymentSuccessScreen',
+                params: {
+                    transactionId: result.transactionId || '',
+                    amount: String(purchasedCoins),
+                    bonus: String(purchasedBonus),
+                    packageId: product.packageId,
+                    provider: result.provider,
+                },
+            });
+        } catch (error) {
+            Alert.alert('Lỗi', getPaymentErrorMessage(error));
+        } finally {
+            setIapPurchasing(null);
+        }
+    };
+
+    // ── VietQR Purchase (web / fallback) ───────────────────
     const handleSelectPackage = async (pkg: CoinPackage) => {
+        // On Android: use Google Play Billing directly
+        if (isNativeStore) {
+            const product = UNIFIED_PRODUCTS.find((p) => p.packageId === pkg.id);
+            if (product) {
+                await handleIAPPurchase(product);
+            }
+            return;
+        }
         try {
             setLoading(true);
             setSelectedPackage(pkg);
@@ -40,7 +107,7 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
             setPaymentResult(result);
             setShowPaymentModal(true);
         } catch (error) {
-            Alert.alert('Lỗi', getPaymentErrorMessage(error));
+            Alert.alert('Lá»—i', getPaymentErrorMessage(error));
         } finally {
             setLoading(false);
         }
@@ -48,20 +115,48 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
 
     const handlePaymentSuccess = async (status: PaymentStatus) => {
         setShowPaymentModal(false);
-        Alert.alert(
-            'Thành công! 🎉',
-            `Bạn đã nhận được ${selectedPackage?.coins}${selectedPackage?.bonus ? ` + ${selectedPackage.bonus} bonus` : ''} coin!`
-        );
 
-        // Notify parent to refresh balance
-        if (status.coinAmount) {
-            onPurchaseSuccess(0);
-        }
+        const purchasedCoins = status.coinAmount || selectedPackage?.coins || 0;
+        const purchasedBonus = selectedPackage?.bonus || 0;
+        const orderId = status.orderId || paymentResult?.orderId || '';
+
+        const localTx = {
+            id: `local_${orderId}`,
+            type: 'topup',
+            amount: purchasedCoins + purchasedBonus,
+            currencyType: 'coins',
+            createdAt: new Date(),
+            metadata: {
+                orderId: orderId,
+                source: 'vietqr',
+                packageId: selectedPackage?.id || '',
+            }
+        };
+
+        onPurchaseSuccess(purchasedCoins, localTx);
+
+        router.push({
+            pathname: '/(screens)/wallet/PaymentSuccessScreen',
+            params: {
+                orderId: orderId,
+                amount: String(purchasedCoins),
+                bonus: String(purchasedBonus),
+                packageId: selectedPackage?.id || '',
+            },
+        });
     };
-
     const handlePaymentFailed = (error: string) => {
         setShowPaymentModal(false);
-        Alert.alert('Thanh toán thất bại', error);
+        const title = t('vietqr_modal.payment_failed_title', 'Thanh toán thất bại');
+        const message = error || t('common.error', 'Có lỗi xảy ra');
+        const stackError = new Error(`[VietQRPayment] ${message}`);
+        console.error('[VietQRPayment] Payment failed:', message);
+        console.error('[VietQRPayment] Call Stack:', stackError.stack);
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(`${title}: ${message}`, ToastAndroid.LONG);
+        } else {
+            Alert.alert(title, message);
+        }
     };
 
     const handleUpgradePro = () => {
@@ -94,8 +189,8 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
                                 <Ionicons name="diamond" size={20} color="#FFD700" />
                             </View>
                             <View>
-                                <Text style={styles.proBannerTitle}>Nâng cấp Pro</Text>
-                                <Text style={styles.proBannerSubtitle}>Mở khóa tất cả đặc quyền</Text>
+                                <Text style={styles.proBannerTitle}>{t('wallet.upgrade_pro', 'Nï¿½ng c?p Pro')}</Text>
+                                <Text style={styles.proBannerSubtitle}>{t('wallet.unlock_pro_benefits', 'M? khï¿½a t?t c? d?c quy?n')}</Text>
                             </View>
                         </View>
                         <Ionicons name="chevron-forward" size={24} color="#fff" />
@@ -103,42 +198,48 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
                 </LinearGradient>
             </TouchableOpacity>
 
-            {/* Section Title with SMS Banking Badge */}
+            {/* Section Title — platform-aware */}
             <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleContainer}>
-                    <Text style={styles.sectionTitle}>Mua Coin bằng VietQR</Text>
-                    <View style={styles.smsBankingBadge}>
-                        <Ionicons name="phone-portrait" size={12} color="#fff" />
-                        <Text style={styles.smsBankingBadgeText}>SMS Banking</Text>
+                    <Text style={styles.sectionTitle}>
+                        {isNativeStore
+                            ? t('wallet.buy_coins', 'Mua Coin')
+                            : t('wallet.buy_coins_vietqr', 'Mua Coin b?ng VietQR')
+                        }
+                    </Text>
+                    {isNativeStore ? (
+                        <View style={[styles.smsBankingBadge, { backgroundColor: '#4285F4' }]}>
+                            <Ionicons name="logo-google-playstore" size={12} color="#fff" />
+                            <Text style={styles.smsBankingBadgeText}>Google Play</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.smsBankingBadge}>
+                            <Ionicons name="phone-portrait" size={12} color="#fff" />
+                            <Text style={styles.smsBankingBadgeText}>{t('wallet.sms_banking', 'SMS Banking')}</Text>
+                        </View>
+                    )}
+                </View>
+                {isNativeStore ? (
+                    <View style={styles.vietqrLogo}>
+                        <LinearGradient
+                            colors={['#4285F4', '#34A853']}
+                            style={styles.vietqrLogoGradient}
+                        >
+                            <Text style={styles.vietqrLogoText}>GP</Text>
+                        </LinearGradient>
                     </View>
-                </View>
-                <View style={styles.vietqrLogo}>
-                    <LinearGradient
-                        colors={['#1976D2', '#1565C0']}
-                        style={styles.vietqrLogoGradient}
-                    >
-                        <Text style={styles.vietqrLogoText}>QR</Text>
-                    </LinearGradient>
-                </View>
+                ) : (
+                    <View style={styles.vietqrLogo}>
+                        <LinearGradient
+                            colors={['#1976D2', '#1565C0']}
+                            style={styles.vietqrLogoGradient}
+                        >
+                            <Text style={styles.vietqrLogoText}>QR</Text>
+                        </LinearGradient>
+                    </View>
+                )}
             </View>
 
-            {/* SMS Banking Info Banner */}
-            <LinearGradient
-                colors={['#E8F5E9', '#C8E6C9']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.smsBankingInfoBanner}
-            >
-                <View style={styles.smsBankingIconContainer}>
-                    <Ionicons name="phone-portrait" size={20} color="#2E7D32" />
-                </View>
-                <View style={styles.smsBankingTextContainer}>
-                    <Text style={styles.smsBankingInfoTitle}>⚡ Xác nhận tự động qua SMS Banking</Text>
-                    <Text style={styles.smsBankingInfoText}>
-                        Chuyển khoản để thanh toán. App tự động nhận SMS từ Vietcombank và xác nhận trong &lt;1 phút
-                    </Text>
-                </View>
-            </LinearGradient>
 
             {/* Coin Packages */}
             <View style={styles.packagesGrid}>
@@ -148,14 +249,15 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
                         style={[
                             styles.packageCard,
                             pkg.discount && pkg.discount >= 20 ? styles.packageCardPopular : null,
+                            iapPurchasing === pkg.id && styles.packageCardPurchasing,
                         ]}
                         onPress={() => handleSelectPackage(pkg)}
-                        disabled={loading}
+                        disabled={loading || !!iapPurchasing}
                         activeOpacity={0.8}
                     >
                         {pkg.discount && pkg.discount >= 20 && (
                             <View style={styles.popularBadge}>
-                                <Text style={styles.popularBadgeText}>Hot</Text>
+                                <Text style={styles.popularBadgeText}>{t('wallet.hot', 'Hot')}</Text>
                             </View>
                         )}
 
@@ -165,7 +267,7 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
                         </View>
 
                         {pkg.bonus ? (
-                            <Text style={styles.packageBonus}>+{pkg.bonus} bonus</Text>
+                            <Text style={styles.packageBonus}>+{pkg.bonus} {t('wallet.bonus', 'bonus')}</Text>
                         ) : (
                             <Text style={styles.packageBonusPlaceholder}> </Text>
                         )}
@@ -182,10 +284,15 @@ export default function CoinPurchaseSection({ onPurchaseSuccess }: CoinPurchaseS
             </View>
 
             {/* Loading overlay */}
-            {loading && (
+            {(loading || iapPurchasing) && (
                 <View style={styles.loadingOverlay}>
-                    <ActivityIndicator size="large" color="#1976D2" />
-                    <Text style={styles.loadingText}>Đang tạo đơn hàng...</Text>
+                    <ActivityIndicator size="large" color={isNativeStore ? '#4285F4' : '#1976D2'} />
+                    <Text style={styles.loadingText}>
+                        {iapPurchasing
+                            ? 'Đang kết nối Google Play...'
+                            : t('wallet.creating_order', 'Đang tạo đơn hàng...')
+                        }
+                    </Text>
                 </View>
             )}
 
@@ -407,4 +514,13 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#666',
     },
+    packageCardPurchasing: {
+        opacity: 0.6,
+        borderColor: '#4285F4',
+    },
 });
+
+
+
+
+

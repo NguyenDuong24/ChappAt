@@ -16,7 +16,8 @@ import {
     Image,
     Linking,
 } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useTranslation } from 'react-i18next';
@@ -187,7 +188,7 @@ const NotificationsScreen = () => {
                 const notificationsList: Notification[] = [];
 
                 snapshot.forEach((doc) => {
-                    const data = doc.data();
+                    const data = doc.data() as any;
                     notificationsList.push({
                         id: doc.id,
                         type: data.type || 'system',
@@ -231,7 +232,7 @@ const NotificationsScreen = () => {
                         const retryNotificationsList: Notification[] = [];
 
                         retrySnapshot.forEach((doc) => {
-                            const data = doc.data();
+                            const data = doc.data() as any;
                             retryNotificationsList.push({
                                 id: doc.id,
                                 type: data.type || 'system',
@@ -315,7 +316,7 @@ const NotificationsScreen = () => {
                 const notificationsList: Notification[] = [];
 
                 snapshot.forEach((doc) => {
-                    const data = doc.data();
+                    const data = doc.data() as any;
                     notificationsList.push({
                         id: doc.id,
                         type: data.type || 'system',
@@ -357,7 +358,7 @@ const NotificationsScreen = () => {
                     const retryNotificationsList: Notification[] = [];
 
                     retrySnapshot.forEach((doc) => {
-                        const data = doc.data();
+                        const data = doc.data() as any;
                         retryNotificationsList.push({
                             id: doc.id,
                             type: data.type || 'system',

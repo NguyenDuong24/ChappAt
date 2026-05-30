@@ -11,10 +11,11 @@ import {
   StatusBar
 } from 'react-native';
 import { Audio } from 'expo-av';
+import { safeStopAndUnload } from '@/utils/safeSound';
 import { getDoc, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { acceptCall, declineCall, cancelCall, CALL_STATUS } from '@/services/firebaseCallService';
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
@@ -37,6 +38,7 @@ const ListenCallAcceptedScreen = () => {
   const waveAnim = useRef(new Animated.Value(0)).current;
 
   const soundRef = useRef<Audio.Sound | null>(null);
+  const animationLoopsRef = useRef<Animated.CompositeAnimation[]>([]);
 
   useEffect(() => {
     const fetchReceiverData = async () => {
@@ -65,84 +67,70 @@ const ListenCallAcceptedScreen = () => {
       useNativeDriver: true,
     }).start();
 
-    // Pulse animation for avatar
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 1200,
-          easing: Easing.bezier(0.4, 0, 0.2, 1),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
+    const animationLoops = [
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.06,
+            duration: 1400,
+            easing: Easing.bezier(0.4, 0, 0.2, 1),
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1400,
+            easing: Easing.bezier(0.4, 0, 0.2, 1),
+            useNativeDriver: true,
+          }),
+        ])
+      ),
+      Animated.loop(
+        Animated.timing(rotateAnim, {
           toValue: 1,
-          duration: 1200,
-          easing: Easing.bezier(0.4, 0, 0.2, 1),
+          duration: 5000,
+          easing: Easing.linear,
           useNativeDriver: true,
-        }),
-      ])
-    ).start();
+        })
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(rippleAnim, {
+            toValue: 1,
+            duration: 3000,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(rippleAnim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ])
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(buttonScaleAnim, {
+            toValue: 1.03,
+            duration: 1000,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+          Animated.timing(buttonScaleAnim, {
+            toValue: 1,
+            duration: 1000,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+        ])
+      ),
+    ];
 
-    // Rotating ring
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 4000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Ripple effect
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(rippleAnim, {
-          toValue: 1,
-          duration: 2500,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(rippleAnim, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Wave animation
-    Animated.loop(
-      Animated.timing(waveAnim, {
-        toValue: 1,
-        duration: 2000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Button pulse
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(buttonScaleAnim, {
-          toValue: 1.05,
-          duration: 800,
-          easing: Easing.ease,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonScaleAnim, {
-          toValue: 1,
-          duration: 800,
-          easing: Easing.ease,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-
+    animationLoopsRef.current = animationLoops;
+    animationLoops.forEach((loop) => loop.start());
     // Play outgoing ringtone
     const playOutgoingSound = async () => {
       try {
-        console.log('🔊 Playing outgoing ringtone');
+        console.log('ðŸ”Š Playing outgoing ringtone');
         const { sound } = await Audio.Sound.createAsync(
           require('@/assets/sounds/outcoming.mp3'),
           { shouldPlay: true, isLooping: true }
@@ -156,9 +144,11 @@ const ListenCallAcceptedScreen = () => {
     playOutgoingSound();
 
     return () => {
+      animationLoopsRef.current.forEach((loop) => loop.stop());
+      animationLoopsRef.current = [];
       if (soundRef.current) {
-        soundRef.current.stopAsync();
-        soundRef.current.unloadAsync();
+        safeStopAndUnload(soundRef.current);
+        soundRef.current = null;
       }
     };
   }, [receiverId]);
@@ -176,8 +166,7 @@ const ListenCallAcceptedScreen = () => {
           console.log('Call accepted! Navigating to call screen...');
           callTimeoutService.stopCallTimeout(callId);
           if (soundRef.current) {
-            await soundRef.current.stopAsync();
-            await soundRef.current.unloadAsync();
+            await safeStopAndUnload(soundRef.current);
           }
           navigateToCallScreen({
             id: callId,
@@ -190,8 +179,7 @@ const ListenCallAcceptedScreen = () => {
         } else if (data.status === CALL_STATUS.DECLINED || data.status === CALL_STATUS.ENDED) {
           console.log('Call declined or ended.');
           if (soundRef.current) {
-            await soundRef.current.stopAsync();
-            await soundRef.current.unloadAsync();
+            await safeStopAndUnload(soundRef.current);
           }
           navigateBack();
         }
@@ -203,14 +191,13 @@ const ListenCallAcceptedScreen = () => {
 
   const handleCancelCall = async () => {
     try {
-      console.log('❌ Cancelling call:', callId);
+      console.log('âŒ Cancelling call:', callId);
       if (callId && typeof callId === 'string') {
         if (soundRef.current) {
-          await soundRef.current.stopAsync();
-          await soundRef.current.unloadAsync();
+          await safeStopAndUnload(soundRef.current);
         }
         await cancelCall(callId);
-        console.log('✅ Call cancelled in Firebase');
+        console.log('âœ… Call cancelled in Firebase');
         navigateBack();
       }
     } catch (error) {
@@ -484,7 +471,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
     shadowRadius: 20,
-    elevation: 10,
   },
   avatar: {
     width: '100%',
@@ -547,7 +533,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 8,
   },
   cancelButtonText: {
     color: '#FFFFFF',

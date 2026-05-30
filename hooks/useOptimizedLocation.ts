@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/authContext';
 import globalOptimizationService from '@/services/globalOptimizationService';
 import * as Location from 'expo-location';
@@ -39,18 +39,26 @@ export const useOptimizedLocation = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Request location permission and get current location
   const requestLocationPermission = useCallback(async (): Promise<boolean> => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setError('Location permission denied');
+        if (isMountedRef.current) setError('Location permission denied');
         return false;
       }
       return true;
     } catch (err) {
-      setError('Failed to request location permission');
+      if (isMountedRef.current) setError('Failed to request location permission');
       return false;
     }
   }, []);
@@ -60,6 +68,7 @@ export const useOptimizedLocation = ({
     if (!enableLocationTracking) return null;
 
     try {
+      if (!isMountedRef.current) return null;
       setLoading(true);
       setError(null);
 
@@ -69,6 +78,8 @@ export const useOptimizedLocation = ({
       const locationResult = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced // Changed from High to Balanced for better battery
       });
+
+      if (!isMountedRef.current) return null;
 
       const locationData: LocationData = {
         latitude: locationResult.coords.latitude,
@@ -88,11 +99,11 @@ export const useOptimizedLocation = ({
       return locationData;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to get location';
-      setError(errorMessage);
+      if (isMountedRef.current) setError(errorMessage);
       console.error('Location error:', err);
       return null;
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   }, [enableLocationTracking, user?.uid, requestLocationPermission]);
 
@@ -140,7 +151,7 @@ export const useOptimizedLocation = ({
         nearbyRadius
       );
 
-      setNearbyUsers(nearby);
+      if (isMountedRef.current) setNearbyUsers(nearby);
       return nearby;
     } catch (error) {
       console.error('Error querying nearby users:', error);
@@ -159,7 +170,7 @@ export const useOptimizedLocation = ({
       return;
     }
 
-    console.log('📍 Updating location and nearby users...');
+    console.log('📍 Upmatch location and nearby users...');
     
     const currentLocation = await getCurrentLocation();
     if (currentLocation && enableNearbyQuery) {
@@ -172,15 +183,17 @@ export const useOptimizedLocation = ({
     if (!user?.uid || !enableLocationTracking) return;
 
     let locationSubscription: Location.LocationSubscription | null = null;
-    let nearbyQueryInterval: NodeJS.Timeout | null = null;
+    let nearbyQueryInterval: ReturnType<typeof setInterval> | null = null;
+    let cancelled = false;
 
     const setupLocationWatching = async () => {
       try {
         const hasPermission = await requestLocationPermission();
-        if (!hasPermission) return;
+        if (!hasPermission || cancelled) return;
 
         // Get initial location
         await updateLocationAndNearby();
+        if (cancelled) return;
 
         // Setup location watching with optimized settings
         locationSubscription = await Location.watchPositionAsync(
@@ -190,6 +203,7 @@ export const useOptimizedLocation = ({
             distanceInterval: 50, // 50 meters
           },
           async (newLocation) => {
+            if (cancelled || !isMountedRef.current) return;
             const locationData: LocationData = {
               latitude: newLocation.coords.latitude,
               longitude: newLocation.coords.longitude,
@@ -208,9 +222,16 @@ export const useOptimizedLocation = ({
           }
         );
 
+        if (cancelled) {
+          locationSubscription.remove();
+          locationSubscription = null;
+          return;
+        }
+
         // Setup nearby users query interval (less frequent)
         if (enableNearbyQuery) {
           nearbyQueryInterval = setInterval(async () => {
+            if (cancelled || !isMountedRef.current) return;
             if (location) {
               await queryNearbyUsers();
             }
@@ -219,7 +240,7 @@ export const useOptimizedLocation = ({
 
       } catch (error) {
         console.error('Error setting up location watching:', error);
-        setError('Failed to setup location tracking');
+        if (isMountedRef.current) setError('Failed to setup location tracking');
       }
     };
 
@@ -227,6 +248,7 @@ export const useOptimizedLocation = ({
 
     // Cleanup
     return () => {
+      cancelled = true;
       if (locationSubscription) {
         locationSubscription.remove();
       }

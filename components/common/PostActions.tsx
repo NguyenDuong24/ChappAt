@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActionSheetIOS, Platform, Alert } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { IconButton } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import LikedByModal from './LikedByModal';

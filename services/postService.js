@@ -12,6 +12,7 @@ import {
     Timestamp
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import { POST_COST_LIMITS } from '@/config/costControls';
 
 class PostService {
     /**
@@ -21,19 +22,20 @@ class PostService {
      * @returns {Function} Unsubscribe function
      */
     subscribeToFirstPage(options, callback) {
-        const { type, pageSize = 20, followingIds = [] } = options;
+        const { type, pageSize = POST_COST_LIMITS.pageSize, followingIds = [] } = options;
+        const safePageSize = Math.min(pageSize, POST_COST_LIMITS.maxPageSize);
         let q;
 
         const postsRef = collection(db, 'posts');
 
         if (type === 'latest') {
-            q = query(postsRef, orderBy('timestamp', 'desc'), limit(pageSize));
+            q = query(postsRef, orderBy('timestamp', 'desc'), limit(safePageSize));
         } else if (type === 'trending') {
-            // Trending: Fetch last 100 posts to sort by likes in memory
+            // Trending: only inspect a bounded recent candidate set.
             q = query(
                 postsRef,
                 orderBy('timestamp', 'desc'),
-                limit(100)
+                limit(POST_COST_LIMITS.trendingCandidateSize)
             );
         } else if (type === 'following') {
             if (followingIds.length === 0) {
@@ -45,7 +47,7 @@ class PostService {
                 postsRef,
                 where('userID', 'in', batch),
                 orderBy('timestamp', 'desc'),
-                limit(pageSize)
+                limit(safePageSize)
             );
         }
 
@@ -62,7 +64,7 @@ class PostService {
                 posts = posts.filter(p => !p.privacy || p.privacy === 'public' || p.privacy === 'friends');
             }
 
-            const currentLimit = type === 'trending' ? 100 : pageSize;
+            const currentLimit = type === 'trending' ? POST_COST_LIMITS.trendingCandidateSize : safePageSize;
             const hasMore = snapshot.docs.length === currentLimit;
 
             if (type === 'trending') {
@@ -109,7 +111,8 @@ class PostService {
      * @returns {Promise} Array of posts and new lastDoc
      */
     async fetchNextPage(options, lastDoc) {
-        const { type, pageSize = 20, followingIds = [] } = options;
+        const { type, pageSize = POST_COST_LIMITS.pageSize, followingIds = [] } = options;
+        const safePageSize = Math.min(pageSize, POST_COST_LIMITS.maxPageSize);
         if (!lastDoc) return { posts: [], lastDoc: null, hasMore: false };
 
         let allPosts = [];
@@ -118,7 +121,7 @@ class PostService {
         let attempts = 0;
 
         // Try to fetch until we get at least some posts or we've tried too many times (max 3 batches)
-        while (allPosts.length < pageSize && hasMore && attempts < 3) {
+        while (allPosts.length < safePageSize && hasMore && attempts < 3) {
             attempts++;
             let q;
             const postsRef = collection(db, 'posts');
@@ -128,7 +131,7 @@ class PostService {
                     postsRef,
                     orderBy('timestamp', 'desc'),
                     startAfter(currentLastDoc),
-                    limit(pageSize)
+                    limit(safePageSize)
                 );
             } else if (type === 'following') {
                 if (followingIds.length === 0) return { posts: [], lastDoc: null, hasMore: false };
@@ -138,7 +141,7 @@ class PostService {
                     where('userID', 'in', batch),
                     orderBy('timestamp', 'desc'),
                     startAfter(currentLastDoc),
-                    limit(pageSize)
+                    limit(safePageSize)
                 );
             }
 
@@ -161,7 +164,7 @@ class PostService {
 
             allPosts = [...allPosts, ...batchPosts];
             currentLastDoc = snapshot.docs[snapshot.docs.length - 1];
-            hasMore = snapshot.docs.length === pageSize;
+            hasMore = snapshot.docs.length === safePageSize;
         }
 
         return {

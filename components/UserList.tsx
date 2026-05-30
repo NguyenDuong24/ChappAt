@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { useOptimizedUsers } from '@/hooks/useOptimizedUsers';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { useRouter } from 'expo-router';
+import { Colors } from '@/constants/Colors';
 
 interface UserListProps {
     currentUserId: string;
@@ -35,7 +36,7 @@ const UserList: React.FC<UserListProps> = ({ currentUserId }) => {
     const renderFooter = () => {
         if (!loading) return null;
         return (
-            <View style={styles.loader}>c
+            <View style={styles.loader}>
                 <ActivityIndicator size="small" color={Colors.primary} />
             </View>
         );

@@ -15,8 +15,19 @@ import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
 // Configure notification handler
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
+    const dnd = await AsyncStorage.getItem('doNotDisturb');
+    if (dnd === 'true') {
+      return {
+        shouldShowBanner: false,
+        shouldShowList: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+
     return {
-      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: true,
     };
@@ -174,7 +185,7 @@ class CoreNotificationService {
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#FF231F7C',
-      sound: 'default',
+      sound: undefined,
     });
 
     // Social interactions channel
@@ -213,11 +224,14 @@ class CoreNotificationService {
    */
   async scheduleLocalNotification(notification: LocalNotification, delay: number = 0): Promise<string | null> {
     try {
+      const dnd = await AsyncStorage.getItem('doNotDisturb');
+      if (dnd === 'true') return null;
+
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
           title: notification.title,
           body: notification.body,
-          data: notification.data || {},
+          data: (notification.data || {}) as Record<string, unknown>,
           categoryIdentifier: notification.categoryId,
           sound: notification.sound !== false,
           badge: notification.badge,
@@ -317,3 +331,4 @@ class CoreNotificationService {
 
 // Export singleton instance
 export default new CoreNotificationService();
+

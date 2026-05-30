@@ -13,7 +13,7 @@ import {
   createCameraVideoTrack,
   createMicrophoneAudioTrack,
 } from '@videosdk.live/react-native-sdk';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface PreCallScreenProps {
@@ -25,7 +25,11 @@ export default function PreCallScreen({ onJoinMeeting, onBack }: PreCallScreenPr
   const [micEnabled, setMicEnabled] = useState(true);
   const [webcamEnabled, setWebcamEnabled] = useState(true);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
-  const [devices, setDevices] = useState({
+  const [devices, setDevices] = useState<{
+    cameras: any[];
+    microphones: any[];
+    speakers: any[];
+  }>({
     cameras: [],
     microphones: [],
     speakers: [],
@@ -48,8 +52,8 @@ export default function PreCallScreen({ onJoinMeeting, onBack }: PreCallScreenPr
   // Check and request permissions
   const checkPermissions = async () => {
     try {
-      const audioPermission = await checkPermission('audio');
-      const videoPermission = await checkPermission('video');
+      const audioPermission = await checkPermission('audio' as any);
+      const videoPermission = await checkPermission('video' as any);
       
       console.log('📱 Audio permission:', audioPermission);
       console.log('📱 Video permission:', videoPermission);
@@ -68,7 +72,7 @@ export default function PreCallScreen({ onJoinMeeting, onBack }: PreCallScreenPr
 
   const requestPermissions = async () => {
     try {
-      const audioVideoPermission = await requestPermission('audio_video');
+      const audioVideoPermission = await requestPermission('audio_video' as any);
       console.log('✅ Requested permissions:', audioVideoPermission);
       
       if (audioVideoPermission.get('audio') && audioVideoPermission.get('video')) {

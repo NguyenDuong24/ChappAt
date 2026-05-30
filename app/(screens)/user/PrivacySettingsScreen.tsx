@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,18 +9,16 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Linking,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useTheme } from '@/context/ThemeContext';
-import { getLiquidPalette } from '@/components/liquid';
+import { getLiquidPalette, LiquidGlassBackground, LiquidSurface } from '@/components/liquid';
 import { db } from '@/firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
-
-const glassGradient = ['rgba(255,255,255,0.16)', 'rgba(255,255,255,0.08)'] as const;
 
 const PrivacySettingsScreen = () => {
   const { t } = useTranslation();
@@ -32,41 +30,35 @@ const PrivacySettingsScreen = () => {
   const [initialLoading, setInitialLoading] = useState(true);
 
   const [showOnlineStatus, setShowOnlineStatus] = useState(true);
-  const [showReadReceipts, setShowReadReceipts] = useState(true);
-  const [allowMessageFromStrangers, setAllowMessageFromStrangers] = useState(false);
-  const [showProfileToEveryone, setShowProfileToEveryone] = useState(true);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [profileVisible, setProfileVisible] = useState(true);
+  const [isIncognito, setIsIncognito] = useState(false);
   const [loginAlerts, setLoginAlerts] = useState(true);
 
   const palette = useMemo(() => {
-    if (contextPalette) return {
-      text: contextPalette.textColor,
-      subtleText: contextPalette.subtitleColor,
-      softText: isDark ? 'rgba(255,255,248,0.62)' : 'rgba(11,33,36,0.62)',
-      border: contextPalette.menuBorder || (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)'),
-      success: '#2FE0AC',
-      warning: '#F6C966',
-      info: '#9BD0FF',
-    };
-    const lp = getLiquidPalette(theme);
+    const cp = contextPalette || getLiquidPalette(theme);
     return {
-      text: lp.textColor,
-      subtleText: lp.subtitleColor,
+      text: cp.textColor,
+      subtleText: cp.subtitleColor,
       softText: isDark ? 'rgba(255,255,248,0.62)' : 'rgba(11,33,36,0.62)',
-      border: lp.menuBorder,
+      border: cp.menuBorder || (isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)'),
       success: '#2FE0AC',
       warning: '#F6C966',
       info: '#9BD0FF',
+      danger: '#FF6B7F',
+      primary: cp.primary,
+      secondary: cp.secondary,
+      appGradient: cp.appGradient,
+      cardGradient: cp.cardGradient,
     };
   }, [theme, isDark, contextPalette]);
 
-  useEffect(() => {
-    if (user?.uid) {
-      loadPrivacySettings();
-    }
-  }, [user?.uid]);
+  const isEmailUser = useMemo(() => {
+    if (!user || !user.providerData) return false;
+    return user.providerData.some((p: any) => p.providerId === 'password');
+  }, [user]);
 
-  const loadPrivacySettings = async () => {
+  const loadPrivacySettings = useCallback(async () => {
+    if (!user?.uid) return;
     try {
       setInitialLoading(true);
       const userRef = doc(db, 'users', user.uid);
@@ -74,10 +66,8 @@ const PrivacySettingsScreen = () => {
       if (userSnap.exists()) {
         const data: any = userSnap.data();
         setShowOnlineStatus(data.showOnlineStatus ?? true);
-        setShowReadReceipts(data.showReadReceipts ?? true);
-        setAllowMessageFromStrangers(data.allowMessageFromStrangers ?? false);
-        setShowProfileToEveryone(data.showProfileToEveryone ?? true);
-        setTwoFactorEnabled(data.twoFactorEnabled ?? false);
+        setProfileVisible(data.profileVisible ?? true);
+        setIsIncognito(data.isIncognito ?? false);
         setLoginAlerts(data.loginAlerts ?? true);
       }
     } catch (error) {
@@ -85,59 +75,109 @@ const PrivacySettingsScreen = () => {
     } finally {
       setInitialLoading(false);
     }
-  };
+  }, [user?.uid]);
+
+  useEffect(() => {
+    loadPrivacySettings();
+  }, [loadPrivacySettings]);
 
   const updateSetting = async (field: string, value: boolean) => {
     if (!user?.uid) return;
 
+    // Keep the previous value for rollbacks (Optimistic UI)
+    let prevValue = false;
+    switch (field) {
+      case 'showOnlineStatus':
+        prevValue = showOnlineStatus;
+        setShowOnlineStatus(value);
+        break;
+      case 'profileVisible':
+        prevValue = profileVisible;
+        setProfileVisible(value);
+        break;
+      case 'isIncognito':
+        prevValue = isIncognito;
+        setIsIncognito(value);
+        break;
+      case 'loginAlerts':
+        prevValue = loginAlerts;
+        setLoginAlerts(value);
+        break;
+    }
+
     try {
       setLoading(true);
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { [field]: value });
-
-      switch (field) {
-        case 'showOnlineStatus':
-          setShowOnlineStatus(value);
-          break;
-        case 'showReadReceipts':
-          setShowReadReceipts(value);
-          break;
-        case 'allowMessageFromStrangers':
-          setAllowMessageFromStrangers(value);
-          break;
-        case 'showProfileToEveryone':
-          setShowProfileToEveryone(value);
-          break;
-        case 'twoFactorEnabled':
-          setTwoFactorEnabled(value);
-          break;
-        case 'loginAlerts':
-          setLoginAlerts(value);
-          break;
+      if (field === 'showOnlineStatus') {
+        await updateDoc(userRef, { showOnlineStatus: value, isOnline: value });
+      } else {
+        await updateDoc(userRef, { [field]: value });
       }
     } catch (error) {
       console.error('Error updating setting:', error);
-      Alert.alert(t('common.error'), t('settings.update_error'));
+      // Revert state on error
+      switch (field) {
+        case 'showOnlineStatus':
+          setShowOnlineStatus(prevValue);
+          break;
+        case 'profileVisible':
+          setProfileVisible(prevValue);
+          break;
+        case 'isIncognito':
+          setIsIncognito(prevValue);
+          break;
+        case 'loginAlerts':
+          setLoginAlerts(prevValue);
+          break;
+      }
+      Alert.alert(
+        t('common.error', { defaultValue: 'Lỗi' }), 
+        t('settings.update_error', { defaultValue: 'Không thể cập nhật cài đặt' })
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTwoFactorToggle = async (value: boolean) => {
-    if (!value) {
-      updateSetting('twoFactorEnabled', false);
-      return;
+  const handleOpenURL = async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert(t('common.error', { defaultValue: 'Lỗi' }), t('common.error_generic', { defaultValue: 'Không thể mở liên kết' }));
+      }
+    } catch (error) {
+      console.error('Error opening URL:', error);
     }
+  };
 
+  const handleContactSupport = () => {
+    Linking.openURL('mailto:supportsaigonmatch@gmail.com?subject=Support Request from ' + (user?.email || 'User'));
+  };
+
+  const handleDeleteAccount = () => {
     Alert.alert(
-      t('settings.two_factor_title'),
-      t('settings.two_factor_desc'),
+      t('settings.delete_account', { defaultValue: 'Xóa tài khoản' }),
+      t('settings.delete_account_confirm', { 
+        defaultValue: 'Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản không? Hành động này không thể hoàn tác và toàn bộ dữ liệu của bạn sẽ bị xóa sạch.' 
+      }),
       [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('common.confirm'), onPress: () => updateSetting('twoFactorEnabled', true) },
+        { text: t('common.cancel', { defaultValue: 'Hủy' }), style: 'cancel' },
+        { 
+          text: t('common.delete', { defaultValue: 'Xóa' }), 
+          style: 'destructive', 
+          onPress: () => {
+            Linking.openURL('mailto:supportsaigonmatch@gmail.com?subject=Delete Account Request&body=Please delete my account associated with ' + (user?.email || 'User ID: ' + user?.uid));
+          } 
+        },
       ]
     );
   };
+
+  const backButtonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)';
+  const backButtonBorder = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.08)';
+  const iconBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)';
 
   const renderSettingItem = (
     icon: string,
@@ -145,11 +185,12 @@ const PrivacySettingsScreen = () => {
     subtitle: string,
     value: boolean,
     onToggle: (val: boolean) => void,
-    color: string
+    color: string,
+    isLast: boolean = false
   ) => (
-    <View style={[styles.settingItem, { borderBottomColor: palette.border }]}>
+    <View style={[styles.settingItem, { borderBottomColor: palette.border }, isLast && { borderBottomWidth: 0 }]}>
       <View style={styles.settingLeft}>
-        <View style={styles.settingIcon}>
+        <View style={[styles.settingIcon, { backgroundColor: iconBg }]}>
           <MaterialCommunityIcons name={icon as any} size={20} color={color} />
         </View>
         <View style={styles.settingContent}>
@@ -160,37 +201,67 @@ const PrivacySettingsScreen = () => {
       <Switch
         value={value}
         onValueChange={onToggle}
-        trackColor={{ false: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)', true: 'rgba(89,224,177,0.48)' }}
+        trackColor={{
+          false: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
+          true: 'rgba(89,224,177,0.48)',
+        }}
         thumbColor={value ? '#EFFFF8' : '#FFFFFF'}
         disabled={loading}
       />
     </View>
   );
 
+  const renderNavigationItem = (
+    icon: string,
+    title: string,
+    subtitle: string,
+    onPress: () => void,
+    color: string,
+    isLast: boolean = false
+  ) => (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[styles.settingItem, { borderBottomColor: palette.border }, isLast && { borderBottomWidth: 0 }]}
+    >
+      <View style={styles.settingLeft}>
+        <View style={[styles.settingIcon, { backgroundColor: iconBg }]}>
+          <MaterialCommunityIcons name={icon as any} size={20} color={color} />
+        </View>
+        <View style={styles.settingContent}>
+          <Text style={[styles.settingTitle, { color: palette.text }]}>{title}</Text>
+          <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>{subtitle}</Text>
+        </View>
+      </View>
+      <MaterialCommunityIcons name="chevron-right" size={20} color={palette.subtleText} />
+    </TouchableOpacity>
+  );
+
   const renderSection = (title: string, content: React.ReactNode) => (
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: palette.softText }]}>{title}</Text>
-      <LinearGradient colors={glassGradient} style={styles.sectionCard}>
+      <LiquidSurface themeMode={theme} style={styles.sectionCard} intensity={isDark ? 16 : 8}>
         {content}
-      </LinearGradient>
+      </LiquidSurface>
     </View>
   );
 
   if (initialLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <LinearGradient colors={['#0A6C54', '#0A4C3B']} style={StyleSheet.absoluteFillObject} />
-        <ActivityIndicator size="large" color={'#EFFFF8'} />
-      </View>
+      <LiquidGlassBackground themeMode={theme} style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={palette.text} />
+      </LiquidGlassBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0A6C54', '#0A4C3B']} style={StyleSheet.absoluteFillObject} />
-
+    <LiquidGlassBackground themeMode={theme} style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.86}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.backButton, { backgroundColor: backButtonBg, borderColor: backButtonBorder }]}
+          activeOpacity={0.86}
+        >
           <MaterialCommunityIcons name="chevron-left" size={24} color={palette.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: palette.text }]}>{t('settings.privacy')}</Text>
@@ -207,64 +278,36 @@ const PrivacySettingsScreen = () => {
               t('settings.online_status_desc'),
               showOnlineStatus,
               (val) => updateSetting('showOnlineStatus', val),
-              palette.success
+              palette.success,
+              false
             )}
-            {renderSettingItem(
-              'account-card-details-outline',
-              t('settings.public_profile'),
-              t('settings.public_profile_desc'),
-              showProfileToEveryone,
-              (val) => updateSetting('showProfileToEveryone', val),
-              palette.info
-            )}
-          </>
-        )}
-
-        {renderSection(
-          t('settings.chat_privacy'),
-          <>
-            {renderSettingItem(
-              'check-all',
-              t('settings.read_receipts'),
-              t('settings.read_receipts_desc'),
-              showReadReceipts,
-              (val) => updateSetting('showReadReceipts', val),
-              palette.success
-            )}
-            {renderSettingItem(
-              'message-text-outline',
-              t('settings.stranger_messages'),
-              t('settings.stranger_messages_desc'),
-              allowMessageFromStrangers,
-              (val) => updateSetting('allowMessageFromStrangers', val),
-              palette.warning
+            {renderNavigationItem(
+              'account-cancel-outline',
+              t('settings.blocked_users'),
+              t('settings.blocked_users_desc'),
+              () => router.push('/(screens)/user/BlockedUsersScreen'),
+              palette.danger,
+              true
             )}
           </>
         )}
 
+
         {renderSection(
-          t('settings.account_security'),
+          t('settings.legal', { defaultValue: 'Pháp lý & Hỗ trợ' }),
           <>
-            {renderSettingItem(
-              'shield-check-outline',
-              t('settings.two_factor'),
-              t('settings.two_factor_desc_short'),
-              twoFactorEnabled,
-              handleTwoFactorToggle,
-              palette.warning
-            )}
-            {renderSettingItem(
-              'bell-alert-outline',
-              t('settings.login_alerts'),
-              t('settings.login_alerts_desc'),
-              loginAlerts,
-              (val) => updateSetting('loginAlerts', val),
-              palette.info
+            {renderNavigationItem(
+              'delete-outline',
+              t('settings.delete_account', { defaultValue: 'Xóa tài khoản' }),
+              t('settings.delete_account_desc', { defaultValue: 'Gửi yêu cầu xóa vĩnh viễn tài khoản' }),
+              handleDeleteAccount,
+              palette.danger,
+              true
             )}
           </>
         )}
       </ScrollView>
-    </View>
+    </LiquidGlassBackground>
   );
 };
 
@@ -291,9 +334,7 @@ const styles = StyleSheet.create({
     borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.24)',
   },
   headerTitle: {
     fontSize: 19,
@@ -321,9 +362,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
   },
   sectionCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
     overflow: 'hidden',
   },
   settingItem: {
@@ -343,7 +381,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,

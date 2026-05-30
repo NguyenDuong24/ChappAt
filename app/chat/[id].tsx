@@ -40,7 +40,7 @@ import { useContentModeration } from '@/hooks/useContentModeration';
 import { useOptimizedChatMessages } from '@/hooks/useOptimizedChatMessages';
 import { useChat } from '@/context/OptimizedChatContext';
 import messageBatchService from '@/services/messageBatchService';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { giftService } from '@/services/giftService';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import ReportModalSimple from '@/components/common/ReportModalSimple';
@@ -48,44 +48,79 @@ import ExpoPushNotificationService from '@/services/expoPushNotificationService'
 import { useSound } from '@/hooks/useSound';
 import { ChatThemeProvider, useChatTheme } from '@/context/ChatThemeContext';
 import ChatThemePicker from '@/components/chat/ChatThemePicker';
-import { useNSFWDetection } from '@/hooks/useNSFWDetection';
-import OptimizedChatInput from '@/components/chat/OptimizedChatInput';
+import UnifiedChatInput from '@/components/chat/UnifiedChatInput';
 import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
 import GiftPicker from '@/components/chat/GiftPicker';
 import GiftBurst from '@/components/chat/GiftBurst';
 import { useThemedColors } from '@/hooks/useThemedColors';
+import { CHAT_COST_LIMITS } from '@/config/costControls';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
+import { coinServerApi } from '@/src/services/coinServerApi';
+import { getSensitiveImageBlockMessage, moderateImageBeforePublish } from '@/services/imageModerationGuard';
 
 function ChatRoomContent() {
     const { t } = useTranslation();
-    const { id, messageId } = useLocalSearchParams();
+    const insets = useSafeAreaInsets();
+    const keyboardHeight = useKeyboardHeight();
+    const { id, messageId, postId } = useLocalSearchParams();
+    const post_id = Array.isArray(postId) ? postId[0] : (postId as string);
     const router = useRouter();
-    const { user, coins, banhMi = 0, /* optional */ topupCoins } = useAuth();
+    const { user, coins, banhMi = 0, refreshBalance, topupCoins } = useAuth();
 
-    // Route param can be a peer user id OR a roomId (uidA-uidB). Normalize to peerId.
+    // Fallback helper
+    const tf = useCallback((key: string, fallback: string) => {
+        const translated = t(key);
+        return translated !== key ? translated : fallback;
+    }, [t]);
+
     const routeId: string = Array.isArray(id) ? id[0] : (id as string);
     const peerId: string = useMemo(() => {
         if (!routeId) return '';
         if (!routeId.includes('-')) return routeId;
-
         const parts = routeId.split('-');
-
-        // Only treat as roomId when format is exactly 2 participants joined by '-'
         if (parts.length === 2) {
             if (user?.uid) {
                 return parts.find(p => p !== user.uid) || routeId;
             }
-            // User not ready yet -> keep full id to avoid wrong peer parsing
             return routeId;
         }
-
-        // If id has multiple '-' segments, it's likely a plain uid/custom id
         return routeId;
     }, [routeId, user?.uid]);
 
-    // Use optimized room ID calculation
-    const roomId = useMemo(() => getRoomId(user?.uid as string, peerId), [user?.uid, peerId]);
+    const [sharedPost, setSharedPost] = useState<any>(null);
+    const [dismissedSharedPost, setDismissedSharedPost] = useState(false);
 
-    // Check if chat is allowed (block status)
+    const getSharedPostImage = useCallback((post: any) => {
+        if (!post) return null;
+        if (Array.isArray(post.images) && post.images.length > 0) return post.images[0];
+        if (Array.isArray(post.imageUrls) && post.imageUrls.length > 0) return post.imageUrls[0];
+        if (Array.isArray(post.media) && post.media.length > 0) return post.media[0]?.url || post.media[0];
+        return post.imageUrl || post.photoURL || post.photoUrl || post.coverImage || post.thumbnailUrl || null;
+    }, []);
+
+    const roomId = useMemo(() => {
+        if (!user?.uid || !peerId) return '';
+        return getRoomId(user.uid, peerId);
+    }, [user?.uid, peerId]);
+
+    useEffect(() => {
+        if (post_id && !sharedPost && !dismissedSharedPost) {
+            const loadPost = async () => {
+                try {
+                    const postRef = doc(db, 'posts', post_id);
+                    const postSnap = await getDoc(postRef);
+                    if (postSnap.exists()) {
+                        setSharedPost({ id: postSnap.id, ...postSnap.data() });
+                    }
+                } catch (error) {
+                    console.error('Error loading shared post:', error);
+                }
+            };
+            loadPost();
+        }
+    }, [post_id, sharedPost, dismissedSharedPost]);
+
     const { canChat, reason, loading: chatPermissionLoading } = useChatPermission(
         user?.uid,
         peerId
@@ -107,15 +142,20 @@ function ChatRoomContent() {
     const [showGifts, setShowGifts] = useState(false);
     const [reportVisible, setReportVisible] = useState(false);
     const [reportTarget, setReportTarget] = useState<any>(null);
+    const [paywallData, setPaywallData] = useState<any>(null);
+    const [processingPayment, setProcessingPayment] = useState(false);
     const [showThemePicker, setShowThemePicker] = useState(false);
     const [scrollToEndTrigger, setScrollToEndTrigger] = useState(0);
     const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
     const scrollViewRef = useRef<any>(null);
+    const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const messagePositionsRef = useRef<Record<string, number>>({});
     const lastMarkStatusAtRef = useRef(0);
+    const lastSendTimeRef = useRef(0);
+    const recentSendTimesRef = useRef<number[]>([]);
+    const mutedUntilRef = useRef(0);
     const [enableBackgroundEffects, setEnableBackgroundEffects] = useState(false);
     const { playMessageReceivedSound, playMessageSentSound } = useSound();
-    const { classifyImage } = useNSFWDetection();
     const {
         messages,
         loading: messagesLoading,
@@ -126,23 +166,17 @@ function ChatRoomContent() {
         isInitialLoadComplete
     } = useOptimizedChatMessages({
         roomId,
-        pageSize: 30, // Fast initial load
+        pageSize: 30,
         enableRealtime: true
     });
 
-    // Messages are already sorted in the hook
     const displayMessages = useMemo(() => messages, [messages]);
 
-    // Note: Scroll to message is now handled by MessageList via scrollToMessageId prop
-
-    // Simple listener for new message sound ONLY (hook handles data)
     const prevMessageCountRef = useRef(0);
     useEffect(() => {
         if (messages.length > prevMessageCountRef.current && prevMessageCountRef.current > 0) {
-            // New messages arrived
             const newMessages = messages.slice(prevMessageCountRef.current);
             const hasMessageFromOther = newMessages.some((msg: any) => msg.uid !== user?.uid);
-
             if (hasMessageFromOther) {
                 playMessageReceivedSound();
             }
@@ -150,28 +184,27 @@ function ChatRoomContent() {
         prevMessageCountRef.current = messages.length;
     }, [messages.length, user?.uid, playMessageReceivedSound]);
 
-    // Hook already handles real-time updates, no need for extra listeners
-
     const { currentTheme, currentEffect, loadTheme, loadEffect } = useChatTheme();
     const chatThemeForUI = useMemo(() => currentTheme?.id === 'default' ? undefined : currentTheme, [currentTheme]);
     const effectiveEffect = useMemo(() => {
-        // Pause expensive background effects while heavy modals are open.
         if (showThemePicker || showGifts) return 'none';
         return currentEffect;
     }, [currentEffect, showThemePicker, showGifts]);
 
-    // Defer expensive background effects until screen transition settles.
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => {
             setEnableBackgroundEffects(true);
         });
         return () => {
             task.cancel();
+            if (highlightTimeoutRef.current) {
+                clearTimeout(highlightTimeoutRef.current);
+                highlightTimeoutRef.current = null;
+            }
             setEnableBackgroundEffects(false);
         };
     }, [roomId]);
 
-    // Load theme and effect when entering room
     useEffect(() => {
         if (roomId) {
             const unsubTheme = loadTheme(roomId);
@@ -182,20 +215,18 @@ function ChatRoomContent() {
             };
         }
     }, [roomId]);
+
     const themeContext = useContext(ThemeContext);
-    const theme = themeContext?.theme || 'light'; // Safely access theme with fallback
+    const theme = themeContext?.theme || 'light';
     const appThemeColors = useThemedColors();
     const hasCustomRoomBackdrop = Boolean(currentTheme?.backgroundImage || (currentTheme?.gradientColors && currentTheme.gradientColors.length > 0));
 
-    // Memoize theme colors to prevent unnecessary re-calculations
     const currentThemeColors = useMemo(() => {
         const baseColors = {
             ...((Colors[theme] || Colors.light) || Colors.light),
             ...appThemeColors,
         };
-
         if (!baseColors) {
-            console.error('Colors.light or Colors.dark is undefined!', { theme, Colors });
             return {
                 background: '#FFFFFF',
                 text: '#000000',
@@ -205,14 +236,11 @@ function ChatRoomContent() {
                 border: '#E2E8F0',
                 separator: '#E2E8F0',
                 mode: 'light',
-                // Add other necessary fallbacks if needed
             };
         }
-
         if (!chatThemeForUI) {
             return baseColors;
         }
-
         return {
             ...baseColors,
             background: hasCustomRoomBackdrop ? 'transparent' : chatThemeForUI.backgroundColor,
@@ -225,6 +253,7 @@ function ChatRoomContent() {
             separator: themeContext?.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)',
         };
     }, [theme, appThemeColors, chatThemeForUI, hasCustomRoomBackdrop, themeContext?.isDark, themeContext?.palette?.menuBorder]);
+
     const { addReply, isLoading } = useMessageActions();
     const { checkContent, isChecking } = useContentModeration({
         autoBlock: true,
@@ -234,7 +263,6 @@ function ChatRoomContent() {
         }
     });
 
-
     const createRoomIfNotExists = useCallback(async () => {
         const myUid = user?.uid as string;
         if (!myUid || !peerId) return;
@@ -242,6 +270,14 @@ function ChatRoomContent() {
         const roomRef = doc(db, 'rooms', rId);
 
         try {
+            const roomSnap = await getDoc(roomRef);
+            if (!roomSnap.exists()) {
+                const accessRes = await coinServerApi.requestNewChatAccess(peerId);
+                if (!accessRes.allowed) {
+                    setPaywallData(accessRes);
+                    return;
+                }
+            }
             await runTransaction(db, async (transaction) => {
                 const roomSnapshot = await transaction.get(roomRef);
                 if (!roomSnapshot.exists()) {
@@ -269,9 +305,8 @@ function ChatRoomContent() {
         }
     }, [user?.uid, peerId]);
 
-    // Ensure room document exists as soon as we know roomId
     useEffect(() => {
-        if (!roomId) return;
+        if (!roomId || paywallData) return;
         const task = InteractionManager.runAfterInteractions(() => {
             createRoomIfNotExists();
         });
@@ -282,26 +317,32 @@ function ChatRoomContent() {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            quality: 0.8, // Reduced quality for faster upload
+            quality: 0.8,
         });
-
         if (!result.canceled) {
             const imageUri = result.assets[0].uri;
             await uploadImage(imageUri);
         }
     }, []);
 
-
-
     const uploadImage = useCallback(async (uri: string) => {
         try {
             console.log('[uploadImage] Start with URI:', uri);
-            // Check image content with NSFW model
-            const checkResult = await classifyImage(uri);
-            if (checkResult.isInappropriate) {
-                console.log('[uploadImage] NSFW detected, will log to flagged_content');
-                // Image will still be sent, logged to flagged_content below
-                // Continue with upload - will log to flagged_content after getting downloadURL
+            const moderation = await moderateImageBeforePublish(uri, {
+                context: 'private_chat',
+                actorId: user?.uid,
+                actorName: user?.username || user?.displayName || '',
+                roomId,
+                peerId,
+                source: 'private_chat_image',
+            });
+
+            if (!moderation.allowed) {
+                Alert.alert(
+                    tf('moderation.sensitive_image_title', 'Anh nhay cam'),
+                    getSensitiveImageBlockMessage(moderation.reason),
+                );
+                return;
             }
             console.log('[uploadImage] Image passed NSFW check');
 
@@ -312,7 +353,6 @@ function ChatRoomContent() {
             });
             console.log('[uploadImage] Uploaded to storage, URL:', downloadURL);
 
-            // Send message with uploaded image URL
             const docRef = doc(db, 'rooms', roomId);
             const messageRef = collection(docRef, 'messages');
             const nowTs = Timestamp.fromDate(new Date());
@@ -322,16 +362,14 @@ function ChatRoomContent() {
                 profileUrl: user?.profileUrl,
                 senderName: user?.username,
                 createdAt: nowTs,
-                status: 'sent', // sent, delivered, read
-                readBy: [], // array of user IDs who have read this message
+                status: 'sent',
+                readBy: [],
                 activeFrame: user?.activeFrame || null
             });
             console.log('[uploadImage] Message document created');
 
-            // Ensure room exists then update room metadata
             await createRoomIfNotExists();
 
-            // Use updateDoc with increment for atomic unread count update; fallback to setDoc if doc missing
             try {
                 await updateDoc(
                     docRef,
@@ -371,43 +409,21 @@ function ChatRoomContent() {
                 }
             }
 
-            // NEW: Send push notification via Expo (FCM/APNs) when a new image is sent
             try {
                 await ExpoPushNotificationService.sendPushToUser(peerId, {
-                    title: user?.username || user?.displayName || t('chat.new_message'),
-                    body: t('chat.sent_image'),
+                    title: user?.username || user?.displayName || tf('chat.new_message', 'Tin nhắn mới'),
+                    body: tf('chat.sent_image', 'Đã gửi ảnh'),
                     data: { type: 'message', chatId: roomId, senderId: user?.uid, receiverId: peerId },
                 });
                 console.log('[uploadImage] Push sent to peer');
             } catch (e) {
                 console.warn('[uploadImage] Cannot send push:', e);
             }
-
-            // Log NSFW flagged images to flagged_content collection for admin review
-            if (checkResult.isInappropriate) {
-                try {
-                    await addDoc(collection(db, 'flagged_content'), {
-                        context: 'private_chat',
-                        createdAt: nowTs,
-                        imageUrl: downloadURL,
-                        reason: checkResult.reason || 'NSFW detected',
-                        roomId: roomId,
-                        senderId: user?.uid,
-                        senderName: user?.username || user?.displayName || '',
-                        scores: checkResult.scores || {},
-                        status: 'pending',
-                        type: 'image',
-                    });
-                    console.log('[uploadImage] Flagged content logged');
-                } catch (flagErr) {
-                    console.warn('[uploadImage] Failed to log flagged content:', flagErr);
-                }
-            }
         } catch (error: any) {
             console.error('[uploadImage] Error:', error);
             Alert.alert('Image Upload', error.message);
         }
-    }, [classifyImage, roomId, peerId, user?.uid, user?.profileUrl, user?.username, user?.displayName, createRoomIfNotExists]);
+    }, [roomId, peerId, user?.uid, user?.profileUrl, user?.username, user?.displayName, createRoomIfNotExists, tf]);
 
     const handleAudioSend = useCallback(async (uri: string, duration: number) => {
         try {
@@ -440,8 +456,19 @@ function ChatRoomContent() {
                     uid: replyTo.uid,
                     messageId: replyTo.messageId
                 } : null,
-                activeFrame: user?.activeFrame || null
+                activeFrame: user?.activeFrame || null,
+                ...(sharedPost ? {
+                    type: 'shared_post',
+                    postId: sharedPost.id,
+                    postOwnerName: sharedPost.username || 'Người dùng',
+                    postContent: sharedPost.content || '',
+                    postImage: getSharedPostImage(sharedPost),
+                } : {})
             });
+            if (sharedPost) {
+                setSharedPost(null);
+                setDismissedSharedPost(true);
+            }
 
             await createRoomIfNotExists();
 
@@ -462,28 +489,26 @@ function ChatRoomContent() {
             setScrollToEndTrigger(prev => prev + 1);
         } catch (error: any) {
             console.error('Error sending audio:', error);
-            Alert.alert(t('common.error'), t('chat.error_send_audio'));
+            Alert.alert(tf('common.error', 'Lỗi'), tf('chat.error_send_audio', 'Lỗi gửi âm thanh'));
         }
-    }, [roomId, user?.uid, replyTo, peerId, createRoomIfNotExists, t]);
+    }, [roomId, user?.uid, replyTo, peerId, createRoomIfNotExists, sharedPost, getSharedPostImage, tf]);
 
     const fetchUserInfo = useCallback(async () => {
         if (!peerId) return;
         try {
-            const fallbackUser = { uid: peerId, username: t('chat.unknown_user') };
+            const fallbackUser = { uid: peerId, username: tf('chat.unknown_user', 'Người dùng') };
 
-            // 1) Preferred source: users/{peerId}
             const userDoc = await getDoc(doc(db, 'users', peerId));
             if (userDoc.exists()) {
                 const data = userDoc.data() as any;
                 setUserInfo({
                     ...data,
                     uid: peerId,
-                    username: data?.username || data?.displayName || data?.name || t('chat.unknown_user'),
+                    username: data?.username || data?.displayName || data?.name || tf('chat.unknown_user', 'Người dùng'),
                 });
                 return;
             }
 
-            // 2) Fallback source: rooms/{roomId}.participantsData
             const roomDoc = await getDoc(doc(db, 'rooms', roomId));
             if (roomDoc.exists()) {
                 const roomData = roomDoc.data() as any;
@@ -496,38 +521,30 @@ function ChatRoomContent() {
                             participantData?.username ||
                             participantData?.displayName ||
                             participantData?.name ||
-                            t('chat.unknown_user'),
+                            tf('chat.unknown_user', 'Người dùng'),
                     });
                     return;
                 }
             }
 
-            // 3) Final fallback to avoid infinite "Loading..."
             setUserInfo(fallbackUser);
         } catch (error) {
             console.error('Error fetching user data:', error);
-            setUserInfo({ uid: peerId, username: t('chat.unknown_user') });
+            setUserInfo({ uid: peerId, username: tf('chat.unknown_user', 'Người dùng') });
         }
-    }, [peerId, roomId, t]);
+    }, [peerId, roomId, tf]);
 
-    // Mark messages as delivered when user enters chat room - update actual message status
     const markMessagesAsDelivered = useCallback(async (rId: string) => {
         if (!user?.uid) return;
         try {
             const roomRef = doc(db, 'rooms', rId);
             const messagesRef = collection(roomRef, 'messages');
-
-            // Query messages with 'sent' status (can't use != with other where, so filter in JS)
             const q = query(
                 messagesRef,
                 where('status', '==', 'sent')
             );
-
             const snapshot = await getDocs(q);
-
-            // Filter messages from other user and update status to 'delivered'
             const messagesToUpdate = snapshot.docs.filter(msgDoc => msgDoc.data().uid !== user.uid);
-
             if (messagesToUpdate.length > 0) {
                 const batch = writeBatch(db);
                 messagesToUpdate.forEach((msgDoc) => {
@@ -536,20 +553,16 @@ function ChatRoomContent() {
                         deliveredAt: Timestamp.fromDate(new Date()),
                     });
                 });
-
                 try {
                     await batch.commit();
                     console.log(`[markMessagesAsDelivered] Updated ${messagesToUpdate.length} messages to 'delivered'`);
                 } catch (e) {
                     console.warn('Failed to batch update message status to delivered:', e);
                 }
-
-                // Also update lastMessage.status in room document if it's from other user
                 try {
                     const roomSnap = await getDoc(roomRef);
                     const roomData = roomSnap.data();
                     const lastMsg = roomData?.lastMessage;
-
                     if (lastMsg && lastMsg.uid && lastMsg.uid !== user.uid && lastMsg.status === 'sent') {
                         await updateDoc(roomRef, {
                             'lastMessage.status': 'delivered',
@@ -564,29 +577,19 @@ function ChatRoomContent() {
         }
     }, [user?.uid]);
 
-    // Mark messages as read - update actual message status and reset unreadCounts
     const markMessagesAsRead = useCallback(async () => {
         if (!user?.uid || !roomId) return;
-
-        // Use ref to prevent concurrent calls
         if (isMarkingAsReadRef.current) return;
         isMarkingAsReadRef.current = true;
-
         try {
             const roomRef = doc(db, 'rooms', roomId);
             const messagesRef = collection(roomRef, 'messages');
-
-            // Query messages with 'sent' or 'delivered' status (filter by uid in JS)
             const q = query(
                 messagesRef,
                 where('status', 'in', ['sent', 'delivered'])
             );
-
             const snapshot = await getDocs(q);
-
-            // Filter messages from other user and update status to 'read'
             const messagesToUpdate = snapshot.docs.filter(msgDoc => msgDoc.data().uid !== user.uid);
-
             if (messagesToUpdate.length > 0) {
                 const batch = writeBatch(db);
                 messagesToUpdate.forEach((msgDoc) => {
@@ -595,7 +598,6 @@ function ChatRoomContent() {
                         readAt: Timestamp.fromDate(new Date()),
                     });
                 });
-
                 try {
                     await batch.commit();
                     console.log(`[markMessagesAsRead] Updated ${messagesToUpdate.length} messages to 'read'`);
@@ -603,24 +605,18 @@ function ChatRoomContent() {
                     console.warn('Failed to batch update message status to read:', e);
                 }
             }
-
-            // Also reset unreadCounts and update lastMessage.status to 'read' if sender is other user
             try {
                 const roomSnap = await getDoc(roomRef);
                 const roomData = roomSnap.data();
                 const lastMsg = roomData?.lastMessage;
-
                 const updatePayload: any = {
                     [`unreadCounts.${user.uid}`]: 0,
                     [`lastReadAt.${user.uid}`]: Timestamp.fromDate(new Date()),
                 };
-
-                // If lastMessage was from other user, update its status to 'read'
                 if (lastMsg && lastMsg.uid && lastMsg.uid !== user.uid && lastMsg.status !== 'read') {
                     updatePayload['lastMessage.status'] = 'read';
                     console.log(`[markMessagesAsRead] Updating lastMessage.status to 'read'`);
                 }
-
                 await updateDoc(roomRef, updatePayload);
             } catch (e) {
                 await setDoc(roomRef, {
@@ -635,30 +631,28 @@ function ChatRoomContent() {
         }
     }, [user?.uid, roomId]);
 
-    // Listen to pinnedIds via room doc only
     useEffect(() => {
         const docRef = doc(db, 'rooms', roomId);
         const unsubRoom = onSnapshot(docRef, (roomSnap) => {
             const roomData = roomSnap.data() as any;
             const ids = Array.isArray(roomData?.pinnedMessages) ? roomData.pinnedMessages : [];
             setPinnedIds(ids);
+        }, (error) => {
+            const errorStr = String(error?.message || error?.code || error);
+            if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                console.error('Error listening to room pinned messages:', error);
+            }
         });
-
-        // Remove keyboard listener for scroll - MessageList handles scroll behavior
-
         return () => {
             unsubRoom();
         };
     }, [roomId]);
 
-    // Mark messages read/delivered with throttle and after transition settles.
     useEffect(() => {
         if (displayMessages.length === 0 || !user?.uid || !roomId) return;
-
         const now = Date.now();
         if (now - lastMarkStatusAtRef.current < 1200) return;
         lastMarkStatusAtRef.current = now;
-
         let task: { cancel: () => void } | null = null;
         const timeoutId = setTimeout(() => {
             task = InteractionManager.runAfterInteractions(() => {
@@ -666,22 +660,19 @@ function ChatRoomContent() {
                 markMessagesAsDelivered(roomId);
             });
         }, 220);
-
         return () => {
             clearTimeout(timeoutId);
             task?.cancel();
         };
     }, [displayMessages.length, roomId, user?.uid, markMessagesAsRead, markMessagesAsDelivered]);
 
-    // Remove auto-scroll effect - let MessageList handle scroll behavior
-
     const openReportForMessage = (message: any) => {
         try {
             const messageType = message?.imageUrl ? 'image' : 'text';
             setReportTarget({
                 id: message?.id || message?.messageId,
-                name: message?.senderName || t('chat.unknown_user'),
-                content: message?.text || (message?.imageUrl ? t('chat.image') : ''),
+                name: message?.senderName || tf('chat.unknown_user', 'Người dùng'),
+                content: message?.text || (message?.imageUrl ? tf('chat.image', 'Hình ảnh') : ''),
                 messageType,
                 messageText: messageType === 'text' ? (message?.text || '') : '',
                 messageImageUrl: messageType === 'image' ? (message?.imageUrl || '') : '',
@@ -702,7 +693,6 @@ function ChatRoomContent() {
                 ...sanitized,
                 context: 'private_chat',
                 roomId,
-                // Include original message snapshot
                 reportedMessageId: reportTarget?.id || null,
                 reportedMessageType: reportTarget?.messageType || null,
                 reportedMessageText: reportTarget?.messageType === 'text' ? (reportTarget?.messageText || '') : '',
@@ -715,18 +705,47 @@ function ChatRoomContent() {
         }
     };
 
-    const handleSend = useCallback(async () => {
-        const raw = newMessage;
+    const handleSend = useCallback(async (textOverride?: string) => {
+        const raw = typeof textOverride === 'string' ? textOverride : newMessage;
         const message = raw.trim();
         if (!message) return;
 
-        // Optimistic clear for smooth UX
+        const now = Date.now();
+
+        if (now < mutedUntilRef.current) {
+            const remainSec = Math.ceil((mutedUntilRef.current - now) / 1000);
+            Alert.alert(
+                tf('chat.spam_detected', 'Phát hiện spam'),
+                tf('chat.spam_wait', 'Vui lòng đợi {{seconds}}s').replace('{{seconds}}', String(remainSec)),
+            );
+            return;
+        }
+
+        if (now - lastSendTimeRef.current < CHAT_COST_LIMITS.minSendIntervalMs) {
+            return;
+        }
+
+        recentSendTimesRef.current.push(now);
+        recentSendTimesRef.current = recentSendTimesRef.current.filter(
+            ts => now - ts < CHAT_COST_LIMITS.rapidMessageWindowMs
+        );
+        if (recentSendTimesRef.current.length >= CHAT_COST_LIMITS.rapidMessageThreshold) {
+            mutedUntilRef.current = now + CHAT_COST_LIMITS.rapidMessageMuteMs;
+            recentSendTimesRef.current = [];
+            Alert.alert(
+                tf('chat.spam_detected', 'Phát hiện spam'),
+                tf('chat.spam_muted', 'Bạn đang gửi quá nhanh'),
+            );
+            return;
+        }
+
+        lastSendTimeRef.current = now;
+
         setNewMessage('');
 
         try {
             const isContentAllowed = await checkContent(message);
             if (!isContentAllowed) {
-                // Restore input if blocked by moderation
                 setNewMessage(raw);
                 return;
             }
@@ -750,14 +769,23 @@ function ChatRoomContent() {
                     uid: replyTo.uid,
                     messageId: replyTo.messageId
                 } : null,
-                activeFrame: user?.activeFrame || null
+                activeFrame: user?.activeFrame || null,
+                ...(sharedPost ? {
+                    type: 'shared_post',
+                    postId: sharedPost.id,
+                    postOwnerName: sharedPost.username || 'Người dùng',
+                    postContent: sharedPost.content || '',
+                    postImage: getSharedPostImage(sharedPost),
+                } : {})
             });
+            if (sharedPost) {
+                setSharedPost(null);
+                setDismissedSharedPost(true);
+            }
 
-            // Ensure room exists then update room metadata: lastMessage, updatedAt, increment peer unread
             const peerUid = peerId;
             await createRoomIfNotExists();
 
-            // Use updateDoc with increment for atomic unread count update; fallback to transaction if updateDoc fails
             try {
                 await updateDoc(
                     roomDocRef,
@@ -797,10 +825,9 @@ function ChatRoomContent() {
                 }
             }
 
-            // NEW: Send push notification via Expo (FCM/APNs) when a new image is sent
             try {
                 await ExpoPushNotificationService.sendPushToUser(peerUid, {
-                    title: user?.username || user?.displayName || t('chat.new_message'),
+                    title: user?.username || user?.displayName || tf('chat.new_message', 'Tin nhắn mới'),
                     body: message,
                     data: { type: 'message', chatId: roomId, senderId: user?.uid, receiverId: peerUid },
                 });
@@ -811,28 +838,23 @@ function ChatRoomContent() {
 
             playMessageSentSound();
             setReplyTo(null);
-            // Trigger scroll to end after sending message
             setScrollToEndTrigger(prev => prev + 1);
         } catch (error: any) {
-            // Restore input so user can retry
             setNewMessage(raw);
             Alert.alert('Message', error.message);
         }
-    }, [newMessage, checkContent, roomId, user?.uid, user?.profileUrl, user?.username, user?.displayName, peerId, createRoomIfNotExists, playMessageSentSound]);
-
-    // Remove updateScrollView - scroll behavior is now handled by MessageList component
+    }, [newMessage, checkContent, roomId, user?.uid, user?.profileUrl, user?.username, user?.displayName, peerId, createRoomIfNotExists, playMessageSentSound, replyTo, sharedPost, getSharedPostImage, tf]);
 
     const handleMessageLayout = (messageId: string, y: number) => {
         messagePositionsRef.current[messageId] = y;
     };
 
     const scrollToPinnedMessage = (targetMessageId: string) => {
-        // For FlatList, we need to find the index and scroll to it
         const targetIndex = displayMessages.findIndex(msg => msg.id === targetMessageId);
         if (targetIndex !== -1 && scrollViewRef.current) {
             try {
                 scrollViewRef.current.scrollToIndex({
-                    index: displayMessages.length - 1 - targetIndex, // Reversed for inverted list
+                    index: displayMessages.length - 1 - targetIndex,
                     animated: true,
                     viewPosition: 0.5,
                 });
@@ -840,9 +862,12 @@ function ChatRoomContent() {
                 console.warn('Failed to scroll to pinned message:', error);
             }
         }
-        // Highlight briefly
         setHighlightedMessageId(targetMessageId);
-        setTimeout(() => setHighlightedMessageId(null), 2000);
+        if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = setTimeout(() => {
+            setHighlightedMessageId(null);
+            highlightTimeoutRef.current = null;
+        }, 2000);
     };
 
     const handleReplySelect = (message: any) => {
@@ -850,7 +875,7 @@ function ChatRoomContent() {
             setReplyTo({
                 text: message?.text,
                 imageUrl: message?.imageUrl,
-                senderName: message?.senderName || t('chat.unknown_user'),
+                senderName: message?.senderName || tf('chat.unknown_user', 'Người dùng'),
                 uid: message?.uid,
                 messageId: message?.id || message?.messageId,
             });
@@ -859,22 +884,18 @@ function ChatRoomContent() {
         }
     };
 
-    // Build otherUser object to help MessageItem compute roomId when needed
     const otherUser = useMemo(() => {
         return userInfo ? { uid: peerId, id: peerId, ...userInfo } : undefined;
     }, [userInfo, peerId]);
 
-    // Derive pinned messages from pinnedIds and messages list
     const pinnedMessages = useMemo(() => {
         return displayMessages.filter((m) => m && pinnedIds.includes(m.id));
     }, [displayMessages, pinnedIds]);
 
-    // Disable send when no text or moderation running
     const sendDisabled = useMemo(() => {
         return newMessage.trim().length === 0 || isChecking;
     }, [newMessage, isChecking]);
 
-    // Lazy load gift catalog only when gift modal is opened
     const loadGiftCatalog = useCallback(async () => {
         if (giftCatalog.length === 0) {
             try {
@@ -888,7 +909,7 @@ function ChatRoomContent() {
 
     const handleGiftPress = useCallback(() => {
         setShowGifts(true);
-        loadGiftCatalog(); // Load gifts only when needed
+        loadGiftCatalog();
     }, [loadGiftCatalog]);
 
     const handleSendGift = async (giftId: string) => {
@@ -896,7 +917,7 @@ function ChatRoomContent() {
         try {
             await giftService.sendGift({
                 senderUid: user.uid,
-                senderName: user?.username || user?.displayName || t('common.you'),
+                senderName: user?.username || user?.displayName || tf('common.you', 'Bạn'),
                 receiverUid: peerId,
                 roomId,
                 giftId,
@@ -906,31 +927,31 @@ function ChatRoomContent() {
                 setBurstEmoji(gift.icon || '\uD83C\uDF81');
             }
             refreshMessages?.();
-            Alert.alert(t('common.success'), t('chat.gift_sent'));
+            Alert.alert(tf('common.success', 'Thành công'), tf('chat.gift_sent', 'Quà đã gửi'));
         } catch (e: any) {
             const msg = String(e?.message || 'UNKNOWN');
             if (msg.includes('INSUFFICIENT_FUNDS')) {
                 Alert.alert(
-                    t('chat.gift_insufficient'),
-                    t('chat.gift_insufficient_desc'),
+                    tf('chat.gift_insufficient', 'Không đủ xu'),
+                    tf('chat.gift_insufficient_desc', 'Bạn không đủ xu để gửi quà này'),
                     [
-                        { text: t('common.cancel'), style: 'cancel' },
+                        { text: tf('common.cancel', 'Hủy'), style: 'cancel' },
                         {
-                            text: t('chat.quick_topup'),
+                            text: tf('chat.quick_topup', 'Nạp nhanh'),
                             onPress: async () => {
                                 try {
                                     if (typeof topupCoins === 'function') {
                                         await topupCoins(50, { reason: 'quick_topup_gift' });
                                     }
                                 } catch (err) {
-                                    Alert.alert(t('common.error'), t('chat.topup_error'));
+                                    Alert.alert(tf('common.error', 'Lỗi'), tf('chat.topup_error', 'Lỗi nạp'));
                                 }
                             }
                         }
                     ]
                 );
             } else {
-                Alert.alert(t('common.error'), t('chat.gift_error') + ': ' + msg);
+                Alert.alert(tf('common.error', 'Lỗi'), tf('chat.gift_error', 'Lỗi gửi quà') + ': ' + msg);
             }
         }
         setShowGifts(false);
@@ -951,7 +972,26 @@ function ChatRoomContent() {
         });
     }, [router]);
 
-    // If still loading permission or messages, show loading
+    const handlePayUnlock = async (currency: 'banhMi' | 'coins') => {
+        try {
+            setProcessingPayment(true);
+            const res = await coinServerApi.requestNewChatAccess(peerId, currency);
+            if (res.allowed) {
+                setPaywallData(null);
+                refreshBalance?.();
+                await createRoomIfNotExists();
+            } else {
+                Alert.alert(tf('store.insufficient_coins', 'Không đủ xu'));
+            }
+        } catch (e: any) {
+            Alert.alert(tf('common.error', 'Lỗi'), e.message || 'Payment failed');
+        } finally {
+            setProcessingPayment(false);
+        }
+    };
+
+    // Loading skeleton (giữ nguyên, không cần thay đổi)
+
     if (chatPermissionLoading || !isInitialLoadComplete) {
         return (
             <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
@@ -995,11 +1035,50 @@ function ChatRoomContent() {
         return <BlockedChatView reason={reason} onBack={handleBack} />;
     }
 
+    if (paywallData) {
+        return (
+            <View style={[styles.container, { backgroundColor: currentThemeColors.background, justifyContent: 'center', padding: 20 }]}>
+                <ChatRoomHeader user={userInfo || { uid: peerId, username: tf('chat.unknown_user', 'Người dùng') }} router={router} userId={peerId} onBack={handleBack} onThemePress={() => setShowThemePicker(true)} chatTheme={chatThemeForUI} />
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <MaterialIcons name="lock-clock" size={80} color={currentThemeColors.tint} style={{ marginBottom: 20 }} />
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: currentThemeColors.text, textAlign: 'center', marginBottom: 10 }}>
+                        {tf('chat.new_chat_limit_reached', 'Đã đạt giới hạn chat mới')}
+                    </Text>
+                    <Text style={{ fontSize: 14, color: currentThemeColors.subtleText, textAlign: 'center', marginBottom: 30 }}>
+                        {tf('chat.new_chat_limit_desc', 'Bạn đã đạt giới hạn chat mới hàng ngày. Mở khóa bằng Bánh Mì hoặc Xu.')}
+                    </Text>
+                    
+                    <TouchableOpacity 
+                        style={{ width: '100%', backgroundColor: currentThemeColors.tint, padding: 15, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}
+                        onPress={() => handlePayUnlock('banhMi')}
+                        disabled={processingPayment}
+                    >
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', marginRight: 8 }}>
+                            {tf('chat.unlock_with', 'Mở khóa với')} {paywallData.cost?.banhMi || 1} 🥖
+                        </Text>
+                        {processingPayment && <ActivityIndicator color="#fff" size="small" />}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                        style={{ width: '100%', backgroundColor: '#F59E0B', padding: 15, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}
+                        onPress={() => handlePayUnlock('coins')}
+                        disabled={processingPayment}
+                    >
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', marginRight: 8 }}>
+                            {tf('chat.unlock_with', 'Mở khóa với')} {paywallData.cost?.coins || 10} 🪙
+                        </Text>
+                        {processingPayment && <ActivityIndicator color="#fff" size="small" />}
+                    </TouchableOpacity>
+                </View>
+            </View>
+        );
+    }
+
     const renderContent = () => (
         <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
             {/* Header */}
             <ChatRoomHeader
-                user={userInfo || { uid: peerId, username: t('chat.unknown_user') }}
+                user={userInfo || { uid: peerId, username: tf('chat.unknown_user', 'Người dùng') }}
                 router={router}
                 userId={peerId}
                 onBack={handleBack}
@@ -1016,9 +1095,9 @@ function ChatRoomContent() {
                     >
                         <MaterialIcons name="push-pin" size={16} color={currentThemeColors.tint} />
                         <View style={styles.pinnedTextContainer}>
-                            <Text style={[styles.pinnedTitle, { color: currentThemeColors.tint }]}>{t('chat.pinned_messages')}</Text>
+                            <Text style={[styles.pinnedTitle, { color: currentThemeColors.tint }]}>{tf('chat.pinned_messages', 'Tin nhắn ghim')}</Text>
                             <Text style={[styles.pinnedText, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
-                                {pinnedMessages[0].text || (pinnedMessages[0].imageUrl ? t('chat.image') : t('chat.message'))}
+                                {pinnedMessages[0].text || (pinnedMessages[0].imageUrl ? tf('chat.image', 'Hình ảnh') : tf('chat.message', 'Tin nhắn'))}
                             </Text>
                         </View>
                     </TouchableOpacity>
@@ -1050,19 +1129,29 @@ function ChatRoomContent() {
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                style={{ paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) + keyboardHeight : 0 }}
             >
-                <OptimizedChatInput
-                    newMessage={newMessage}
+                <UnifiedChatInput
+                    value={newMessage}
+                    attachedPost={sharedPost}
+                    onCancelAttachedPost={() => {
+                        setSharedPost(null);
+                        setDismissedSharedPost(true);
+                    }}
                     onChangeText={setNewMessage}
                     onSend={handleSend}
+                    onQuickSend={handleSend}
                     onImagePress={handleImagePicker}
                     onAudioSend={handleAudioSend}
                     onGiftPress={handleGiftPress}
                     replyTo={replyTo}
                     onCancelReply={() => setReplyTo(null)}
                     sendDisabled={sendDisabled}
-                    currentTheme={chatThemeForUI}
-                    currentThemeColors={currentThemeColors}
+                    showImage
+                    showGift
+                    showAudio
+                    chatTheme={chatThemeForUI}
+                    themeColors={currentThemeColors}
                 />
             </KeyboardAvoidingView>
 
@@ -1240,9 +1329,3 @@ export default function ChatRoomScreen() {
         </ChatThemeProvider>
     );
 }
-
-
-
-
-
-

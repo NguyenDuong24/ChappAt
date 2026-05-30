@@ -3,7 +3,7 @@ import { ref, deleteObject } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
 // import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { uploadLocalFileToStorage } from '@/utils/storageUpload';
 
 export const pickImage = async () => {

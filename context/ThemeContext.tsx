@@ -21,7 +21,7 @@ interface ThemeProviderProps {
   defaultTheme?: ThemeMode;
 }
 
-const THEME_STORAGE_KEY = '@chappat:theme_preference';
+const THEME_STORAGE_KEY = '@saigonmatch:theme_preference';
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,

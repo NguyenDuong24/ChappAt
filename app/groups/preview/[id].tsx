@@ -188,7 +188,12 @@ export default function GroupPreviewScreen() {
 
   const formatTime = (timestamp: any) => {
     if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = timestamp.toDate
+      ? timestamp.toDate()
+      : typeof timestamp.seconds === 'number'
+        ? new Date(timestamp.seconds * 1000 + (timestamp.nanoseconds || 0) / 1_000_000)
+        : new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
     return date.toLocaleDateString(undefined, {
       day: '2-digit',
       month: '2-digit',
@@ -547,4 +552,3 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
 });
-

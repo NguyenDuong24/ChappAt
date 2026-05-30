@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { useOptimizedGroupMessages } from '@/hooks/useOptimizedGroupMessages';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTranslation } from 'react-i18next';
 import { doc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 
@@ -13,6 +14,7 @@ interface VoiceRoomChatProps {
 }
 
 export default function VoiceRoomChat({ groupId, currentUser }: VoiceRoomChatProps) {
+    const { t } = useTranslation();
     const { messages } = useOptimizedGroupMessages({
         groupId,
         currentUserId: currentUser?.uid || '',
@@ -62,7 +64,7 @@ export default function VoiceRoomChat({ groupId, currentUser }: VoiceRoomChatPro
                 <View style={styles.messageContent}>
                     <Text style={styles.senderName}>{item.senderName}: </Text>
                     <Text style={styles.messageText}>
-                        {item.type === 'image' || item.imageUrl ? '📷 [Hình ảnh]' : item.text}
+                        {item.type === 'image' || item.imageUrl ? t('group_voice.image_message') : item.text}
                     </Text>
                 </View>
             </View>
@@ -88,7 +90,7 @@ export default function VoiceRoomChat({ groupId, currentUser }: VoiceRoomChatPro
                         style={styles.input}
                         value={inputText}
                         onChangeText={setInputText}
-                        placeholder="Chat..."
+                        placeholder={t('group_voice.chat_placeholder')}
                         placeholderTextColor="rgba(255,255,255,0.6)"
                         returnKeyType="send"
                         onSubmitEditing={handleSend}

@@ -11,7 +11,7 @@ import {
   Animated
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -22,6 +22,7 @@ import { userCacheService, optimizedSocialService } from '@/services/optimizedSe
 import SimpleImage from '../common/SimpleImage';
 import ImageViewerModal from '../common/ImageViewerModal';
 import { useTranslation } from 'react-i18next';
+import { POST_COST_LIMITS } from '@/config/costControls';
 
 interface Comment {
   id?: string;
@@ -41,6 +42,7 @@ interface Post {
   images?: string[];
   likes: string[];
   comments?: Comment[];
+  commentsCount?: number;
   shares: number;
   timestamp: any;
   userID: string;
@@ -58,6 +60,7 @@ interface OptimizedPostCardProps {
   onDelete?: () => void;
   onUserPress?: (userId: string) => void;
   isOwner: boolean;
+  onMessagePress?: (userId: string, postId: string) => void;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -68,7 +71,8 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   currentUserAvatar,
   onDelete,
   onUserPress,
-  isOwner
+  isOwner,
+  onMessagePress
 }) => {
   const { t } = useTranslation();
   const themeContext = useContext(ThemeContext);
@@ -88,7 +92,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   const [userInfo, setUserInfo] = useState<any>(null);
   const [isLiked, setIsLiked] = useState(post.likes.includes(currentUserId));
   const [likeCount, setLikeCount] = useState(post.likes.length);
-  const [commentCount, setCommentCount] = useState(post.comments?.length || 0);
+  const [commentCount, setCommentCount] = useState(post.commentsCount ?? (post.comments?.length || 0));
   const [shareCount, setShareCount] = useState(post.shares || 0);
 
   // Fetch user info using optimized cache service
@@ -109,7 +113,10 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
             });
           }
         } catch (error) {
-          console.error('Error fetching user info:', error);
+          const errorStr = String(error?.message || error?.code || error);
+          if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+            console.error('Error fetching user info:', error);
+          }
         }
       }
     };
@@ -190,7 +197,7 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
     if (!commentText.trim() || !user?.uid) return;
 
     const commentData = {
-      text: commentText.trim(),
+      text: commentText.trim().slice(0, POST_COST_LIMITS.maxCommentLength),
       userId: user.uid,
       username: user.displayName || user.username || t('post_card.anonymous'),
       userAvatar: user.profileUrl,
@@ -253,6 +260,17 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
   const handleHashtagPress = (hashtag: string) => {
     const cleanHashtag = hashtag.replace('#', '');
     router.push(`/HashtagScreen?hashtag=${cleanHashtag}` as any);
+  };
+
+  const handleQuickChat = () => {
+    if (onMessagePress) {
+      onMessagePress(post.userID, post.id);
+      return;
+    }
+    router.push({
+      pathname: `/chat/${post.userID}`,
+      params: { postId: post.id }
+    } as any);
   };
 
   return (
@@ -406,6 +424,21 @@ const OptimizedPostCard: React.FC<OptimizedPostCardProps> = ({
 
       {/* Actions */}
       <View style={styles.actions}>
+        {!isOwner && (
+          <TouchableOpacity
+            style={[styles.actionButton, styles.quickChatButton, { borderColor: Colors.primary + '40', backgroundColor: Colors.primary + '10' }]}
+            onPress={handleQuickChat}
+          >
+            <Ionicons
+              name="chatbubble-ellipses"
+              size={18}
+              color={Colors.primary}
+            />
+            <Text style={[styles.actionText, { color: Colors.primary, fontWeight: '700' }]}>
+              {t('chat.send_message', { defaultValue: 'Gửi tin nhắn' })}
+            </Text>
+          </TouchableOpacity>
+        )}
         <Animated.View style={{ transform: [{ scale: likeAnimation }] }}>
           <TouchableOpacity
             style={[
@@ -718,6 +751,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     gap: 8,
+  },
+  quickChatButton: {
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
   },
   actionText: {
     fontSize: 14,

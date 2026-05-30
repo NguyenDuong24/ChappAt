@@ -7,6 +7,12 @@
   - VietQR `WEBHOOK_SECRET`
   - VietQR `CRON_SECRET`
 - [ ] Confirm no real secrets remain in `*.example` files.
+- [ ] Remove tracked local secret files from git index:
+  - root `.env`
+  - root `token.txt`
+  - `saigondating-server/.env.production`
+- [ ] Run root security preflight:
+  - `npm run security:preflight`
 - [ ] Restrict infra access:
   - least privilege for deploy users
   - MFA on cloud accounts
@@ -14,6 +20,10 @@
 
 ## Day 2: Server Configuration
 - [ ] Prepare `saigondating-server/.env.production` with production values.
+- [ ] Configure Firebase Auth email verification template:
+  - subject/body use production ChappAt copy
+  - sender/reply-to are correct
+  - `EXPO_PUBLIC_EMAIL_VERIFY_CONTINUE_URL` domain is allowlisted in Firebase Auth
 - [ ] Run preflight:
   - `cd saigondating-server`
   - `npm run preflight:prod`
@@ -21,11 +31,15 @@
   - `NODE_ENV=production`
   - `CORS_ORIGINS` contains only trusted domains
   - `REQUIRE_IDEMPOTENCY_KEY=true`
+  - `REQUIRE_FIREBASE_APP_CHECK=true` after the app sends App Check headers
   - payment env vars are non-placeholder
+  - VideoSDK token TTL, daily quotas, room rate limits are set
 
 ## Day 3: Database & Rules
 - [ ] Deploy latest Firestore rules.
 - [ ] Deploy latest Storage rules.
+- [ ] Enable Firebase App Check enforcement for Firestore/Storage after release builds are registered.
+- [ ] Configure Firebase budget alerts and quota alerts before public traffic.
 - [ ] Run Firebase emulator/rule tests (allow/deny checks):
   - spoofed message uid blocked
   - non-member group storage access blocked

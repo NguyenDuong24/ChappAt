@@ -1,13 +1,29 @@
-import React, { memo } from 'react';
-import { Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import React, { memo, useEffect } from 'react';
+import {
+  Platform,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { useAuth } from '@/context/authContext';
 import { useThemedColors } from '@/hooks/useThemedColors';
 
-export const HOME_HEADER_HEIGHT = Platform.OS === 'ios' ? 108 : (StatusBar.currentHeight || 24) + 68;
+export const HOME_HEADER_HEIGHT =
+  Platform.OS === 'ios' ? 108 : (StatusBar.currentHeight || 24) + 68;
 
 const HomeHeader = ({
   activeFiltersCount = 0,
@@ -19,11 +35,47 @@ const HomeHeader = ({
   const colors = useThemedColors();
   const avatar = user?.profileUrl || user?.photoURL || user?.avatarUrl;
   const displayName = user?.username || user?.displayName || 'bạn';
-  const headerGradient = colors.palette?.appGradient || colors.gradientBackground || [colors.background, colors.surface, colors.background];
-  const accentGradient = colors.palette?.sphereGradient || colors.gradientPrimary || ['#FF35B8', '#8B5CF6', '#22D3EE'];
+  const headerGradient =
+    colors.palette?.appGradient ||
+    colors.gradientBackground ||
+    [colors.background, colors.surface, colors.background];
+  const accentGradient =
+    colors.palette?.sphereGradient ||
+    colors.gradientPrimary ||
+    ['#FF35B8', '#8B5CF6', '#22D3EE'];
+  const actionButtonBackground =
+    colors.surfaceElevated ||
+    colors.inputBackground ||
+    'rgba(255,255,255,0.07)';
+
+  // ── Hiệu ứng sóng radar lan tỏa ──────────────────────────
+  const pulseScale = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0.6);
+
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withTiming(1.8, { duration: 1400, easing: Easing.out(Easing.ease) }),
+      -1,
+      false
+    );
+    pulseOpacity.value = withRepeat(
+      withTiming(0, { duration: 1400, easing: Easing.out(Easing.ease) }),
+      -1,
+      false
+    );
+  }, []);
+
+  const pulseAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity: pulseOpacity.value,
+  }));
+  // ─────────────────────────────────────────────────────────
 
   return (
-    <Animated.View entering={FadeInDown.duration(520).springify()} style={styles.container}>
+    <Animated.View
+      entering={FadeInDown.duration(520).springify()}
+      style={styles.container}
+    >
       <LinearGradient
         colors={headerGradient}
         start={{ x: 0, y: 0 }}
@@ -37,41 +89,95 @@ const HomeHeader = ({
             onPress={onOpenSettings}
           >
             {avatar ? (
-              <Image source={{ uri: avatar }} style={styles.avatar} contentFit="cover" transition={180} />
+              <Image
+                source={{ uri: avatar }}
+                style={styles.avatar}
+                contentFit="cover"
+                transition={180}
+              />
             ) : (
               <LinearGradient colors={accentGradient} style={styles.avatarFallback}>
                 <Ionicons name="person" size={22} color="#fff" />
               </LinearGradient>
             )}
-            <View style={[styles.onlineDot, { borderColor: colors.background || '#0A0E1F' }]} />
+            <View
+              style={[
+                styles.onlineDot,
+                { borderColor: colors.background || '#0A0E1F' },
+              ]}
+            />
           </Pressable>
 
           {/* Greeting */}
           <View style={styles.titleBlock}>
             <View style={styles.greetRow}>
-              <Text style={[styles.title, { color: colors.text }]}>Hi, {displayName} 👋</Text>
+              <Text style={[styles.title, { color: colors.text }]}>
+                Hi, {displayName} 👋
+              </Text>
             </View>
-            <Text style={[styles.subtitle, { color: colors.subtleText }]} numberOfLines={1}>
+            <Text
+              style={[styles.subtitle, { color: colors.subtleText }]}
+              numberOfLines={1}
+            >
               Find your vibe today
             </Text>
           </View>
 
           {/* Action buttons */}
           <View style={styles.actions}>
+            {/* Radar button với hiệu ứng sóng */}
+            <View style={styles.radarButtonContainer}>
+              {/* Vòng sóng lan tỏa */}
+              <Animated.View
+                style={[
+                  styles.pulseRing,
+                  {
+                    borderColor: colors.primary || '#22D3EE',
+                  },
+                  pulseAnimatedStyle,
+                ]}
+              />
+              <Pressable
+                style={[
+                  styles.iconButton,
+                  {
+                    backgroundColor: actionButtonBackground,
+                    borderColor: colors.border,
+                    // Thêm chút shadow để nổi bật
+                    shadowColor: colors.primary || '#22D3EE',
+                    shadowOffset: { width: 0, height: 0 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 8,
+                    elevation: 6,
+                  },
+                ]}
+                onPress={onOpenRadar}
+              >
+                <MaterialCommunityIcons
+                  name="radar"
+                  size={22}
+                  color={colors.primary || '#22D3EE'}
+                />
+              </Pressable>
+            </View>
+
+            {/* Nút lọc/thông báo */}
             <Pressable
-              style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.07)', borderColor: colors.border }]}
-              onPress={onOpenRadar}
-            >
-              <Ionicons name="location-outline" size={20} color={colors.text} />
-            </Pressable>
-            <Pressable
-              style={[styles.iconButton, { backgroundColor: 'rgba(255,255,255,0.07)', borderColor: colors.border }]}
+              style={[
+                styles.iconButton,
+                {
+                  backgroundColor: actionButtonBackground,
+                  borderColor: colors.border,
+                },
+              ]}
               onPress={onOpenFilter}
             >
               <Ionicons name="notifications-outline" size={20} color={colors.text} />
               {activeFiltersCount > 0 ? (
                 <View style={styles.notifyBadge}>
-                  <Text style={styles.notifyText}>{activeFiltersCount > 99 ? '99+' : activeFiltersCount}</Text>
+                  <Text style={styles.notifyText}>
+                    {activeFiltersCount > 99 ? '99+' : activeFiltersCount}
+                  </Text>
                 </View>
               ) : null}
             </Pressable>
@@ -159,6 +265,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  radarButtonContainer: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
   },
   iconButton: {
     width: 40,

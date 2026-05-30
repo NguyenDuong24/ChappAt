@@ -29,14 +29,14 @@ import Animated, {
 const FRAME_ASSETS: Record<string, any> = {
     money: require('../../assets/images/frames/frame_money.png'),
     ocean: require('../../assets/images/frames/frame_ocean.png'),
-    devil: require('../../assets/images/frames/frame_devil_v2.png'),
+    devil: require('../../assets/images/frames/frame_devil_v2.webp'),
     ufo: require('../../assets/images/frames/frame_ufo.png'),
     elegant: require('../../assets/images/frames/frame_elegant.png'),
     japan: require('../../assets/images/frames/frame_japan.png'),
-    dragon: require('../../assets/images/frames/frame_dragon_v2.png'),
-    phoenix: require('../../assets/images/frames/frame_phoenix_v2.png'),
-    cyberpunk: require('../../assets/images/frames/frame_cyberpunk_v2.png'),
-    galaxy: require('../../assets/images/frames/frame_galaxy_v2.png'),
+    dragon: require('../../assets/images/frames/frame_dragon_v2.webp'),
+    phoenix: require('../../assets/images/frames/frame_phoenix_v2.webp'),
+    cyberpunk: require('../../assets/images/frames/frame_cyberpunk_v2.webp'),
+    galaxy: require('../../assets/images/frames/frame_galaxy_v2.webp'),
 };
 
 interface AvatarFrameProps {

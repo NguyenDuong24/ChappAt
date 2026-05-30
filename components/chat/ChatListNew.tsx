@@ -1,12 +1,13 @@
 import React, { useContext, useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert, ActivityIndicator } from 'react-native';
 // import { Appbar } from 'react-native-paper'; // not used
 import { Avatar } from 'react-native-paper';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/context/authContext';
 // removed unused: addDoc, collection, db, createMeeting, token
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { createCall, CALL_TYPE } from '@/services/firebaseCallService';
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
@@ -45,23 +46,33 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
   const menuIconColor = '#A5B4FC';
   const displayName = user?.username || user?.displayName || user?.name || 'Unknown User';
 
+  const [isCalling, setIsCalling] = useState(false);
+
   const handleAudioCall = async () => {
+    if (isCalling) return;
     try {
+      setIsCalling(true);
       if (!userCurrent?.uid) return;
       const callData = await createCall(userCurrent.uid, userId, CALL_TYPE.AUDIO);
       navigateToListenCallScreen(callData);
-    } catch (error) {
-      console.error('Error starting audio call:', error);
+    } catch (error: any) {
+      Alert.alert('Thông báo', error?.userMessage || 'Không thể bắt đầu cuộc gọi. Vui lòng thử lại.');
+    } finally {
+      setIsCalling(false);
     }
   };
 
   const handleVideoCall = async () => {
+    if (isCalling) return;
     try {
+      setIsCalling(true);
       if (!userCurrent?.uid) return;
       const callData = await createCall(userCurrent.uid, userId, CALL_TYPE.VIDEO);
       navigateToListenCallScreen(callData);
-    } catch (error) {
-      console.error('Error starting video call:', error);
+    } catch (error: any) {
+      Alert.alert('Thông báo', error?.userMessage || 'Không thể bắt đầu cuộc gọi video. Vui lòng thử lại.');
+    } finally {
+      setIsCalling(false);
     }
   };
 
@@ -268,14 +279,24 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: chatTheme?.receivedMessageColor || currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
             onPress={handleAudioCall}
+            disabled={isCalling}
           >
-            <Ionicons name="call" size={16} color={currentThemeColors.success} />
+            {isCalling ? (
+              <ActivityIndicator size="small" color="#4CAF50" />
+            ) : (
+              <Ionicons name="call" size={16} color="#4CAF50" />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: chatTheme?.receivedMessageColor || currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
             onPress={handleVideoCall}
+            disabled={isCalling}
           >
-            <Ionicons name="videocam" size={16} color={currentThemeColors.primary} />
+            {isCalling ? (
+              <ActivityIndicator size="small" color="#A5B4FC" />
+            ) : (
+              <Ionicons name="videocam" size={16} color="#A5B4FC" />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             ref={menuButtonRef}

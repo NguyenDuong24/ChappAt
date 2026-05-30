@@ -11,7 +11,7 @@ import {
   Dimensions
 } from 'react-native';
 import { Image } from 'expo-image';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { UserProfile } from '@/types/eventInvites';
 import { eventInviteService } from '@/services/eventInviteService';
@@ -404,7 +404,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 4,
   },
   userInfo: {
     flexDirection: 'row',

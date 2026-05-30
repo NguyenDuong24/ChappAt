@@ -56,6 +56,12 @@ function getDateKey(createdAt: any): string {
   return `${y}-${m}-${day}`; // YYYY-MM-DD
 }
 
+// Fallback helper sử dụng trực tiếp t function, trả về fallback nếu key không tồn tại
+function translateWithFallback(t: (key: string) => string, key: string, fallback: string): string {
+  const translated = t(key);
+  return translated !== key ? translated : fallback;
+}
+
 function formatDayTitle(dateKey: string, t: (key: string) => string): string {
   if (dateKey === 'unknown') return '';
   const [y, m, d] = dateKey.split('-').map((v) => parseInt(v, 10));
@@ -70,8 +76,12 @@ function formatDayTitle(dateKey: string, t: (key: string) => string): string {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
 
-  if (isSame(date, today)) return t('common.time.today');
-  if (isSame(date, yesterday)) return t('common.time.yesterday');
+  if (isSame(date, today)) {
+    return translateWithFallback(t, 'common.time.today', 'Hôm nay');
+  }
+  if (isSame(date, yesterday)) {
+    return translateWithFallback(t, 'common.time.yesterday', 'Hôm qua');
+  }
 
   try {
     return date.toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US', {
@@ -106,8 +116,6 @@ const MemoizedDaySeparator = memo(DaySeparator);
 
 // Memoized message item wrapper
 const MemoizedMessageItem = memo(MessageItem, (prevProps, nextProps) => {
-  // Only re-render if these props change
-  // Deep compare reactions to ensure updates trigger re-render
   const prevReactions = JSON.stringify(prevProps.message?.reactions || {});
   const nextReactions = JSON.stringify(nextProps.message?.reactions || {});
 
@@ -118,7 +126,9 @@ const MemoizedMessageItem = memo(MessageItem, (prevProps, nextProps) => {
     prevProps.message?.isEdited === nextProps.message?.isEdited &&
     prevReactions === nextReactions &&
     prevProps.isHighlighted === nextProps.isHighlighted &&
-    prevProps.currentUser?.uid === nextProps.currentUser?.uid
+    prevProps.currentUser?.uid === nextProps.currentUser?.uid &&
+    prevProps.isFirstInSequence === nextProps.isFirstInSequence &&
+    prevProps.isLastInSequence === nextProps.isLastInSequence
   );
 });
 
@@ -144,9 +154,18 @@ export default function MessageList({
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
-  const defaultThemeColors: any = theme === 'dark' ? { ...Colors.dark, mode: 'dark' } : { ...Colors.light, mode: 'light' };
+  const defaultThemeColors: any = useMemo(
+    () => (theme === 'dark' ? { ...Colors.dark, mode: 'dark' } : { ...Colors.light, mode: 'light' }),
+    [theme]
+  );
   const currentThemeColors = propThemeColors || defaultThemeColors;
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Hàm dịch thông minh với fallback
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
 
   // Reset initial load state when messages change from empty to non-empty (new room)
   useEffect(() => {
@@ -157,6 +176,13 @@ export default function MessageList({
 
   const flatListRef = useRef<FlatList>(null);
   const hasScrolledToMessageRef = useRef(false);
+  const scrollRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (scrollRetryTimerRef.current) clearTimeout(scrollRetryTimerRef.current);
+    };
+  }, []);
 
   // Scroll to bottom (offset 0) when trigger changes
   useEffect(() => {
@@ -169,22 +195,49 @@ export default function MessageList({
   const processedData = useMemo(() => {
     if (!messages || messages.length === 0) return [];
 
-    // Remove duplicates
-    const uniqueMessages = messages.filter((message, index, arr) =>
-      message && arr.findIndex(m => m && m.id === message.id) === index
-    );
+    // O(n) dedup via Map instead of O(n²) findIndex
+    const seen = new Map<string, boolean>();
+    const uniqueMessages: any[] = [];
+    for (let i = 0; i < messages.length; i++) {
+      const m = messages[i];
+      if (m && m.id && !seen.has(m.id)) {
+        seen.set(m.id, true);
+        uniqueMessages.push(m);
+      }
+    }
 
     const result: any[] = [];
     let lastKey: string | null = null;
 
-    uniqueMessages.forEach((message, index) => {
+    for (let index = 0; index < uniqueMessages.length; index++) {
+      const message = uniqueMessages[index];
       const dateKey = getDateKey(message?.createdAt);
       if (dateKey !== lastKey) {
         result.push({ type: 'separator', dateKey, id: `sep-${dateKey}-${index}` });
         lastKey = dateKey;
       }
-      result.push({ type: 'message', data: message, id: message?.id || `msg-${index}` });
-    });
+
+      const prevMessage = uniqueMessages[index - 1];
+      const nextMessage = uniqueMessages[index + 1];
+
+      const isSameSenderAsPrev = prevMessage?.uid === message?.uid;
+      const isSameSenderAsNext = nextMessage?.uid === message?.uid;
+
+      const isFirstInSequence = !isSameSenderAsPrev || getDateKey(prevMessage?.createdAt) !== dateKey;
+      const isLastInSequence = !isSameSenderAsNext || getDateKey(nextMessage?.createdAt) !== dateKey;
+
+      result.push({
+        type: 'message',
+        data: message,
+        id: message?.id || `msg-${index}`,
+        sequenceProps: {
+          isFirstInSequence,
+          isLastInSequence,
+          isSameSenderAsPrev,
+          isSameSenderAsNext
+        }
+      });
+    }
 
     return result;
   }, [messages]);
@@ -254,26 +307,37 @@ export default function MessageList({
         onMessageLayout={onMessageLayout}
         isHighlighted={highlightedMessageId === item.data?.id || scrollToMessageId === item.data?.id}
         onReport={onReport}
+        {...item.sequenceProps}
       />
     );
-  }, [currentUser, otherUser, onReply, onMessageLayout, currentThemeColors, highlightedMessageId, onReport, scrollToMessageId]);
+  }, [currentUser, otherUser, onReply, onMessageLayout, currentThemeColors, highlightedMessageId, onReport, scrollToMessageId, t]);
 
   // Key extractor
   const keyExtractor = useCallback((item: any) => item.id, []);
 
-  // Get item layout for better performance (estimated)
-  const getItemLayout = useCallback((data: any, index: number) => ({
-    length: 80, // estimated item height
-    offset: 80 * index,
-    index,
+  const listStyle = useMemo(
+    () => ({ backgroundColor: backgroundColor || currentThemeColors?.background, flex: 1 }),
+    [backgroundColor, currentThemeColors?.background]
+  );
+
+  const maintainVisibleContentPosition = useMemo(() => ({
+    minIndexForVisible: 0,
+    autoscrollToTopThreshold: 10,
   }), []);
+
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !isLoadingMore && onLoadMore) {
+      onLoadMore();
+    }
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
   // Handle scroll to index failure
   const onScrollToIndexFailed = useCallback((info: { index: number; highestMeasuredFrameIndex: number; averageItemLength: number }) => {
-    const wait = new Promise(resolve => setTimeout(resolve, 500));
-    wait.then(() => {
+    if (scrollRetryTimerRef.current) clearTimeout(scrollRetryTimerRef.current);
+    scrollRetryTimerRef.current = setTimeout(() => {
       flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
-    });
+      scrollRetryTimerRef.current = null;
+    }, 500);
   }, []);
 
   // Footer component (loading indicator at top of list / end of data)
@@ -282,7 +346,9 @@ export default function MessageList({
       {isLoadingMore && (
         <View style={styles.loadMoreContainer}>
           <ActivityIndicator size="small" color={currentThemeColors?.tint || '#6366F1'} />
-          <Text style={[styles.loadMoreText, { color: currentThemeColors?.subtleText }]}>{t('chat.loading_more')}</Text>
+          <Text style={[styles.loadMoreText, { color: currentThemeColors?.subtleText }]}>
+            {tf('chat.loading_more', 'Đang tải thêm...')}
+          </Text>
         </View>
       )}
       {hasMore && !isLoadingMore && (
@@ -292,15 +358,19 @@ export default function MessageList({
         </View>
       )}
     </>
-  ), [isLoadingMore, hasMore, currentThemeColors]);
+  ), [isLoadingMore, hasMore, currentThemeColors, tf]);
 
   if (!messages || messages.length === 0) {
     return (
       <View style={[styles.emptyContainer, { backgroundColor: backgroundColor || currentThemeColors?.background }]}>
         <View style={[styles.emptyCard, { backgroundColor: currentThemeColors?.surface || '#fff' }]}>
           <MaterialCommunityIcons name="message-text-outline" size={56} color={currentThemeColors?.subtleText || '#94a3b8'} />
-          <Text style={[styles.emptyTitle, { color: currentThemeColors?.text }]}>{t('chat.no_messages')}</Text>
-          <Text style={[styles.emptySubtitle, { color: currentThemeColors?.subtleText }]}>{t('chat.first_message_hint')}</Text>
+          <Text style={[styles.emptyTitle, { color: currentThemeColors?.text }]}>
+            {tf('chat.no_messages', 'Chưa có tin nhắn')}
+          </Text>
+          <Text style={[styles.emptySubtitle, { color: currentThemeColors?.subtleText }]}>
+            {tf('chat.first_message_hint', 'Hãy gửi tin nhắn đầu tiên')}
+          </Text>
         </View>
       </View>
     );
@@ -317,38 +387,30 @@ export default function MessageList({
       data={reversedData}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      style={{ backgroundColor: backgroundColor || currentThemeColors?.background, flex: 1 }}
+      style={listStyle}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
       inverted={true}
-      onEndReached={() => {
-        if (hasMore && !isLoadingMore && onLoadMore) {
-          onLoadMore();
-        }
-      }}
+      onEndReached={handleEndReached}
       onEndReachedThreshold={0.3}
       ListFooterComponent={ListFooterComponent}
       onScrollToIndexFailed={onScrollToIndexFailed}
       // Performance optimizations
       removeClippedSubviews={true}
-      maxToRenderPerBatch={10}
-      windowSize={10}
-      initialNumToRender={15}
-      updateCellsBatchingPeriod={50}
-      getItemLayout={getItemLayout}
+      maxToRenderPerBatch={8}
+      windowSize={11}
+      initialNumToRender={12}
+      updateCellsBatchingPeriod={80}
       keyboardDismissMode="interactive"
       automaticallyAdjustContentInsets={false}
-      maintainVisibleContentPosition={{
-        minIndexForVisible: 0,
-        autoscrollToTopThreshold: 10,
-      }}
+      maintainVisibleContentPosition={maintainVisibleContentPosition}
     />
   );
 }
 
 const styles = StyleSheet.create({
   contentContainer: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 0,
     paddingVertical: 12,
   },
   // Day separator

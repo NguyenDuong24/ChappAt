@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { HotSpot } from '@/types/hotSpots';
 

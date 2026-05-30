@@ -18,9 +18,9 @@ const { db, admin } = require('../config/firebase');
 // ==============================================================
 // Đổi các giá trị này với credentials thực từ MoMo Business
 const MOMO_CONFIG = {
-    partnerCode: process.env.MOMO_PARTNER_CODE || 'MOMOBKUN20180529',
-    accessKey: process.env.MOMO_ACCESS_KEY || 'klm05TvNBzhg7h7j',
-    secretKey: process.env.MOMO_SECRET_KEY || 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
+    partnerCode: process.env.MOMO_PARTNER_CODE,
+    accessKey: process.env.MOMO_ACCESS_KEY,
+    secretKey: process.env.MOMO_SECRET_KEY,
 
     // Sandbox URLs (đổi sang production khi go-live)
     endpoint: process.env.MOMO_ENDPOINT || 'https://test-payment.momo.vn/v2/gateway/api/create',

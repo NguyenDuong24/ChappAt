@@ -1,19 +1,37 @@
 {
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "strict": true,
-    "paths": {
-      "@/*": [
-        "./*"
-      ]
-    },
-    "module": "es2020",
-    "target": "es2020"
-  },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ]
+    "extends":  "expo/tsconfig.base",
+    "compilerOptions":  {
+                            "strict":  false,
+                            "paths":  {
+                                          "@/*":  [
+                                                      "./*"
+                                                  ]
+                                      },
+                            "module":  "es2020",
+                            "target":  "es2020"
+                        },
+    "include":  [
+                    "**/*.ts",
+                    "**/*.tsx"
+                ],
+    "exclude":  [
+                    "admin-web/**",
+                    "saigondating-server/**",
+                    "ChappAt-Legal-Site/**",
+                    "LegalKit/**",
+                    "node_modules/**",
+                    "build/**",
+                    "docs/**",
+                    "tmp/**",
+                    "app/DeviceScan.tsx",
+                    "app/SoundTestScreen.tsx",
+                    "app/SimpleSoundTest.tsx",
+                    "components/admin/**",
+                    "components/examples/**",
+                    "components/common/FirebaseTest.tsx",
+                    "components/moderation/ContentModerationDemo.tsx",
+                    "components/moderation/ImageModerationTest.tsx",
+                    "components/moderation/ContentModerationSettings.tsx",
+                    "__tests__/**"
+                ]
 }

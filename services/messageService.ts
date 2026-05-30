@@ -283,7 +283,7 @@ class MessageService {
       
       console.log('Call status updated:', callId, status);
     } catch (error) {
-      console.error('Error updating call status:', error);
+      console.error('Error upmatch call status:', error);
       throw error;
     }
   }
@@ -434,7 +434,7 @@ class MessageService {
       
       console.log('Message pin status updated');
     } catch (error) {
-      console.error('Error updating pin status:', error);
+      console.error('Error upmatch pin status:', error);
       throw error;
     }
   }
@@ -546,7 +546,7 @@ class MessageService {
 
       console.log('Message status updated');
     } catch (error) {
-      console.error('Error updating message status:', error);
+      console.error('Error upmatch message status:', error);
       throw error;
     }
   }
@@ -662,7 +662,7 @@ class MessageService {
       
       console.log('Group message pin status updated:', messageId, 'pinned:', !isPinned);
     } catch (error) {
-      console.error('Error updating group pin status:', error);
+      console.error('Error upmatch group pin status:', error);
       throw error;
     }
   }
@@ -773,7 +773,7 @@ class MessageService {
 
       console.log('Group message status updated:', messageId, 'to:', status);
     } catch (error) {
-      console.error('Error updating group message status:', error);
+      console.error('Error upmatch group message status:', error);
       throw error;
     }
   }

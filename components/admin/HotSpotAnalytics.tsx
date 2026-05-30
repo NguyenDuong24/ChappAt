@@ -112,27 +112,27 @@ const ContentModerationDemo: React.FC = () => {
   const imageSamples = [
     {
       name: 'URL chứa từ khóa xxx',
-      url: 'https://example.com/xxx/image.jpg',
+      url: 'https://placehold.co/224x224/f44/white.png',
       expected: 'Blocked'
     },
     {
       name: 'Domain bị cấm (pornhub)',
-      url: 'https://pornhub.com/image.png',
+      url: 'https://placehold.co/224x224/f44/white.png',
       expected: 'Blocked'
     },
     {
       name: 'URL có từ adult',
-      url: 'https://site.com/adult/pic.gif',
+      url: 'https://placehold.co/224x224/f44/white.png',
       expected: 'Blocked'
     },
     {
       name: 'File extension sai',
-      url: 'https://example.com/image.exe',
+      url: 'https://placehold.co/224x224/f44/white.png',
       expected: 'Blocked'
     },
     {
       name: 'URL bình thường',
-      url: 'https://example.com/family-photo.jpg',
+      url: 'https://placehold.co/224x224/4f4/white.png',
       expected: 'Clean'
     }
   ];

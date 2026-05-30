@@ -87,7 +87,7 @@ export const useExploreData = (): UseExploreDataReturn => {
 
       // Fallback data if service fails
       setTrendingHashtags([
-        { tag: '#Dating', count: 2150 },
+        { tag: '#Match', count: 2150 },
         { tag: '#Love', count: 1890 },
         { tag: '#Romance', count: 1234 },
         { tag: '#Weekend', count: 987 },

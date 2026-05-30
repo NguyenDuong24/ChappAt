@@ -163,9 +163,6 @@ const FriendSelectionList = ({
         value={searchQuery}
         style={styles.searchbar}
         inputStyle={{ color: currentThemeColors.text }}
-        iconColor={currentThemeColors.text}
-        placeholderTextColor={currentThemeColors.subtleText}
-        disabled={disabled}
       />
 
       {filteredFriends.length === 0 ? (

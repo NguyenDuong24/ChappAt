@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -167,8 +167,8 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
     return (
       <Modal visible={visible} transparent animationType="slide">
         <View style={styles.overlay}>
-          <View style={[styles.container, { backgroundColor: colors.background }]}> 
-            <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+          <View style={[styles.container, { backgroundColor: colors.surfaceElevated || colors.cardBackground || colors.appBackground }]}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <TouchableOpacity onPress={() => setShowContactForm(false)}>
                 <MaterialCommunityIcons name="arrow-left" size={24} color={colors.text} />
               </TouchableOpacity>
@@ -196,7 +196,7 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
 
               <View style={styles.section}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('help_support.contact_email_optional')}</Text>
-                <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+                <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <MaterialCommunityIcons name="email-outline" size={20} color={colors.primary} />
                   <TextInput
                     value={contactEmail}
@@ -239,7 +239,7 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     disabled={imageLoading}
                   >
                     <MaterialCommunityIcons name="image" size={20} color={colors.primary} />
-                    <Text style={[styles.imageButtonText, { color: colors.primary }]}> 
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>
                       {imageLoading ? t('help_support.uploading') : t('help_support.pick_from_library')}
                     </Text>
                   </TouchableOpacity>
@@ -250,13 +250,13 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     disabled={imageLoading}
                   >
                     <MaterialCommunityIcons name="camera" size={20} color={colors.primary} />
-                    <Text style={[styles.imageButtonText, { color: colors.primary }]}> 
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>
                       {imageLoading ? t('help_support.uploading') : t('help_support.take_photo')}
                     </Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}> 
+                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}>
                   {t('help_support.images_limit', { count: selectedImages.length, max: 5 })}
                 </Text>
               </View>
@@ -268,19 +268,19 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'support' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('support')}
                   >
-                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'support' && { color: '#FFFFFF' }]}>{t('help_support.support')}</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: contactType === 'support' ? '#FFFFFF' : colors.text }]}>{t('help_support.support')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'bug' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('bug')}
                   >
-                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'bug' && { color: '#FFFFFF' }]}>{t('help_support.report_bug')}</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: contactType === 'bug' ? '#FFFFFF' : colors.text }]}>{t('help_support.report_bug')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.contactTypeButton, { backgroundColor: colors.surface, borderColor: colors.border }, contactType === 'suggestion' && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                     onPress={() => setContactType('suggestion')}
                   >
-                    <Text style={[styles.contactTypeButtonText, { color: colors.text }, contactType === 'suggestion' && { color: '#FFFFFF' }]}>{t('help_support.suggestion')}</Text>
+                    <Text style={[styles.contactTypeButtonText, { color: contactType === 'suggestion' ? '#FFFFFF' : colors.text }]}>{t('help_support.suggestion')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -291,7 +291,7 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <>
-                      <MaterialCommunityIcons name="send" size={20} color="#fff" />
+                      <MaterialCommunityIcons name="send" size={20} color="#FFFFFF" />
                       <Text style={styles.submitButtonText}>{t('help_support.send_request')}</Text>
                     </>
                   )}
@@ -307,8 +307,8 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: colors.background }]}> 
-          <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+        <View style={[styles.container, { backgroundColor: colors.surfaceElevated || colors.cardBackground || colors.appBackground }]}>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <View style={styles.headerSpacer} />
             <Text style={[styles.title, { color: colors.text }]}>{t('help_support.title')}</Text>
             <TouchableOpacity onPress={onClose}>
@@ -386,7 +386,7 @@ const HelpSupportModal = ({ visible, onClose, onSubmitContact, startInContactFor
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15,23,42,0.38)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -395,9 +395,14 @@ const styles = StyleSheet.create({
     width: '100%',
     maxHeight: '90%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 18,
     overflow: 'hidden',
     height: '80%',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',
@@ -508,7 +513,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   contactSupportButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: '#3B82F6',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -615,7 +620,7 @@ const styles = StyleSheet.create({
   },
   imageButtonText: {
     fontSize: 14,
-    color: '#6366F1',
+    color: '#3B82F6',
     fontWeight: '500',
   },
   imageLimitText: {

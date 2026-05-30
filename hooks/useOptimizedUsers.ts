@@ -81,9 +81,10 @@ export const useOptimizedUsers = (currentUserId: string) => {
       const newUsers: UserProfile[] = [];
 
       querySnapshot.forEach((doc) => {
-        if (doc.id !== currentUserId) { // Exclude current user
+        const data = doc.data() as Record<string, any>;
+        if (doc.id !== currentUserId && data.profileVisible !== false && data.isIncognito !== true) { // Exclude self, private and incognito users
           userIds.push(doc.id);
-          newUsers.push({ uid: doc.id, ...doc.data() } as UserProfile);
+          newUsers.push({ uid: doc.id, ...data } as UserProfile);
         }
       });
 
@@ -94,7 +95,7 @@ export const useOptimizedUsers = (currentUserId: string) => {
         const usersMap = await getUsersInfo(userIds);
 
         enrichedUsers = newUsers.map(user => {
-          const cachedUser = usersMap.get(user.uid);
+          const cachedUser = usersMap.get(user.uid) as Partial<UserProfile> | undefined;
           return cachedUser ? { ...user, ...cachedUser } : user;
         });
       }
@@ -244,9 +245,10 @@ export const useOptimizedUsers = (currentUserId: string) => {
       const searchResults: UserProfile[] = [];
 
       searchSnapshot.forEach((doc) => {
-        if (doc.id !== currentUserId) {
+        const data = doc.data();
+        if (doc.id !== currentUserId && data.profileVisible !== false && data.isIncognito !== true) {
           userIds.push(doc.id);
-          searchResults.push({ uid: doc.id, ...doc.data() } as UserProfile);
+          searchResults.push({ uid: doc.id, ...data } as UserProfile);
         }
       });
 

@@ -12,10 +12,11 @@ import ButtonToChat from '../../ButtonToChat';
 import { useBlockStatus } from '@/hooks/useBlockStatus';
 import { profileVisitService } from '@/services/profileVisitService';
 import { followService } from '@/services/followService';
+import encounterService, { EncounterSummary } from '@/services/encounterService';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useTranslation } from 'react-i18next';
+import { UserProfileNearbySection } from '@/components/nearby/UserProfileNearbySection';
 
-// Define a Post shape compatible with PostCard props
 interface Comment {
     id?: string;
     text: string;
@@ -39,10 +40,8 @@ interface PostForCard {
     timestamp: any;
     userID: string;
     privacy?: 'public' | 'friends' | 'private';
-    // Allow unknown extra fields from Firestore
     [key: string]: any;
 }
-
 
 const UserProfileScreen = () => {
     const { t } = useTranslation();
@@ -54,10 +53,16 @@ const UserProfileScreen = () => {
     const [posts, setPosts] = useState<PostForCard[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [encounterSummary, setEncounterSummary] = useState<EncounterSummary | null>(null);
 
     const colors = useThemedColors();
 
-    // Check block status
+    // Fallback helper
+    const tf = useCallback((key: string, fallback: string) => {
+        const translated = t(key);
+        return translated !== key ? translated : fallback;
+    }, [t]);
+
     const {
         isBlocked,
         isBlockedBy,
@@ -71,7 +76,6 @@ const UserProfileScreen = () => {
     };
 
     const [isFollowing, setIsFollowing] = useState(false);
-
 
     const fetchUserData = useCallback(async () => {
         if (!userId) {
@@ -104,37 +108,37 @@ const UserProfileScreen = () => {
         }
     }, [authUser?.uid, userId]);
 
+    const fetchEncounterSummary = useCallback(async () => {
+        if (!authUser?.uid || !userId || authUser.uid === userId) {
+            setEncounterSummary(null);
+            return;
+        }
+        const settings = await encounterService.getNearMatchSettings(authUser.uid);
+        if (!settings.showProfileBadge) {
+            setEncounterSummary(null);
+            return;
+        }
+        const summary = await encounterService.getEncounterWithUser(authUser.uid, userId as string);
+        setEncounterSummary(summary);
+    }, [authUser?.uid, userId]);
+
     const fetchPosts = useCallback(async () => {
         if (!userId) return;
         try {
-            // Determine relationship for privacy
             const isOwner = authUser?.uid === userId;
-            // We need current isFollowing status. 
-            // Since setState is async, we might want to check it here again or rely on state if it's loaded.
-            // For safety, let's assume if we are not owner, we check following status if not already known?
-            // Actually, let's just fetch it here to be sure if we want strict logic, 
-            // or rely on the effect chain. 
-            // Let's rely on the fact that we can filter *after* fetching.
-
-            // Re-check following status if not owner to be sure (optional but safer)
             let currentIsFollowing = isFollowing;
             if (!isOwner && authUser?.uid) {
                 currentIsFollowing = await followService.isFollowing(authUser.uid, userId as string);
                 setIsFollowing(currentIsFollowing);
             }
-
             const postsCollection = collection(db, 'posts');
-            // Fetch more to account for filtering
             const userPostsQuery = query(postsCollection, where('userID', '==', userId), limit(50));
             const postsSnapshot = await getDocs(userPostsQuery);
-
             const postsList: PostForCard[] = [];
 
             postsSnapshot.docs.forEach((docSnap) => {
                 const data = docSnap.data() as any;
                 const privacy = data?.privacy ?? 'public';
-
-                // Privacy Filter Logic
                 let isVisible = false;
                 if (isOwner) {
                     isVisible = true;
@@ -143,8 +147,6 @@ const UserProfileScreen = () => {
                 } else if (privacy === 'friends' && currentIsFollowing) {
                     isVisible = true;
                 }
-                // 'private' is only visible to owner (handled above)
-
                 if (isVisible) {
                     const post: PostForCard = {
                         id: docSnap.id,
@@ -174,30 +176,48 @@ const UserProfileScreen = () => {
     useEffect(() => {
         fetchUserData();
         fetchPosts();
-
-        // Record profile visit
+        fetchEncounterSummary();
         if (authUser?.uid && userId && authUser.uid !== userId) {
             profileVisitService.recordVisit(authUser.uid, userId as string);
         }
-    }, [fetchUserData, fetchPosts, authUser?.uid, userId]);
+    }, [fetchUserData, fetchPosts, fetchEncounterSummary, authUser?.uid, userId]);
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await Promise.all([fetchUserData(), fetchPosts()]);
+        await Promise.all([fetchUserData(), fetchPosts(), fetchEncounterSummary()]);
         setRefreshing(false);
+    };
+
+    const formatEncounterText = (summary: EncounterSummary) => {
+        const distance = typeof summary.distance === 'number' ? ` khoảng ${Math.max(1, Math.round(summary.distance))}m` : '';
+        const timestamp = summary.timestamp?.toDate?.();
+        if (!timestamp) return `Hai bạn từng ở gần nhau${distance}.`;
+        const diffDays = Math.floor((Date.now() - timestamp.getTime()) / (24 * 60 * 60 * 1000));
+        if (diffDays <= 0) return `Hai bạn từng ở gần nhau hôm nay${distance}.`;
+        if (diffDays === 1) return `Hai bạn từng ở gần nhau hôm qua${distance}.`;
+        return `Hai bạn từng ở gần nhau ${diffDays} ngày trước${distance}.`;
+    };
+
+    const renderEncounterBadge = () => {
+        if (!encounterSummary) return null;
+        return (
+            <View style={[styles.encounterBadge, { backgroundColor: 'rgba(14,165,233,0.1)', borderColor: 'rgba(14,165,233,0.28)' }]}>
+                <MaterialCommunityIcons name="map-marker-star-outline" size={22} color="#0EA5E9" />
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.encounterBadgeTitle, { color: colors.text }]}>Từng Chạm Sóng</Text>
+                    <Text style={[styles.encounterBadgeText, { color: colors.subtleText }]}>{formatEncounterText(encounterSummary)}</Text>
+                </View>
+            </View>
+        );
     };
 
     const handleLike = async (postId: string, likerUserId: string, isLiked: boolean) => {
         try {
             const postRef = doc(db, 'posts', postId);
             if (isLiked) {
-                await updateDoc(postRef, {
-                    likes: arrayRemove(likerUserId),
-                });
+                await updateDoc(postRef, { likes: arrayRemove(likerUserId) });
             } else {
-                await updateDoc(postRef, {
-                    likes: arrayUnion(likerUserId),
-                });
+                await updateDoc(postRef, { likes: arrayUnion(likerUserId) });
             }
             fetchPosts();
         } catch (error) {
@@ -211,15 +231,13 @@ const UserProfileScreen = () => {
             const newComment = {
                 id: `${Date.now()}`,
                 text: comment,
-                username: authUser?.displayName || (authUser as any)?.username || t('chat.unknown_user'),
+                username: authUser?.displayName || (authUser as any)?.username || tf('chat.unknown_user', 'Người dùng'),
                 userAvatar: (authUser as any)?.profileUrl || (authUser as any)?.avatar || '',
                 userId: authUser?.uid || '',
                 timestamp: new Date(),
                 likes: [],
             };
-            await updateDoc(postRef, {
-                comments: arrayUnion(newComment),
-            });
+            await updateDoc(postRef, { comments: arrayUnion(newComment) });
             fetchPosts();
         } catch (error) {
             console.error('Error adding comment:', error);
@@ -227,7 +245,6 @@ const UserProfileScreen = () => {
     };
 
     const handleShare = async (postId: string) => {
-        // Implement your share logic if needed
         console.log('Share post:', postId);
     };
 
@@ -244,36 +261,25 @@ const UserProfileScreen = () => {
             onDeletePost={() => { fetchPosts(); }}
             owner={authUser?.uid === item.userID}
             onPrivacyChange={handlePrivacyChange}
+            hideFollowButton={true}
         />
     );
-
 
     // Show loading while checking block status
     if (blockLoading || loading) {
         return (
             <View style={[styles.container, { backgroundColor: colors.background }]}>
-                {/* Cover Skeleton */}
                 <View style={{ width: '100%', height: 180, backgroundColor: colors.border, opacity: 0.3 }} />
-
-                {/* Avatar & Info Skeleton */}
-                <View style={{ paddingHorizontal: 20, marginTop: -50 }}>
+                <View style={{ paddingHorizontal: 16, marginTop: -50 }}>
                     <View style={{ width: 108, height: 108, borderRadius: 54, backgroundColor: colors.border, opacity: 0.3, marginBottom: 16 }} />
-
                     <View style={{ alignItems: 'center', marginBottom: 20 }}>
                         <View style={{ width: 140, height: 24, borderRadius: 12, backgroundColor: colors.border, opacity: 0.3, marginBottom: 8 }} />
                         <View style={{ width: 80, height: 16, borderRadius: 8, backgroundColor: colors.border, opacity: 0.2, marginBottom: 16 }} />
                         <View style={{ width: 180, height: 14, borderRadius: 7, backgroundColor: colors.border, opacity: 0.2, marginBottom: 16 }} />
                     </View>
-
-                    {/* Stats Skeleton */}
                     <View style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-around',
-                        paddingVertical: 18,
-                        borderRadius: 18,
-                        backgroundColor: colors.border,
-                        opacity: 0.15,
-                        marginBottom: 20
+                        flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 18,
+                        borderRadius: 18, backgroundColor: colors.border, opacity: 0.15, marginBottom: 20
                     }}>
                         {[1, 2, 3].map((i) => (
                             <View key={i} style={{ alignItems: 'center' }}>
@@ -282,17 +288,10 @@ const UserProfileScreen = () => {
                             </View>
                         ))}
                     </View>
-
-                    {/* Posts Skeleton */}
                     {[1, 2].map((i) => (
                         <View key={i} style={{
-                            backgroundColor: colors.surface || colors.background,
-                            borderRadius: 16,
-                            padding: 16,
-                            marginBottom: 16,
-                            borderWidth: 1,
-                            borderColor: colors.border,
-                            opacity: 0.5
+                            backgroundColor: colors.surface || colors.background, borderRadius: 16, padding: 16,
+                            marginBottom: 16, borderWidth: 1, borderColor: colors.border, opacity: 0.5
                         }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                                 <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.border, marginRight: 12 }} />
@@ -310,7 +309,7 @@ const UserProfileScreen = () => {
         );
     }
 
-    // Show blocked message if blocked relationship exists - but still show profile info
+    // Blocked state
     if (hasBlockRelation) {
         return (
             <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -320,38 +319,35 @@ const UserProfileScreen = () => {
                     keyExtractor={(item, index) => index.toString()}
                     ListHeaderComponent={
                         <>
-                            {/* Show profile header */}
                             {profileUser && (
                                 <View style={{ marginTop: -20, marginBottom: 12 }}>
                                     <TopProfileUserProfileScreen user={profileUser} />
+                                    {renderEncounterBadge()}
+                                    <UserProfileNearbySection
+                                        currentUserId={authUser?.uid ?? ''}
+                                        profileUserId={userId as string}
+                                    />
                                 </View>
                             )}
-
-                            {/* Blocked message instead of posts */}
                             <View style={[styles.blockedPostsContainer, {
                                 backgroundColor: 'rgba(239, 68, 68, 0.08)',
                                 borderColor: 'rgba(239, 68, 68, 0.2)'
                             }]}>
                                 <View style={{
-                                    width: 64,
-                                    height: 64,
-                                    borderRadius: 32,
-                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    marginBottom: 16
+                                    width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    alignItems: 'center', justifyContent: 'center', marginBottom: 16
                                 }}>
-                                    <MaterialCommunityIcons
-                                        name="block-helper"
-                                        size={32}
-                                        color="#EF4444"
-                                    />
+                                    <MaterialCommunityIcons name="block-helper" size={32} color="#EF4444" />
                                 </View>
                                 <Text style={[styles.blockedPostsTitle, { color: colors.text }]}>
-                                    {isBlocked ? t('user_profile.blocked_title') : t('user_profile.no_posts_title')}
+                                    {isBlocked
+                                        ? tf('user_profile.blocked_title', 'Bạn đã chặn người dùng này')
+                                        : tf('user_profile.no_posts_title', 'Không có bài viết')}
                                 </Text>
                                 <Text style={[styles.blockedPostsText, { color: colors.subtleText }]}>
-                                    {isBlocked ? t('user_profile.blocked_subtitle') : t('user_profile.no_posts_subtitle')}
+                                    {isBlocked
+                                        ? tf('user_profile.blocked_subtitle', 'Bỏ chặn để xem nội dung')
+                                        : tf('user_profile.no_posts_subtitle', 'Người dùng này chưa đăng bài viết')}
                                 </Text>
                             </View>
                         </>
@@ -360,7 +356,6 @@ const UserProfileScreen = () => {
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
                     showsVerticalScrollIndicator={false}
                 />
-                {/* Hide ButtonToChat when blocked */}
             </View>
         );
     }
@@ -375,6 +370,11 @@ const UserProfileScreen = () => {
                     profileUser && (
                         <View style={{ marginTop: -20, marginBottom: 12 }}>
                             <TopProfileUserProfileScreen user={profileUser} />
+                            {renderEncounterBadge()}
+                            <UserProfileNearbySection
+                                currentUserId={authUser?.uid ?? ''}
+                                profileUserId={userId as string}
+                            />
                         </View>
                     )
                 }
@@ -388,63 +388,24 @@ const UserProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    container: { flex: 1 },
+    flatListContainer: { paddingTop: 20, paddingBottom: 20 },
+    loadingContainer: { justifyContent: 'center', alignItems: 'center' },
+    encounterBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 16, marginTop: 12,
+        padding: 14, borderRadius: 16, borderWidth: 1,
     },
-    flatListContainer: {
-        paddingTop: 20,
-        paddingBottom: 20,
-    },
-    loadingContainer: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    blockedContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    blockedCard: {
-        padding: 32,
-        borderRadius: 16,
-        borderWidth: 1,
-        alignItems: 'center',
-        maxWidth: 400,
-        width: '100%',
-    },
-    blockedTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        marginBottom: 8,
-        textAlign: 'center',
-    },
-    blockedText: {
-        fontSize: 14,
-        textAlign: 'center',
-        lineHeight: 20,
-    },
+    encounterBadgeTitle: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
+    encounterBadgeText: { fontSize: 12, lineHeight: 17 },
+    blockedContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+    blockedCard: { padding: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', maxWidth: 400, width: '100%' },
+    blockedTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
+    blockedText: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
     blockedPostsContainer: {
-        padding: 32,
-        borderRadius: 20,
-        borderWidth: 1.5,
-        alignItems: 'center',
-        marginTop: 24,
-        marginHorizontal: 16,
+        padding: 32, borderRadius: 20, borderWidth: 1.5, alignItems: 'center', marginTop: 24, marginHorizontal: 16,
     },
-    blockedPostsTitle: {
-        fontSize: 17,
-        fontWeight: '700',
-        marginBottom: 8,
-        textAlign: 'center',
-        letterSpacing: -0.3,
-    },
-    blockedPostsText: {
-        fontSize: 14,
-        textAlign: 'center',
-        lineHeight: 20,
-        opacity: 0.8,
-    },
+    blockedPostsTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8, textAlign: 'center', letterSpacing: -0.3 },
+    blockedPostsText: { fontSize: 14, textAlign: 'center', lineHeight: 20, opacity: 0.8 },
 });
 
 export default UserProfileScreen;

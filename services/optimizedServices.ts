@@ -8,7 +8,6 @@ export { default as messageBatchService } from './messageBatchService';
 export { default as globalOptimizationService } from './globalOptimizationService';
 
 // Specialized optimization services  
-export { default as optimizedGroupService } from './optimizedGroupService';
 export { default as optimizedHotSpotsService } from './optimizedHotSpotsService';
 export { default as optimizedNotificationService } from './optimizedNotificationService';
 export { default as optimizedHashtagService } from './optimizedHashtagService';

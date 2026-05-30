@@ -1,0 +1,108 @@
+// ==============================================================
+// Firestore Security Rules — Chạm Sóng (Near Match)
+// ==============================================================
+// Copy relevant sections into your firestore.rules file.
+// ==============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ──────────────────────────────────
+
+    // Check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Get current user ID
+    function currentUser() {
+      return request.auth.uid;
+    }
+
+    // Check if user is not blocked by the other user
+    function isNotBlocked(userId) {
+      return !exists(/databases/$(database)/documents/user_blocks/$(userId + '_' + currentUser()))
+        && !exists(/databases/$(database)/documents/user_blocks/$(currentUser() + '_' + userId));
+    }
+
+    // ─── nearby_settings ───────────────────────────────────
+    match /nearby_settings/{userId} {
+      // Only the owner can read their own settings
+      allow read: if isSignedIn() && userId == currentUser();
+      // Only the owner can write their own settings
+      allow create, update: if isSignedIn() && userId == currentUser()
+        && request.resource.data.userId == currentUser();
+      // No delete — settings should always exist
+      allow delete: if false;
+    }
+
+    // ─── location_snapshots ────────────────────────────────
+    match /location_snapshots/{userId} {
+      // Only the owner can write their own location
+      allow create, update: if isSignedIn() && userId == currentUser()
+        && request.resource.data.userId == currentUser()
+        && request.resource.data.geohash4 is string
+        && request.resource.data.geohash4.size() == 4
+        && request.resource.data.timestamp is number;
+      // Users can read location snapshots only for nearby detection
+      // (limited to geohash4 field, not exact coords)
+      // NOTE: In production, use a Cloud Function to query nearby users
+      // instead of allowing direct reads on this collection.
+      allow read: if isSignedIn();
+      // Auto-delete after 10 minutes via Cloud Function TTL
+      allow delete: if false; // Only cloud functions can delete
+    }
+
+    // ─── nearby_encounters ─────────────────────────────────
+    match /nearby_encounters/{encounterId} {
+      // Both participants can read
+      allow read: if isSignedIn()
+        && (request.auth.uid == resource.data.userAId
+          || request.auth.uid == resource.data.userBId);
+      // Can create if authenticated and not blocked
+      allow create: if isSignedIn()
+        && request.resource.data.userAId == currentUser()
+        && isNotBlocked(request.resource.data.userBId);
+      // Can update if participant
+      allow update: if isSignedIn()
+        && (resource.data.userAId == currentUser()
+          || resource.data.userBId == currentUser())
+        && request.resource.data.status in ['detected', 'notified_a', 'notified_b', 'notified_both', 'expired', 'matched'];
+      // Only delete own encounters (for clear history)
+      allow delete: if isSignedIn()
+        && (resource.data.userAId == currentUser()
+          || resource.data.userBId == currentUser());
+    }
+
+    // ─── nearby_signals ────────────────────────────────────
+    match /nearby_signals/{signalId} {
+      // Both encounter participants can read signals
+      allow read: if isSignedIn()
+        && exists(/databases/$(database)/documents/nearby_encounters/$(resource.data.encounterId))
+        && (get(/databases/$(database)/documents/nearby_encounters/$(resource.data.encounterId)).data.userAId == currentUser()
+          || get(/databases/$(database)/documents/nearby_encounters/$(resource.data.encounterId)).data.userBId == currentUser());
+      // Can create own signal
+      allow create: if isSignedIn()
+        && request.resource.data.userId == currentUser()
+        && request.resource.data.type in ['shake', 'tap', 'hold'];
+      // Can't update or delete signals
+      allow update, delete: if false;
+    }
+
+    // ─── nearby_matches ────────────────────────────────────
+    match /nearby_matches/{matchId} {
+      // Both matched users can read
+      allow read: if isSignedIn()
+        && (resource.data.userAId == currentUser()
+          || resource.data.userBId == currentUser());
+      // Users can't create matches directly (done via Cloud Function)
+      // But for MVP, allow creation if both users are participants
+      allow create: if isSignedIn()
+        && request.resource.data.userAId == currentUser()
+        && request.resource.data.source in ['nearby_shake', 'nearby_tap'];
+      // No updates or deletes by users
+      allow update, delete: if false;
+    }
+  }
+}

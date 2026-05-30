@@ -1,7 +1,7 @@
 import React, { useContext, useRef, useState, useCallback, useMemo, useEffect } from 'react';
 import {
     View, ActivityIndicator, Alert, Text, RefreshControl,
-    Animated, Platform, StyleSheet, InteractionManager
+    Animated, Platform, StyleSheet, InteractionManager, useWindowDimensions
 } from 'react-native';
 import PostCard from '@/components/profile/PostCard';
 import { useAuth } from '@/context/authContext';
@@ -25,19 +25,11 @@ interface BaseExploreTabProps {
     updatePostPrivacy?: (postId: string, privacy: any) => void;
     loadingInitial: boolean;
     isRefreshing: boolean;
+    onTabScroll?: (event: any) => void;
 }
 
 const ShimmerPlaceholder = React.memo(({ style }: { style: any }) => {
-    const shimmerAnim = useRef(new Animated.Value(0.3)).current;
-    useEffect(() => {
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(shimmerAnim, { toValue: 0.7, duration: 800, useNativeDriver: true }),
-                Animated.timing(shimmerAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
-            ])
-        ).start();
-    }, []);
-    return <Animated.View style={[style, { opacity: shimmerAnim }]} />;
+    return <View style={[style, styles.skeletonStatic]} />;
 });
 
 const PostSkeleton = React.memo(({ cardBackground }: { cardBackground: string }) => (
@@ -90,7 +82,7 @@ const SkeletonFooter = React.memo(({ cardBackground, primaryColor, hasMore, load
     );
 });
 
-const BaseExploreTab: React.FC<BaseExploreTabProps> = ({
+const BaseExploreTab = ({
     isActive,
     posts,
     hasMore,
@@ -104,13 +96,15 @@ const BaseExploreTab: React.FC<BaseExploreTabProps> = ({
     updatePostPrivacy,
     loadingInitial,
     isRefreshing,
-}) => {
+    onTabScroll,
+}: BaseExploreTabProps, ref: any) => {
     const { t } = useTranslation();
     const { user } = useAuth();
     const themeContext = useContext(ThemeContext);
     const headerContext = useExploreHeader();
     const [canRender, setCanRender] = useState(false);
     const hasTriggeredEndReachedRef = useRef(false);
+    const { height: windowHeight } = useWindowDimensions();
 
     useEffect(() => {
         if (isActive && !canRender) {
@@ -135,6 +129,15 @@ const BaseExploreTab: React.FC<BaseExploreTabProps> = ({
         );
     }, [handleScrollFromContext, myScrollY]);
 
+    const handleScrollCombined = useCallback((event: any) => {
+        if (onScroll) {
+            onScroll(event);
+        }
+        if (onTabScroll) {
+            onTabScroll(event);
+        }
+    }, [onScroll, onTabScroll]);
+
     const colors = useThemedColors();
     const { palette, isDark } = useContext(ThemeContext) as any;
 
@@ -154,6 +157,15 @@ const BaseExploreTab: React.FC<BaseExploreTabProps> = ({
     ), [user?.uid, toggleLike, deletePost, updatePostPrivacy, t]);
 
     const keyExtractor = useCallback((item: any) => item.id, []);
+    const listStyle = useMemo(() => ({ backgroundColor: 'transparent' }), []);
+
+    const estimatedPostHeight = useMemo(() => Math.max(520, Math.round(windowHeight * 0.72)), [windowHeight]);
+
+    const getItemLayout = useCallback((_: any, index: number) => ({
+        length: estimatedPostHeight,
+        offset: estimatedPostHeight * index,
+        index,
+    }), [estimatedPostHeight]);
 
     const onEndReached = useCallback(() => {
         if (!isActive || hasTriggeredEndReachedRef.current || !hasMore || loadingSpecific || !loadMore) return;
@@ -211,24 +223,25 @@ const BaseExploreTab: React.FC<BaseExploreTabProps> = ({
             }]}
         >
             <Animated.FlatList
+                ref={ref}
                 data={posts}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
-                style={{ backgroundColor: 'transparent' }}
+                style={listStyle}
                 contentContainerStyle={contentContainerStyle}
                 refreshControl={refreshControl}
-                onScroll={onScroll}
+                onScroll={handleScrollCombined}
                 scrollEventThrottle={16}
                 showsVerticalScrollIndicator={false}
                 onEndReachedThreshold={0.5}
                 onEndReached={onEndReached}
                 onMomentumScrollBegin={onMomentumScrollBegin}
-                ListFooterComponent={listFooter}                // === Performance tuning ===
+                ListFooterComponent={listFooter}
                 initialNumToRender={4}
-                maxToRenderPerBatch={6}
-                windowSize={7}
-                updateCellsBatchingPeriod={50}
-                removeClippedSubviews={Platform.OS === 'android'}
+                maxToRenderPerBatch={8}
+                windowSize={11}
+                updateCellsBatchingPeriod={40}
+                removeClippedSubviews={true}
                 decelerationRate={Platform.OS === 'ios' ? 'normal' : 0.98}
                 bounces={true}
                 overScrollMode="always"
@@ -244,6 +257,7 @@ const styles = StyleSheet.create({
     loadingMoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 20, gap: 10 },
     loadingMoreText: { fontSize: 14, fontWeight: '600', opacity: 0.8 },
     skeletonCard: { width: '100%', alignSelf: 'stretch', borderRadius: 0, padding: 16, marginBottom: 16, elevation: 0, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0, shadowRadius: 0 },
+    skeletonStatic: { opacity: 0.38 },
     skeletonHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
     skeletonAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#E1E1E1' },
     skeletonHeaderText: { marginLeft: 12, flex: 1 },
@@ -258,6 +272,6 @@ const styles = StyleSheet.create({
     endReachedText: { fontSize: 14, fontWeight: '600', opacity: 0.6 }
 });
 
-export default React.memo(BaseExploreTab);
+export default React.memo(React.forwardRef(BaseExploreTab));
 
 

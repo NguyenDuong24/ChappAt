@@ -6,7 +6,8 @@ import {
   StyleSheet,
   Animated,
 } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { useAuth } from '@/context/authContext';

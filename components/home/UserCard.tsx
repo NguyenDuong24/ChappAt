@@ -2,9 +2,9 @@ import React, { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
-import Animated, { FadeInUp, Layout } from 'react-native-reanimated';
 import { calculateDistance } from '@/utils/calculateDistance';
 
 interface UserCardProps {
@@ -31,13 +31,15 @@ const UserCard = ({
   item,
   index,
   location,
-  activeTab,
   currentThemeColors,
   viewerShowOnline,
 }: UserCardProps) => {
   const router = useRouter();
   const accentGradient = useMemo(() => getCardGradient(currentThemeColors), [currentThemeColors]);
-  const distance = location ? calculateDistance(location.coords, item?.location) : null;
+  const distance = useMemo(
+    () => (location ? calculateDistance(location.coords, item?.location) : null),
+    [location, item?.location]
+  );
   const tags = useMemo(() => {
     const source = Array.isArray(item?.interests) && item.interests.length > 0
       ? item.interests
@@ -54,18 +56,31 @@ const UserCard = ({
 
   const handleChat = useCallback(() => {
     const userId = item.id || item.uid;
-    const dest = activeTab === 'chat'
-      ? `/(tabs)/chat/${userId}`
-      : activeTab === 'home'
-        ? `/(tabs)/home/chat/${userId}`
-        : `/chat/${userId}`;
-    router.push(dest as any);
-  }, [activeTab, item.id, item.uid, router]);
+    router.push(`/chat/${userId}` as any);
+  }, [item.id, item.uid, router]);
 
   const avatarUrl = item?.profileUrl || item?.photoURL || item?.avatarUrl;
 
+  // Màu sắc động cho icon chat dựa trên theme
+  const chatButtonStyle = useMemo(() => {
+    const isDark = currentThemeColors.isDark;
+    const primaryColor = currentThemeColors.primary || currentThemeColors.tint || '#8B5CF6';
+    if (isDark) {
+      return {
+        background: `${primaryColor}20`,
+        iconColor: primaryColor,
+        borderColor: `${primaryColor}40`,
+      };
+    }
+    return {
+      background: `${primaryColor}10`,
+      iconColor: primaryColor,
+      borderColor: `${primaryColor}30`,
+    };
+  }, [currentThemeColors.isDark, currentThemeColors.primary, currentThemeColors.tint]);
+
   return (
-    <Animated.View entering={FadeInUp.delay(Math.min(index, 8) * 45).duration(420)} layout={Layout.springify()}>
+    <View>
       <Pressable
         style={[
           styles.card,
@@ -78,7 +93,7 @@ const UserCard = ({
       >
         <LinearGradient colors={item?.isOnline ? ['#22C55E', accentGradient[2]] : accentGradient} style={styles.avatarShell}>
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" transition={180} />
+            <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" transition={80} cachePolicy="memory-disk" />
           ) : (
             <View style={styles.avatarFallback}>
               <Ionicons name="person" size={24} color="#fff" />
@@ -92,7 +107,7 @@ const UserCard = ({
         <View style={styles.info}>
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: currentThemeColors.text }]} numberOfLines={1}>
-              {item?.username || 'Người dùng ChappAt'}
+              {item?.username || 'Người dùng SaiGon Match'}
             </Text>
             <MaterialCommunityIcons
               name={item?.gender === 'male' ? 'gender-male' : item?.gender === 'female' ? 'gender-female' : 'account-heart'}
@@ -114,19 +129,27 @@ const UserCard = ({
           </View>
         </View>
 
-        <Pressable style={styles.chatButton} onPress={handleChat}>
-          <LinearGradient colors={accentGradient} style={styles.chatGradient}>
-            <Ionicons name="chatbubble" size={17} color="#fff" />
-          </LinearGradient>
+        <Pressable 
+          style={({ pressed }) => [
+            styles.chatButton,
+            {
+              backgroundColor: chatButtonStyle.background,
+              borderColor: chatButtonStyle.borderColor,
+              transform: [{ scale: pressed ? 0.94 : 1 }],
+            },
+          ]} 
+          onPress={handleChat}
+        >
+          <Ionicons name="chatbubble-ellipses" size={18} color={chatButtonStyle.iconColor} />
         </Pressable>
       </Pressable>
-    </Animated.View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 74,
+    height: 84,
     marginHorizontal: 16,
     marginBottom: 10,
     padding: 10,
@@ -134,7 +157,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    boxShadow: '0 10px 24px rgba(15, 23, 42, 0.08)',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
   },
   avatarShell: {
     width: 54,
@@ -205,13 +232,32 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    overflow: 'hidden',
-  },
-  chatGradient: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
   },
 });
 
-export default memo(UserCard);
+export default memo(UserCard, (prev, next) => {
+  const prevItem = prev.item || {};
+  const nextItem = next.item || {};
+  return (
+    (prevItem.id || prevItem.uid) === (nextItem.id || nextItem.uid) &&
+    prevItem.username === nextItem.username &&
+    prevItem.profileUrl === nextItem.profileUrl &&
+    prevItem.photoURL === nextItem.photoURL &&
+    prevItem.avatarUrl === nextItem.avatarUrl &&
+    prevItem.isOnline === nextItem.isOnline &&
+    prevItem.age === nextItem.age &&
+    prevItem.gender === nextItem.gender &&
+    prevItem.locationName === nextItem.locationName &&
+    prevItem.city === nextItem.city &&
+    prev.location === next.location &&
+    prev.viewerShowOnline === next.viewerShowOnline &&
+    prev.currentThemeColors === next.currentThemeColors
+  );
+});

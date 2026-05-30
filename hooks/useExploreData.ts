@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { InteractionManager } from 'react-native';
-import { useAuth } from '@/context/authContext';
-import { optimizedNotificationService } from '@/services/optimizedServices';
-import { HashtagService } from '@/services/hashtagService';
-import FirebaseErrorHandler from '@/services/firebaseErrorHandler';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { InteractionManager } from "react-native";
+import { useAuth } from "@/context/authContext";
+import { optimizedNotificationService } from "@/services/optimizedServices";
+import { HashtagService } from "@/services/hashtagService";
+import FirebaseErrorHandler from "@/services/firebaseErrorHandler";
 
 interface TrendingHashtag {
   tag: string;
@@ -24,14 +24,29 @@ interface UseExploreDataReturn {
   refresh: () => Promise<void>;
 }
 
-export const useExploreData = (enabled: boolean = true): UseExploreDataReturn => {
+export const useExploreData = (
+  enabled: boolean = true,
+): UseExploreDataReturn => {
   const { user } = useAuth();
   const [notificationCount, setNotificationCount] = useState(0);
-  const [trendingHashtags, setTrendingHashtags] = useState<TrendingHashtag[]>([]);
+  const [trendingHashtags, setTrendingHashtags] = useState<TrendingHashtag[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Load notification count with retry
   const refreshNotifications = useCallback(async () => {
@@ -44,12 +59,13 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
       setError(null);
       const count = await FirebaseErrorHandler.retryOperation(
         () => optimizedNotificationService.getUnreadCount(user.uid),
-        { maxRetries: 2, initialDelay: 500 }
+        { maxRetries: 2, initialDelay: 500 },
       );
-      setNotificationCount(count);
+      if (isMountedRef.current) setNotificationCount(count);
     } catch (error: any) {
-      console.error('Error loading notification count:', error);
+      console.error("Error loading notification count:", error);
       const errorMessage = FirebaseErrorHandler.getUserFriendlyMessage(error);
+      if (!isMountedRef.current) return;
       setError(errorMessage);
       setNotificationCount(0);
     }
@@ -61,46 +77,38 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
       setError(null);
       const hashtags = await FirebaseErrorHandler.retryOperation(
         () => HashtagService.getTrendingHashtagsToday(8),
-        { maxRetries: 3, initialDelay: 1000 }
+        { maxRetries: 3, initialDelay: 1000 },
       );
 
       // Normalize hashtag data format
       const normalizedHashtags = hashtags.map((item: any) => {
-        if (typeof item === 'string') {
-          return { tag: item.startsWith('#') ? item : `#${item}`, count: 0 };
+        if (typeof item === "string") {
+          return { tag: item.startsWith("#") ? item : `#${item}`, count: 0 };
         }
 
-        const tag = item?.tag || item?.name || item?.hashtag || '';
+        const tag = String(item?.tag || item?.name || item?.hashtag || "").trim();
         const count = item?.count || item?.total || item?.usage || 0;
 
         return {
-          tag: tag.startsWith('#') ? tag : `#${tag}`,
-          count: count
+          tag: tag.startsWith("#") ? tag : `#${tag}`,
+          count: count,
         };
-      });
+      }).filter((item) => item.tag.length > 1);
 
-      setTrendingHashtags(normalizedHashtags);
+      if (isMountedRef.current) setTrendingHashtags(normalizedHashtags);
     } catch (error: any) {
-      console.error('Error loading trending hashtags:', error);
+      console.error("Error loading trending hashtags:", error);
       const errorMessage = FirebaseErrorHandler.getUserFriendlyMessage(error);
+      if (!isMountedRef.current) return;
       setError(errorMessage);
 
-      // Fallback data if service fails
-      setTrendingHashtags([
-        { tag: '#Dating', count: 2150 },
-        { tag: '#Love', count: 1890 },
-        { tag: '#Romance', count: 1234 },
-        { tag: '#Weekend', count: 987 },
-        { tag: '#Coffee', count: 756 },
-        { tag: '#Music', count: 654 },
-        { tag: '#Travel', count: 543 },
-        { tag: '#Food', count: 432 }
-      ]);
+      setTrendingHashtags([]);
     }
   }, []);
 
   // Refresh all data
   const refresh = useCallback(async () => {
+    if (!isMountedRef.current) return;
     setLoading(true);
     setError(null);
 
@@ -108,22 +116,32 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
       // Execute both operations concurrently but handle errors independently
       const results = await Promise.allSettled([
         refreshNotifications(),
-        refreshHashtags()
+        refreshHashtags(),
       ]);
 
       // Check for any errors
       const errors = results
-        .filter(result => result.status === 'rejected')
-        .map(result => (result as PromiseRejectedResult).reason?.message || 'Unknown error');
+        .filter((result) => result.status === "rejected")
+        .map(
+          (result) =>
+            (result as PromiseRejectedResult).reason?.message ||
+            "Unknown error",
+        );
 
       if (errors.length > 0) {
-        setError(`Some data failed to load: ${errors.join(', ')}`);
+        if (isMountedRef.current)
+          setError(`Some data failed to load: ${errors.join(", ")}`);
       }
     } catch (error: any) {
-      console.error('Error refreshing data:', error);
-      setError(error?.message || 'Failed to refresh data');
+      console.error("Error refreshing data:", error);
+      if (isMountedRef.current)
+        setError(error?.message || "Failed to refresh data");
     } finally {
-      setTimeout(() => setLoading(false), 300); // Small delay for smooth UX
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = setTimeout(() => {
+        if (isMountedRef.current) setLoading(false);
+        loadingTimeoutRef.current = null;
+      }, 300); // Small delay for smooth UX
     }
   }, [refreshNotifications, refreshHashtags]);
 
@@ -135,15 +153,19 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
     }
 
     let timeoutId: any;
+    let cancelled = false;
+    let interactionTask: { cancel?: () => void } | undefined;
 
     const loadInitialData = async () => {
       // Clear any existing timeout
       if (timeoutId) clearTimeout(timeoutId);
 
       // Wait for navigation/tab switch animations to complete
-      InteractionManager.runAfterInteractions(() => {
+      interactionTask = InteractionManager.runAfterInteractions(() => {
+        if (cancelled) return;
         // Debounce to prevent rapid re-loading when user changes
         timeoutId = setTimeout(async () => {
+          if (cancelled) return;
           await refresh();
         }, 100);
       });
@@ -160,6 +182,8 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
     }
 
     return () => {
+      cancelled = true;
+      interactionTask?.cancel?.();
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [enabled, user?.uid, refresh]);
@@ -174,7 +198,7 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
         await refreshNotifications();
       } catch (error) {
         // Silent fail for background refresh - don't spam console
-        console.debug('Background notification refresh failed:', error);
+        console.debug("Background notification refresh failed:", error);
       }
     }, 60000); // Refresh every 60 seconds (reduced frequency to avoid rate limits)
 
@@ -188,6 +212,7 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
 
     let unsubscribe: (() => void) | undefined;
     let retryTimeout: any;
+    let cancelled = false;
 
     const setupRealtimeNotifications = async () => {
       try {
@@ -195,18 +220,21 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
         unsubscribe = optimizedNotificationService.setupRealtimeListener(
           user.uid,
           (notification: any) => {
+            if (cancelled) return;
             // Debounce notification count refresh to avoid spam
             if (retryTimeout) clearTimeout(retryTimeout);
             retryTimeout = setTimeout(() => {
+              if (cancelled) return;
               refreshNotifications();
             }, 500);
-          }
+          },
         );
       } catch (error) {
-        console.error('Error setting up real-time notifications:', error);
+        console.error("Error setting up real-time notifications:", error);
 
         // Retry after delay if initial setup fails
         retryTimeout = setTimeout(() => {
+          if (cancelled) return;
           setupRealtimeNotifications();
         }, 5000);
       }
@@ -215,6 +243,7 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
     setupRealtimeNotifications();
 
     return () => {
+      cancelled = true;
       if (unsubscribe) {
         unsubscribe();
       }
@@ -231,7 +260,7 @@ export const useExploreData = (enabled: boolean = true): UseExploreDataReturn =>
     error,
     refreshNotifications,
     refreshHashtags,
-    refresh
+    refresh,
   };
 };
 

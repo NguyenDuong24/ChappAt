@@ -44,6 +44,9 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('ProximityRadar') ||
       segments.includes('GroupVoiceRoom') ||
       segments.includes('CoinWalletScreen') ||
+      segments.includes('PaymentSuccessScreen') ||
+      segments.includes('TransactionDetailScreen') ||
+      segments.includes('TransactionSearchScreen') ||
       segments.includes('HotSpotDetailScreen') ||
       segments.includes('ProUpgradeScreen') ||
       segments.includes('StoreScreen') ||
@@ -51,6 +54,11 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('ProfileVisitorsScreen') ||
       segments.includes('PrivacySettingsScreen') ||
       segments.includes('CrossingPathsScreen') ||
+      segments.includes('nearby-match') ||  
+      segments.includes('InterestsSelectionScreen') ||
+      segments.includes('NearbyMatchScreen') ||
+      segments.includes('HometownSelectionScreen') ||
+      segments.includes('BlockedUsersScreen') ||
       segments.includes('subscription');
 
     console.log('🔐 Auth routing check:', { isAuthenticated, segments });

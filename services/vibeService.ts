@@ -91,7 +91,7 @@ export class VibeService {
           createdAt: serverTimestamp(),
         }
       };
-      console.log('📝 VibeService: Updating user document with:', userVibeData);
+      console.log('📝 VibeService: Upmatch user document with:', userVibeData);
       await updateDoc(doc(db, 'users', userId), userVibeData);
       console.log('✅ VibeService: Updated user document');
 
@@ -523,12 +523,12 @@ export class VibeService {
 
   private async updateVibeStats(vibeId: string): Promise<void> {
     try {
-      console.log('📊 VibeService: Updating vibe stats for:', vibeId);
+      console.log('📊 VibeService: Upmatch vibe stats for:', vibeId);
       const statsRef = doc(db, 'vibeStats', vibeId);
       const statsDoc = await getDoc(statsRef);
 
       if (statsDoc.exists()) {
-        console.log('📊 VibeService: Updating existing stats document');
+        console.log('📊 VibeService: Upmatch existing stats document');
         await updateDoc(statsRef, {
           count: increment(1),
           lastUsed: serverTimestamp()
@@ -543,7 +543,7 @@ export class VibeService {
       }
       console.log('✅ VibeService: Vibe stats updated successfully');
     } catch (error) {
-      console.error('❌ VibeService: Error updating vibe stats:', error);
+      console.error('❌ VibeService: Error upmatch vibe stats:', error);
       // Don't throw error - stats update failure shouldn't break vibe setting
     }
   }

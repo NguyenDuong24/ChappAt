@@ -33,19 +33,19 @@ const COLUMN_COUNT = 2;
 const ITEM_WIDTH = (width - 48) / COLUMN_COUNT;
 
 const ITEM_ICONS: { [key: string]: any } = {
-    vip_1m: require('@/assets/images/store/vip_badge.png'),
-    vip_3m: require('@/assets/images/store/vip_badge.png'),
-    vip_badge: require('@/assets/images/store/vip_badge.png'),
-    boost_24h: require('@/assets/images/store/profile_boost.png'),
-    profile_boost: require('@/assets/images/store/profile_boost.png'),
-    super_like_10: require('@/assets/images/store/super_like.png'),
-    super_like_pack: require('@/assets/images/store/super_like.png'),
-    incognito_mode: require('@/assets/images/store/incognito.png'),
+    vip_1m: require('@/assets/images/store/vip_badge.webp'),
+    vip_3m: require('@/assets/images/store/vip_badge.webp'),
+    vip_badge: require('@/assets/images/store/vip_badge.webp'),
+    boost_24h: require('@/assets/images/store/profile_boost.webp'),
+    profile_boost: require('@/assets/images/store/profile_boost.webp'),
+    super_like_10: require('@/assets/images/store/super_like.webp'),
+    super_like_pack: require('@/assets/images/store/super_like.webp'),
+    incognito_mode: require('@/assets/images/store/incognito.webp'),
 };
 
 // ─── MEMO'd sub-components ───
 
-const ShopItemCard = memo(({ item, isOwned, theme, palette, user, purchasing, onPurchase, t }: any) => {
+const ShopItemCard = memo(({ item, isOwned, theme, palette, user, purchasing, onPurchase, tf }: any) => {
     const currencyType = item.currencyType || 'coins';
     return (
         <View style={styles.itemCardContainer}>
@@ -84,7 +84,7 @@ const ShopItemCard = memo(({ item, isOwned, theme, palette, user, purchasing, on
                         {isOwned && (
                             <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.ownedBadge}>
                                 <Feather name="check" size={12} color="#4CAF50" />
-                                <Text style={[styles.ownedText, { color: '#4CAF50' }]}>{t('store.owned')}</Text>
+                                <Text style={[styles.ownedText, { color: '#4CAF50' }]}>{tf('store.owned', 'Đã sở hữu')}</Text>
                             </BlurView>
                         )}
                     </View>
@@ -94,7 +94,7 @@ const ShopItemCard = memo(({ item, isOwned, theme, palette, user, purchasing, on
                             {item.name}
                         </Text>
                         <Text style={[styles.itemDesc, { color: palette.subtitleColor }]} numberOfLines={2}>
-                            {item.description || t('store.special_item')}
+                            {item.description || tf('store.special_item', 'Vật phẩm đặc biệt')}
                         </Text>
 
                         <View style={styles.priceRow}>
@@ -120,7 +120,7 @@ const ShopItemCard = memo(({ item, isOwned, theme, palette, user, purchasing, on
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
                                     <Text style={[styles.buyButtonText, { color: isOwned ? '#4CAF50' : '#fff' }]}>
-                                        {isOwned ? t('store.owned') : t('store.buy')}
+                                        {isOwned ? tf('store.owned', 'Đã sở hữu') : tf('store.buy', 'Mua')}
                                     </Text>
                                 )}
                             </TouchableOpacity>
@@ -132,7 +132,7 @@ const ShopItemCard = memo(({ item, isOwned, theme, palette, user, purchasing, on
     );
 });
 
-const MyItemCard = memo(({ item, isEquipped, theme, palette, user, onUse, t, i18n }: any) => {
+const MyItemCard = memo(({ item, isEquipped, theme, palette, user, onUse, tf, i18n }: any) => {
     const isFrame = item.item?.category === 'avatar_frame' || item.category === 'avatar_frame';
     const frameType = item.item?.frameType || item.frameType;
     return (
@@ -164,21 +164,21 @@ const MyItemCard = memo(({ item, isEquipped, theme, palette, user, onUse, t, i18
                     {isEquipped && (
                         <BlurView intensity={80} tint={theme === 'dark' ? 'dark' : 'light'} style={styles.ownedBadge}>
                             <Feather name="star" size={12} color={palette.primary || "#8A2BE2"} />
-                            <Text style={[styles.ownedText, { color: palette.primary || "#8A2BE2" }]}>{t('store.active')}</Text>
+                            <Text style={[styles.ownedText, { color: palette.primary || "#8A2BE2" }]}>{tf('store.active', 'Đang dùng')}</Text>
                         </BlurView>
                     )}
                 </View>
                 <View style={styles.itemInfo}>
                     <Text style={[styles.itemName, { color: palette.textColor }]} numberOfLines={1}>
-                        {item.item?.name || item.itemName || t('store.item')}
+                        {item.item?.name || item.itemName || tf('store.item', 'Vật phẩm')}
                     </Text>
                     <Text style={[styles.itemDesc, { color: palette.subtitleColor }]}>
-                        {t('store.purchased_on')}: {new Date(item.purchasedAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
+                        {tf('store.purchased_on', 'Đã mua')}: {new Date(item.purchasedAt).toLocaleDateString(i18n.language === 'vi' ? 'vi-VN' : 'en-US')}
                     </Text>
 
                     {item.expiresAt && (
                         <Text style={[styles.expiryText, { color: '#FF6347' }]}>
-                            {t('store.expires_at')}: {new Date(item.expiresAt).toLocaleDateString()}
+                            {tf('store.expires_at', 'Hết hạn')}: {new Date(item.expiresAt).toLocaleDateString()}
                         </Text>
                     )}
 
@@ -191,7 +191,7 @@ const MyItemCard = memo(({ item, isEquipped, theme, palette, user, onUse, t, i18
                         onPress={() => onUse(item)}
                     >
                         <Text style={[styles.useButtonText, { color: isEquipped ? (palette.primary || '#8A2BE2') : '#fff' }]}>
-                            {isEquipped ? t('store.active') : (isFrame ? t('store.equip') : t('store.use'))}
+                            {isEquipped ? tf('store.active', 'Đang dùng') : (isFrame ? tf('store.equip', 'Trang bị') : tf('store.use', 'Dùng'))}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -221,6 +221,12 @@ const StoreScreen = () => {
     
     const { invalidateUserCache } = useUserContext();
 
+    // Fallback helper
+    const tf = useCallback((key: string, fallback: string) => {
+        const translated = t(key);
+        return translated !== key ? translated : fallback;
+    }, [t]);
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -236,11 +242,11 @@ const StoreScreen = () => {
             setMyItems(myItemsData.items || []);
         } catch (error) {
             console.error('Error fetching store data:', error);
-            Alert.alert(t('common.error'), t('store.error_fetch'));
+            Alert.alert(tf('common.error', 'Lỗi'), tf('store.error_fetch', 'Lỗi tải cửa hàng'));
         } finally {
             setLoading(false);
         }
-    }, [t]);
+    }, [tf]);
 
     const handlePurchase = useCallback(async (item: any) => {
         const currencyType = item.currencyType || 'coins';
@@ -248,32 +254,32 @@ const StoreScreen = () => {
 
         if (userBalance < item.price) {
             Alert.alert(
-                currencyType === 'coins' ? t('store.insufficient_coins') : t('chat.gift_insufficient'),
-                currencyType === 'coins' ? t('store.insufficient_coins_desc') : t('chat.gift_insufficient_desc'),
+                currencyType === 'coins' ? tf('store.insufficient_coins', 'Không đủ xu') : tf('chat.gift_insufficient', 'Không đủ'),
+                currencyType === 'coins' ? tf('store.insufficient_coins_desc', 'Bạn không đủ xu để mua') : tf('chat.gift_insufficient_desc', 'Bạn không đủ để mua'),
                 [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    { text: t('wallet.topup'), onPress: () => router.push('/(screens)/wallet/CoinWalletScreen') }
+                    { text: tf('common.cancel', 'Hủy'), style: 'cancel' },
+                    { text: tf('wallet.topup', 'Nạp'), onPress: () => router.push('/(screens)/wallet/CoinWalletScreen') }
                 ]
             );
             return;
         }
 
         Alert.alert(
-            t('store.confirm_purchase'),
-            t('store.confirm_purchase_desc', { name: item.name, price: item.price }),
+            tf('store.confirm_purchase', 'Xác nhận mua'),
+            tf('store.confirm_purchase_desc', 'Mua {{name}} với giá {{price}}?').replace('{{name}}', item.name).replace('{{price}}', item.price),
             [
-                { text: t('common.cancel'), style: 'cancel' },
+                { text: tf('common.cancel', 'Hủy'), style: 'cancel' },
                 {
-                    text: t('store.buy'),
+                    text: tf('store.buy', 'Mua'),
                     onPress: async () => {
                         try {
                             setPurchasing(item.id);
                             await coinServerApi.purchaseItem(item.id);
-                            Alert.alert(t('common.success'), t('store.purchase_success'));
+                            Alert.alert(tf('common.success', 'Thành công'), tf('store.purchase_success', 'Mua thành công'));
                             refreshBalance();
                             fetchData();
                         } catch (error: any) {
-                            Alert.alert(t('common.error'), getErrorMessage(error));
+                            Alert.alert(tf('common.error', 'Lỗi'), getErrorMessage(error));
                         } finally {
                             setPurchasing(null);
                         }
@@ -281,7 +287,7 @@ const StoreScreen = () => {
                 }
             ]
         );
-    }, [coins, banhMi, t, router, refreshBalance, fetchData]);
+    }, [coins, banhMi, tf, router, refreshBalance, fetchData]);
 
     const handleUseItem = useCallback(async (item: any) => {
         if (item.item?.category === 'avatar_frame' || item.category === 'avatar_frame') {
@@ -289,18 +295,18 @@ const StoreScreen = () => {
             if (!frameType) return;
 
             if (activeFrame === frameType) {
-                Alert.alert(t('common.info'), t('store.frame_already_equipped'), [
-                    { text: t('common.ok') },
+                Alert.alert(tf('common.info', 'Thông tin'), tf('store.frame_already_equipped', 'Khung đã được trang bị'), [
+                    { text: tf('common.ok', 'OK') },
                     {
-                        text: t('store.unequip'),
+                        text: tf('store.unequip', 'Gỡ'),
                         onPress: async () => {
                             try {
                                 await coinServerApi.equipFrame('', null);
                                 setActiveFrame(null);
                                 if (user?.uid) invalidateUserCache(user.uid);
-                                Alert.alert(t('common.success'), t('store.unequip_success'));
+                                Alert.alert(tf('common.success', 'Thành công'), tf('store.unequip_success', 'Đã gỡ khung'));
                             } catch (error: any) {
-                                Alert.alert(t('common.error'), getErrorMessage(error));
+                                Alert.alert(tf('common.error', 'Lỗi'), getErrorMessage(error));
                             }
                         }
                     }
@@ -312,16 +318,16 @@ const StoreScreen = () => {
                 await coinServerApi.equipFrame(frameType, item.id);
                 setActiveFrame(frameType);
                 if (user?.uid) invalidateUserCache(user.uid);
-                Alert.alert(t('common.success'), t('store.equip_success'));
+                Alert.alert(tf('common.success', 'Thành công'), tf('store.equip_success', 'Trang bị thành công'));
             } catch (error: any) {
-                Alert.alert(t('common.error'), getErrorMessage(error));
+                Alert.alert(tf('common.error', 'Lỗi'), getErrorMessage(error));
             }
             return;
         }
-        Alert.alert(t('common.success'), t('store.item_active_desc', { name: item.item?.name || item.name }));
-    }, [activeFrame, t, user?.uid, invalidateUserCache, setActiveFrame]);
+        Alert.alert(tf('common.success', 'Thành công'), tf('store.item_active_desc', '{{name}} đã được kích hoạt').replace('{{name}}', item.item?.name || item.name));
+    }, [activeFrame, tf, user?.uid, invalidateUserCache, setActiveFrame]);
 
-    // ✅ Memoized render functions
+    // ✅ Memoized render functions – truyền tf
     const renderShopItem = useCallback(({ item }: { item: any }) => (
         <ShopItemCard
             item={item}
@@ -331,10 +337,10 @@ const StoreScreen = () => {
             user={user}
             purchasing={purchasing}
             onPurchase={handlePurchase}
-            t={t}
+            tf={tf}
             i18n={i18n}
         />
-    ), [myItems, theme, palette, user, purchasing, handlePurchase, t, i18n]);
+    ), [myItems, theme, palette, user, purchasing, handlePurchase, tf, i18n]);
 
     const renderMyItem = useCallback(({ item }: { item: any }) => (
         <MyItemCard
@@ -345,10 +351,10 @@ const StoreScreen = () => {
             user={user}
             activeFrame={activeFrame}
             onUse={handleUseItem}
-            t={t}
+            tf={tf}
             i18n={i18n}
         />
-    ), [activeFrame, theme, palette, user, handleUseItem, t, i18n]);
+    ), [activeFrame, theme, palette, user, handleUseItem, tf, i18n]);
 
     // ✅ Memoized computed values
     const filteredItems = useMemo(() => (activeTab === 'shop' ? items : myItems).filter(item => {
@@ -361,11 +367,11 @@ const StoreScreen = () => {
     }), [activeTab, items, myItems, selectedCategory]);
 
     const categories = useMemo(() => [
-        { id: 'all', label: t('common.all') },
-        { id: 'frames', label: t('store.avatar_frames') },
-        { id: 'vip', label: t('store.vip_title') },
-        { id: 'boosts', label: t('store.boosts') },
-    ], [t]);
+        { id: 'all', label: tf('common.all', 'Tất cả') },
+        { id: 'frames', label: tf('store.avatar_frames', 'Khung ảnh') },
+        { id: 'vip', label: tf('store.vip_title', 'VIP') },
+        { id: 'boosts', label: tf('store.boosts', 'Tăng cường') },
+    ], [tf]);
 
     const glassBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
 
@@ -381,7 +387,7 @@ const StoreScreen = () => {
                     <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
                         <Feather name="arrow-left" size={24} color={palette.textColor} />
                     </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: palette.textColor }]}>{t('store.title')}</Text>
+                    <Text style={[styles.headerTitle, { color: palette.textColor }]}>{tf('store.title', 'Cửa hàng')}</Text>
                     <TouchableOpacity
                         style={[styles.historyButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
                         onPress={() => router.push('/(screens)/wallet/CoinWalletScreen')}
@@ -392,7 +398,7 @@ const StoreScreen = () => {
 
                 <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.balanceContainer}>
                     <View style={styles.balanceCard}>
-                        <Text style={[styles.balanceLabel, { color: palette.subtitleColor }]}>{t('wallet.balance')}</Text>
+                        <Text style={[styles.balanceLabel, { color: palette.subtitleColor }]}>{tf('wallet.balance', 'Số dư')}</Text>
                         <View style={styles.balancesWrapper}>
                             <View style={styles.balanceItem}>
                                 <Text style={styles.balanceCoinIcon}>🪙</Text>
@@ -426,7 +432,7 @@ const StoreScreen = () => {
                     onPress={() => setActiveTab('shop')}
                 >
                     <Text style={[styles.tabText, { color: activeTab === 'shop' ? (palette.primary || '#8A2BE2') : palette.subtitleColor, opacity: activeTab === 'shop' ? 1 : 0.6 }]}>
-                        {t('store.shop')}
+                        {tf('store.shop', 'Cửa hàng')}
                     </Text>
                     {activeTab === 'shop' && <View style={[styles.tabIndicator, { backgroundColor: palette.primary || '#8A2BE2' }]} />}
                 </TouchableOpacity>
@@ -435,7 +441,7 @@ const StoreScreen = () => {
                     onPress={() => setActiveTab('my-items')}
                 >
                     <Text style={[styles.tabText, { color: activeTab === 'my-items' ? (palette.primary || '#8A2BE2') : palette.subtitleColor, opacity: activeTab === 'my-items' ? 1 : 0.6 }]}>
-                        {t('store.my_items')} ({myItems.length})
+                        {tf('store.my_items', 'Của tôi')} ({myItems.length})
                     </Text>
                     {activeTab === 'my-items' && <View style={[styles.tabIndicator, { backgroundColor: palette.primary || '#8A2BE2' }]} />}
                 </TouchableOpacity>
@@ -468,7 +474,7 @@ const StoreScreen = () => {
             {loading ? (
                 <View style={styles.loadingCenter}>
                     <ActivityIndicator size="large" color={palette.primary || "#8A2BE2"} />
-                    <Text style={[styles.loadingText, { color: palette.subtitleColor }]}>{t('common.loading')}</Text>
+                    <Text style={[styles.loadingText, { color: palette.subtitleColor }]}>{tf('common.loading', 'Đang tải...')}</Text>
                 </View>
             ) : (
                 <FlatList
@@ -488,11 +494,11 @@ const StoreScreen = () => {
                         <Animated.View entering={FadeInDown} style={styles.emptyContainer}>
                             <Text style={styles.emptyEmoji}>{activeTab === 'shop' ? '🏪' : '📦'}</Text>
                             <Text style={[styles.emptyText, { color: palette.subtitleColor }]}>
-                                {activeTab === 'shop' ? t('store.empty_shop') : t('store.empty_my_items')}
+                                {activeTab === 'shop' ? tf('store.empty_shop', 'Cửa hàng trống') : tf('store.empty_my_items', 'Bạn chưa có vật phẩm nào')}
                             </Text>
                             {activeTab === 'shop' && (
                                 <TouchableOpacity style={[styles.refreshButton, { backgroundColor: palette.primary || '#8A2BE2' }]} onPress={fetchData}>
-                                    <Text style={styles.refreshButtonText}>{t('common.retry')}</Text>
+                                    <Text style={styles.refreshButtonText}>{tf('common.retry', 'Thử lại')}</Text>
                                 </TouchableOpacity>
                             )}
                         </Animated.View>

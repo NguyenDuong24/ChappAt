@@ -11,8 +11,7 @@ import {
   SafeAreaView
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-
+import Ionicons from '@expo/vector-icons/Ionicons';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface ImageViewerModalProps {

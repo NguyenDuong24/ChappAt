@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { Alert } from 'react-native';
-import { createMeeting, getToken } from '@/api';
-import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/firebaseConfig';
+import { createCallRoom, createMeeting } from '@/api';
+import { useAuth } from '@/context/authContext';
 
 interface CallParticipant {
   id: string;
@@ -49,6 +48,7 @@ export const useVideoCall = () => {
 };
 
 export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   const [isInCall, setIsInCall] = useState(false);
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(true);
@@ -62,8 +62,7 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const createNewMeeting = async (): Promise<string> => {
     try {
       console.log('Creating meeting with VideoSDK...');
-      const token = await getToken();
-      const meetingId = await createMeeting({ token });
+      const meetingId = await createMeeting({ metadata: { source: 'video_call_context' } });
       setMeetingId(meetingId);
       console.log('Meeting created successfully:', meetingId);
       return meetingId;
@@ -123,20 +122,21 @@ export const VideoCallProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const initiateCall = async (receiverId: string, type: 'audio' | 'video') => {
     try {
       console.log('🚀 Initiating call:', { receiverId, type });
-      const newMeetingId = await createNewMeeting();
-
-      // Save call information to Firebase
-      const callData = {
-        meetingId: newMeetingId,
-        callerId: 'current-user-id', // Replace with actual current user ID
-        receiverId: receiverId,
-        type: type,
-        status: 'calling',
-        createdAt: new Date(),
-      };
-
-      console.log('💾 Saving call to Firebase:', callData);
-      await addDoc(collection(db, 'calls'), callData);
+      if (!user?.uid) {
+        throw new Error('User not authenticated');
+      }
+      const callResult: any = await createCallRoom({
+        receiverId,
+        callType: type,
+        metadata: {
+          source: 'video_call_context',
+          callerId: user?.uid,
+        },
+      });
+      const newMeetingId = callResult.meetingId || callResult.roomId;
+      if (!newMeetingId) {
+        throw new Error('Missing meeting ID');
+      }
 
       console.log('✅ Call initiated with meetingId:', newMeetingId);
       joinMeeting(newMeetingId, type);

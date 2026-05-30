@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Share, Linking, Platform, Alert } from 'react-native';
-import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { HotSpot } from '@/types/hotSpots';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/context/ThemeContext';
@@ -17,7 +18,7 @@ const ActionMenu = ({ hotSpot }: ActionMenuProps) => {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out this hot spot: ${hotSpot.title}! Find it on ChappAt.`,
+        message: `Check out this hot spot: ${hotSpot.title}! Find it on SaiGon Match.`,
         url: `https://example.com/hotspot/${hotSpot.id}`,
       });
     } catch (error) {
@@ -36,7 +37,7 @@ const ActionMenu = ({ hotSpot }: ActionMenuProps) => {
 
   const handleInviteFriend = () => {
     router.push({
-      pathname: '/AddFriend',
+      pathname: '/InviteFriendScreen',
       params: { hotSpotId: hotSpot.id, hotSpotTitle: hotSpot.title, context: 'inviteToHotSpot' },
     });
   };
@@ -93,4 +94,3 @@ const styles = StyleSheet.create({
 });
 
 export default ActionMenu;
-

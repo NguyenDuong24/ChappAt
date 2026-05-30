@@ -1,4 +1,4 @@
-import { db } from '@/firebaseConfig';
+﻿import { db } from '@/firebaseConfig';
 import {
     collection,
     addDoc,
@@ -32,12 +32,67 @@ export interface Encounter {
 }
 
 const COOLDOWN_MINUTES = 60;
+const SIGNAL_WINDOW_MS = 2 * 60 * 1000;
+
+export interface NearMatchSettings {
+    enabled: boolean;
+    allowNotifications: boolean;
+    showProfileBadge: boolean;
+    matchRadiusMeters: number;
+    updatedAt?: any;
+}
+
+export interface EncounterSummary {
+    id: string;
+    otherUserId: string;
+    timestamp: any;
+    distance: number;
+}
+
+const DEFAULT_NEAR_MATCH_SETTINGS: NearMatchSettings = {
+    enabled: false,
+    allowNotifications: true,
+    showProfileBadge: true,
+    matchRadiusMeters: 50,
+};
+
+const getPairKey = (userA: string, userB: string) => [userA, userB].sort().join('_');
 
 export const encounterService = {
+    async getNearMatchSettings(userId: string): Promise<NearMatchSettings> {
+        if (!userId) return DEFAULT_NEAR_MATCH_SETTINGS;
+
+        try {
+            const settingsSnap = await getDoc(doc(db, 'near_match_settings', userId));
+            if (!settingsSnap.exists()) return DEFAULT_NEAR_MATCH_SETTINGS;
+
+            return {
+                ...DEFAULT_NEAR_MATCH_SETTINGS,
+                ...(settingsSnap.data() as Partial<NearMatchSettings>),
+            };
+        } catch (error) {
+            console.error('❌ Error fetching near match settings:', error);
+            return DEFAULT_NEAR_MATCH_SETTINGS;
+        }
+    },
+
+    async updateNearMatchSettings(userId: string, settings: Partial<NearMatchSettings>): Promise<NearMatchSettings> {
+        if (!userId) return DEFAULT_NEAR_MATCH_SETTINGS;
+
+        const nextSettings = {
+            ...DEFAULT_NEAR_MATCH_SETTINGS,
+            ...settings,
+            updatedAt: serverTimestamp(),
+        };
+
+        await setDoc(doc(db, 'near_match_settings', userId), nextSettings, { merge: true });
+        return nextSettings;
+    },
+
     /**
      * Record an encounter between two users
      */
-    async recordEncounter(myId: string, otherUserId: string, distance: number, location: { latitude: number, longitude: number }) {
+    async recordEncounter(myId: string, otherUserId: string, distance: number, location: { latitude: number, longitude: number, address?: string }) {
         if (!myId || !otherUserId || myId === otherUserId) return;
 
         try {
@@ -78,9 +133,23 @@ export const encounterService = {
 
             await addDoc(collection(db, 'user_encounters', otherUserId, 'history'), symmetricEncounterData);
 
-            console.log(`✅ Encounter recorded between ${myId} and ${otherUserId}`);
+            await setDoc(doc(db, 'nearby_encounters', getPairKey(myId, otherUserId)), {
+                userIds: [myId, otherUserId].sort(),
+                lastDistance: distance,
+                lastDistanceBucket: distance <= 10 ? '0-10m' : distance <= 50 ? '10-50m' : '50m+',
+                lastLocation: {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    address: location.address || null,
+                },
+                firstSeenAt: serverTimestamp(),
+                lastSeenAt: serverTimestamp(),
+                status: 'detected',
+            }, { merge: true });
+
+            console.log(`âœ… Encounter recorded between ${myId} and ${otherUserId}`);
         } catch (error) {
-            console.error('❌ Error recording encounter:', error);
+            console.error('âŒ Error recording encounter:', error);
         }
     },
 
@@ -117,7 +186,7 @@ export const encounterService = {
                     if (userDoc.exists()) {
                         const userData = userDoc.data();
                         encounter.userData = {
-                            name: userData.name || userData.displayName || userData.username || 'Người dùng',
+                            name: userData.name || userData.displayName || userData.username || 'NgÆ°á»i dÃ¹ng',
                             photoURL: userData.photoURL || userData.profileUrl || userData.avatar,
                             age: userData.age,
                             bio: userData.bio,
@@ -132,9 +201,80 @@ export const encounterService = {
 
             return encounters;
         } catch (error) {
-            console.error('❌ Error fetching encounters:', error);
+            console.error('âŒ Error fetching encounters:', error);
             return [];
         }
+    },
+
+    async getEncounterWithUser(myId: string, otherUserId: string): Promise<EncounterSummary | null> {
+        if (!myId || !otherUserId || myId === otherUserId) return null;
+
+        try {
+            const encountersRef = collection(db, 'user_encounters', myId, 'history');
+            const q = query(
+                encountersRef,
+                where('otherUserId', '==', otherUserId),
+                orderBy('timestamp', 'desc'),
+                limit(1)
+            );
+            const snapshot = await getDocs(q);
+            if (snapshot.empty) return null;
+
+            const docSnap = snapshot.docs[0];
+            const data = docSnap.data();
+            return {
+                id: docSnap.id,
+                otherUserId: data.otherUserId,
+                timestamp: data.timestamp,
+                distance: data.distance,
+            };
+        } catch (error) {
+            console.error('❌ Error fetching encounter with user:', error);
+            return null;
+        }
+    },
+
+    async sendNearMatchSignal(myId: string, otherUserId: string): Promise<{ matched: boolean; matchId?: string }> {
+        if (!myId || !otherUserId || myId === otherUserId) return { matched: false };
+
+        const pairKey = getPairKey(myId, otherUserId);
+        const now = Date.now();
+        const signalRef = doc(db, 'nearby_encounters', pairKey, 'signals', myId);
+        const otherSignalRef = doc(db, 'nearby_encounters', pairKey, 'signals', otherUserId);
+
+        await setDoc(signalRef, {
+            userId: myId,
+            type: 'shake',
+            createdAt: serverTimestamp(),
+            createdAtMs: now,
+        }, { merge: true });
+
+        const otherSignalSnap = await getDoc(otherSignalRef);
+        const otherSignal = otherSignalSnap.exists() ? otherSignalSnap.data() : null;
+        const isMatched = typeof otherSignal?.createdAtMs === 'number' && now - otherSignal.createdAtMs <= SIGNAL_WINDOW_MS;
+
+        if (!isMatched) {
+            await setDoc(doc(db, 'nearby_encounters', pairKey), {
+                status: 'signaled',
+                lastSignalAt: serverTimestamp(),
+            }, { merge: true });
+            return { matched: false };
+        }
+
+        const userIds = [myId, otherUserId].sort();
+        await setDoc(doc(db, 'matches', pairKey), {
+            userIds,
+            userAId: userIds[0],
+            userBId: userIds[1],
+            source: 'nearby_shake',
+            createdAt: serverTimestamp(),
+        }, { merge: true });
+        await setDoc(doc(db, 'nearby_encounters', pairKey), {
+            status: 'matched',
+            matchedAt: serverTimestamp(),
+        }, { merge: true });
+
+        return { matched: true, matchId: pairKey };
     }
 };
 

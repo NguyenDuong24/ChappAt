@@ -10,7 +10,8 @@ import {
   Image,
   SafeAreaView
 } from 'react-native';
-import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { useHotSpotInvitations } from '@/hooks/useHotSpots';
@@ -348,7 +349,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
   invitationItemExpired: {
     opacity: 0.6,

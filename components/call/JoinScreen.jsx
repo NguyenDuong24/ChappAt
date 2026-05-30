@@ -100,13 +100,8 @@ const UserCard = ({
     }, [item.id, router]);
 
     const handleNavigateToChat = useCallback(() => {
-        const dest = activeTab === 'chat'
-            ? `/(tabs)/chat/${item.id}`
-            : activeTab === 'home'
-                ? `/(tabs)/home/chat/${item.id}`
-                : `/chat/${item.id}`;
-        router.push(dest as any);
-    }, [activeTab, item.id, router]);
+        router.push(`/chat/${item.id}`);
+    }, [item.id, router]);
 
     return (
         <AnimatedReanimated.View 
@@ -230,15 +225,18 @@ const UserCard = ({
                         <TouchableOpacity
                             style={styles.actionButton}
                             onPress={handleNavigateToChat}
+                            activeOpacity={0.85}
                         >
-                            <LinearGradient
-                                colors={gradientColors}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.actionGradient}
-                            >
-                                <MaterialIcons name="chat" size={18} color="white" />
-                            </LinearGradient>
+                            <View style={styles.actionShadow}>
+                                <LinearGradient
+                                    colors={gradientColors}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={styles.actionGradient}
+                                >
+                                    <MaterialIcons name="chat" size={16} color="white" />
+                                </LinearGradient>
+                            </View>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -366,11 +364,18 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
     },
     chipText: { fontSize: 12, fontWeight: '500' },
-    actionButton: { marginLeft: 8 },
+    actionButton: { marginLeft: 6 },
+    actionShadow: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 6,
+    },
     actionGradient: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         justifyContent: 'center',
         alignItems: 'center',
     },

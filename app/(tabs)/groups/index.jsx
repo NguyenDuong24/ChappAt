@@ -16,7 +16,7 @@ import ConversationOptionsModal from '@/components/common/ConversationOptionsMod
 import { useTranslation } from 'react-i18next';
 import LiquidScreen from '@/components/liquid/LiquidScreen';
 import { RevealScalableView } from '@/components/reveal';
-import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
+import AppDrawer from '@/components/drawer/AppDrawer';
 import { useThemedColors } from '@/hooks/useThemedColors';
 
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -40,6 +40,8 @@ export default function Groups() {
   const [hiddenGroupIds, setHiddenGroupIds] = useState([]);
   const [showGroupOptionsModal, setShowGroupOptionsModal] = useState(false);
   const [selectedGroupItem, setSelectedGroupItem] = useState(null);
+  const groupListRef = useRef(null);
+  const scrollOffsetRef = useRef(0);
 
   // Drawer state
   const [featureDrawer, setFeatureDrawer] = useState(null);
@@ -74,7 +76,7 @@ export default function Groups() {
         await Promise.all(updatePromises);
       }
     } catch (error) {
-      console.warn('Error updating old groups:', error);
+      console.warn('Error upmatch old groups:', error);
     }
   };
 
@@ -123,11 +125,23 @@ export default function Groups() {
 
   const { registerRefreshHandler } = useRefresh();
 
+  const handleGroupsScroll = useCallback((event) => {
+    scrollOffsetRef.current = event?.nativeEvent?.contentOffset?.y || 0;
+  }, []);
+
+  const handleGroupsTabPress = useCallback(() => {
+    if (scrollOffsetRef.current > 8) {
+      groupListRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      return;
+    }
+    refreshGroupsOnce();
+  }, [refreshGroupsOnce]);
+
   useEffect(() => {
     if (registerRefreshHandler) {
-      registerRefreshHandler('groups', refreshGroupsOnce);
+      registerRefreshHandler('groups', handleGroupsTabPress);
     }
-  }, [registerRefreshHandler, refreshGroupsOnce]);
+  }, [registerRefreshHandler, handleGroupsTabPress]);
 
   useEffect(() => {
     let unsub = null;
@@ -150,6 +164,11 @@ export default function Groups() {
       const data = snap.data() || {};
       setPinnedGroupIds(Array.isArray(data.pinnedGroupIds) ? data.pinnedGroupIds : []);
       setHiddenGroupIds(Array.isArray(data.hiddenGroupIds) ? data.hiddenGroupIds : []);
+    }, (error) => {
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error('Error listening to user doc for groups:', error);
+      }
     });
     return () => unsub();
   }, [user?.uid]);
@@ -253,8 +272,6 @@ export default function Groups() {
     revealContainer: { flex: 1 },
     innerLayout: { flex: 1, overflow: 'hidden' },
     header: {
-      paddingBottom: 16,
-      elevation: 8,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
@@ -281,8 +298,8 @@ export default function Groups() {
       justifyContent: 'center',
       borderWidth: 1,
       borderColor: 'rgba(255,255,255,0.3)',
-    },
-    searchWrapper: { paddingHorizontal: 16, paddingBottom: 8 },
+    },  
+    searchWrapper: { paddingHorizontal: 8, paddingBottom: 12 },
     searchInput: {
       height: 48,
       backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)',
@@ -302,22 +319,6 @@ export default function Groups() {
     emptySearchContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
     emptySearchText: { fontSize: 18, fontWeight: '500' },
     emptySearchSubtext: { fontSize: 14, color: '#94A3B8', textAlign: 'center', marginTop: 4 },
-    fabCreate: {
-      position: 'absolute',
-      bottom: 100,
-      right: 20,
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: theme === 'dark' ? '#EFFFFE' : '#0F312A',
-      alignItems: 'center',
-      justifyContent: 'center',
-      elevation: 8,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.3,
-      shadowRadius: 12,
-    },
   }), [theme]);
 
   const openCreateGroupDrawer = () => setFeatureDrawer('createGroup');
@@ -375,6 +376,7 @@ export default function Groups() {
 
             <View style={styles.content}>
                 <EnhancedGroupList
+                    ref={groupListRef}
                     currentUser={user}
                     groups={isSearchMode ? searchResults : groups}
                     onRefresh={isSearchMode ? () => searchGroups(searchQuery.trim()) : refreshGroupsOnce}
@@ -384,6 +386,7 @@ export default function Groups() {
                     pinnedGroupIds={pinnedGroupIds}
                     hiddenGroupIds={hiddenGroupIds}
                     onLongPressGroup={handleLongPressGroup}
+                    onScroll={handleGroupsScroll}
                 />
 
                 {isSearchMode && !searching && searchResults.length === 0 && searchQuery.trim().length > 0 && (
@@ -394,14 +397,10 @@ export default function Groups() {
                     </View>
                 )}
             </View>
-
-            <TouchableOpacity style={styles.fabCreate} onPress={openCreateGroupDrawer} accessibilityRole="button">
-                <MaterialCommunityIcons name="plus" size={32} color={theme === 'dark' ? '#0A4A3A' : '#FFFFFF'} />
-            </TouchableOpacity>
         </View>
       </RevealScalableView>
 
-      <FeatureActionDrawer
+      <AppDrawer
         visible={isDrawerVisible}
         drawerKey={featureDrawer}
         onClose={() => setFeatureDrawer(null)}

@@ -6,12 +6,15 @@ import { useAuth } from '@/context/authContext';
 import { Colors } from '@/constants/Colors';
 import { useLogoState } from '@/context/LogoStateContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { sendEmailVerification, reload } from 'firebase/auth';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { reload } from 'firebase/auth';
 import { auth } from '@/firebaseConfig';
+import { sendProductionEmailVerification } from '@/utils/emailVerification';
+import { useTranslation } from 'react-i18next';
 
 const EmailVerificationScreen = () => {
-    const { user, refreshUser } = useAuth();
+    const { t } = useTranslation();
+    const { user, refreshUser, cancelRegistration } = useAuth();
     const router = useRouter();
     const logoUrl = useLogoState();
     const [isChecking, setIsChecking] = useState(false);
@@ -20,11 +23,11 @@ const EmailVerificationScreen = () => {
     useEffect(() => {
         let interval;
         if (resendCooldown > 0) {
-            interval = setInterval(() => {
+            interval = globalThis.setInterval(() => {
                 setResendCooldown((prev) => prev - 1);
             }, 1000);
         }
-        return () => clearInterval(interval);
+        return () => globalThis.clearInterval(interval);
     }, [resendCooldown]);
 
     const checkVerification = useCallback(async () => {
@@ -33,74 +36,60 @@ const EmailVerificationScreen = () => {
         try {
             await reload(auth.currentUser);
             if (auth.currentUser.emailVerified) {
-                // Email verified!
-                // Update profileCompleted status in Firestore if needed, or just proceed
-                // The authContext listener might pick this up, but we want to be sure
                 await refreshUser();
-                router.replace('/signup/GenderSelectionScreen');
+                router.replace('/signup/ProfileSetupScreen');
             } else {
-                Alert.alert('Chưa xác thực', 'Email của bạn chưa được xác thực. Vui lòng kiểm tra hộp thư đến và nhấn vào liên kết xác thực.');
+                Alert.alert(
+                    t('signup.verification_pending_title'),
+                    t('signup.verification_pending_message')
+                );
             }
         } catch (error) {
             console.error('Error checking verification:', error);
-            Alert.alert('Lỗi', 'Không thể kiểm tra trạng thái xác thực. Vui lòng thử lại.');
+            Alert.alert(t('common.error'), t('signup.verification_check_failed'));
         } finally {
             setIsChecking(false);
         }
-    }, [refreshUser, router]);
+    }, [refreshUser, router, t]);
 
     const handleResendEmail = useCallback(async () => {
         if (resendCooldown > 0) return;
         if (!auth.currentUser) return;
 
         try {
-            await sendEmailVerification(auth.currentUser);
-            Alert.alert('Đã gửi lại', 'Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư đến.');
-            setResendCooldown(60); // 60 seconds cooldown
+            await sendProductionEmailVerification(auth.currentUser);
+            Alert.alert(t('signup.verification_sent_title'), t('signup.verification_sent_message'));
+            setResendCooldown(60);
         } catch (error) {
             console.error('Error resending email:', error);
-            Alert.alert('Lỗi', 'Không thể gửi lại email. Vui lòng thử lại sau.');
+            Alert.alert(t('common.error'), t('signup.verification_check_failed'));
         }
-    }, [resendCooldown]);
+    }, [resendCooldown, t]);
 
-    const handleCancel = useCallback(() => {
+    const handleCancelAction = useCallback(() => {
         Alert.alert(
-            'Huỷ đăng ký?',
-            'Bạn có chắc muốn huỷ đăng ký? Tài khoản của bạn sẽ bị xoá.',
+            t('signup.cancel_title'),
+            t('signup.cancel_message'),
             [
-                { text: 'Không', style: 'cancel' },
+                { text: t('common.no'), style: 'cancel' },
                 {
-                    text: 'Huỷ',
+                    text: t('signup.cancel_confirm'),
                     style: 'destructive',
                     onPress: async () => {
-                        // Since user is created but not verified/completed, we should probably delete it or sign out
-                        // For now, let's just sign out and let the cleanup logic handle it if possible, 
-                        // or explicitly delete if it's a "pending" user.
-                        // But authContext cancelRegistration handles this well.
                         try {
-                            // We need to import cancelRegistration from useAuth, but I didn't destructure it above.
-                            // Let's add it to destructuring.
-                        } catch (_) { }
+                            await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' });
+                        } catch (error) {
+                            console.error('cancelRegistration failed:', error);
+                        }
                     },
                 },
             ]
         );
-    }, []);
-
-    // Re-get cancelRegistration from hook to use in handleCancel
-    const { cancelRegistration } = useAuth();
-    const handleCancelAction = async () => {
-        try {
-            await cancelRegistration({ deleteAccount: true, navigateTo: '/signin' });
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
+    }, [cancelRegistration, t]);
 
     return (
         <ImageBackground
-            source={require('../../assets/images/cover.png')}
+            source={require('../../assets/images/cover.webp')}
             style={styles.background}
             resizeMode="cover"
         >
@@ -117,13 +106,13 @@ const EmailVerificationScreen = () => {
                     <Ionicons name="mail-open-outline" size={80} color={Colors.primary} />
                 </View>
 
-                <Text style={styles.title}>Xác thực Email</Text>
+                <Text style={styles.title}>{t('signup.email_title')}</Text>
                 <Text style={styles.subtitle}>
-                    Chúng tôi đã gửi một liên kết xác thực đến{'\n'}
+                    {t('signup.email_subtitle_verify')}{'\n'}
                     <Text style={styles.emailText}>{user?.email}</Text>
                 </Text>
                 <Text style={styles.instruction}>
-                    Vui lòng kiểm tra hộp thư đến (và cả mục Spam) để xác thực tài khoản của bạn.
+                    {t('signup.verification_instruction_full')}
                 </Text>
 
                 <TouchableOpacity
@@ -134,7 +123,7 @@ const EmailVerificationScreen = () => {
                     {isChecking ? (
                         <ActivityIndicator color="#fff" />
                     ) : (
-                        <Text style={styles.checkButtonText}>Tôi đã xác thực</Text>
+                        <Text style={styles.checkButtonText}>{t('signup.verification_checked_button')}</Text>
                     )}
                 </TouchableOpacity>
 
@@ -144,12 +133,14 @@ const EmailVerificationScreen = () => {
                     disabled={resendCooldown > 0}
                 >
                     <Text style={styles.resendButtonText}>
-                        {resendCooldown > 0 ? `Gửi lại sau ${resendCooldown}s` : 'Gửi lại Email'}
+                        {resendCooldown > 0 
+                          ? t('signup.verification_resend_cooldown', { count: resendCooldown }) 
+                          : t('signup.verification_resend_button')}
                     </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={handleCancelAction} style={styles.cancelButton}>
-                    <Text style={styles.cancelText}>Huỷ đăng ký</Text>
+                    <Text style={styles.cancelText}>{t('signup.cancel_registration')}</Text>
                 </TouchableOpacity>
             </View>
         </ImageBackground>

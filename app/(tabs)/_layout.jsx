@@ -1,6 +1,6 @@
-import React, { useContext, useMemo, useCallback, useEffect, useState, memo } from 'react';
+import React, { useContext, useMemo, useCallback, useEffect, useRef, useState, memo } from 'react';
 import { Tabs, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ThemeContext } from '../../context/ThemeContext';
 import { isDarkTheme } from '../../constants/Colors';
 import { View, StyleSheet, Platform, Pressable, Text } from 'react-native';
@@ -26,8 +26,8 @@ const TAB_META = {
   },
   explore: {
     label: 'Explore',
-    activeIcon: 'search',
-    inactiveIcon: 'search-outline',
+    activeIcon: 'compass',
+    inactiveIcon: 'compass-outline',
   },
   chat: {
     label: 'Chat',
@@ -52,6 +52,7 @@ const springConfig = {
   mass: 0.9,
 };
 
+// --- Tab Item (giữ nguyên, chỉ thêm onLayout) ---
 const LiquidTabItem = memo(function LiquidTabItem({
   routeName,
   focused,
@@ -62,6 +63,7 @@ const LiquidTabItem = memo(function LiquidTabItem({
   testID,
   activeColor,
   inactiveColor,
+  onLayout, // <-- nhận prop đo layout
 }) {
   const progress = useSharedValue(focused ? 1 : 0);
   const tabMeta = TAB_META[routeName] || {
@@ -88,6 +90,7 @@ const LiquidTabItem = memo(function LiquidTabItem({
 
   return (
     <Pressable
+      onLayout={onLayout}   // <-- đo kích thước
       onPress={onPress}
       onLongPress={onLongPress}
       accessibilityRole="button"
@@ -111,33 +114,33 @@ const LiquidTabItem = memo(function LiquidTabItem({
   );
 });
 
+// --- Thanh tab chính (đã sửa lỗi) ---
 function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
-  const [barWidth, setBarWidth] = useState(0);
-  const sliderTranslateX = useSharedValue(0);
-  const sliderWidth = useSharedValue(0);
   const enableBlur = Platform.OS === 'ios';
+  const tabLayouts = useRef({}); // lưu { x, width } của từng tab
+  const [layoutVersion, setLayoutVersion] = useState(0); // để force re-render khi layout cập nhật
 
   const palette = useMemo(() => {
     const p = getLiquidPalette(theme);
     const themeIsDark = isDarkTheme(theme);
     return {
       ...p,
-      bezelGradient: theme === 'midnight' ? ['#0F172A', '#0D1117', '#1E293B'] : 
-                    theme === 'emerald' ? ['#064E3B', '#022C22', '#065F56'] :
-                    theme === 'sunset' ? ['#451A03', '#2B140A', '#452A20'] :
-                    theme === 'dark' ? ['#1E3A5F', '#0A192F', '#0D1B2A'] :
-                    ['#E1E8F0', '#C0CBD9', '#D1D9E6'],
+      bezelGradient: theme === 'midnight' ? ['#0F172A', '#0D1117', '#1E293B'] :
+        theme === 'emerald' ? ['#064E3B', '#022C22', '#065F56'] :
+        theme === 'sunset' ? ['#451A03', '#2B140A', '#452A20'] :
+        theme === 'dark' ? ['#1E3A5F', '#0A192F', '#0D1B2A'] :
+        ['#E1E8F0', '#C0CBD9', '#D1D9E6'],
       bezelStroke: theme === 'midnight' ? 'rgba(99, 102, 241, 0.35)' :
-                   theme === 'emerald' ? 'rgba(16, 185, 129, 0.35)' :
-                   theme === 'sunset' ? 'rgba(245, 158, 11, 0.35)' :
-                   theme === 'dark' ? 'rgba(100, 180, 255, 0.35)' :
-                   'rgba(150, 190, 220, 0.45)',
-      activePill: !themeIsDark ? 
-                 ['rgba(14, 165, 233, 0.2)', 'rgba(14, 165, 233, 0.05)'] :
-                 ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.02)'],
+        theme === 'emerald' ? 'rgba(16, 185, 129, 0.35)' :
+        theme === 'sunset' ? 'rgba(245, 158, 11, 0.35)' :
+        theme === 'dark' ? 'rgba(100, 180, 255, 0.35)' :
+        'rgba(150, 190, 220, 0.45)',
+      activePill: !themeIsDark ?
+        ['rgba(14, 165, 233, 0.2)', 'rgba(14, 165, 233, 0.05)'] :
+        ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.02)'],
       sphereGradient: p.sphereGradient,
       sphereGlow: p.glowTop[0] || 'rgba(0,0,0,0.1)',
-      baseGradient: p.appGradient, // Use app gradient as base for tab glass glass
+      baseGradient: p.appGradient,
       innerStroke: p.menuBorder,
       activeColor: p.textColor,
       inactiveColor: p.subtitleColor,
@@ -146,40 +149,41 @@ function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
 
   const isDarkBase = isDarkTheme(theme);
 
-  // Tab 2 has flex 1.2, others have flex 1. Total flex = 5.2
-  // We calculate position based on this proportional layout
+  // Shared values cho pill
+  const pillX = useSharedValue(0);
+  const pillWidth = useSharedValue(0);
+  const pillOpacity = useSharedValue(1);
+
+  // Lưu layout khi một tab render, đồng thời force re-render
+  const handleTabLayout = useCallback((routeKey, layout) => {
+    tabLayouts.current[routeKey] = layout;
+    setLayoutVersion(prev => prev + 1);
+  }, []);
+
+  // Tính toán vị trí pill dựa trên state.index và layout đã lưu (chạy trên JS thread)
+  const activeLayout = useMemo(() => {
+    const route = state.routes[state.index];
+    if (!route) return { x: 0, width: 0, isCenter: false };
+    const layout = tabLayouts.current[route.key];
+    if (!layout) return { x: 0, width: 0, isCenter: false };
+    const isCenter = state.index === 2;
+    return { x: layout.x, width: layout.width, isCenter };
+  }, [state.index, state.routes, layoutVersion]); // layoutVersion đảm bảo cập nhật khi layout thay đổi
+
+  // Kích hoạt animation mỗi khi activeLayout thay đổi
   useEffect(() => {
-    if (!barWidth) return;
-    
-    const totalFlex = 5.2;
-    const unitWidth = (barWidth - 16) / totalFlex; // -16 for padding
-    
-    let targetX = 8;
-    let targetWidth = unitWidth;
-
-    if (state.index === 0) {
-      targetX = 8;
-    } else if (state.index === 1) {
-      targetX = 8 + unitWidth;
-    } else if (state.index === 2) {
-      targetX = 8 + 2 * unitWidth;
-      targetWidth = unitWidth * 1.2;
-    } else if (state.index === 3) {
-      targetX = 8 + 3.2 * unitWidth;
-    } else if (state.index === 4) {
-      targetX = 8 + 4.2 * unitWidth;
-    }
-
-    sliderTranslateX.value = withSpring(targetX + 4, springConfig);
-    sliderWidth.value = withSpring(targetWidth - 8, springConfig);
-  }, [barWidth, state.index]);
+    pillX.value = withSpring(activeLayout.x, springConfig);
+    pillWidth.value = withSpring(activeLayout.width, springConfig);
+    pillOpacity.value = withTiming(activeLayout.isCenter ? 0 : 1, { duration: 150 });
+  }, [activeLayout]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activePillStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: sliderTranslateX.value }],
-    width: sliderWidth.value,
+    transform: [{ translateX: pillX.value }],
+    width: pillWidth.value,
+    opacity: pillOpacity.value,
   }));
 
-  const bottomOffset = Platform.OS === 'ios' ? Math.max(insets.bottom - 4, 8) : 12;
+  const bottomOffset = Platform.OS === 'ios' ? Math.max(insets.bottom - 4, 8) : Math.max(insets.bottom, 12);
 
   return (
     <View pointerEvents="box-none" style={[styles.tabHost, { bottom: bottomOffset }]}>
@@ -190,18 +194,15 @@ function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
           end={{ x: 0, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
-        
-        <View
-          style={[styles.tabGlass]}
-          onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)}
-        >
+
+        <View style={[styles.tabGlass]}>
           <LinearGradient
             colors={palette.baseGradient}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
-          
+
           {enableBlur ? (
             <BlurView
               intensity={isDarkBase ? 35 : 25}
@@ -219,18 +220,16 @@ function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
             style={styles.topShine}
           />
 
-          {/* Active indicator (pill) - Hidden for center sphere */}
-          {state.index !== 2 && (
-            <Animated.View style={[styles.activePill, activePillStyle]}>
-              <LinearGradient
-                colors={palette.activePill}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <View style={styles.activePillTopLine} />
-            </Animated.View>
-          )}
+          {/* Pill hoạt ảnh */}
+          <Animated.View style={[styles.activePill, activePillStyle]}>
+            <LinearGradient
+              colors={palette.activePill}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={styles.activePillTopLine} />
+          </Animated.View>
 
           <View style={styles.tabRow}>
             {state.routes.map((route, index) => {
@@ -251,7 +250,15 @@ function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
 
               if (isCenter) {
                 return (
-                  <Pressable key={route.key} onPress={onPress} style={styles.centerTabContainer}>
+                  <Pressable
+                    key={route.key}
+                    onPress={onPress}
+                    style={styles.centerTabContainer}
+                    onLayout={(e) => {
+                      const { x, width } = e.nativeEvent.layout;
+                      handleTabLayout(route.key, { x, width });
+                    }}
+                  >
                     <View style={[styles.sphereContainer, focused && { shadowColor: palette.sphereGlow, shadowOpacity: 0.6, shadowRadius: 15 }]}>
                       <LinearGradient
                         colors={palette.sphereGradient}
@@ -264,10 +271,10 @@ function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
                         style={styles.sphereHighlight}
                       />
                       <View style={styles.sphereIcon}>
-                        <Ionicons 
-                          name={focused ? TAB_META[route.name]?.activeIcon : TAB_META[route.name]?.inactiveIcon} 
-                          size={24} 
-                          color="#FFF" 
+                        <Ionicons
+                          name={focused ? TAB_META[route.name]?.activeIcon : TAB_META[route.name]?.inactiveIcon}
+                          size={24}
+                          color="#FFF"
                         />
                       </View>
                     </View>
@@ -287,6 +294,10 @@ function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
                   testID={options.tabBarButtonTestID}
                   activeColor={palette.activeColor}
                   inactiveColor={palette.inactiveColor}
+                  onLayout={(e) => {
+                    const { x, width } = e.nativeEvent.layout;
+                    handleTabLayout(route.key, { x, width });
+                  }}
                 />
               );
             })}
@@ -297,6 +308,7 @@ function LiquidGlassTabBar({ state, descriptors, navigation, insets, theme }) {
   );
 }
 
+// --- Phần điều hướng Tabs (không thay đổi) ---
 function TabsLayoutContent() {
   const themeContext = useContext(ThemeContext);
   const theme = themeContext?.theme || 'light';
@@ -310,7 +322,6 @@ function TabsLayoutContent() {
       position: 'absolute',
       backgroundColor: 'transparent',
       borderTopWidth: 0,
-      elevation: 0,
       height: 0,
     },
     freezeOnBlur: true,
@@ -353,6 +364,7 @@ export default function TabsLayout() {
   );
 }
 
+// --- Styles giữ nguyên ---
 const styles = StyleSheet.create({
   tabHost: {
     position: 'absolute',
@@ -371,7 +383,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
   },
   tabGlass: {
     flex: 1,
@@ -420,7 +431,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    overflow: 'hidden', // Added to fix the square background issue
+    overflow: 'hidden',
   },
   activePillTopLine: {
     position: 'absolute',
@@ -461,6 +472,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOpacity: 0.3,
     shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 2 },  
   },
 });

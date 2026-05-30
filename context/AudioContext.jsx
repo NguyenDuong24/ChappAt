@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useRef, useState } from 'react';
 import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
+import { safePlay, safeSetPosition, safeStop, safeUnload } from '../utils/safeSound';
 
 const AudioContext = createContext();
 
@@ -102,7 +103,7 @@ export const AudioProvider = ({ children }) => {
 
       const sound = soundsRef.current[soundName];
       if (sound) {
-        await sound.setPositionAsync(0);
+        await safeSetPosition(sound, 0);
         
         if (options.volume !== undefined) {
           await sound.setVolumeAsync(options.volume);
@@ -112,7 +113,7 @@ export const AudioProvider = ({ children }) => {
           await sound.setIsLoopingAsync(options.isLooping);
         }
 
-        await sound.playAsync();
+        await safePlay(sound);
         console.log(`🔊 Playing sound: ${soundName}`);
         return sound;
       } else {
@@ -132,7 +133,7 @@ export const AudioProvider = ({ children }) => {
     try {
       const sound = soundsRef.current[soundName];
       if (sound) {
-        await sound.stopAsync();
+        await safeStop(sound);
       }
     } catch (error) {
       // Silently handle stop errors
@@ -148,7 +149,7 @@ export const AudioProvider = ({ children }) => {
     try {
       for (const sound of Object.values(soundsRef.current)) {
         if (sound) {
-          await sound.stopAsync();
+          await safeStop(sound);
         }
       }
     } catch (error) {
@@ -165,7 +166,7 @@ export const AudioProvider = ({ children }) => {
     try {
       for (const sound of Object.values(soundsRef.current)) {
         if (sound) {
-          await sound.unloadAsync();
+          await safeUnload(sound);
         }
       }
       soundsRef.current = {};

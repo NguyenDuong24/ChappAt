@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -63,6 +63,10 @@ const UserProfile = ({
   const [statusModalVisible, setStatusModalVisible] = useState(false);
   const [blockActionLoading, setBlockActionLoading] = useState(false);
 
+  // State cho reverse geocoding
+  const [resolvedLocation, setResolvedLocation] = useState<string | null>(null);
+  const [isResolvingLocation, setIsResolvingLocation] = useState(false);
+
   // Get block status
   const {
     isBlocked,
@@ -112,6 +116,48 @@ const UserProfile = ({
     return `${days} ngày trước`;
   };
 
+  // Reverse geocoding function
+  const reverseGeocode = async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=vi`
+      );
+      const data = await response.json();
+      if (data && data.display_name) {
+        // Ưu tiên lấy thành phố/quận và quốc gia
+        const { city, town, village, county, state, country } = data.address;
+        const locality = city || town || village || county || state || '';
+        const countryName = country || '';
+        return `${locality}${locality && countryName ? ', ' : ''}${countryName}`;
+      }
+    } catch (error) {
+      console.error('Reverse geocoding failed:', error);
+    }
+    return '';
+  };
+
+  // Resolve location khi location thay đổi
+  useEffect(() => {
+    if (!user.location) {
+      setResolvedLocation(null);
+      return;
+    }
+
+    const match = user.location.trim().match(/^(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)$/);
+    if (match) {
+      const lat = parseFloat(match[1]);
+      const lng = parseFloat(match[3]);
+      setIsResolvingLocation(true);
+      reverseGeocode(lat, lng).then(address => {
+        setResolvedLocation(address || 'Không xác định được vị trí');
+        setIsResolvingLocation(false);
+      });
+    } else {
+      // Không phải tọa độ -> giữ nguyên
+      setResolvedLocation(user.location.trim());
+    }
+  }, [user.location]);
+
   const handleSaveProfile = () => {
     onUpdateProfile?.(editData);
     setIsEditing(false);
@@ -141,10 +187,8 @@ const UserProfile = ({
 
               let success;
               if (isBlocked) {
-                // Unblock user
                 success = await followService.unblockUser(currentUser.uid, user.id);
               } else {
-                // Block user
                 success = await followService.blockUser(currentUser.uid, user.id);
               }
 
@@ -155,8 +199,6 @@ const UserProfile = ({
                     ? `Đã bỏ chặn ${user.displayName}`
                     : `Đã chặn ${user.displayName}`
                 );
-                // Reload block status
-                // The hook will automatically update
               } else {
                 Alert.alert('❌ Lỗi', 'Không thể thực hiện thao tác. Vui lòng thử lại.');
               }
@@ -347,25 +389,33 @@ const UserProfile = ({
         </View>
       )}
 
-      {/* Location */}
-      <View style={styles.infoItem}>
-        <MaterialCommunityIcons name="map-marker" size={20} color={colors.primary} />
-        <View style={styles.infoContent}>
-          <Text style={[styles.infoLabel, { color: colors.subtleText }]}>Vị trí</Text>
-          {isEditing ? (
-            <TextInput
-              value={editData.location}
-              onChangeText={(text) => setEditData({ ...editData, location: text })}
-              placeholder="Thành phố, Quốc gia"
-              style={[styles.editInput, { color: colors.text, borderColor: colors.border }]}
-            />
-          ) : (
-            <Text style={[styles.infoValue, { color: colors.text }]}>
-              {user.location || 'Chưa cập nhật'}
-            </Text>
-          )}
-        </View>
-      </View>
+       {/* Location - Hiển thị thông tin vị trí liên tục */}
+       <View style={styles.infoItem}>
+         <MaterialCommunityIcons name="map-marker" size={20} color={colors.primary} />
+         <View style={styles.infoContent}>
+           <Text style={[styles.infoLabel, { color: colors.subtleText }]}>Vị trí</Text>
+           {isEditing ? (
+             <TextInput
+               value={editData.location}
+               onChangeText={(text) => setEditData({ ...editData, location: text })}
+               placeholder="Thành phố, Quốc gia"
+               style={[styles.editInput, { color: colors.text, borderColor: colors.border }]}
+             />
+           ) : (
+             <Text style={[styles.infoValue, { color: colors.text }]}>
+               {isResolvingLocation
+                 ? 'Đang xác định...'
+                 : resolvedLocation
+                 ? resolvedLocation
+                 : user.location
+                 ? user.location.trim().match(/^(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)$/)
+                   ? `Tọa độ: ${user.location.trim()}`
+                   : user.location.trim()
+                 : 'Chưa cập nhật'}
+             </Text>
+           )}
+         </View>
+       </View>
 
       {/* Website */}
       <View style={styles.infoItem}>

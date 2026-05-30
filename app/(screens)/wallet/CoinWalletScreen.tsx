@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   ScrollView, ActivityIndicator, Platform, RefreshControl,
@@ -6,14 +6,15 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { coinServerApi, getErrorMessage } from '../../../src/services/coinServerApi';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BackHandler } from 'react-native';
 import CoinPurchaseSection from '../../../components/payment/CoinPurchaseSection';
-import { RewardedAd, RewardedAdEventType, TestIds, AdEventType } from 'react-native-google-mobile-ads';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 
-const PROD_REWARDED_AD_UNIT_ID = 'ca-app-pub-9844251118980104/4096893807';
+const PROD_REWARDED_AD_UNIT_ID = 'ca-app-pub-9793421534392971/7526441306';
 
 export const options = { headerShown: false };
 
@@ -26,16 +27,47 @@ interface Transaction {
   metadata?: any;
 }
 
-const CACHED_BALANCE_KEY = '@chappat:cached_balance_v2';
+const CACHED_BALANCE_KEY = '@SaiGon Match:cached_balance_v2';
+const CACHED_LOCAL_TX_KEY = '@SaiGon Match:wallet_local_pending_transactions_v1';
 
-// ─── Memo'd TransactionItem — defined OUTSIDE to never be recreated ───
-const TransactionItem = memo(({ tx, details, locale, t }: {
+const formatTransactionDate = (value: any, locale: string) => {
+  if (!value) return '';
+  const date = value?._seconds ? new Date(value._seconds * 1000) : value?.seconds ? new Date(value.seconds * 1000) : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  });
+};
+
+const isLocalTransaction = (tx: Transaction) => tx.id.startsWith('local_') || tx.metadata?.syncStatus === 'pending';
+
+const mergeServerAndLocalTransactions = (serverTransactions: Transaction[], localTransactions: Transaction[]) => {
+  const serverOrderIds = new Set(serverTransactions.map(tx => tx.metadata?.orderId).filter(Boolean));
+  const stillPendingLocal = localTransactions.filter(tx => {
+    const orderId = tx.metadata?.orderId;
+    return !orderId || !serverOrderIds.has(orderId);
+  });
+
+  return [...stillPendingLocal, ...serverTransactions].filter((tx, index, arr) => {
+    const orderId = tx.metadata?.orderId;
+    return arr.findIndex(item => item.id === tx.id || (orderId && item.metadata?.orderId === orderId)) === index;
+  });
+};
+
+// Modified TransactionItem to use tf
+const TransactionItem = memo(({ tx, details, locale, tf, onPress }: {
   tx: Transaction;
   details: { title: string; description: string; icon: any; color: string };
   locale: string;
-  t: any;
+  tf: (key: string, fallback: string) => string;
+  onPress: () => void;
 }) => (
-  <View style={styles.txItem}>
+  <TouchableOpacity style={styles.txItem} onPress={onPress} activeOpacity={0.85}>
     <View style={[styles.txIcon, { backgroundColor: details.color + '15' }]}>
       <Ionicons name={details.icon} size={22} color={details.color} />
     </View>
@@ -43,29 +75,35 @@ const TransactionItem = memo(({ tx, details, locale, t }: {
       <Text style={styles.txType}>{details.title}</Text>
       <Text style={styles.txDescription} numberOfLines={1}>{details.description}</Text>
       <Text style={styles.txDate}>
-        {tx.createdAt
-          ? new Date(tx.createdAt as any).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
-            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
-          })
-          : ''}
+        {formatTransactionDate(tx.createdAt, locale)}
       </Text>
+      {isLocalTransaction(tx) && (
+        <View style={styles.pendingBadge}>
+          <Text style={styles.pendingBadgeText}>{tf('wallet.syncing_transaction', 'Đang đồng bộ')}</Text>
+        </View>
+      )}
     </View>
     <View style={styles.txAmountContainer}>
       <Text style={[styles.txAmount, { color: tx.amount > 0 ? '#4CAF50' : '#F44336' }]}>
         {tx.amount > 0 ? '+' : ''}{tx.amount}
       </Text>
       <Text style={styles.txCurrency}>
-        {tx.currencyType === 'coins' ? t('wallet.coins') : t('wallet.banhMi')}
+        {tx.currencyType === 'coins' ? tf('wallet.coins', 'Xu') : tf('wallet.banhMi', 'Bánh mì')}
       </Text>
     </View>
-  </View>
+  </TouchableOpacity>
 ));
 
-// ─── Main Screen ───
 export default function CoinWalletScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { from } = useLocalSearchParams<{ from: string }>();
+
+  // Fallback helper
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
 
   const [coins, setCoins] = useState<number>(0);
   const [banhMi, setBanhMi] = useState<number>(0);
@@ -75,13 +113,15 @@ export default function CoinWalletScreen() {
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
   const [rewardAdLoaded, setRewardAdLoaded] = useState(false);
   const [giftAdLoaded, setGiftAdLoaded] = useState(false);
-  const [rewardAd, setRewardAd] = useState<RewardedAd | null>(null);
-  const [giftAd, setGiftAd] = useState<RewardedAd | null>(null);
+  const [rewardAd, setRewardAd] = useState<any>(null);
+  const [giftAd, setGiftAd] = useState<any>(null);
 
   const isShowingAdRef = useRef(false);
   const claimedRewardRef = useRef<{ reward: boolean; gift: boolean }>({ reward: false, gift: false });
   const pendingAdIdRef = useRef<string>('');
   const isMountedRef = useRef(true);
+  const adUnsubscribesRef = useRef<(() => void)[]>([]);
+  const rewardResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleBackPress = useCallback(() => {
     if (from === 'profile') {
@@ -117,24 +157,56 @@ export default function CoinWalletScreen() {
 
   const loadTransactions = useCallback(async () => {
     try {
-      const result = await coinServerApi.getTransactions(20);
-      if (isMountedRef.current) setTransactions(result.transactions);
+      const result = await coinServerApi.getTransactions(50);
+      let cachedLocal: Transaction[] = [];
+      try {
+        const raw = await AsyncStorage.getItem(CACHED_LOCAL_TX_KEY);
+        if (raw) cachedLocal = JSON.parse(raw);
+      } catch (_) { }
+
+      if (isMountedRef.current) {
+        setTransactions(prev => {
+          const localPending = [...cachedLocal, ...prev.filter(isLocalTransaction)];
+          const serverTransactions = result.transactions || [];
+          const merged = mergeServerAndLocalTransactions(serverTransactions, localPending);
+
+          const filteredLocal = merged.filter(isLocalTransaction);
+          AsyncStorage.setItem(CACHED_LOCAL_TX_KEY, JSON.stringify(filteredLocal)).catch(() => { });
+          return merged;
+        });
+      }
     } catch (error) {
       console.error('Load transactions error:', error);
     }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadBalance(false);
+      loadTransactions();
+    }, [loadBalance, loadTransactions])
+  );
+
   useEffect(() => {
     isMountedRef.current = true;
 
     (async () => {
-      // Show cached balance instantly
       try {
         const cached = await AsyncStorage.getItem(CACHED_BALANCE_KEY);
         if (cached) {
           const parsed = JSON.parse(cached);
           setCoins(parsed.coins || 0);
           setBanhMi(parsed.banhMi || 0);
+        }
+      } catch (_) { }
+
+      try {
+        const localCachedTx = await AsyncStorage.getItem(CACHED_LOCAL_TX_KEY);
+        if (localCachedTx) {
+          const parsedTx = JSON.parse(localCachedTx);
+          if (Array.isArray(parsedTx) && parsedTx.length > 0) {
+            setTransactions(parsedTx);
+          }
         }
       } catch (_) { }
 
@@ -146,36 +218,47 @@ export default function CoinWalletScreen() {
       }
     })();
 
-    // Init ads after a small delay to not block first paint
     const adTimer = setTimeout(() => loadAds(), 800);
 
     return () => {
       isMountedRef.current = false;
       clearTimeout(adTimer);
+      adUnsubscribesRef.current.forEach(unsubscribe => unsubscribe());
+      adUnsubscribesRef.current = [];
+      if (rewardResetTimerRef.current) clearTimeout(rewardResetTimerRef.current);
     };
   }, [loadBalance, loadTransactions]);
 
-  const loadAds = useCallback(() => {
+  const loadAds = useCallback(async () => {
     if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
-    const adUnitId = __DEV__ ? TestIds.REWARDED : PROD_REWARDED_AD_UNIT_ID;
+    adUnsubscribesRef.current.forEach(unsubscribe => unsubscribe());
+    adUnsubscribesRef.current = [];
+    const adUnitId = PROD_REWARDED_AD_UNIT_ID;
 
-    const reward = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
-    reward.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setRewardAdLoaded(true); });
-    reward.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('reward'));
-    reward.addAdEventListener(AdEventType.CLOSED, () => {
-      if (isMountedRef.current) { setRewardAdLoaded(false); isShowingAdRef.current = false; reward.load(); }
-    });
-    reward.load();
-    setRewardAd(reward);
+    try {
+      const { RewardedAd, RewardedAdEventType, AdEventType } = await import('react-native-google-mobile-ads');
+      if (!isMountedRef.current) return;
 
-    const gift = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
-    gift.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setGiftAdLoaded(true); });
-    gift.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('gift'));
-    gift.addAdEventListener(AdEventType.CLOSED, () => {
-      if (isMountedRef.current) { setGiftAdLoaded(false); isShowingAdRef.current = false; gift.load(); }
-    });
-    gift.load();
-    setGiftAd(gift);
+      const reward = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
+      adUnsubscribesRef.current.push(reward.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setRewardAdLoaded(true); }));
+      adUnsubscribesRef.current.push(reward.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('reward')));
+      adUnsubscribesRef.current.push(reward.addAdEventListener(AdEventType.CLOSED, () => {
+        if (isMountedRef.current) { setRewardAdLoaded(false); isShowingAdRef.current = false; reward.load(); }
+      }));
+      reward.load();
+      setRewardAd(reward);
+
+      const gift = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
+      adUnsubscribesRef.current.push(gift.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setGiftAdLoaded(true); }));
+      adUnsubscribesRef.current.push(gift.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('gift')));
+      adUnsubscribesRef.current.push(gift.addAdEventListener(AdEventType.CLOSED, () => {
+        if (isMountedRef.current) { setGiftAdLoaded(false); isShowingAdRef.current = false; gift.load(); }
+      }));
+      gift.load();
+      setGiftAd(gift);
+    } catch (error) {
+      console.warn('[RewardedAd] Lazy load failed:', error);
+    }
   }, []);
 
   const handleAdEarned = useCallback(async (type: 'reward' | 'gift') => {
@@ -188,19 +271,20 @@ export default function CoinWalletScreen() {
         const result = await coinServerApi.reward(adId, { source: 'rewarded_ad' });
         setBanhMi(result.newBalance);
         loadBalance(false);
-        Alert.alert(t('common.success'), `+${result.amount} ${t('wallet.banhMi')}!`);
+        Alert.alert(tf('common.success', 'Thành công'), `+${result.amount} ${tf('wallet.banhMi', 'Bánh mì')}!`);
       } else {
         const result = await coinServerApi.rewardGift(adId, { source: 'rewarded_ad_gift' });
-        Alert.alert(t('common.success'), result.message || t('wallet.lucky_gift'));
+        Alert.alert(tf('common.success', 'Thành công'), result.message || tf('wallet.lucky_gift', 'Quà may mắn'));
       }
       loadTransactions();
     } catch (error) {
-      Alert.alert(t('common.error'), getErrorMessage(error as any));
+      Alert.alert(tf('common.error', 'Lỗi'), getErrorMessage(error as any));
     } finally {
-      setLoading(false);
-      setTimeout(() => { claimedRewardRef.current[type] = false; }, 1000);
+      if (isMountedRef.current) setLoading(false);
+      if (rewardResetTimerRef.current) clearTimeout(rewardResetTimerRef.current);
+      rewardResetTimerRef.current = setTimeout(() => { claimedRewardRef.current[type] = false; }, 1000);
     }
-  }, [t, loadBalance, loadTransactions]);
+  }, [tf, loadBalance, loadTransactions]);
 
   const showAd = useCallback((type: 'reward' | 'gift') => {
     if (isShowingAdRef.current) return;
@@ -212,13 +296,13 @@ export default function CoinWalletScreen() {
       claimedRewardRef.current[type] = false;
       try { ad.show(); } catch (e) {
         isShowingAdRef.current = false;
-        Alert.alert(t('common.error'), t('wallet.ad_error'));
+        Alert.alert(tf('common.error', 'Lỗi'), tf('wallet.ad_error', 'Lỗi hiển thị quảng cáo'));
       }
     } else {
-      Alert.alert(t('common.loading'), t('wallet.ad_loading'));
+      Alert.alert(tf('common.loading', 'Đang tải'), tf('wallet.ad_loading', 'Quảng cáo đang tải'));
       try { ad?.load(); } catch (_) { }
     }
-  }, [rewardAd, giftAd, rewardAdLoaded, giftAdLoaded, t]);
+  }, [rewardAd, giftAd, rewardAdLoaded, giftAdLoaded, tf]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -227,35 +311,50 @@ export default function CoinWalletScreen() {
     });
   }, [loadBalance, loadTransactions]);
 
-  // ✅ Stable callback passed to CoinPurchaseSection — prevents re-render
-  const handlePurchaseSuccess = useCallback(() => {
-    loadBalance(true);
-  }, [loadBalance]);
+  const handlePurchaseSuccess = useCallback(async (_newBalance?: number, localTx?: Transaction) => {
+    if (localTx) {
+      try {
+        const raw = await AsyncStorage.getItem(CACHED_LOCAL_TX_KEY);
+        const cached = raw ? JSON.parse(raw) : [];
+        const exists = cached.some((tx: Transaction) => tx.id === localTx.id || (localTx.metadata?.orderId && tx.metadata?.orderId === localTx.metadata.orderId));
+        if (!exists) {
+          await AsyncStorage.setItem(CACHED_LOCAL_TX_KEY, JSON.stringify([localTx, ...cached]));
+        }
+      } catch (_) { }
 
-  // ✅ Memoized stats
+      setTransactions(prev => {
+        const exists = prev.some(tx => tx.id === localTx.id || (localTx.metadata?.orderId && tx.metadata?.orderId === localTx.metadata.orderId));
+        if (exists) return prev;
+        return [localTx, ...prev];
+      });
+    }
+    await Promise.all([loadBalance(true), loadTransactions()]);
+    setTimeout(() => {
+      loadTransactions();
+    }, 2500);
+  }, [loadBalance, loadTransactions]);
+
   const stats = useMemo(() => ({
     earned: transactions.filter(tx => tx.amount > 0).reduce((s, tx) => s + tx.amount, 0),
     spent: Math.abs(transactions.filter(tx => tx.amount < 0).reduce((s, tx) => s + tx.amount, 0)),
   }), [transactions]);
 
-  // ✅ Memoized transaction details (one object per tx, stable references)
   const getTransactionDetails = useCallback((tx: Transaction) => {
     const { type, metadata, amount } = tx;
-    if (type === 'reward') return { title: t('wallet.watch_ad'), description: t('wallet.watch_ad_desc'), icon: 'play-circle-outline' as any, color: '#4CAF50' };
+    if (type === 'reward') return { title: tf('wallet.watch_ad', 'Xem quảng cáo'), description: tf('wallet.watch_ad_desc', 'Nhận thưởng'), icon: 'play-circle-outline' as any, color: '#4CAF50' };
     if (type === 'topup') {
-      if (metadata?.type === 'gift_redeem') return { title: t('wallet.redeem_gift'), description: t('wallet.redeem_gift_desc'), icon: 'gift-outline' as any, color: '#4CAF50' };
-      if (metadata?.source === 'vietqr') return { title: t('wallet.topup_vietqr'), description: t('wallet.topup_vietqr_desc', { orderId: metadata.orderId?.slice(-8) || 'N/A' }), icon: 'wallet-outline' as any, color: '#4CAF50' };
-      return { title: t('wallet.topup'), description: t('wallet.topup_desc'), icon: 'add-circle-outline' as any, color: '#4CAF50' };
+      if (metadata?.type === 'gift_redeem') return { title: tf('wallet.redeem_gift', 'Đổi quà'), description: tf('wallet.redeem_gift_desc', 'Đổi quà'), icon: 'gift-outline' as any, color: '#4CAF50' };
+      if (metadata?.source === 'vietqr') return { title: tf('wallet.topup_vietqr', 'Nạp VietQR'), description: tf('wallet.topup_vietqr_desc', 'Mã {{orderId}}').replace('{{orderId}}', metadata.orderId?.slice(-8) || 'N/A'), icon: 'wallet-outline' as any, color: '#4CAF50' };
+      return { title: tf('wallet.topup', 'Nạp'), description: tf('wallet.topup_desc', 'Nạp tài khoản'), icon: 'add-circle-outline' as any, color: '#4CAF50' };
     }
     if (type === 'spend') {
-      if (metadata?.type === 'shop_purchase') return { title: t('store.title'), description: metadata.itemName || t('store.item'), icon: 'cart-outline' as any, color: '#F44336' };
-      if (metadata?.type === 'gift') return { title: t('wallet.send_gift'), description: t('wallet.send_gift_desc'), icon: 'heart-outline' as any, color: '#F44336' };
-      return { title: t('wallet.spend'), description: metadata?.purpose || t('wallet.spend_desc'), icon: 'remove-circle-outline' as any, color: '#F44336' };
+      if (metadata?.type === 'shop_purchase') return { title: tf('store.title', 'Cửa hàng'), description: metadata.itemName || tf('store.item', 'Sản phẩm'), icon: 'cart-outline' as any, color: '#F44336' };
+      if (metadata?.type === 'gift') return { title: tf('wallet.send_gift', 'Tặng quà'), description: tf('wallet.send_gift_desc', 'Gửi quà'), icon: 'heart-outline' as any, color: '#F44336' };
+      return { title: tf('wallet.spend', 'Chi tiêu'), description: metadata?.purpose || tf('wallet.spend_desc', 'Chi tiêu'), icon: 'remove-circle-outline' as any, color: '#F44336' };
     }
-    return { title: type.charAt(0).toUpperCase() + type.slice(1), description: t('wallet.transaction'), icon: (amount > 0 ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline') as any, color: amount > 0 ? '#4CAF50' : '#F44336' };
-  }, [t]);
+    return { title: type.charAt(0).toUpperCase() + type.slice(1), description: tf('wallet.transaction', 'Giao dịch'), icon: (amount > 0 ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline') as any, color: amount > 0 ? '#4CAF50' : '#F44336' };
+  }, [tf]);
 
-  // ✅ Pre-compute details for all transactions — stable when transactions don't change
   const txWithDetails = useMemo(() =>
     transactions.map(tx => ({ tx, details: getTransactionDetails(tx) })),
     [transactions, getTransactionDetails]
@@ -271,7 +370,7 @@ export default function CoinWalletScreen() {
           </TouchableOpacity>
           <View style={styles.headerTitle}>
             <Ionicons name="wallet" size={24} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.headerTitleText}>{t('wallet.title')}</Text>
+            <Text style={styles.headerTitleText}>{tf('wallet.title', 'Ví của tôi')}</Text>
           </View>
           <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
             <Ionicons name="refresh" size={24} color="#fff" />
@@ -280,7 +379,7 @@ export default function CoinWalletScreen() {
         <View style={styles.headerBalance}>
           <View style={styles.balanceContainer}>
             <View style={styles.balanceItem}>
-              <Text style={styles.headerBalanceLabel}>{t('wallet.coins')}</Text>
+              <Text style={styles.headerBalanceLabel}>{tf('wallet.coins', 'Xu')}</Text>
               <View style={styles.headerBalanceAmount}>
                 <Ionicons name="diamond" size={20} color="#ffd700" style={{ marginRight: 6 }} />
                 <Text style={styles.headerBalanceValue}>{coins.toLocaleString()}</Text>
@@ -288,7 +387,7 @@ export default function CoinWalletScreen() {
             </View>
             <View style={styles.balanceDivider} />
             <View style={styles.balanceItem}>
-              <Text style={styles.headerBalanceLabel}>{t('wallet.banhMi')}</Text>
+              <Text style={styles.headerBalanceLabel}>{tf('wallet.banhMi', 'Bánh mì')}</Text>
               <View style={styles.headerBalanceAmount}>
                 <MaterialCommunityIcons name="baguette" size={20} color="#FFD700" style={{ marginRight: 6 }} />
                 <Text style={styles.headerBalanceValue}>{banhMi.toLocaleString()}</Text>
@@ -311,7 +410,7 @@ export default function CoinWalletScreen() {
           <View style={styles.statItem}>
             <Ionicons name="trending-up" size={24} color="#4CAF50" />
             <View style={styles.statText}>
-              <Text style={styles.statLabel}>{t('wallet.earned')}</Text>
+              <Text style={styles.statLabel}>{tf('wallet.earned', 'Đã nhận')}</Text>
               <Text style={styles.statValue}>{stats.earned.toLocaleString()}</Text>
             </View>
           </View>
@@ -319,32 +418,32 @@ export default function CoinWalletScreen() {
           <View style={styles.statItem}>
             <Ionicons name="trending-down" size={24} color="#F44336" />
             <View style={styles.statText}>
-              <Text style={styles.statLabel}>{t('wallet.spent')}</Text>
+              <Text style={styles.statLabel}>{tf('wallet.spent', 'Đã chi')}</Text>
               <Text style={styles.statValue}>{stats.spent.toLocaleString()}</Text>
             </View>
           </View>
         </View>
 
-        {/* VietQR Purchase — stable callback prevents re-render */}
+        {/* VietQR Purchase */}
         <CoinPurchaseSection onPurchaseSuccess={handlePurchaseSuccess} />
 
         {/* Ad Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('wallet.free_coins')}</Text>
+          <Text style={styles.sectionTitle}>{tf('wallet.free_coins', 'Nhận miễn phí')}</Text>
           <View style={styles.adCard}>
             <View style={styles.adInfo}>
               <Ionicons name="play-circle" size={40} color="#4CAF50" />
               <View style={styles.adTextContainer}>
-                <Text style={styles.adTitle}>{t('wallet.watch_ad')}</Text>
-                <Text style={styles.adSubtitle}>{t('wallet.watch_ad_desc')}</Text>
+                <Text style={styles.adTitle}>{tf('wallet.watch_ad', 'Xem quảng cáo')}</Text>
+                <Text style={styles.adSubtitle}>{tf('wallet.watch_ad_desc', 'Nhận thưởng')}</Text>
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.watchBtn, (!rewardAdLoaded && !__DEV__) && styles.disabledBtn]}
+              style={[styles.watchBtn, !rewardAdLoaded && styles.disabledBtn]}
               onPress={() => showAd('reward')}
-              disabled={loading}
+              disabled={loading || !rewardAdLoaded}
             >
-              <Text style={styles.watchBtnText}>{rewardAdLoaded || __DEV__ ? t('wallet.watch_now') : t('common.loading')}</Text>
+              <Text style={styles.watchBtnText}>{rewardAdLoaded ? tf('wallet.watch_now', 'Xem ngay') : tf('common.loading', 'Đang tải')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -352,23 +451,29 @@ export default function CoinWalletScreen() {
             <View style={styles.adInfo}>
               <Ionicons name="gift" size={40} color="#9C27B0" />
               <View style={styles.adTextContainer}>
-                <Text style={styles.adTitle}>{t('wallet.lucky_gift')}</Text>
-                <Text style={styles.adSubtitle}>{t('wallet.lucky_gift_desc')}</Text>
+                <Text style={styles.adTitle}>{tf('wallet.lucky_gift', 'Quà may mắn')}</Text>
+                <Text style={styles.adSubtitle}>{tf('wallet.lucky_gift_desc', 'Mở quà bí ẩn')}</Text>
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.watchBtn, { backgroundColor: '#9C27B0' }, (!giftAdLoaded && !__DEV__) && styles.disabledBtn]}
+              style={[styles.watchBtn, { backgroundColor: '#9C27B0' }, !giftAdLoaded && styles.disabledBtn]}
               onPress={() => showAd('gift')}
-              disabled={loading}
+              disabled={loading || !giftAdLoaded}
             >
-              <Text style={styles.watchBtnText}>{giftAdLoaded || __DEV__ ? t('wallet.open_gift') : t('common.loading')}</Text>
+              <Text style={styles.watchBtnText}>{giftAdLoaded ? tf('wallet.open_gift', 'Mở quà') : tf('common.loading', 'Đang tải')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Transaction History */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('wallet.history')}</Text>
+          <View style={styles.historyHeader}>
+            <Text style={styles.sectionTitle}>{tf('wallet.history', 'Lịch sử')}</Text>
+            <TouchableOpacity style={styles.searchTxBtn} onPress={() => router.push('/(screens)/wallet/TransactionSearchScreen')}>
+              <Ionicons name="search" size={16} color="#0EA5E9" />
+              <Text style={styles.searchTxText}>{tf('wallet.search', 'Tìm')}</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.transactionList}>
             {initialLoading ? (
               <View style={styles.loadingList}>
@@ -377,7 +482,7 @@ export default function CoinWalletScreen() {
             ) : txWithDetails.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="time-outline" size={48} color="#ccc" />
-                <Text style={styles.emptyText}>{t('wallet.no_transactions')}</Text>
+                <Text style={styles.emptyText}>{tf('wallet.no_transactions', 'Chưa có giao dịch')}</Text>
               </View>
             ) : (
               txWithDetails.map(({ tx, details }) => (
@@ -386,7 +491,8 @@ export default function CoinWalletScreen() {
                   tx={tx}
                   details={details}
                   locale={i18n.language}
-                  t={t}
+                  tf={tf}
+                  onPress={() => router.push({ pathname: '/(screens)/wallet/TransactionDetailScreen', params: { txId: tx.id, transaction: JSON.stringify(tx) } })}
                 />
               ))
             )}
@@ -411,7 +517,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8,
   },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
@@ -430,7 +536,7 @@ const styles = StyleSheet.create({
   statsCard: {
     backgroundColor: '#fff', borderRadius: 16, padding: 16, margin: 16, marginTop: 20,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, 
   },
   statItem: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   statText: { marginLeft: 10 },
@@ -439,10 +545,13 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 40, backgroundColor: '#E0E0E0', marginHorizontal: 12 },
   section: { marginBottom: 20, paddingHorizontal: 16 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#1A1A1A', marginBottom: 12 },
+  historyHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  searchTxBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E6F7FF', borderWidth: 1, borderColor: '#BEE3F8', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6 },
+  searchTxText: { color: '#0EA5E9', fontSize: 12, fontWeight: '700' },
   adCard: {
     backgroundColor: '#fff', borderRadius: 12, padding: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, 
   },
   adInfo: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   adTextContainer: { marginLeft: 12 },
@@ -458,6 +567,8 @@ const styles = StyleSheet.create({
   txType: { fontSize: 15, fontWeight: '700', color: '#333' },
   txDescription: { fontSize: 13, color: '#666', marginTop: 1 },
   txDate: { fontSize: 11, color: '#999', marginTop: 4 },
+  pendingBadge: { alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: '#FFF4E5' },
+  pendingBadgeText: { fontSize: 10, color: '#B45309', fontWeight: '700' },
   txAmountContainer: { alignItems: 'flex-end' },
   txAmount: { fontSize: 16, fontWeight: '800' },
   txCurrency: { fontSize: 10, color: '#999', fontWeight: '600', textTransform: 'uppercase' },

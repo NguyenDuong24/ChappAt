@@ -264,16 +264,18 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       {children}
       
       {/* Foreground notification modal */}
-      {showModal && currentNotification && (
+      {showModal && currentNotification && (() => {
+        const data = currentNotification.request.content.data as any;
+        return (
         <NotificationModal
           notification={{
             id: currentNotification.request.identifier,
-            type: currentNotification.request.content.data?.type || 'unknown',
+            type: data?.type || 'unknown',
             title: currentNotification.request.content.title || '',
             body: currentNotification.request.content.body || '',
-            data: currentNotification.request.content.data,
-            senderName: currentNotification.request.content.data?.sourceUsername,
-            senderAvatar: currentNotification.request.content.data?.sourceProfileUrl,
+            data,
+            senderName: data?.sourceUsername,
+            senderAvatar: data?.sourceProfileUrl,
           }}
           visible={showModal}
           onClose={() => {
@@ -284,7 +286,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
             await handleModalNotificationTap();
           }}
         />
-      )}
+        );
+      })()}
     </NotificationContext.Provider>
   );
 };

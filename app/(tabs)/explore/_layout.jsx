@@ -5,7 +5,6 @@ import {
   StyleSheet,
   View,
   StatusBar,
-  Dimensions,
   TouchableOpacity,
   Animated,
   Platform,
@@ -13,7 +12,8 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { useIsFocused } from '@react-navigation/native';
 import { ThemeContext } from '../../../context/ThemeContext';
 import { ExploreHeaderProvider, HEADER_HEIGHT, SCROLL_DISTANCE } from '../../../context/ExploreHeaderContext';
@@ -22,61 +22,82 @@ import NotificationBadge from '../../../components/common/NotificationBadge';
 import { ExploreProvider, useExploreActions } from '../../../context/ExploreContext';
 import { getThemeColors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
-import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
+import AppDrawer from '@/components/drawer/AppDrawer';
 import { RevealScalableView } from '@/components/reveal';
+import { useRefresh } from '@/context/RefreshContext';
 
 // Import Screens
 import Tab1Screen from './tab1';
 import Tab2Screen from './tab2';
 import Tab3Screen from './tab3';
 
-const { width } = Dimensions.get('window');
 const TAB_HEIGHT = 40;
 const TAB_PADDING = 4;
 const TAB_GAP = 5;
 const ACTION_GAP = 6;
 const FEED_TOP_SPACING = 18;
 
+// 🎨 SẮC NÉT & RỰC RỠ PRESETS: Chữ đậm, màu tương phản cực cao không lo bị chìm
 const CHIP_PRESETS = [
   {
-    gradient: ['#FFF1F5', '#FFE4EF'],
+    gradient: ['rgba(255, 228, 230, 0.95)', 'rgba(255, 241, 242, 0.85)'], // Nền hồng mịn rực rỡ
+    darkGradient: ['rgba(76, 5, 25, 0.85)', 'rgba(29, 4, 10, 0.75)'],
     icon: 'favorite',
     iconColor: '#E11D48',
-    textColor: '#8A1234',
-    borderColor: 'rgba(225,29,72,0.18)',
-    radius: 16,
+    iconBg: 'rgba(225, 29, 72, 0.12)',
+    darkIconBg: 'rgba(225, 29, 72, 0.25)',
+    textColor: '#9F1239',       // Chữ đỏ hồng đậm đà sắc nét
+    darkTextColor: '#FFE4E6',   // Chữ sáng bật lên ở chế độ tối
+    borderColor: '#FDA4AF',
+    darkBorderColor: 'rgba(244, 63, 94, 0.35)',
   },
   {
-    gradient: ['#FFF7ED', '#FFE8CC'],
+    gradient: ['rgba(255, 237, 213, 0.95)', 'rgba(255, 247, 237, 0.85)'], // Nền cam ấm
+    darkGradient: ['rgba(67, 20, 7, 0.85)', 'rgba(28, 12, 4, 0.75)'],
     icon: 'local-movies',
     iconColor: '#EA580C',
-    textColor: '#8A3A0A',
-    borderColor: 'rgba(234,88,12,0.18)',
-    radius: 16,
+    iconBg: 'rgba(234, 88, 12, 0.12)',
+    darkIconBg: 'rgba(234, 88, 12, 0.25)',
+    textColor: '#9A3412',       // Chữ cam cháy tương phản cao
+    darkTextColor: '#FFEDD5',
+    borderColor: '#FED7AA',
+    darkBorderColor: 'rgba(249, 115, 22, 0.35)',
   },
   {
-    gradient: ['#E0F2FE', '#DCFCE7'],
+    gradient: ['rgba(224, 242, 254, 0.95)', 'rgba(240, 249, 255, 0.85)'], // Nền xanh neon dịu
+    darkGradient: ['rgba(8, 47, 73, 0.85)', 'rgba(3, 27, 46, 0.75)'],
     icon: 'sports-esports',
     iconColor: '#0284C7',
-    textColor: '#075985',
-    borderColor: 'rgba(2,132,199,0.18)',
-    radius: 16,
+    iconBg: 'rgba(2, 132, 199, 0.12)',
+    darkIconBg: 'rgba(2, 132, 199, 0.25)',
+    textColor: '#075985',       // Chữ xanh dương đậm cực rõ nét
+    darkTextColor: '#E0F2FE',
+    borderColor: '#BAE6FD',
+    darkBorderColor: 'rgba(14, 165, 233, 0.35)',
   },
   {
-    gradient: ['#ECFDF5', '#D1FAE5'],
+    gradient: ['rgba(209, 250, 229, 0.95)', 'rgba(240, 253, 244, 0.85)'], // Nền lục bảo
+    darkGradient: ['rgba(4, 47, 31, 0.85)', 'rgba(2, 27, 18, 0.75)'],
     icon: 'school',
     iconColor: '#059669',
-    textColor: '#065F46',
-    borderColor: 'rgba(5,150,105,0.18)',
-    radius: 16,
+    iconBg: 'rgba(5, 150, 105, 0.12)',
+    darkIconBg: 'rgba(5, 150, 105, 0.25)',
+    textColor: '#065F46',       // Chữ xanh lá đậm đà
+    darkTextColor: '#D1FAE5',
+    borderColor: '#A7F3D0',
+    darkBorderColor: 'rgba(16, 185, 129, 0.35)',
   },
   {
-    gradient: ['#EEF2FF', '#EDE9FE'],
+    gradient: ['rgba(243, 232, 255, 0.95)', 'rgba(245, 243, 255, 0.85)'], // Nền tím hoàng gia
+    darkGradient: ['rgba(48, 12, 117, 0.85)', 'rgba(19, 6, 48, 0.75)'],
     icon: 'tag',
     iconColor: '#7C3AED',
-    textColor: '#4C1D95',
-    borderColor: 'rgba(124,58,237,0.18)',
-    radius: 16,
+    iconBg: 'rgba(124, 58, 237, 0.12)',
+    darkIconBg: 'rgba(124, 58, 237, 0.25)',
+    textColor: '#5B21B6',       // Chữ tím đậm đà tinh tế
+    darkTextColor: '#F3E8FF',
+    borderColor: '#E9D5FF',
+    darkBorderColor: 'rgba(139, 92, 246, 0.35)',
   },
 ];
 
@@ -85,16 +106,24 @@ const ACTION_PRESETS = {
   hotspots: '#F97316',
 };
 
-// 🚀 PREMIUM TACTILE BUTTON - Lightweight version
+function formatHashtagCount(count) {
+  const value = Number(count || 0);
+  if (!Number.isFinite(value) || value <= 0) return 'Mới nổi';
+  if (value >= 1000000) return `${(value / 1000000).toFixed(value >= 10000000 ? 0 : 1)}M lượt`;
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)}K lượt`;
+  return `${value} lượt`;
+}
+
+// 🚀 PREMIUM TACTILE BUTTON
 const ImpactButton = React.memo(({ children, onPress, style }) => {
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = useCallback(() => {
-    Animated.timing(scale, { toValue: 0.95, duration: 60, useNativeDriver: true }).start();
+    Animated.timing(scale, { toValue: 0.96, duration: 50, useNativeDriver: true }).start();
   }, [scale]);
 
   const onPressOut = useCallback(() => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 200, friction: 12 }).start();
+    Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 240, friction: 10 }).start();
   }, [scale]);
 
   return (
@@ -102,7 +131,7 @@ const ImpactButton = React.memo(({ children, onPress, style }) => {
       onPress={onPress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
-      activeOpacity={0.85}
+      activeOpacity={0.9}
       style={style}
     >
       <Animated.View style={{ transform: [{ scale }], flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -111,6 +140,7 @@ const ImpactButton = React.memo(({ children, onPress, style }) => {
     </TouchableOpacity>
   );
 });
+ImpactButton.displayName = 'ImpactButton';
 
 const TabButton = React.memo(({ label, isActive, onPress, activeColor, inactiveColor, tabWidth }) => {
   return (
@@ -121,6 +151,7 @@ const TabButton = React.memo(({ label, isActive, onPress, activeColor, inactiveC
     </ImpactButton>
   );
 });
+TabButton.displayName = 'TabButton';
 
 const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
   const { t } = useTranslation();
@@ -134,12 +165,67 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
   const [mounted, setMounted] = useState({ index: true, tab2: false, tab3: false });
   const [featureDrawer, setFeatureDrawer] = useState(null);
   const [tabsTrackWidth, setTabsTrackWidth] = useState(0);
+
+  const tab1Ref = useRef(null);
+  const tab2Ref = useRef(null);
+  const tab3Ref = useRef(null);
+  
+  const tab1OffsetRef = useRef(0);
+  const tab2OffsetRef = useRef(0);
+  const tab3OffsetRef = useRef(0);
+
+  const { registerRefreshHandler } = useRefresh();
+
+  const handleTab1Scroll = useCallback((event) => {
+    tab1OffsetRef.current = event?.nativeEvent?.contentOffset?.y || 0;
+  }, []);
+
+  const handleTab2Scroll = useCallback((event) => {
+    tab2OffsetRef.current = event?.nativeEvent?.contentOffset?.y || 0;
+  }, []);
+
+  const handleTab3Scroll = useCallback((event) => {
+    tab3OffsetRef.current = event?.nativeEvent?.contentOffset?.y || 0;
+  }, []);
+
+  const handleExploreTabPress = useCallback(() => {
+    if (activeTab === 'index') {
+      if (tab1OffsetRef.current > 8) {
+        tab1Ref.current?.scrollToOffset?.({ offset: 0, animated: true });
+      } else {
+        refreshPosts?.('latest');
+        refreshData?.();
+      }
+    } else if (activeTab === 'tab2') {
+      if (tab2OffsetRef.current > 8) {
+        tab2Ref.current?.scrollToOffset?.({ offset: 0, animated: true });
+      } else {
+        refreshPosts?.('trending');
+        refreshData?.();
+      }
+    } else if (activeTab === 'tab3') {
+      if (tab3OffsetRef.current > 8) {
+        tab3Ref.current?.scrollToOffset?.({ offset: 0, animated: true });
+      } else {
+        refreshPosts?.('following');
+        refreshData?.();
+      }
+    }
+  }, [activeTab, refreshPosts, refreshData]);
+
+  useEffect(() => {
+    if (registerRefreshHandler) {
+      registerRefreshHandler('explore', handleExploreTabPress);
+    }
+  }, [registerRefreshHandler, handleExploreTabPress]);
+
   const onTabsLayout = useCallback((event) => {
     const nextWidth = event?.nativeEvent?.layout?.width || 0;
     if (nextWidth > 0 && Math.abs(nextWidth - tabsTrackWidth) > 1) {
       setTabsTrackWidth(nextWidth);
     }
   }, [tabsTrackWidth]);
+
   const tabWidth = useMemo(() => {
     if (!tabsTrackWidth) return 76;
     const trackInner = tabsTrackWidth - TAB_PADDING * 2 - TAB_GAP * 2;
@@ -155,7 +241,6 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     }
   }, [openDrawer]);
 
-  // ⚡️ SIMPLIFIED ANIMATIONS - Only opacity, no translateX (removes jank)
   const opacity1 = useRef(new Animated.Value(1)).current;
   const opacity2 = useRef(new Animated.Value(0)).current;
   const opacity3 = useRef(new Animated.Value(0)).current;
@@ -178,18 +263,14 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     setExploreScreenActive?.(isFocused);
   }, [isFocused, setExploreScreenActive]);
 
-  // No longer needed as we use individual refs
-  // const scrollY = useRef(new Animated.Value(0)).current;
-
   const tabDefs = useMemo(() => [
-    { key: 'index', label: t('social.latest') },
-    { key: 'tab2', label: t('social.trending') },
-    { key: 'tab3', label: t('social.follow') || 'Theo dõi' },
+    { key: 'index', label: t('social.latest') !== 'social.latest' ? t('social.latest') : 'Mới nhất' },
+    { key: 'tab2', label: t('social.trending') !== 'social.trending' ? t('social.trending') : 'Xu hướng' },
+    { key: 'tab3', label: t('social.following') !== 'social.following' ? t('social.following') : 'Theo dõi' },
   ], [t]);
 
   const handleTabPress = useCallback((tabName) => {
     if (activeTab === tabName) {
-      // Double-tap = refresh
       refreshPosts(tabName === 'index' ? 'latest' : tabName === 'tab2' ? 'trending' : 'following');
       refreshData();
       return;
@@ -198,15 +279,12 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     const tabIndex = tabDefs.findIndex(t => t.key === tabName);
     if (tabIndex === -1) return;
 
-    // Ensure tab is mounted immediately if selected
     if (!mounted[tabName]) {
       setMounted(prev => ({ ...prev, [tabName]: true }));
     }
 
     const slideTo = tabIndex * (tabWidth + TAB_GAP);
 
-    // ⚡️ Faster Cross-Fade (120ms parallel)
-    // No translateY/translateX on heavy content during transition
     Animated.parallel([
       Animated.spring(slidingAnim, {
         toValue: slideTo,
@@ -232,20 +310,17 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
       }),
     ]).start();
 
-    // Deferred state update to let animations kick off
     requestAnimationFrame(() => {
       setActiveTab(tabName);
     });
   }, [activeTab, tabDefs, opacityRefs, slidingAnim, fabSlidingAnim, refreshPosts, refreshData, mounted, tabWidth]);
 
-  // Scroll-based header animations
   const headerTranslateY = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE], outputRange: [0, -SCROLL_DISTANCE], extrapolate: 'clamp' });
   const headerOpacity = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE * 0.4, SCROLL_DISTANCE], outputRange: [1, 0.2, 0], extrapolate: 'clamp' });
   const collapsedOpacity = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE * 0.7, SCROLL_DISTANCE], outputRange: [0, 0, 1], extrapolate: 'clamp' });
   const fabOpacity = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE * 0.8, SCROLL_DISTANCE], outputRange: [0, 0, 1], extrapolate: 'clamp' });
   const fabTranslateY = scrollY.interpolate({ inputRange: [0, SCROLL_DISTANCE], outputRange: [120, 0], extrapolate: 'clamp' });
 
-  // ⚡️ Stable pointerEvents based on activeTab
   const pointerEvents1 = activeTab === 'index' ? 'auto' : 'none';
   const pointerEvents2 = activeTab === 'tab2' ? 'auto' : 'none';
   const pointerEvents3 = activeTab === 'tab3' ? 'auto' : 'none';
@@ -271,7 +346,6 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     );
   }, [isDark]);
 
-  // Stable navigation callbacks
   const goToNotifications = useCallback(() => {
     setFeatureDrawer('notification');
   }, []);
@@ -289,7 +363,6 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     return () => sub.remove();
   }, [featureDrawer]);
 
-  // ⚡️ Memoized header sections to prevent re-renders
   const collapsedHeader = useMemo(() => (
     <Animated.View style={[styles.collapsedHeader, { opacity: collapsedOpacity, backgroundColor: colors.background }]} pointerEvents="box-none">
       <View style={styles.collapsedContent} pointerEvents="box-none">
@@ -304,28 +377,72 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
     </Animated.View>
   ), [collapsedOpacity, colors.background, colors.surface, colors.border, colors.tint, renderActionBtn, notificationCount, goToNotifications, goToHotSpots]);
 
+  // 🔥 THIẾT KẾ MỚI "ĐANG HOT": Cực kỳ sắc nét, rõ màu, chuẩn giao diện cao cấp như image_7570a3.png
   const trendingSection = useMemo(() => (
     <View style={styles.trendingSection} pointerEvents="auto">
       <View style={styles.trendingHeaderCompact}>
-        <MaterialIcons name="local-fire-department" size={18} color={ACTION_PRESETS.hotspots} style={{ marginRight: 6 }} />
+        <LinearGradient 
+          colors={['#FF6B00', '#FF2E00']} 
+          start={{ x: 0, y: 0 }} 
+          end={{ x: 1, y: 1 }} 
+          style={styles.trendingHeaderIcon}
+        >
+          <MaterialIcons name="local-fire-department" size={15} color="#FFFFFF" />
+        </LinearGradient>
         <Text style={[styles.trendingTitleCompact, { color: colors.text }]}>Đang hot</Text>
       </View>
-      <Animated.ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hashtagScrollContent}>
-        {loading ? [...Array(4)].map((_, i) => <View key={i} style={[styles.hashtagSkeletonCompact, { backgroundColor: colors.menuBackground }]} />) :
+
+      <Animated.ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        contentContainerStyle={styles.hashtagScrollContent}
+        decelerationRate="fast"
+      >
+        {loading ? 
+          [...Array(4)].map((_, i) => <View key={i} style={[styles.hashtagSkeletonCompact, { backgroundColor: colors.menuBackground }]} />) 
+          :
           trendingHashtags.slice(0, 10).map((item, index) => {
             const preset = CHIP_PRESETS[index % CHIP_PRESETS.length];
+            const cleanTag = item.tag.replace('#', '');
+            
+            // Lấy cấu hình màu sắc tương ứng theo chế độ Light/Dark
+            const currentGradient = isDark ? preset.darkGradient : preset.gradient;
+            const currentTextColor = isDark ? preset.darkTextColor : preset.textColor;
+            const currentBorder = isDark ? preset.darkBorderColor : preset.borderColor;
+            const currentIconBg = isDark ? preset.darkIconBg : preset.iconBg;
+            
             return (
-              <ImpactButton key={item.tag} onPress={() => router.push({ pathname: '/(screens)/social/HashtagScreen', params: { hashtag: item.tag.replace('#', '') } })} style={[styles.hashtagChipCompact, { borderRadius: preset.radius }]}>
-                <LinearGradient colors={preset.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.hashtagGradientCompact, { borderRadius: preset.radius, borderColor: preset.borderColor }]}>
-                  <MaterialIcons name={preset.icon} size={15} color={preset.iconColor} style={{ opacity: 0.95, marginRight: 7 }} />
-                  <Text style={[styles.hashtagText, { color: preset.textColor }]}>{item.tag.replace('#', '')}</Text>
+              <ImpactButton 
+                key={item.tag} 
+                onPress={() => router.push({ pathname: '/(screens)/social/HashtagScreen', params: { hashtag: cleanTag } })} 
+                style={[styles.hashtagChipCompact, { borderColor: currentBorder }]}
+              >
+                <LinearGradient 
+                  colors={currentGradient} 
+                  start={{ x: 0, y: 0 }} 
+                  end={{ x: 1, y: 1 }} 
+                  style={styles.hashtagGradientCompact}
+                >
+                  <View style={[styles.hashtagIconContainer, { backgroundColor: currentIconBg }]}>
+                    <MaterialIcons name={preset.icon} size={18} color={preset.iconColor} />
+                  </View>
+                  
+                  <View style={styles.hashtagCopy}>
+                    <Text style={[styles.hashtagText, { color: currentTextColor }]} numberOfLines={1}>
+                      #{cleanTag}
+                    </Text>
+                    <Text style={[styles.hashtagMeta, { color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.6)' }]} numberOfLines={1}>
+                      {formatHashtagCount(item.count)}
+                    </Text>
+                  </View>
                 </LinearGradient>
               </ImpactButton>
             );
-          })}
+          })
+        }
       </Animated.ScrollView>
     </View>
-  ), [loading, trendingHashtags, colors.menuBackground, colors.text]);
+  ), [loading, trendingHashtags, colors.menuBackground, colors.text, isDark]);
 
   const tabButtons = useMemo(() => (
     tabDefs.map(tab => (
@@ -340,7 +457,7 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
       trending: scrollY2,
       following: scrollY3
     },
-    effectiveHeaderHeight: HEADER_HEIGHT + FEED_TOP_SPACING
+    effectiveHeaderHeight: HEADER_HEIGHT + FEED_TOP_SPACING - 20
   }), [scrollY, scrollY1, scrollY2, scrollY3]);
 
   return (
@@ -399,29 +516,27 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
             </Animated.View>
           </Animated.View>
 
-          {/* ⚡️ TAB CONTENT - No translateX, just opacity + pointerEvents */}
           <View style={styles.content}>
             <Animated.View
               style={[styles.tabPane, { opacity: opacity1, zIndex: activeTab === 'index' ? 10 : 1, backgroundColor: 'transparent' }]}
               pointerEvents={pointerEvents1}
             >
-              <Tab1Screen isActive={activeTab === 'index'} />
+              <Tab1Screen ref={tab1Ref} isActive={activeTab === 'index'} onScroll={handleTab1Scroll} />
             </Animated.View>
             <Animated.View
               style={[styles.tabPane, { opacity: opacity2, zIndex: activeTab === 'tab2' ? 10 : 1, backgroundColor: 'transparent' }]}
               pointerEvents={pointerEvents2}
             >
-              {mounted.tab2 && <Tab2Screen isActive={activeTab === 'tab2'} />}
+              {mounted.tab2 && <Tab2Screen ref={tab2Ref} isActive={activeTab === 'tab2'} onScroll={handleTab2Scroll} />}
             </Animated.View>
             <Animated.View
               style={[styles.tabPane, { opacity: opacity3, zIndex: activeTab === 'tab3' ? 10 : 1, backgroundColor: 'transparent' }]}
               pointerEvents={pointerEvents3}
             >
-              {mounted.tab3 && <Tab3Screen isActive={activeTab === 'tab3'} />}
+              {mounted.tab3 && <Tab3Screen ref={tab3Ref} isActive={activeTab === 'tab3'} onScroll={handleTab3Scroll} />}
             </Animated.View>
           </View>
 
-          {/* Floating tab bar */}
           <Animated.View style={[styles.floatingActions, { opacity: fabOpacity, transform: [{ translateY: fabTranslateY }] }]} pointerEvents="box-none">
             <LinearGradient
               colors={[colors.tint, colors.tintLight || colors.tint, colors.tintDark || colors.tint]}
@@ -444,7 +559,7 @@ const ExploreLayoutContent = React.memo(function ExploreLayoutContent() {
           </Animated.View>
         </RevealScalableView>
 
-        <FeatureActionDrawer
+        <AppDrawer
           visible={!!featureDrawer}
           drawerKey={featureDrawer}
           onClose={closeFeatureDrawer}
@@ -466,7 +581,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: HEADER_HEIGHT,
+    height: HEADER_HEIGHT-20,
     zIndex: 1100,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
@@ -475,43 +590,119 @@ const styles = StyleSheet.create({
   headerGradient: { ...StyleSheet.absoluteFillObject },
   headerTintOverlay: { ...StyleSheet.absoluteFillObject },
   headerBottomFade: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 72 },
-  headerContent: { flex: 1, paddingTop: Platform.OS === 'ios' ? 55 : StatusBar.currentHeight + 15, paddingHorizontal: 14 },
-  headerTop: { alignItems: 'center', marginBottom: 14, width: '100%' },
+  headerContent: { flex: 1, paddingTop: Platform.OS === 'ios' ? 55 : StatusBar.currentHeight + 13, paddingHorizontal: 14 },
+  headerTop: { alignItems: 'center', marginBottom: 0, width: '100%' },
   controlsShell: {
-    borderRadius: 30,
-    padding: 2.5,
+    borderRadius: 32,
+    padding: 2,
     overflow: 'hidden',
     width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(14,165,233,0.34)',
   },
   controlsInner: {
-    borderRadius: 26,
+    borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    gap: 8,
     borderWidth: 0,
   },
-  headerTabsContainer: { flexDirection: 'row', gap: TAB_GAP, borderRadius: 24, padding: TAB_PADDING, position: 'relative', flex: 1, marginRight: 6 },
-  headerTab: { height: TAB_HEIGHT, borderRadius: TAB_HEIGHT / 2, zIndex: 2, flexShrink: 0 },
-  headerTabActive: { shadowColor: '#9CC8EA', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4 },
-  slidingPill: { position: 'absolute', top: TAB_PADDING, left: TAB_PADDING, height: TAB_HEIGHT, borderRadius: TAB_HEIGHT / 2, zIndex: 1, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3 },
-  tabTextActive: { fontSize: 14, fontWeight: '800', letterSpacing: 0, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false },
-  tabTextInactive: { fontSize: 14, fontWeight: '700', letterSpacing: 0, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false },
-  headerActions: { flexDirection: 'row', gap: ACTION_GAP, alignItems: 'center', justifyContent: 'space-between', paddingRight: 2 },
+  headerTabsContainer: { flexDirection: 'row', gap: 4, borderRadius: 26, padding: 4, position: 'relative', flex: 1, marginRight: 0, overflow: 'hidden' },
+  headerTab: { height: 42, borderRadius: 21, zIndex: 2, flexShrink: 0, justifyContent: 'center', alignItems: 'center' },
+  headerTabActive: { shadowColor: '#BAE6FD', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 7 },
+  slidingPill: { position: 'absolute', top: 4, left: 4, height: 42, borderRadius: 21, zIndex: 1, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.12, shadowRadius: 7 },
+  tabTextActive: { fontSize: 13.5, fontWeight: '900', letterSpacing: -0.2, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false },
+  tabTextInactive: { fontSize: 13.5, fontWeight: '700', letterSpacing: -0.1, textAlign: 'center', textAlignVertical: 'center', includeFontPadding: false, opacity: 0.72 },
+  headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'flex-end', paddingRight: 2 },
   actionBtn: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden' },
   actionBtnContainer: { width: 40, height: 40, borderRadius: 20, padding: 0, overflow: 'hidden', position: 'relative' },
   actionBtnInner: { flex: 1, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, overflow: 'hidden' },
   actionIconTintLayer: { ...StyleSheet.absoluteFillObject },
   headerBadge: { position: 'absolute', top: 4, right: 4 },
-  trendingSection: { marginTop: 4, paddingHorizontal: 2, paddingVertical: 2 },
-  trendingHeaderCompact: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  trendingTitleCompact: { fontSize: 17, fontWeight: '800', letterSpacing: 0 },
-  hashtagScrollContent: { gap: 8, paddingRight: 16, paddingLeft: 2 },
-  hashtagChipCompact: { borderRadius: 16, overflow: 'hidden', height: 36, shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.18, shadowRadius: 5, elevation: 2 },
-  hashtagGradientCompact: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 8, height: '100%', borderWidth: 1 },
-  hashtagText: { fontSize: 14, fontWeight: '800', letterSpacing: 0 },
+  
+  // 💎 CSS ĐANG HOT ĐƯỢC LÀM MỚI TOÀN BỘ - CHUẨN SẮC NÉT
+  trendingSection: { 
+    marginTop: 16, 
+    paddingHorizontal: 2, 
+    paddingVertical: 4 
+  },
+  trendingHeaderCompact: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: 12,
+    paddingHorizontal: 4
+  },
+  trendingHeaderIcon: { 
+    width: 24, 
+    height: 24, 
+    borderRadius: 12, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginRight: 8,
+    shadowColor: '#FF2E00', 
+    shadowOffset: { width: 0, height: 3 }, 
+    shadowOpacity: 0.4, 
+    shadowRadius: 5, 
+  },
+  trendingTitleCompact: { 
+    fontSize: 16, 
+    fontWeight: '900', 
+    letterSpacing: -0.4
+  },
+  hashtagScrollContent: { 
+    gap: 12, 
+    paddingRight: 24, 
+    paddingLeft: 4, 
+    paddingBottom: 4 
+  },
+  hashtagChipCompact: { 
+    borderRadius: 18, 
+    overflow: 'hidden', 
+    height: 54, 
+    width: 142, // Tăng thêm kích thước để chữ hiển thị trọn vẹn, không bị cụm từ "..."
+    borderWidth: 1,
+  },
+  hashtagGradientCompact: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    height: '100%', 
+    width: '100%', 
+    paddingHorizontal: 10,
+  },
+  hashtagIconContainer: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 12, // Bo góc giống hệt như trong hình ảnh tham khảo image_7570a3.png
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    marginRight: 10,
+  },
+  hashtagCopy: { 
+    flex: 1, 
+    minWidth: 0, 
+    justifyContent: 'center',
+  },
+  hashtagText: { 
+    fontSize: 14, 
+    fontWeight: '900', // Đẩy độ dày font lên cao nhất để nét chữ rõ ràng
+    letterSpacing: -0.2,
+  },
+  hashtagMeta: { 
+    marginTop: 2, 
+    fontSize: 11, 
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  hashtagSkeletonCompact: { 
+    width: 142, 
+    height: 54, 
+    borderRadius: 18,
+    opacity: 0.6
+  },
+
   content: { flex: 1, backgroundColor: 'transparent' },
   tabPane: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
   floatingActions: { position: 'absolute', bottom: 100, left: 14, right: 14, alignItems: 'center', zIndex: 1000 },
@@ -519,5 +710,4 @@ const styles = StyleSheet.create({
   collapsedContent: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: Platform.OS === 'ios' ? 45 : 30 },
   collapsedIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', borderWidth: 1 },
   collapsedActions: { flexDirection: 'row', gap: 8 },
-  hashtagSkeletonCompact: { width: 90, height: 36, borderRadius: 18 }
 });

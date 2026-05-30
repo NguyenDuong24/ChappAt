@@ -99,7 +99,7 @@ class NSFWService {
         }
 
         if (!this.model) {
-            return { isInappropriate: false, scores: {}, reason: 'Model unavailable' };
+            return { isInappropriate: true, scores: {}, reason: 'NSFW model unavailable' };
         }
 
         console.group(`🔎 [NSFWService] Checking: ${uri}`);
@@ -138,7 +138,7 @@ class NSFWService {
             if (p >= 0.45) reasonParts.push(`Porn: ${(p * 100).toFixed(1)}%`);
             if (h >= 0.45) reasonParts.push(`Hentai: ${(h * 100).toFixed(1)}%`);
             if (s >= 0.6) reasonParts.push(`Sexy: ${(s * 100).toFixed(1)}%`);
-            const reason = reasonParts.join(', ') || 'An toàn';
+            const reason = reasonParts.join(', ') || 'Safe';
 
             const scores = { p, h, s, n, d };
             console.log('Scores:', scores);
@@ -148,7 +148,7 @@ class NSFWService {
         } catch (error) {
             console.error('NSFW classify error:', error);
             // Fail safe: block if error
-            return { isInappropriate: true, scores: {}, reason: 'Lỗi xử lý ảnh' };
+            return { isInappropriate: true, scores: {}, reason: 'Image processing failed' };
         } finally {
             console.groupEnd();
         }

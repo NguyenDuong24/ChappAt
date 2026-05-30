@@ -1,4 +1,4 @@
-﻿import {
+import {
   collection,
   doc,
   addDoc,
@@ -320,7 +320,7 @@ class HotSpotInviteService {
         distanceToUser
       };
     } catch (error) {
-      console.error('Error updating location:', error);
+      console.error('Error upmatch location:', error);
       throw error;
     }
   }

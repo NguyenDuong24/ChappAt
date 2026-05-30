@@ -102,10 +102,12 @@ export const diagnosticService = {
    */
   async checkServerHealth() {
     try {
-      const response = await fetch('https://saigondating-server.onrender.com/api/vietqr/order-status/test', {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch('https://saigonmatch.com.vn/api/vietqr/order-status/test', {
         method: 'GET',
-        timeout: 5000,
-      }).catch(err => {
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId)).catch(err => {
         // If we get 404 or 401, server is alive
         if (err.response?.status === 404 || err.response?.status === 401 || err.response?.status === 400) {
           return { status: 200, ok: true };
@@ -140,7 +142,7 @@ export const diagnosticService = {
       }
 
       const response = await fetch(
-        `https://saigondating-server.onrender.com/api/vietqr/order-status/${orderId}`,
+        `https://saigonmatch.com.vn/api/vietqr/order-status/${orderId}`,
         {
           method: 'GET',
           headers: {

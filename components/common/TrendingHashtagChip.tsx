@@ -37,10 +37,10 @@ const TrendingHashtagChip: React.FC<TrendingHashtagChipProps> = ({
       activeOpacity={0.8}
       style={[styles.container, style]}
     >
-      <LinearGradient
-        colors={[chipColor, `${chipColor}80`]}
-        style={styles.gradient}
-      >
+       <LinearGradient
+         colors={[chipColor, chipColor]}
+         style={styles.gradient}
+       >
         <Text style={styles.hashtagText}>{displayTag}</Text>
         <Text style={styles.countText}>{formattedCount}</Text>
       </LinearGradient>

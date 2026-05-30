@@ -11,6 +11,11 @@ export const listenForIncomingCall = (userId, onCallReceived) => {
         onCallReceived(callData);
       }
     }
+  }, (error) => {
+    const errorStr = String(error?.message || error?.code || error);
+    if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+      console.error("Error in listenForIncomingCall:", error);
+    }
   });
 };
 

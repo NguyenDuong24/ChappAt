@@ -1,6 +1,5 @@
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { storage } from '@/firebaseConfig';
-import * as FileSystem from 'expo-file-system';
 
 const inferContentType = (uri, fallback = 'application/octet-stream') => {
   if (!uri || typeof uri !== 'string') return fallback;
@@ -32,27 +31,17 @@ const xhrUriToBlob = (uri) =>
 const uriToBlob = async (uri) => {
   try {
     console.log('[storageUpload] Reading file from URI:', uri);
-    
-    // For file:// URIs on React Native, use FileSystem to read
+
+    // React Native on this runtime does not support Blob(ArrayBuffer), so use XHR for local files.
     if (uri.startsWith('file://')) {
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      
-      const binaryString = atob(base64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      
-      const blob = new Blob([bytes], { type: 'application/octet-stream' });
-      console.log('[storageUpload] Blob from FileSystem created:', {
+      const blob = await xhrUriToBlob(uri);
+      console.log('[storageUpload] Blob from local file created:', {
         size: blob.size,
         type: blob.type,
       });
       return blob;
     }
-    
+
     // For other URIs (http, https, etc), use fetch
     const response = await fetch(uri);
     if (!response.ok) {

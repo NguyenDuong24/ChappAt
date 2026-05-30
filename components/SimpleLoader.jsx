@@ -12,7 +12,8 @@ import {
     Platform,
     Dimensions
 } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -155,7 +156,7 @@ const CrossingPathsScreen = () => {
                     </Text>
                     <TouchableOpacity
                         style={[styles.radarButton, { backgroundColor: colors.primary }]}
-                        onPress={() => router.push('/ProximityRadar')}
+                        onPress={() => router.push('/nearby-match')}
                     >
                         <Text style={styles.radarButtonText}>{t('crossing_paths.open_radar')}</Text>
                     </TouchableOpacity>
@@ -311,4 +312,5 @@ const styles = StyleSheet.create({
 });
 
 export default CrossingPathsScreen;
+
 

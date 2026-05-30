@@ -64,7 +64,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
           const foregroundSubscription = Notifications.addNotificationReceivedListener(
             (notification) => {
               console.log('🔔 Foreground notification received:', notification);
-              const data = notification.request.content.data;
+              const data = notification.request.content.data as any;
 
               // Play sound for all notifications except those from the current user
               // if (data?.senderId !== user.uid) {
@@ -91,7 +91,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
           // Store subscription for cleanup
           return () => {
-            foregroundSubscription && Notifications.removeNotificationSubscription(foregroundSubscription);
+            foregroundSubscription?.remove();
           };
         } catch (error) {
           console.error('Error initializing notification services:', error);
@@ -117,7 +117,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         if (!snap.exists()) return;
         const data = snap.data() as any;
         if (data?.notificationSettings && typeof data.notificationSettings === 'object') {
-          await AsyncStorage.setItem('notificationSettings', JSON.stringify(data.notificationSettings));
+          const settings = {
+            ...data.notificationSettings,
+            doNotDisturb: data.doNotDisturb ?? data.notificationSettings.doNotDisturb ?? false,
+          };
+          await AsyncStorage.setItem('notificationSettings', JSON.stringify(settings));
+          await AsyncStorage.setItem('doNotDisturb', String(settings.doNotDisturb === true));
+        } else if (typeof data?.doNotDisturb === 'boolean') {
+          await AsyncStorage.setItem('doNotDisturb', String(data.doNotDisturb));
         }
       } catch (e) {
         console.log('Failed syncing notification settings locally:', e);
@@ -144,6 +151,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       setInitialized(false);
       // Optionally clear local settings to avoid leaking between accounts
       AsyncStorage.removeItem('notificationSettings').catch(() => { });
+      AsyncStorage.removeItem('doNotDisturb').catch(() => { });
     }
   }, [user, initialized]);
 
@@ -176,7 +184,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
         body: notification.body,
         data: notification.data || {},
         priority: 'high',
-        sound: 'default',
+        sound: undefined,
         badge: 1,
         channelId: 'calls' // Sử dụng calls channel với HIGH importance
       });

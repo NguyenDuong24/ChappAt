@@ -333,7 +333,7 @@ class OptimizedHashtagService {
 
       console.log(`✅ Batch updated ${hashtagUpdates.length} hashtag counts`);
     } catch (error) {
-      console.error('❌ Error batch updating hashtag counts:', error);
+      console.error('❌ Error batch upmatch hashtag counts:', error);
       throw error;
     }
   }

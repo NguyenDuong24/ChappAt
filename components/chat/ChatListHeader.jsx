@@ -1,6 +1,8 @@
 import React, { useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@/context/ThemeContext';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,6 +41,19 @@ const ChatListHeader = ({
   const buttonBg = isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(255, 255, 255, 0.72)';
   const buttonBorder = palette.menuBorder;
 
+  // Fallback cho các key dịch chưa có bản dịch
+  const titleText = useMemo(() => {
+    const key = 'chat.title';
+    const translated = t(key);
+    return translated !== key ? translated : 'Trò chuyện';
+  }, [t]);
+
+  const subtitleText = useMemo(() => {
+    const key = 'chat.list_header_subtitle';
+    const translated = t(key);
+    return translated !== key ? translated : 'Tin nhắn của bạn';
+  }, [t]);
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -55,8 +70,12 @@ const ChatListHeader = ({
               <MaterialCommunityIcons name="chat-processing" size={26} color="#8B5CF6" />
             </View>
             <View style={styles.titleSection}>
-              <Text style={[styles.title, { color: iconColor }]}>{t('chat.title')}</Text>
-              <Text style={[styles.subtitle, { color: liquidPalette.subtitleColor }]}>{t('chat.list_header_subtitle')}</Text>
+              <Text style={[styles.title, { color: iconColor }]}>
+                {titleText}
+              </Text>
+              <Text style={[styles.subtitle, { color: liquidPalette.subtitleColor }]}>
+                {subtitleText}
+              </Text>
             </View>
           </View>
 

@@ -102,7 +102,10 @@ class UserCacheService {
 
       return null;
     } catch (error) {
-      console.error('Error fetching user:', userId, error);
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error('Error fetching user:', userId, error);
+      }
       return null;
     }
   }
@@ -137,7 +140,10 @@ class UserCacheService {
 
       console.log('✅ Batch fetched', result.size, 'users');
     } catch (error) {
-      console.error('❌ Error batch fetching users:', error);
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error('? ? Error batch fetching users:', error);
+      }
     }
 
     return result;

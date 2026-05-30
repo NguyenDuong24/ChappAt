@@ -1,14 +1,11 @@
-// components/MessageList.js
+// components/groups/GroupMessageList.tsx
 import React, { useRef, useEffect, useContext, useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, StyleSheet, Dimensions, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { formatTime } from '@/utils/common';
 import GroupMessageItem from './GroupMessageItem';
 import { useTranslation } from 'react-i18next';
-
-const { height: screenHeight } = Dimensions.get('window');
 
 interface GroupMessageListProps {
   messages: any[];
@@ -21,49 +18,53 @@ interface GroupMessageListProps {
   onReport?: (message: any) => void;
   onUserPress?: (userId: string) => void;
   loading?: boolean;
-  // Pagination props
   onLoadMore?: () => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   isLoadingMore?: boolean;
   isInitialLoadComplete?: boolean;
-  // Scroll control
   scrollToEndTrigger?: number;
   currentThemeColors?: any;
 }
 
-// Day separator component - Memoized
+const getMsgUid = (m: any) => m?.uid || m?.userId || m?.senderId || m?.from || '';
+const getMsgTime = (m: any) => {
+  if (!m?.createdAt) return 0;
+  if (typeof m.createdAt === 'number') return m.createdAt;
+  if (m.createdAt.toMillis) return m.createdAt.toMillis();
+  if (m.createdAt.seconds) return m.createdAt.seconds * 1000;
+  if (m.createdAt.getTime) return m.createdAt.getTime();
+  return new Date(m.createdAt).getTime() || 0;
+};
+
 const DaySeparator = React.memo(({ date, currentThemeColors: chatThemeColors }: { date: string, currentThemeColors?: any }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
   const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
-
   return (
     <View style={styles.daySeparatorContainer}>
-      <View style={[styles.daySeparatorLine, { backgroundColor: currentThemeColors.border }]} />
-      <Text style={[styles.daySeparatorText, { color: currentThemeColors.subtleText }]}
-      >
+      <Text style={[styles.daySeparatorText, {
+        color: currentThemeColors.subtleText,
+        backgroundColor: currentThemeColors.surface,
+        borderColor: currentThemeColors.border,
+      }]}>
         {date}
       </Text>
-      <View style={[styles.daySeparatorLine, { backgroundColor: currentThemeColors.border }]} />
     </View>
   );
 });
 
-// Scroll to bottom button - Memoized
 const ScrollToBottomButton = React.memo(({ onPress, visible, currentThemeColors: chatThemeColors }: { onPress: () => void, visible: boolean, currentThemeColors?: any }) => {
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
   const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
-
   if (!visible) return null;
-
   return (
     <TouchableOpacity
-      style={[styles.scrollToBottomButton, { backgroundColor: currentThemeColors.tint }]}
+      style={[styles.scrollToBottomButton, { backgroundColor: currentThemeColors.surface, borderWidth: 1, borderColor: currentThemeColors.border }]}
       onPress={onPress}
     >
-      <Ionicons name="chevron-down" size={24} color="white" />
+      <Ionicons name="chevron-down" size={22} color={currentThemeColors.tint} />
     </TouchableOpacity>
   );
 });
@@ -83,9 +84,8 @@ export default function GroupMessageList({
   hasMore,
   loadingMore,
   isLoadingMore = false,
-  isInitialLoadComplete = false,
-  scrollToEndTrigger = 0,
   currentThemeColors: chatThemeColors,
+  scrollToEndTrigger = 0,
 }: GroupMessageListProps) {
   const { t } = useTranslation();
   const themeCtx = useContext(ThemeContext);
@@ -93,83 +93,114 @@ export default function GroupMessageList({
   const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
   const flatListRef = useRef<FlatList>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const showScrollButtonRef = useRef(false);
 
-  // Scroll to bottom (offset 0) when trigger changes
+  // Dịch thông minh với fallback tiếng Việt
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
+
   useEffect(() => {
     if (scrollToEndTrigger && scrollToEndTrigger > 0) {
       (scrollViewRef?.current || flatListRef.current)?.scrollToOffset({ offset: 0, animated: true });
     }
   }, [scrollToEndTrigger, scrollViewRef]);
-  // Process messages with day separators - Memoized
+
   const processedData = useMemo(() => {
     if (!messages || messages.length === 0) return [];
 
+    const sortedMessages = [...messages].sort((a, b) => getMsgTime(a) - getMsgTime(b));
     const result: any[] = [];
     let lastDate = '';
 
-    // Process in chronological order (messages is already chronological)
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
+    // Xác định locale an toàn – mặc định vi
+    const localeKey = tf('common.locale', 'vi') === 'vi' ? 'vi-VN' : 'en-US';
+
+    for (let i = 0; i < sortedMessages.length; i++) {
+      const message = sortedMessages[i];
+      const timeMs = getMsgTime(message);
       let messageDate = '';
 
-      if (message.createdAt) {
-        const date = message.createdAt.toDate ? message.createdAt.toDate() : new Date(message.createdAt);
+      if (timeMs > 0) {
+        const date = new Date(timeMs);
         const today = new Date();
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
 
         if (date.toDateString() === today.toDateString()) {
-          messageDate = t('common.time.today');
+          messageDate = tf('common.time.today', 'Hôm nay');
         } else if (date.toDateString() === yesterday.toDateString()) {
-          messageDate = t('common.time.yesterday');
+          messageDate = tf('common.time.yesterday', 'Hôm qua');
         } else {
-          messageDate = date.toLocaleDateString(t('common.locale') === 'vi' ? 'vi-VN' : 'en-US');
+          messageDate = date.toLocaleDateString(localeKey);
         }
       }
 
       if (messageDate && messageDate !== lastDate) {
-        result.push({
-          id: `separator-${messageDate}-${i}`,
-          type: 'separator',
-          date: messageDate
-        });
+        result.push({ id: `sep-${messageDate}-${i}`, type: 'separator', date: messageDate });
         lastDate = messageDate;
       }
 
+      const prevMsg = sortedMessages[i - 1];
+      const nextMsg = sortedMessages[i + 1];
+      const currentUid = getMsgUid(message);
+
+      const isSameSenderAsPrev = prevMsg ? getMsgUid(prevMsg) === currentUid : false;
+      const isSameSenderAsNext = nextMsg ? getMsgUid(nextMsg) === currentUid : false;
+
       result.push({
-        id: message.id || message.messageId || `msg-${i}`,
+        id: message.id || message.messageId || `msg-${i}-${currentUid}`,
         type: 'message',
-        data: message
+        data: message,
+        sequenceProps: {
+          isFirstInSequence: !isSameSenderAsPrev,
+          isLastInSequence: !isSameSenderAsNext,
+          isSameSenderAsPrev,
+          isSameSenderAsNext,
+        }
       });
     }
-
     return result;
-  }, [messages, t]);
+  }, [messages, tf]);
 
-  // Reverse data for inverted list - Memoized
-  const reversedData = useMemo(() => {
-    return [...processedData].reverse();
-  }, [processedData]);
+  const reversedData = useMemo(() => [...processedData].reverse(), [processedData]);
 
-  // Handle scroll events - Memoized
+  const listFooterComponent = useMemo(() => isLoadingMore ? (
+    <View style={styles.loadMoreContainer}>
+      <ActivityIndicator size="small" color={currentThemeColors.tint} />
+    </View>
+  ) : null, [isLoadingMore, currentThemeColors.tint]);
+
+  const listEmptyComponent = useMemo(() => (!loading && messages.length === 0) ? (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="chatbubbles-outline" size={40} color={currentThemeColors.subtleText} />
+      <Text style={{ color: currentThemeColors.subtleText, marginTop: 8 }}>
+        {tf('chat.no_messages', 'Chưa có tin nhắn')}
+      </Text>
+    </View>
+  ) : null, [loading, messages.length, currentThemeColors.subtleText, tf]);
+
   const handleScroll = useCallback((event: any) => {
-    const { contentOffset } = event.nativeEvent;
-    const scrollY = contentOffset.y;
-
-    // In inverted list, scrollY > 0 means we are scrolling "up" (visually) into history
-    // So show scroll-to-bottom button if we are far from offset 0
-    setShowScrollButton(scrollY > 200);
+    const shouldShow = event.nativeEvent.contentOffset.y > 200;
+    if (showScrollButtonRef.current !== shouldShow) {
+      showScrollButtonRef.current = shouldShow;
+      setShowScrollButton(shouldShow);
+    }
   }, []);
 
-  // Render item - Memoized
-  const renderItem = useCallback(({ item }: { item: any }) => {
-    if (item.type === 'separator') {
-      return <DaySeparator date={item.date} currentThemeColors={currentThemeColors} />;
-    }
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !isLoadingMore) onLoadMore?.();
+  }, [hasMore, isLoadingMore, onLoadMore]);
 
+  const scrollToBottom = useCallback(() => {
+    (scrollViewRef?.current || flatListRef.current)?.scrollToOffset({ offset: 0, animated: true });
+  }, [scrollViewRef]);
+
+  const renderItem = useCallback(({ item }: { item: any }) => {
+    if (item.type === 'separator') return <DaySeparator date={item.date} currentThemeColors={currentThemeColors} />;
     if (item.type === 'message') {
       const isHighlighted = highlightedMessageId === (item.data.id || item.data.messageId);
-
       return (
         <GroupMessageItem
           message={item.data}
@@ -180,64 +211,35 @@ export default function GroupMessageList({
           onReport={onReport}
           onUserPress={onUserPress}
           currentThemeColors={currentThemeColors}
+          {...item.sequenceProps}
         />
       );
     }
-
     return null;
-  }, [currentUser, groupId, onReply, highlightedMessageId, onReport, onUserPress]);
-
-  const keyExtractor = useCallback((item: any, index: number) => {
-    return item.id || `item-${index}`;
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    (scrollViewRef?.current || flatListRef.current)?.scrollToOffset({ offset: 0, animated: true });
-    setShowScrollButton(false);
-  }, [scrollViewRef]);
-
-  // List footer - loading more indicator (visually at top)
-  const ListFooterComponent = useMemo(() => {
-    if (isLoadingMore) {
-      return (
-        <View style={styles.loadMoreContainer}>
-          <ActivityIndicator size="small" color={currentThemeColors.tint} />
-          <Text style={[styles.loadMoreText, { color: currentThemeColors.subtleText }]}>
-            {t('chat.loading_more')}
-          </Text>
-        </View>
-      );
-    }
-    return null;
-  }, [isLoadingMore, currentThemeColors]);
+  }, [currentUser, groupId, onReply, highlightedMessageId, onReport, onUserPress, currentThemeColors]);
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
+    <View style={styles.container}>
       <FlatList
         ref={scrollViewRef || flatListRef}
         data={reversedData}
         renderItem={renderItem}
-        keyExtractor={keyExtractor}
+        keyExtractor={item => item.id}
         contentContainerStyle={styles.listContainer}
         onScroll={handleScroll}
         scrollEventThrottle={100}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        initialNumToRender={15}
-        maxToRenderPerBatch={10}
-        windowSize={10}
         inverted={true}
-        ListFooterComponent={ListFooterComponent}
-        onEndReached={() => {
-          if (hasMore && !isLoadingMore && onLoadMore) {
-            onLoadMore();
-          }
-        }}
+        ListFooterComponent={listFooterComponent}
+        ListEmptyComponent={listEmptyComponent}
+        onEndReached={handleEndReached}
         onEndReachedThreshold={0.3}
-        keyboardDismissMode="interactive"
-        automaticallyAdjustContentInsets={false}
+        removeClippedSubviews={true}
+        initialNumToRender={12}
+        maxToRenderPerBatch={8}
+        windowSize={9}
+        updateCellsBatchingPeriod={80}
       />
-
       <ScrollToBottomButton
         visible={showScrollButton}
         onPress={scrollToBottom}
@@ -248,65 +250,18 @@ export default function GroupMessageList({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  listContainer: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    paddingBottom: 24,
-  },
-  daySeparatorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 18,
-    paddingHorizontal: 24,
-  },
-  daySeparatorLine: {
-    flex: 1,
-    height: 1,
-  },
+  container: { flex: 1 },
+  listContainer: { paddingVertical: 12 },
+  daySeparatorContainer: { alignItems: 'center', marginVertical: 12 },
   daySeparatorText: {
-    marginHorizontal: 12,
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    textAlign: 'center',
+    paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1,
+    fontSize: 10, fontWeight: '700', textTransform: 'uppercase',
   },
   scrollToBottomButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+    position: 'absolute', bottom: 20, right: 16, width: 42, height: 42,
+    borderRadius: 21, justifyContent: 'center', alignItems: 'center',
+    elevation: 4, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4,
   },
-  loadMoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 8,
-  },
-  loadMoreText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  loadMoreHint: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  loadMoreHintText: {
-    fontSize: 12,
-    fontStyle: 'italic',
-  },
+  loadMoreContainer: { paddingVertical: 12, alignItems: 'center' },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', transform: [{ scaleY: -1 }], height: 300 },
 });
-

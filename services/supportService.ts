@@ -26,7 +26,7 @@ export async function submitFeedback(feedback: FeedbackData, user?: { uid?: stri
     username: user?.username || null,
     createdAt: serverTimestamp(),
     status: 'new',
-    app: 'ChappAt',
+    app: 'SaiGon Match',
     type: 'feedback',
   };
   await addDoc(collection(db, 'app_feedback'), payload);
@@ -48,7 +48,7 @@ export async function submitReport(report: ReportData, user?: { uid?: string; em
     reporterName: user?.username || null,
     createdAt: serverTimestamp(),
     status: 'open',
-    app: 'ChappAt',
+    app: 'SaiGon Match',
     type: 'report',
     // Ensure images is always an array
     images: Array.isArray(report.images) ? report.images : [],
@@ -85,7 +85,7 @@ export async function submitSupportRequest(message: string, email?: string | nul
     type: type || 'support',
     createdAt: serverTimestamp(),
     status: 'new',
-    app: 'ChappAt',
+    app: 'SaiGon Match',
     requestType: 'support_request',
   };
 

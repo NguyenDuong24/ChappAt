@@ -1,7 +1,7 @@
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
 import React, { useContext } from 'react';
-import { FontAwesome } from '@expo/vector-icons';
-import { useRouter, useSegments } from 'expo-router';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useRouter } from 'expo-router';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -15,8 +15,6 @@ interface ButtonToChatProps {
 
 export default function ButtonToChat({ id }: ButtonToChatProps) {
   const router = useRouter();
-  const segments = useSegments();
-  const activeTab = Array.isArray(segments) ? (segments[0] === '(tabs)' ? segments[1] : segments[0]) : segments[0];
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
   const { user } = useAuth();
@@ -69,8 +67,7 @@ export default function ButtonToChat({ id }: ButtonToChatProps) {
           justifyContent: 'center',
           alignItems: 'center'
         }} onPress={() => {
-          const dest = activeTab === 'chat' ? `/(tabs)/chat/${id}` : activeTab === 'home' ? `/(tabs)/home/chat/${id}` : `/chat/${id}`;
-          router.push(dest as any);
+          router.push(`/chat/${id}` as any);
           }}>
           <Text style={{
             marginRight: 10,

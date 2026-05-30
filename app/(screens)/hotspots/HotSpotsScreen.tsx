@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useContext, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
@@ -67,8 +68,20 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
 
   const isDark = Boolean(darkMode);
 
+  const imageWidth = width - 34;
+  const imageKeyExtractor = useCallback((img: string, index: number) => `${item.id}-img-${index}`, [item.id]);
+  const renderImage = useCallback(({ item: imgUrl }: { item: string }) => (
+    <Image
+      source={{ uri: imgUrl }}
+      style={[styles.cardImage, { width: imageWidth }]}
+      contentFit="cover"
+      transition={80}
+      cachePolicy="memory-disk"
+    />
+  ), [imageWidth]);
+
   return (
-    <Animated.View entering={FadeInDown.springify()}>
+    <View>
       <LiquidSurface
         themeMode={theme}
         borderRadius={28}
@@ -89,15 +102,12 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
-                  keyExtractor={(img, index) => `${item.id}-img-${index}`}
-                  renderItem={({ item: imgUrl }) => (
-                    <Image
-                      source={{ uri: imgUrl }}
-                      style={[styles.cardImage, { width: width - 34 }]} // Subtracting border/padding
-                      contentFit="cover"
-                      transition={200}
-                    />
-                  )}
+                  keyExtractor={imageKeyExtractor}
+                  renderItem={renderImage}
+                  initialNumToRender={1}
+                  maxToRenderPerBatch={1}
+                  windowSize={3}
+                  removeClippedSubviews={true}
                 />
                 {/* Pagination Dots */}
                 <View style={styles.paginationDots}>
@@ -117,7 +127,8 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
                 source={{ uri: item.imageUrl || item.images?.[0] }}
                 style={styles.cardImage}
                 contentFit="cover"
-                transition={200}
+                transition={80}
+                cachePolicy="memory-disk"
               />
             )}
 
@@ -132,19 +143,19 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
                 {item.hasCheckedIn && (
                   <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.badge}>
                     <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                    <Text style={[styles.badgeText, { color: '#10B981' }]}>{t('hotspots.checked_in').toUpperCase()}</Text>
+                    <Text style={[styles.badgeText, { color: '#10B981' }]}>{t('hotspots.checked_in', 'Đã check-in').toUpperCase()}</Text>
                   </BlurView>
                 )}
                 {item.isNew && (
                   <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.badge}>
                     <Ionicons name="sparkles" size={12} color="#8B5CF6" />
-                    <Text style={[styles.badgeText, { color: '#8B5CF6' }]}>{t('hotspots.new').toUpperCase()}</Text>
+                    <Text style={[styles.badgeText, { color: '#8B5CF6' }]}>{t('hotspots.new', 'Mới').toUpperCase()}</Text>
                   </BlurView>
                 )}
                 {item.isPopular && (
                   <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.badge}>
                     <Ionicons name="flame" size={12} color="#EF4444" />
-                    <Text style={[styles.badgeText, { color: '#EF4444' }]}>{t('hotspots.hot').toUpperCase()}</Text>
+                    <Text style={[styles.badgeText, { color: '#EF4444' }]}>{t('hotspots.hot', 'Hot').toUpperCase()}</Text>
                   </BlurView>
                 )}
               </View>
@@ -173,7 +184,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
               <View style={styles.infoRow}>
                 <Ionicons name="location" size={16} color={palette.subtitleColor} />
                 <Text style={[styles.infoText, { color: palette.subtitleColor }]} numberOfLines={1}>
-                  {safeText(item.location, t('hotspots.unknown_location'))}
+                  {safeText(item.location, t('hotspots.unknown_location', 'Chưa rõ địa điểm'))}
                 </Text>
               </View>
 
@@ -226,7 +237,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
                       { color: item.isInterested ? "white" : palette.textColor },
                       { fontSize: 15 }
                     ]}>
-                      {item.isInterested ? t('hotspots.already_interested') : t('hotspots.interested')}
+                      {item.isInterested ? t('hotspots.already_interested', 'Đã quan tâm') : t('hotspots.interested', 'Quan tâm')}
                     </Text>
                   </>
                 )}
@@ -262,7 +273,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
 
               <View style={styles.statsGroup}>
                 <Text style={[styles.participantCount, { color: palette.textColor }]}>{item.interestedCount ?? 0}</Text>
-                <Text style={[styles.ratingText, { fontSize: 11, marginBottom: 4, color: palette.subtitleColor }]}>{t('hotspots.interested')}</Text>
+                <Text style={[styles.ratingText, { fontSize: 11, marginBottom: 4, color: palette.subtitleColor }]}>{t('hotspots.interested', 'Quan tâm')}</Text>
                 <View style={styles.statsRow}>
                   <View style={styles.rating}>
                     <Ionicons name="star" size={16} color="#FBBF24" />
@@ -270,7 +281,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
                   </View>
                   {item.price && (
                     <Text style={[styles.price, { color: palette.sphereGradient[0] }]}>
-                      {item.price.toLocaleString('vi-VN')}{t('hotspots.currency')}
+                      {item.price.toLocaleString('vi-VN')}{t('hotspots.currency', 'đ')}
                     </Text>
                   )}
                 </View>
@@ -279,7 +290,7 @@ const HotSpotCard = React.memo(({ item, onInterested, onShowInterestedUsers, onS
           </View>
         </TouchableOpacity>
       </LiquidSurface>
-    </Animated.View>
+    </View>
   );
 });
 
@@ -292,6 +303,12 @@ const HotSpotsScreen = () => {
   const isDark = themeContext?.isDark ?? (theme === 'dark');
   const palette = useMemo(() => themeContext?.palette || getLiquidPalette(theme), [theme, themeContext]);
   const { user } = useAuth();
+
+  // Fallback helper
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
 
   const {
     hotSpots,
@@ -338,22 +355,22 @@ const HotSpotsScreen = () => {
   }, [user?.uid]);
 
   // Handlers
-  const handleSearch = (text: string) => {
+  const handleSearch = useCallback((text: string) => {
     setSearchQuery(text);
     updateFilters({ searchQuery: text, category: selectedCategory === 'all' ? undefined : selectedCategory });
-  };
+  }, [selectedCategory, updateFilters]);
 
-  const handleCategorySelect = (categoryKey: string) => {
+  const handleCategorySelect = useCallback((categoryKey: string) => {
     setSelectedCategory(categoryKey);
     updateFilters({
       category: categoryKey === 'all' ? undefined : categoryKey,
       searchQuery
     });
-  };
+  }, [searchQuery, updateFilters]);
 
-  const handleInterested = async (hotSpotId: string) => {
+  const handleInterested = useCallback(async (hotSpotId: string) => {
     if (!user) {
-      Alert.alert(t('common.login_required'), t('hotspots.login_to_interact'));
+      Alert.alert(tf('common.login_required', 'Yêu cầu đăng nhập'), tf('hotspots.login_to_interact', 'Vui lòng đăng nhập để tương tác'));
       return;
     }
 
@@ -366,24 +383,24 @@ const HotSpotsScreen = () => {
         await markInterested(hotSpotId);
       }
     } catch (err) {
-      Alert.alert(t('common.error'), t('hotspots.action_failed'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('hotspots.action_failed', 'Thao tác thất bại'));
     } finally {
       setActionLoading(prev => ({ ...prev, [hotSpotId]: false }));
     }
-  };
+  }, [hotSpots, markInterested, removeInterested, tf, user]);
 
-  const handleShowInterestedUsers = (id: string, title: string) => {
+  const handleShowInterestedUsers = useCallback((id: string, title: string) => {
     setSelectedEventId(id);
     setSelectedEventTitle(title);
     setShowInterestedModal(true);
-  };
+  }, []);
 
-  const handleSpotPress = (spot: UIHotSpot) => {
+  const handleSpotPress = useCallback((spot: UIHotSpot) => {
     router.push({
       pathname: '/(screens)/hotspots/HotSpotDetailScreen',
       params: { hotSpotId: spot.id }
     });
-  };
+  }, [router]);
 
   const handleInviteAccepted = async (chatRoomId: string, eventId?: string, eventTitle?: string) => {
     await refresh();
@@ -427,14 +444,46 @@ const HotSpotsScreen = () => {
     return filtered;
   }, [hotSpots, timeFilter]);
 
-  // ==================== RENDERS ====================
-  const headerSubtitleText = (() => {
-    const translated = t('hotspots.discover_interesting');
-    if (!translated || translated === 'hotspots.discover_interesting' || translated.startsWith('hotspots.')) {
-      return 'Discover interesting places and events';
-    }
-    return translated;
-  })();
+  const hotSpotKeyExtractor = useCallback((item: UIHotSpot) => item.id, []);
+
+  const renderHotSpotItem = useCallback(({ item }: { item: UIHotSpot }) => (
+    <HotSpotCard
+      item={item}
+      onInterested={handleInterested}
+      onShowInterestedUsers={handleShowInterestedUsers}
+      onSpotPress={handleSpotPress}
+      actionLoading={actionLoading}
+      t={tf} // truyền tf thay vì t để dùng fallback
+      theme={theme}
+      palette={palette}
+      darkMode={isDark}
+    />
+  ), [actionLoading, handleInterested, handleShowInterestedUsers, handleSpotPress, isDark, palette, tf, theme]);
+
+  const refreshControl = useMemo(() => (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={refresh}
+      colors={[THEME.hotSpots.primary]}
+      tintColor={THEME.hotSpots.primary}
+      progressViewOffset={Platform.OS === 'ios' ? 280 : 260}
+    />
+  ), [THEME.hotSpots.primary, refresh, refreshing]);
+
+  const listContentStyle = useMemo(() => [
+    styles.listContent,
+    { paddingTop: Platform.OS === 'ios' ? 280 : 260 },
+  ], []);
+
+  const closeInterestedModal = useCallback(() => setShowInterestedModal(false), []);
+
+  const closeInvitesModal = useCallback(() => {
+    setShowInvitesModal(false);
+    loadPendingInvites();
+  }, []);
+
+  // ==================== HEADER ====================
+  const headerSubtitleText = tf('hotspots.discover_interesting', 'Khám phá địa điểm và sự kiện thú vị');
 
   const renderHeader = () => {
     const headerTranslateY = scrollY.interpolate({
@@ -490,7 +539,7 @@ const HotSpotsScreen = () => {
             <Ionicons name="search" size={20} color={palette.subtitleColor} style={{ marginLeft: 12 }} />
             <TextInput
               style={[styles.searchInput, { color: palette.textColor }]}
-              placeholder={t('hotspots.search_placeholder')}
+              placeholder={tf('hotspots.search_placeholder', 'Tìm kiếm Hot Spots...')}
               placeholderTextColor={palette.subtitleColor}
               value={searchQuery}
               onChangeText={handleSearch}
@@ -538,7 +587,7 @@ const HotSpotsScreen = () => {
                   color={active ? '#FFFFFF' : cat.gradient[0]}
                 />
                 <Text style={[styles.categoryText, { color: active ? '#FFFFFF' : palette.textColor }]}>
-                  {t(cat.label)}
+                  {tf(cat.label, cat.label.split('.').pop() || cat.label)}
                 </Text>
               </TouchableOpacity>
             );
@@ -558,7 +607,7 @@ const HotSpotsScreen = () => {
               onPress={() => setTimeFilter(filter)}
             >
               <Text style={[styles.timeText, { color: timeFilter === filter ? palette.sphereGradient[0] : palette.subtitleColor }, timeFilter === filter && styles.timeTextActive]}>
-                {t(`hotspots.time_filters.${filter}`)}
+                {tf(`hotspots.time_filters.${filter}`, filter === 'all' ? 'Tất cả' : filter === 'today' ? 'Hôm nay' : 'Sắp tới')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -601,7 +650,7 @@ const HotSpotsScreen = () => {
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Ionicons name="location" size={14} color="rgba(255,255,255,0.95)" />
           <Text style={styles.featuredSubtitle} numberOfLines={1}>
-            {item.location || t('hotspots.unknown_location')}
+            {item.location || tf('hotspots.unknown_location', 'Chưa rõ địa điểm')}
           </Text>
         </View>
       </View>
@@ -614,7 +663,7 @@ const HotSpotsScreen = () => {
       {featuredSpots.length > 0 && (
         <View style={styles.featuredSection}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: palette.textColor }]}>{t('hotspots.featured')}</Text>
+            <Text style={[styles.sectionTitle, { color: palette.textColor }]}>{tf('hotspots.featured', 'Nổi bật')}</Text>
             <TouchableOpacity
               style={styles.toggleButton}
               onPress={() => setShowFeatured(!showFeatured)}
@@ -650,8 +699,8 @@ const HotSpotsScreen = () => {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Ionicons name="search-outline" size={64} color={palette.subtitleColor} />
-      <Text style={[styles.emptyTitle, { color: palette.textColor }]}>{t('hotspots.no_results_title')}</Text>
-      <Text style={[styles.emptySubtitle, { color: palette.subtitleColor }]}>{t('hotspots.no_results_subtitle')}</Text>
+      <Text style={[styles.emptyTitle, { color: palette.textColor }]}>{tf('hotspots.no_results_title', 'Không tìm thấy kết quả')}</Text>
+      <Text style={[styles.emptySubtitle, { color: palette.subtitleColor }]}>{tf('hotspots.no_results_subtitle', 'Thử thay đổi bộ lọc')}</Text>
     </View>
   );
 
@@ -682,62 +731,38 @@ const HotSpotsScreen = () => {
 
       <RNAnimated.FlatList
         data={visibleHotSpots}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <HotSpotCard
-            item={item}
-            onInterested={handleInterested}
-            onShowInterestedUsers={handleShowInterestedUsers}
-            onSpotPress={handleSpotPress}
-            actionLoading={actionLoading}
-            t={t}
-            theme={theme}
-            palette={palette}
-            darkMode={isDark}
-          />
-        )}
+        keyExtractor={hotSpotKeyExtractor}
+        renderItem={renderHotSpotItem}
         ListHeaderComponent={renderListHeader}
         ListEmptyComponent={renderEmptyState}
-        contentContainerStyle={[
-          styles.listContent,
-          { paddingTop: Platform.OS === 'ios' ? 280 : 260 }
-        ]}
+        contentContainerStyle={listContentStyle}
         showsVerticalScrollIndicator={false}
         onScroll={RNAnimated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: true }
         )}
         scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refresh}
-            colors={[THEME.hotSpots.primary]}
-            tintColor={THEME.hotSpots.primary}
-            progressViewOffset={Platform.OS === 'ios' ? 280 : 260}
-          />
-        }
+        refreshControl={refreshControl}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
-        initialNumToRender={5}
-        maxToRenderPerBatch={5}
-        windowSize={10}
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={7}
+        updateCellsBatchingPeriod={80}
+        removeClippedSubviews={Platform.OS === 'android'}
       />
 
       {/* Modals */}
       <InterestedUsersModal
         visible={showInterestedModal}
-        onClose={() => setShowInterestedModal(false)}
+        onClose={closeInterestedModal}
         eventId={selectedEventId}
         eventTitle={selectedEventTitle}
       />
 
       <EventInvitesModal
         visible={showInvitesModal}
-        onClose={() => {
-          setShowInvitesModal(false);
-          loadPendingInvites();
-        }}
+        onClose={closeInvitesModal}
         onInviteAccepted={handleInviteAccepted}
       />
     </View>
@@ -761,24 +786,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
     overflow: 'hidden',
-  },
-  headerDecorOrbA: {
-    position: 'absolute',
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    top: -60,
-    right: -40,
-  },
-  headerDecorOrbB: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    bottom: -42,
-    left: -24,
   },
   headerContent: {
     flexDirection: 'row',
@@ -841,10 +848,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
   },
-  searchGradient: {
-    borderRadius: 20,
-    padding: 2,
-  },
   searchInner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -890,9 +893,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: 'white',
   },
-  categoryTextInactive: {
-    color: 'rgba(255,255,255,0.85)',
-  },
   timeFilters: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -905,9 +905,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     backgroundColor: 'transparent',
-  },
-  timeChipActive: {
-    borderWidth: 1,
   },
   timeText: {
     fontSize: 14,
@@ -1097,22 +1094,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     minHeight: 44,
   },
-  actionButtonInactive: {
-    backgroundColor: '#F4F5FB',
-    borderColor: '#E4E7F5',
-  },
   actionButtonActive: {
     borderColor: 'transparent',
   },
   actionText: {
     fontSize: 12,
     fontWeight: '700',
-  },
-  actionTextInactive: {
-    color: '#5D647C',
-  },
-  actionTextActive: {
-    color: 'white',
   },
   participantsSection: {
     flexDirection: 'row',
@@ -1218,5 +1205,3 @@ const styles = StyleSheet.create({
 });
 
 export default HotSpotsScreen;
-
-

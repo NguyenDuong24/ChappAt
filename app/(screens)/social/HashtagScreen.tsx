@@ -417,7 +417,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.10,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
   },
   headerTop: {
     flexDirection: 'row',
@@ -509,7 +508,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
   },
   createPostText: {
     color: 'white',

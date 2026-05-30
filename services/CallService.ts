@@ -124,6 +124,11 @@ export class CallService {
           onCallReceived(callData);
         }
       });
+    }, (error) => {
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error("Error in listenToIncomingCalls:", error);
+      }
     });
   }
 
@@ -135,6 +140,11 @@ export class CallService {
       if (doc.exists()) {
         const callData = doc.data() as CallData;
         onStatusChange(callData.status);
+      }
+    }, (error) => {
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error("Error in listenToCallStatus:", error);
       }
     });
   }

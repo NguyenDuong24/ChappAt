@@ -10,7 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useStateCommon } from '@/context/stateCommon';
 import { DEFAULT_FILTER } from '@/utils/filterStorage';
@@ -88,7 +88,7 @@ const FilterScreen = () => {
   ];
 
   const relationshipTypes = [
-    'Casual dating', 'Long-term relationship', 'Marriage', 'Friendship'
+    'Casual match', 'Long-term relationship', 'Marriage', 'Friendship'
   ];
 
   const toggleArrayItem = (array: string[], item: string) => {

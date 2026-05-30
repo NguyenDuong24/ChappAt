@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   ScrollView
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const HotSpotFlowDemo: React.FC = () => {

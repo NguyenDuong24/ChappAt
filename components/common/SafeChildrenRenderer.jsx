@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
-
+import Ionicons from '@expo/vector-icons/Ionicons';
 interface SimpleImageProps {
   source: string;
   style: any;

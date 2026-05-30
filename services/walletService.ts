@@ -31,7 +31,7 @@ async function spend(uid: string, amount: number, metadata: Record<string, any> 
   if (!uid) throw new Error('Missing uid');
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Amount must be > 0');
   // Use coin server instead of Cloud Functions
-  await coinServerApi.spend(amount, metadata);
+  await coinServerApi.spend(amount, metadata.currencyType || 'banhMi', metadata);
 }
 
 async function purchaseItem(uid: string, itemId: string) {

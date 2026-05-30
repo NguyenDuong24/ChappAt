@@ -31,20 +31,7 @@ const languageDetector = {
                 return callback(savedLanguage);
             }
 
-            let locale = 'vi';
-            try {
-                // Use require to avoid top-level native module issues
-                const Localization = require('expo-localization');
-                if (Localization && typeof Localization.getLocales === 'function') {
-                    const locales = Localization.getLocales();
-                    if (locales && locales.length > 0 && locales[0].languageCode) {
-                        locale = locales[0].languageCode;
-                    }
-                }
-            } catch (e) {
-                console.log('Error getting locales', e);
-            }
-            callback(locale === 'vi' ? 'vi' : 'en');
+            callback('vi');
         } catch (error) {
             console.log('Error reading language', error);
             callback('vi');

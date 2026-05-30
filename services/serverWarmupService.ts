@@ -1,6 +1,6 @@
 import { AppState, AppStateStatus } from 'react-native';
 
-const SERVER_BASE_URL = 'https://saigondating-server.onrender.com';
+const SERVER_BASE_URL = 'https://saigonmatch.com.vn';
 const WARMUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
 const HEALTH_CHECK_TIMEOUT = 5000; // 5 seconds
 
@@ -42,16 +42,12 @@ class ServerWarmupService {
      */
     private async warmupServer() {
         if (this.isWarming) {
-            console.log('⏳ [ServerWarmup] Already warming up, skipping...');
             return;
         }
 
         this.isWarming = true;
-        const startTime = Date.now();
 
         try {
-            console.log('🔥 [ServerWarmup] Pinging server...');
-
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), HEALTH_CHECK_TIMEOUT);
 
@@ -62,19 +58,17 @@ class ServerWarmupService {
 
             clearTimeout(timeoutId);
 
-            const duration = Date.now() - startTime;
-
-            if (response.ok) {
-                console.log(`✅ [ServerWarmup] Server is warm! Response time: ${duration}ms`);
-            } else {
+            if (!response.ok) {
                 console.warn(`⚠️ [ServerWarmup] Server responded with status ${response.status}`);
             }
         } catch (error: any) {
-            const duration = Date.now() - startTime;
-            if (error.name === 'AbortError') {
-                console.warn(`⏱️ [ServerWarmup] Health check timeout after ${duration}ms`);
-            } else {
-                console.error('❌ [ServerWarmup] Failed to warm up server:', error.message);
+            // Silently ignore network errors during warmup - not critical
+            if (__DEV__) {
+                if (error.name === 'AbortError') {
+                    console.log(`⏱️ [ServerWarmup] Health check timeout`);
+                } else {
+                    console.log(`🔌 [ServerWarmup] Server unreachable (offline/dev mode)`);
+                }
             }
         } finally {
             this.isWarming = false;

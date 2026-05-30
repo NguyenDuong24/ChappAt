@@ -263,7 +263,7 @@ class NotificationNavigationService {
   private navigateToHashtag(data: NotificationData) {
     if (data.hashtag) {
       console.log('🧭 Navigating to hashtag:', data.hashtag);
-      router.push(`/HashtagPostsScreen?hashtag=${encodeURIComponent(data.hashtag)}`);
+      router.push(`/HashtagPostsScreen?hashtag=${encodeURIComponent(data.hashtag)}` as any);
     } else {
       console.log('❌ No hashtag in hashtag notification');
       this.navigateToNotifications();
@@ -401,7 +401,7 @@ class NotificationNavigationService {
 
   cleanup() {
     if (this.navigationListener) {
-      Notifications.removeNotificationSubscription(this.navigationListener);
+      this.navigationListener.remove();
       this.navigationListener = null;
     }
     this.isInitialized = false;

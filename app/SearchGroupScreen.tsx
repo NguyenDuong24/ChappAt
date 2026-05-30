@@ -110,7 +110,7 @@ const SearchGroupScreen = () => {
 
   const joinGroup = useCallback(async (item: GroupItem) => {
     if (!user?.uid) {
-      Alert.alert(t('common.error'), 'Please sign in first.');
+      Alert.alert(t('common.error'), t('groups.login_required'));
       return;
     }
 
@@ -121,7 +121,7 @@ const SearchGroupScreen = () => {
     }
 
     if ((item.type || 'private') === 'private' && !item.isSearchable) {
-      Alert.alert(t('common.info'), 'This private group only accepts invites.');
+      Alert.alert(t('common.info'), t('groups.private_group_invite_only'));
       return;
     }
 

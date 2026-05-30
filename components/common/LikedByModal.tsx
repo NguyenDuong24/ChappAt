@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   SafeAreaView,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -89,6 +89,7 @@ const LikedByModal: React.FC<LikedByModalProps> = ({
           <CustomImage 
             source={item.profileUrl} 
             style={styles.avatar} 
+            onLongPress={() => {}}
           />
         </View>
         <View style={styles.userTextInfo}>

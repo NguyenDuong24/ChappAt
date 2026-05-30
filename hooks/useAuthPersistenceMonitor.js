@@ -44,6 +44,9 @@ export const useAuthRouting = (isAuthenticated) => {
       segments.includes('ProximityRadar') ||
       segments.includes('GroupVoiceRoom') ||
       segments.includes('CoinWalletScreen') ||
+      segments.includes('PaymentSuccessScreen') ||
+      segments.includes('TransactionDetailScreen') ||
+      segments.includes('TransactionSearchScreen') ||
       segments.includes('HotSpotDetailScreen') ||
       segments.includes('ProUpgradeScreen') ||
       segments.includes('StoreScreen') ||

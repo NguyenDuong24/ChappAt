@@ -7,7 +7,7 @@ import { Linking, Platform } from 'react-native';
 import { getAuth } from 'firebase/auth';
 
 // Cấu hình URL server
-const API_BASE_URL = 'https://saigondating-server.onrender.com/api';
+const API_BASE_URL = 'https://saigonmatch.com.vn/api';
 
 // Các gói coin có sẵn (giá test nhỏ - tối thiểu 1000đ theo MoMo)
 export const COIN_PACKAGES = [
@@ -136,7 +136,7 @@ export const momoPaymentService = {
             method: 'POST',
             body: JSON.stringify({
                 amount: coinPackage.price,
-                orderInfo: `Nap ${coinPackage.coins} Coin ChappAt`,
+                orderInfo: `Nap ${coinPackage.coins} Coin SaiGon Match`,
                 purchaseType: 'coin',
                 coinAmount: coinPackage.coins + (coinPackage.bonus || 0),
                 packageId: coinPackage.id,
@@ -156,7 +156,7 @@ export const momoPaymentService = {
             method: 'POST',
             body: JSON.stringify({
                 amount: PRO_PACKAGE.price,
-                orderInfo: 'Nang cap Pro ChappAt - 1 Thang',
+                orderInfo: 'Nang cap Pro SaiGon Match - 1 Thang',
                 purchaseType: 'pro',
                 duration: PRO_PACKAGE.duration,
                 packageId: PRO_PACKAGE.id,

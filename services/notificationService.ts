@@ -7,7 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Cấu hình notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),
@@ -93,7 +94,6 @@ class NotificationService {
     // Listener cho notification được nhận khi app đang mở
     this.notificationListener = Notifications.addNotificationReceivedListener(
       (notification) => {
-        console.log('Notification received:', notification);
         this.handleNotificationReceived(notification);
       }
     );
@@ -167,7 +167,7 @@ class NotificationService {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Default',
         importance: Notifications.AndroidImportance.DEFAULT,
-        sound: 'default',
+        sound: undefined,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#4f8bff',
       });
@@ -196,7 +196,7 @@ class NotificationService {
       await Notifications.setNotificationChannelAsync('social', {
         name: 'Social',
         importance: Notifications.AndroidImportance.DEFAULT,
-        sound: 'default',
+        sound: undefined,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#51cf66',
       });
@@ -205,7 +205,7 @@ class NotificationService {
       await Notifications.setNotificationChannelAsync('system', {
         name: 'System',
         importance: Notifications.AndroidImportance.MIN,
-        sound: 'default',
+        sound: undefined,
       });
     } catch (e) {
       console.warn('Failed to create Android channels', e);
@@ -317,7 +317,7 @@ class NotificationService {
       const unreadCount = await this.getUnreadMessageCount();
       await Notifications.setBadgeCountAsync(unreadCount);
     } catch (error) {
-      console.error('Error updating badge count:', error);
+      console.error('Error upmatch badge count:', error);
     }
   }
 
@@ -329,9 +329,13 @@ class NotificationService {
 
   private async shouldSendLocalNotification(notification: LocalNotification): Promise<boolean> {
     try {
+      const dnd = await AsyncStorage.getItem('doNotDisturb');
+      if (dnd === 'true') return false;
+
       const raw = await AsyncStorage.getItem('notificationSettings');
       if (!raw) return true; // chưa cấu hình => cho phép
       const settings = JSON.parse(raw) as Record<string, boolean>;
+      if (settings.doNotDisturb === true) return false;
 
       // Map category/type -> toggle id trong NotificationSettingsScreen
       const type = notification.data?.type;
@@ -479,12 +483,13 @@ class NotificationService {
 
   cleanup() {
     if (this.notificationListener) {
-      Notifications.removeNotificationSubscription(this.notificationListener);
+      this.notificationListener.remove();
     }
     if (this.responseListener) {
-      Notifications.removeNotificationSubscription(this.responseListener);
+      this.responseListener.remove();
     }
   }
 }
 
 export default new NotificationService();
+

@@ -1,80 +1,142 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, KeyboardAvoidingView, Platform, Alert, ImageBackground, ActivityIndicator, SectionList, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ImageBackground,
+  ActivityIndicator,
+  SectionList,
+  ScrollView,
+  StatusBar,
+} from 'react-native';
+
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
+
 import { useAuth } from '../../context/authContext';
+
 import schoolsData from '../../assets/model/schools_hcm.json';
 import educationData from '@/assets/data/educationData.json';
 
-const educationLevels = educationData.educationLevels;
+import ProgressIndicator from '@/components/signup/ProgressIndicator';
+import { useTranslation } from 'react-i18next';
+
+const educationBaseLevels = educationData.educationLevels;
 const jobs = educationData.jobs;
 
 const EducationSelectionScreen = () => {
-  const { educationLevel, setEducationLevel, university, setUniversity, job, setJob, isOnboarding } = useAuth();
+  const { t } = useTranslation();
+  const {
+    educationLevel,
+    setEducationLevel,
+    university,
+    setUniversity,
+    job,
+    setJob,
+    signupType,
+  } = useAuth();
+
+  const deliveredT = t;
+
   const [customLevel, setCustomLevel] = useState('');
   const [customUniversity, setCustomUniversity] = useState('');
   const [customJob, setCustomJob] = useState('');
+
   const [selectedLevel, setSelectedLevel] = useState(educationLevel);
   const [selectedUniversity, setSelectedUniversity] = useState(university);
   const [selectedJob, setSelectedJob] = useState(job);
-  const [universitiesList, setUniversitiesList] = useState([]);
-  const [searchText, setSearchText] = useState('');
-  const [loadingUniversities, setLoadingUniversities] = useState(true);
+
   const [loading, setLoading] = useState(false);
+  const [searchText, setSearchText] = useState('');
+
   const [schoolSections, setSchoolSections] = useState([]);
   const [filteredSections, setFilteredSections] = useState([]);
+
   const router = useRouter();
 
   useEffect(() => {
-    if (educationLevel && !educationLevels.some(e => e.label === educationLevel)) {
-      setSelectedLevel('Khác');
-      setCustomLevel(educationLevel);
-    } else if (!educationLevel) {
-      setSelectedLevel(null);
-    }
-    if (university && !universitiesList.some(u => u.label === university) && universitiesList.length > 0) {
-      setSelectedUniversity('Khác');
-      setCustomUniversity(university);
-    } else if (!university) {
-      setSelectedUniversity(null);
-    }
-    if (job && !jobs.some(j => j.label === job)) {
-      setSelectedJob('Khác');
-      setCustomJob(job);
-    } else if (!job) {
-      setSelectedJob(null);
-    }
-  }, [universitiesList]);
+    const uniList = schoolsData.universities.map((u) => ({
+      label: u.name,
+      icon: 'school-outline',
+      code: u.code,
+    }));
 
-  useEffect(() => {
-    const uniList = schoolsData.universities.map(u => ({ label: u.name, icon: 'school', code: u.code }));
-    const colList = schoolsData.colleges.map(c => ({ label: c.name, icon: 'library', code: c.code }));
-    const allSchools = [...uniList, ...colList, { label: 'Khác', icon: 'ellipsis-horizontal', code: 'other' }];
-    setUniversitiesList(allSchools);
-    setLoadingUniversities(false);
+    const colList = schoolsData.colleges.map((c) => ({
+      label: c.name,
+      icon: 'library-outline',
+      code: c.code,
+    }));
 
     const sections = [
-      { title: 'Đại học', data: uniList },
-      { title: 'Cao đẳng', data: colList },
-      { title: 'Khác', data: [{ label: 'Khác', icon: 'ellipsis-horizontal', code: 'other' }] }
+      {
+        title: deliveredT('signup.education_university_title'),
+        data: uniList,
+      },
+      {
+        title: deliveredT('signup.education_college_title'),
+        data: colList,
+      },
+      {
+        title: deliveredT('signup.education_other_title'),
+        data: [
+          {
+            label: deliveredT('signup.education_other_label'),
+            icon: 'ellipsis-horizontal',
+            code: 'other',
+          },
+        ],
+      },
     ];
+
     setSchoolSections(sections);
     setFilteredSections(sections);
+
+    if (
+      educationLevel &&
+      !educationBaseLevels.some((e) => e.label === educationLevel)
+    ) {
+      setSelectedLevel(deliveredT('signup.education_other_label'));
+      setCustomLevel(educationLevel);
+    }
+
+    if (
+      university &&
+      ![...uniList, ...colList].some(
+        (u) => u.label === university
+      )
+    ) {
+      setSelectedUniversity(deliveredT('signup.education_other_label'));
+      setCustomUniversity(university);
+    }
+
+    if (
+      job &&
+      !jobs.some((j) => j.label === job)
+    ) {
+      setSelectedJob(deliveredT('signup.education_other_label'));
+      setCustomJob(job);
+    }
   }, []);
 
   const handleSelectLevel = (item) => {
     if (selectedLevel === item.label) {
       setSelectedLevel(null);
       setEducationLevel('');
+      return;
+    }
+
+    setSelectedLevel(item.label);
+
+    if (item.label !== deliveredT('signup.education_other_label')) {
       setCustomLevel('');
-    } else {
-      setSelectedLevel(item.label);
-      if (item.label !== 'Khác') {
-        setCustomLevel('');
-        setEducationLevel(item.label);
-      }
+      setEducationLevel(item.label);
     }
   };
 
@@ -82,41 +144,52 @@ const EducationSelectionScreen = () => {
     if (selectedUniversity === item.label) {
       setSelectedUniversity(null);
       setUniversity('');
+      return;
+    }
+
+    setSelectedUniversity(item.label);
+
+    if (item.label !== deliveredT('signup.education_other_label')) {
       setCustomUniversity('');
-    } else {
-      setSelectedUniversity(item.label);
-      if (item.label !== 'Khác') {
-        setCustomUniversity('');
-        setUniversity(item.label);
-      }
+      setUniversity(item.label);
     }
   };
 
-  const handleSelectJob = (item) => {
+const handleSelectJob = (item) => {
     if (selectedJob === item.label) {
       setSelectedJob(null);
       setJob('');
+      return;
+    }
+
+    setSelectedJob(item.label);
+
+    if (item.label !== deliveredT('signup.education_other_label')) {
       setCustomJob('');
-    } else {
-      setSelectedJob(item.label);
-      if (item.label !== 'Khác') {
-        setCustomJob('');
-        setJob(item.label);
-      }
+      setJob(item.label);
     }
   };
 
   const handleSearchUniversity = (text) => {
     setSearchText(text);
-    if (text) {
-      const filtered = schoolSections.map(section => ({
-        ...section,
-        data: section.data.filter(item => item.label.toLowerCase().includes(text.toLowerCase()))
-      })).filter(section => section.data.length > 0);
-      setFilteredSections(filtered);
-    } else {
+
+    if (!text.trim()) {
       setFilteredSections(schoolSections);
+      return;
     }
+
+    const filtered = schoolSections
+      .map((section) => ({
+        ...section,
+        data: section.data.filter((item) =>
+          item.label
+            .toLowerCase()
+            .includes(text.toLowerCase())
+        ),
+      }))
+      .filter((section) => section.data.length > 0);
+
+    setFilteredSections(filtered);
   };
 
   const validateAndNext = () => {
@@ -124,411 +197,710 @@ const EducationSelectionScreen = () => {
     let finalUniversity = selectedUniversity;
     let finalJob = selectedJob;
 
-    if (selectedLevel === 'Khác') {
+    if (selectedLevel === deliveredT('signup.education_other_label')) {
       if (!customLevel.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập trình độ học vấn nếu chọn "Khác"');
+        Alert.alert(
+          deliveredT('signup.error'),
+          deliveredT('signup.error_education_required')
+        );
+
         return;
       }
+
       finalLevel = customLevel.trim();
     }
 
-    if (selectedLevel === 'Cao đẳng/Đại học' && selectedUniversity === 'Khác') {
+    if (
+      (selectedLevel !== null && selectedLevel !== deliveredT('signup.education_other_label') ) &&
+      selectedUniversity === deliveredT('signup.education_other_label')
+    ) {
       if (!customUniversity.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập trường đại học nếu chọn "Khác"');
+        Alert.alert(
+          deliveredT('signup.error'),
+          deliveredT('signup.error_university_required')
+        );
+
         return;
       }
+
       finalUniversity = customUniversity.trim();
     }
 
-    if (selectedJob === 'Khác') {
+    if (selectedJob === deliveredT('signup.education_other_label')) {
       if (!customJob.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập nghề nghiệp nếu chọn "Khác"');
+        Alert.alert(
+          deliveredT('signup.error'),
+          deliveredT('signup.error_job_required')
+        );
+
         return;
       }
+
       finalJob = customJob.trim();
     }
 
     setLoading(true);
+
     setEducationLevel(finalLevel);
-    if (selectedLevel === 'Cao đẳng/Đại học' || selectedLevel === 'Khác') {
+
+    // Any explicitly chosen non-default level should save the university value
+    if (selectedLevel && selectedLevel !== deliveredT('signup.education_other_label')) {
       setUniversity(finalUniversity);
-    } else {
-      setUniversity('');
     }
+
     if (selectedJob) {
       setJob(finalJob);
     }
 
     setTimeout(() => {
       setLoading(false);
-      router.push('/signup/CompleteSocialProfileScreen');
-    }, 1000);
+
+      router.push(
+        '/signup/CompleteSocialProfileScreen'
+      );
+    }, 700);
   };
 
-  const isNextEnabled = selectedLevel &&
-    (selectedLevel !== 'Cao đẳng/Đại học' || selectedUniversity) &&
-    (selectedLevel !== 'Khác' || customLevel.trim()) &&
-    (selectedUniversity !== 'Khác' || customUniversity.trim()) &&
-    (!selectedJob || selectedJob !== 'Khác' || customJob.trim());
+  const isNextEnabled =
+    selectedLevel &&
+    (selectedLevel !== deliveredT('signup.education_other_label') || Boolean(customLevel.trim())) &&
+    (!selectedUniversity || selectedUniversity !== deliveredT('signup.education_other_label') || Boolean(customUniversity.trim())) &&
+    (!selectedJob || selectedJob !== deliveredT('signup.education_other_label') || Boolean(customJob.trim()));
 
   return (
     <ImageBackground
-      source={require('../../assets/images/cover.png')}
+      source={require('../../assets/images/cover.webp')}
       style={styles.background}
       resizeMode="cover"
     >
-      <LinearGradient
-        colors={['rgba(147,112,219,0.85)', 'rgba(255,20,147,0.85)']}
-        style={styles.backdrop}
-      />
+      <StatusBar barStyle="light-content" />
+
+      <View style={styles.overlay} />
 
       <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        style={{ flex: 1 }}
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : undefined
+        }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerTextContainer}>
-            <Text style={styles.headerTitle}>Hồ sơ của bạn</Text>
-          </View>
-        </View>
-
         <ScrollView
-          style={styles.scrollView}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Education Level Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Trình độ học vấn</Text>
-            <View style={styles.optionsGrid}>
-              {educationLevels.map((item) => (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[
-                    styles.optionButton,
-                    selectedLevel === item.label && styles.selectedOption
-                  ]}
-                  onPress={() => handleSelectLevel(item)}
-                >
-                  <Ionicons
-                    name={item.icon}
-                    size={24}
-                    color={selectedLevel === item.label ? '#fff' : '#9370db'}
-                  />
-                  <Text style={[
-                    styles.optionText,
-                    selectedLevel === item.label && styles.selectedOptionText
-                  ]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {selectedLevel === 'Khác' && (
-              <TextInput
-                style={styles.customInput}
-                placeholder="Nhập trình độ học vấn của bạn..."
-                placeholderTextColor="rgba(255,255,255,0.5)"
-                value={customLevel}
-                onChangeText={setCustomLevel}
-              />
-            )}
+        {/* HEADER */}
+        <View style={styles.header}>
+          <Image
+            source={require('@/assets/images/logo.png')}
+            style={styles.logo}
+            contentFit="contain"
+          />
+
+          <View style={styles.badge}>
+            <Ionicons
+              name="school-outline"
+              size={14}
+              color="#FF7AA2"
+            />
+
+            <Text style={styles.badgeText}>
+              {deliveredT('signup.education_badge')}
+            </Text>
           </View>
 
-          {/* University Section - Only if College/University is selected */}
-          {(selectedLevel === 'Cao đẳng/Đại học' || selectedLevel === 'Khác') && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Trường học</Text>
-              <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="rgba(255,255,255,0.5)" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Tìm kiếm trường học..."
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-                  value={searchText}
-                  onChangeText={handleSearchUniversity}
-                />
-              </View>
+          <Text style={styles.title}>
+            {deliveredT('signup.education_title')}
+          </Text>
 
-              <View style={styles.schoolListContainer}>
-                {loadingUniversities ? (
-                  <ActivityIndicator color="#fff" style={{ margin: 20 }} />
-                ) : (
-                  <SectionList
-                    sections={filteredSections}
-                    keyExtractor={(item, index) => item.label + index}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={[
-                          styles.schoolItem,
-                          selectedUniversity === item.label && styles.selectedSchoolItem
-                        ]}
-                        onPress={() => handleSelectUniversity(item)}
+          <Text style={styles.subtitle}>
+            {deliveredT('signup.education_subtitle')}
+          </Text>
+        </View>
+
+        {/* CARD */}
+
+        <View style={styles.card}>
+          <ProgressIndicator
+            currentStep={
+              signupType === 'google' ? 6 : 8
+            }
+            totalSteps={
+              signupType === 'google' ? 6 : 8
+            }
+            signupType={signupType || 'email'}
+          />
+
+          {/* EDUCATION */}
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              {deliveredT('signup.education_required_label')}
+            </Text>
+
+            <View style={styles.grid}>
+              {educationBaseLevels.map((item) => {
+                const selected =
+                  selectedLevel === item.label;
+
+                return (
+                  <TouchableOpacity
+                    key={item.label}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.optionCard,
+                      selected &&
+                        styles.optionCardActive,
+                    ]}
+                    onPress={() =>
+                      handleSelectLevel(item)
+                    }
+                  >
+                      <LinearGradient
+                        colors={
+                          selected
+                            ? [
+                                '#FF4D8D',
+                                '#FF7AA2',
+                              ]
+                            : [
+                                'rgba(255,255,255,0.06)',
+                                'rgba(255,255,255,0.03)',
+                              ]
+                        }
+                        style={styles.optionGradient}
                       >
                         <Ionicons
                           name={item.icon}
-                          size={20}
-                          color={selectedUniversity === item.label ? '#fff' : '#9370db'}
+                          size={22}
+                          color={
+                            selected
+                              ? '#fff'
+                              : 'rgba(255,255,255,0.5)'
+                          }
                         />
-                        <Text style={[
-                          styles.schoolItemText,
-                          selectedUniversity === item.label && styles.selectedSchoolItemText
-                        ]}>
+
+                        <Text
+                          style={[
+                            styles.optionText,
+                            selected &&
+                              styles.optionTextActive,
+                          ]}
+                        >
                           {item.label}
                         </Text>
-                      </TouchableOpacity>
-                    )}
-                    renderSectionHeader={({ section: { title } }) => (
-                      <Text style={styles.sectionHeader}>{title}</Text>
-                    )}
-                    stickySectionHeadersEnabled={false}
-                    scrollEnabled={false}
-                  />
-                )}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
-              {selectedUniversity === 'Khác' && (
+              {selectedLevel === deliveredT('signup.education_other_label') && (
                 <TextInput
-                  style={styles.customInput}
-                  placeholder="Nhập tên trường của bạn..."
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-                  value={customUniversity}
-                  onChangeText={setCustomUniversity}
+                  style={styles.input}
+                  placeholder={deliveredT('signup.education_custom_placeholder')}
+                  placeholderTextColor="rgba(255,255,255,0.35)"
+                  value={customLevel}
+                  onChangeText={setCustomLevel}
                 />
               )}
             </View>
-          )}
 
-          {/* Job Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Nghề nghiệp (Tùy chọn)</Text>
-            <View style={styles.optionsGrid}>
-              {jobs.map((item) => (
-                <TouchableOpacity
-                  key={item.label}
-                  style={[
-                    styles.optionButton,
-                    selectedJob === item.label && styles.selectedOption
-                  ]}
-                  onPress={() => handleSelectJob(item)}
-                >
+            {/* UNIVERSITY */}
+
+            {(selectedLevel ===
+              deliveredT('signup.edu_college_uni_label') ||
+              selectedLevel === deliveredT('signup.education_other_label')) && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {deliveredT('signup.university_label')}
+                </Text>
+
+                <View style={styles.searchBox}>
                   <Ionicons
-                    name={item.icon}
-                    size={24}
-                    color={selectedJob === item.label ? '#fff' : '#9370db'}
+                    name="search"
+                    size={18}
+                    color="rgba(255,255,255,0.4)"
                   />
-                  <Text style={[
-                    styles.optionText,
-                    selectedJob === item.label && styles.selectedOptionText
-                  ]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {selectedJob === 'Khác' && (
-              <TextInput
-                style={styles.customInput}
-                placeholder="Nhập nghề nghiệp của bạn..."
-                placeholderTextColor="rgba(255,255,255,0.5)"
-                value={customJob}
-                onChangeText={setCustomJob}
-              />
-            )}
-          </View>
 
-          {/* Next Button */}
-          <TouchableOpacity
-            style={[styles.nextButton, !isNextEnabled && styles.disabledButton]}
-            onPress={validateAndNext}
-            disabled={!isNextEnabled || loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.nextButtonText}>Tiếp tục</Text>
-                <Ionicons name="arrow-forward" size={20} color="#fff" />
-              </>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder={deliveredT('signup.university_search_placeholder')}
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    value={searchText}
+                    onChangeText={
+                      handleSearchUniversity
+                    }
+                  />
+                </View>
+
+                <View style={styles.schoolWrap}>
+                  <SectionList
+                    sections={filteredSections}
+                    keyExtractor={(item, index) =>
+                      item.label + index
+                    }
+                    stickySectionHeadersEnabled={
+                      false
+                    }
+                    scrollEnabled={false}
+                    renderSectionHeader={({
+                      section,
+                    }) => (
+                      <Text
+                        style={styles.schoolHeader}
+                      >
+                        {section.title}
+                      </Text>
+                    )}
+                    renderItem={({ item }) => {
+                      const selected =
+                        selectedUniversity ===
+                        item.label;
+
+                      return (
+                        <TouchableOpacity
+                          activeOpacity={0.8}
+                          style={[
+                            styles.schoolItem,
+                            selected &&
+                              styles.schoolItemActive,
+                          ]}
+                          onPress={() =>
+                            handleSelectUniversity(
+                              item
+                            )
+                          }
+                        >
+                          <Ionicons
+                            name={item.icon}
+                            size={18}
+                            color={
+                              selected
+                                ? '#fff'
+                                : 'rgba(255,255,255,0.45)'
+                            }
+                          />
+
+                          <Text
+                            style={[
+                              styles.schoolText,
+                              selected &&
+                                styles.schoolTextActive,
+                            ]}
+                          >
+                            {item.label}
+                          </Text>
+
+                          {selected && (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={20}
+                              color="#fff"
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    }}
+                  />
+                </View>
+
+                {selectedUniversity === deliveredT('signup.education_other_label') && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder={deliveredT('signup.university_custom_placeholder')}
+                    placeholderTextColor="rgba(255,255,255,0.35)"
+                    value={customUniversity}
+                    onChangeText={
+                      setCustomUniversity
+                    }
+                  />
+                )}
+              </View>
             )}
+
+            {/* JOB */}
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {deliveredT('signup.job_label')}
+              </Text>
+
+              <View style={styles.grid}>
+                {jobs.map((item) => {
+                  const selected =
+                    selectedJob === item.label;
+
+                  return (
+                    <TouchableOpacity
+                      key={item.label}
+                      activeOpacity={0.85}
+                      style={[
+                        styles.optionCard,
+                        selected &&
+                          styles.optionCardActive,
+                      ]}
+                      onPress={() =>
+                        handleSelectJob(item)
+                      }
+                    >
+                      <LinearGradient
+                        colors={
+                          selected
+                            ? [
+                                '#FF4D8D',
+                                '#FF7AA2',
+                              ]
+                            : [
+                                'rgba(255,255,255,0.06)',
+                                'rgba(255,255,255,0.03)',
+                              ]
+                        }
+                        style={styles.optionGradient}
+                      >
+                        <Ionicons
+                          name={item.icon}
+                          size={22}
+                          color={
+                            selected
+                              ? '#fff'
+                              : 'rgba(255,255,255,0.5)'
+                          }
+                        />
+
+                        <Text
+                          style={[
+                            styles.optionText,
+                            selected &&
+                              styles.optionTextActive,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {selectedJob === deliveredT('signup.education_other_label') && (
+                <TextInput
+                  style={styles.input}
+                  placeholder={deliveredT('signup.job_placeholder')}
+                  placeholderTextColor="rgba(255,255,255,0.35)"
+                  value={customJob}
+                  onChangeText={setCustomJob}
+                />
+              )}
+            </View>
+
+            <View style={{ height: 120 }} />
+          </View>
+        </ScrollView>
+
+        {/* BOTTOM BUTTON */}
+
+        <View style={styles.bottomArea}>
+          <TouchableOpacity
+            activeOpacity={0.9}
+            disabled={!isNextEnabled || loading}
+            onPress={validateAndNext}
+            style={styles.continueButton}
+          >
+            <LinearGradient
+              colors={
+                !isNextEnabled
+                  ? ['#334155', '#1E293B']
+                  : ['#FF4D8D', '#FF7AA2']
+              }
+              style={styles.continueGradient}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.continueText}>
+                    {deliveredT('signup.continue_text')}
+                  </Text>
+
+                  <Ionicons
+                    name="arrow-forward"
+                    size={20}
+                    color="#fff"
+                  />
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
 
-          <View style={{ height: 40 }} />
-        </ScrollView>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            disabled={loading}
+            onPress={() => {
+              setEducationLevel('');
+              setUniversity('');
+              setJob('');
+
+              router.push(
+                '/signup/CompleteSocialProfileScreen'
+              );
+            }}
+          >
+            <Text style={styles.skipText}>
+              {deliveredT('signup.skip_label')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </ImageBackground>
   );
 };
 
+export default EducationSelectionScreen;
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    width: '100%',
-    height: '100%',
   },
-  backdrop: {
+
+  overlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(5,7,12,0.72)',
   },
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTextContainer: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  scrollView: {
-    flex: 1,
-  },
+
   scrollContent: {
-    padding: 20,
-  },
-  section: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 15,
-    opacity: 0.9,
-  },
-  optionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  optionButton: {
-    width: '48%',
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    padding: 15,
-    borderRadius: 15,
+    paddingTop: 60,
+    paddingBottom: 180,
     alignItems: 'center',
-    gap: 8,
-    borderWidth: 2,
-    borderColor: 'transparent',
   },
-  selectedOption: {
-    backgroundColor: '#9370db',
-    borderColor: '#fff',
+
+  header: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
-  optionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4a4a4a',
+
+  logo: {
+    width: 130,
+    height: 75,
+    marginBottom: 22,
+  },
+
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,122,162,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,122,162,0.25)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginBottom: 18,
+  },
+
+  badgeText: {
+    color: '#FF7AA2',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginLeft: 6,
+  },
+
+  title: {
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#fff',
     textAlign: 'center',
   },
-  selectedOptionText: {
-    color: '#fff',
+
+  subtitle: {
+    marginTop: 10,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.65)',
+    textAlign: 'center',
+    lineHeight: 22,
   },
-  customInput: {
-    marginTop: 15,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    padding: 15,
-    color: '#fff',
-    fontSize: 16,
+
+  card: {
+    width: '92%',
+    backgroundColor: 'rgba(20,20,30,0.88)',
+    borderRadius: 34,
+    paddingHorizontal: 18,
+    paddingTop: 26,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  searchContainer: {
+
+  section: {
+    marginTop: 28,
+  },
+
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+
+  grid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    color: '#fff',
-    fontSize: 16,
-  },
-  schoolListContainer: {
-    maxHeight: 300,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    borderRadius: 15,
+
+  optionCard: {
+    width: '48%',
+    marginBottom: 12,
+    borderRadius: 22,
     overflow: 'hidden',
   },
-  sectionHeader: {
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#9370db',
+
+  optionCardActive: {
+    shadowColor: '#FF4D8D',
+    shadowOpacity: 0.35,
+    shadowRadius: 15,
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    elevation: 8,
   },
+
+  optionGradient: {
+    minHeight: 92,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 22,
+  },
+
+  optionText: {
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 10,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  optionTextActive: {
+    color: '#fff',
+  },
+
+  input: {
+    marginTop: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    height: 56,
+    color: '#fff',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    fontSize: 15,
+  },
+
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 14,
+  },
+
+  searchInput: {
+    flex: 1,
+    height: 54,
+    color: '#fff',
+    marginLeft: 10,
+    fontSize: 15,
+  },
+
+  schoolWrap: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
+  schoolHeader: {
+    color: '#FF7AA2',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+
   schoolItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.04)',
   },
-  selectedSchoolItem: {
-    backgroundColor: '#9370db',
+
+  schoolItemActive: {
+    backgroundColor: '#FF4D8D',
   },
-  schoolItemText: {
-    fontSize: 14,
-    color: '#4a4a4a',
+
+  schoolText: {
     flex: 1,
+    color: 'rgba(255,255,255,0.7)',
+    marginLeft: 12,
+    fontSize: 14,
+    fontWeight: '600',
   },
-  selectedSchoolItemText: {
+
+  schoolTextActive: {
     color: '#fff',
-    fontWeight: 'bold',
   },
-  nextButton: {
-    backgroundColor: '#ff1493',
+
+  bottomArea: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom:
+      Platform.OS === 'ios' ? 34 : 18,
+    backgroundColor: 'rgba(10,10,18,0.96)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+
+  continueButton: {
+    borderRadius: 22,
+    overflow: 'hidden',
+  },
+
+  continueGradient: {
+    height: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 18,
-    borderRadius: 15,
     gap: 10,
-    marginTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5,
   },
-  disabledButton: {
-    backgroundColor: 'rgba(255,20,147,0.5)',
-    opacity: 0.7,
-  },
-  nextButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-});
 
-export default EducationSelectionScreen;
+  continueText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  skipText: {
+    color: 'rgba(255,255,255,0.45)',
+    textAlign: 'center',
+    marginTop: 16,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+});                        

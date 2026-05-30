@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   FlatList,
   Alert,
   Dimensions,
-  SafeAreaView,
   ActivityIndicator,
   Animated,
   Platform,
@@ -18,9 +17,9 @@ import {
   useMeeting,
   useParticipant,
 } from '@videosdk.live/react-native-sdk';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { createMeeting, getToken } from '@/api';
+import { getToken, createCallRoom } from '@/api';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +27,7 @@ import { useAuth } from '@/context/authContext';
 import { doc, getDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { Avatar } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import VoiceRoomChat from '@/components/call/VoiceRoomChat';
 
 const { width } = Dimensions.get('window');
@@ -111,7 +111,13 @@ function ParticipantView({
       style={[styles.participantCard, isHostLayout && styles.hostParticipantCard]}
     >
       <LinearGradient
-        colors={isSpeakingExternal && micOn ? ['#10b981', '#059669'] : ['#4a5568', '#2d3748']}
+        colors={
+          isSpeakingExternal && micOn
+            ? ['#10b981', '#047857']
+            : isHostLayout
+              ? ['#2A1E4A', '#130C25']
+              : ['#181935', '#0A0C1C']
+        }
         style={[
           styles.participantGradient,
           isSpeakingExternal && micOn && styles.participantGradientSpeaking,
@@ -119,6 +125,14 @@ function ParticipantView({
           emphasizeGlow && isSpeakingExternal && micOn && styles.hostParticipantGradientSpeaking
         ]}
       >
+        {isHostLayout && (
+          <View style={styles.hostBadge}>
+            <LinearGradient colors={['#fbbf24', '#f97316']} style={styles.hostBadgeGradient}>
+              <Ionicons name="star" size={10} color="#fff" />
+              <Text style={styles.hostBadgeText}>HOST</Text>
+            </LinearGradient>
+          </View>
+        )}
         <Animated.View
           style={[
             styles.avatarContainer,
@@ -168,6 +182,7 @@ function ParticipantView({
 function Controls({ onLeave, onLike }: { onLeave: () => void; onLike: () => void }) {
   const { t } = useTranslation();
   const { leave, toggleMic, localMicOn } = useMeeting();
+  const insets = useSafeAreaInsets();
 
   const handleToggleMic = () => {
     toggleMic();
@@ -192,20 +207,21 @@ function Controls({ onLeave, onLike }: { onLeave: () => void; onLike: () => void
   };
 
   return (
-    <View style={styles.controlsDock}>
-      <TouchableOpacity style={styles.dockButton} onPress={onLike}>
-        <Ionicons name="heart" size={20} color="#fff" />
+    <View style={[styles.controlsDock, { marginBottom: Math.max(insets.bottom, 16) + 12 }]}>
+      <TouchableOpacity style={[styles.dockButton, styles.heartButton]} onPress={onLike} activeOpacity={0.82}>
+        <Ionicons name="heart" size={24} color="#fff" />
       </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.dockButton, localMicOn ? styles.micOnButton : styles.micOffButton]}
         onPress={handleToggleMic}
+        activeOpacity={0.82}
       >
-        <Ionicons name={localMicOn ? 'mic' : 'mic-off'} size={20} color="#fff" />
+        <Ionicons name={localMicOn ? 'mic' : 'mic-off'} size={24} color="#fff" />
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.leaveButton} onPress={handleLeave}>
-        <Ionicons name="call" size={22} color="#fff" />
+      <TouchableOpacity style={styles.leaveButton} onPress={handleLeave} activeOpacity={0.82}>
+        <Ionicons name="call" size={30} color="#fff" style={styles.hangupIcon} />
       </TouchableOpacity>
     </View>
   );
@@ -224,25 +240,26 @@ function MeetingView({
   groupId: string;
 }) {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [spotlightParticipantId, setSpotlightParticipantId] = useState<string | null>(null);
   const { join, participants, localParticipant } = useMeeting({
     onMeetingJoined: () => {
-      console.log('âœ… Meeting joined successfully');
+      console.log('Ã¢Å“â€¦ Meeting joined successfully');
       console.log('Local participant ID:', localParticipant?.id);
     },
     onMeetingLeft: () => {
-      console.log('ðŸ‘‹ Meeting left');
+      console.log('Ã°Å¸â€˜â€¹ Meeting left');
       onLeave();
     },
     onParticipantJoined: (participant) => {
-      console.log('ðŸ‘¤ Participant joined:', participant.displayName, 'ID:', participant.id);
+      console.log('Ã°Å¸â€˜Â¤ Participant joined:', participant.displayName, 'ID:', participant.id);
     },
     onParticipantLeft: (participant) => {
-      console.log('ðŸ‘‹ Participant left:', participant.displayName);
+      console.log('Ã°Å¸â€˜â€¹ Participant left:', participant.displayName);
     },
     onSpeakerChanged: (speakerId) => {
-      // VideoSDK event cung cáº¥p ID cá»§a ngÆ°á»i Ä‘ang nÃ³i
+      // VideoSDK event cung cÃ¡ÂºÂ¥p ID cÃ¡Â»Â§a ngÃ†Â°Ã¡Â»Âi Ã„â€˜ang nÃƒÂ³i
       setActiveSpeakerId(speakerId);
     }
   });
@@ -268,7 +285,7 @@ function MeetingView({
   // VideoSDK automatically includes local participant in the participants Map
   const allParticipants = participantsArray;
 
-  console.log('ðŸ“Š Participants count:', {
+  console.log('Ã°Å¸â€œÅ  Participants count:', {
     localParticipantId: localParticipant?.id,
     participantsArray,
     total: allParticipants.length,
@@ -299,7 +316,7 @@ function MeetingView({
   }, [allParticipants.length]);
 
   useEffect(() => {
-    // Request audio permissions first vÃ  báº­t loa ngoÃ i
+    // Request audio permissions first vÃƒÂ  bÃ¡ÂºÂ­t loa ngoÃƒÂ i
     (async () => {
       try {
         const { status } = await Audio.requestPermissionsAsync();
@@ -308,28 +325,28 @@ function MeetingView({
           return;
         }
 
-        // ðŸ”Š QUAN TRá»ŒNG: Cáº¥u hÃ¬nh Ä‘á»ƒ phÃ¡t qua loa ngoÃ i (multimedia speaker)
+        // Ã°Å¸â€Å  QUAN TRÃ¡Â»Å’NG: CÃ¡ÂºÂ¥u hÃƒÂ¬nh Ã„â€˜Ã¡Â»Æ’ phÃƒÂ¡t qua loa ngoÃƒÂ i (multimedia speaker)
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
           shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false, // Android: loa ngoÃ i
+          playThroughEarpieceAndroid: false, // Android: loa ngoÃƒÂ i
           interruptionModeIOS: 2, // iOS: AVAudioSessionCategoryPlayAndRecord
         });
 
-        // ðŸ”Š Cáº¥u hÃ¬nh audio cho group voice chat (khÃ´ng dÃ¹ng in-call mode)
-        // KhÃ´ng dÃ¹ng InCallManager Ä‘á»ƒ trÃ¡nh cháº¿ Ä‘á»™ gá»i Ä‘iá»‡n (táº¯t mÃ n hÃ¬nh, loa thoáº¡i)
-        console.log('ðŸŽ¤ Audio configured (speaker mode - no proximity sensor), joining meeting...');
+        // Ã°Å¸â€Å  CÃ¡ÂºÂ¥u hÃƒÂ¬nh audio cho group voice chat (khÃƒÂ´ng dÃƒÂ¹ng in-call mode)
+        // KhÃƒÂ´ng dÃƒÂ¹ng InCallManager Ã„â€˜Ã¡Â»Æ’ trÃƒÂ¡nh chÃ¡ÂºÂ¿ Ã„â€˜Ã¡Â»â„¢ gÃ¡Â»Âi Ã„â€˜iÃ¡Â»â€¡n (tÃ¡ÂºÂ¯t mÃƒÂ n hÃƒÂ¬nh, loa thoÃ¡ÂºÂ¡i)
+        console.log('Ã°Å¸Å½Â¤ Audio configured (speaker mode - no proximity sensor), joining meeting...');
         // Join the meeting after audio route configured
         join();
       } catch (error) {
-        console.error('âŒ Audio permission/config error:', error);
+        console.error('Ã¢ÂÅ’ Audio permission/config error:', error);
         Alert.alert(t('common.error'), t('group_voice.audio_init_error')); 
       }
     })();
 
-    // No cleanup needed - khÃ´ng dÃ¹ng InCallManager
+    // No cleanup needed - khÃƒÂ´ng dÃƒÂ¹ng InCallManager
   }, []);
 
   const triggerHeart = () => {
@@ -388,15 +405,17 @@ function MeetingView({
   const speakerParticipants = allParticipants.filter((id) => id !== hostParticipantId);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <LinearGradient colors={['#0b1023', '#141a35', '#1f1147']} style={styles.gradient}>
-          <View style={styles.tiktokHeader}>
-            <View style={styles.liveBadge}>
-              <Text style={styles.liveText}>LIVE</Text>
+        <LinearGradient colors={['#070A1F', '#111238', '#2A174D']} style={styles.gradient}>
+          <View style={[styles.tiktokHeader, { paddingTop: Math.max(insets.top, 18) + 10 }]}>
+            <View style={styles.liveBadgeWrapper}>
+              <LinearGradient colors={['#ff416c', '#ff4b2b']} style={styles.liveBadge}>
+                <Text style={styles.liveText}>LIVE</Text>
+              </LinearGradient>
             </View>
             <View style={styles.headerInfo}>
               <Text style={styles.headerTitle} numberOfLines={1}>{groupName}</Text>
@@ -487,7 +506,7 @@ function MeetingView({
           <Controls onLeave={onLeave} onLike={triggerHeart} />
         </LinearGradient>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -501,86 +520,105 @@ export default function GroupVoiceRoom() {
   const [groupData, setGroupData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
-
-  // Fetch token
-  useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const t = await getToken();
-        setToken(t);
-      } catch (e) {
-        console.error("Failed to get token", e);
-        Alert.alert(t('common.error'), t('group_voice.auth_failed'));
-        router.back();
-      }
-    };
-    fetchToken();
-  }, []);
+  const isInitializingRoom = useRef(false);
 
   useEffect(() => {
     if (!groupId || !user) return;
 
-    // Load group data
-    const loadGroup = async () => {
+    let isMounted = true;
+    const groupRef = doc(db, 'groups', groupId as string);
+
+    const initializeVoiceRoom = async () => {
+      if (isInitializingRoom.current) return;
+      isInitializingRoom.current = true;
+
       try {
-        const groupDoc = await getDoc(doc(db, 'groups', groupId as string));
-        if (groupDoc.exists()) {
-          setGroupData({ id: groupDoc.id, ...groupDoc.data() });
+        setLoading(true);
+        // Step 1: Fetch Firestore group document
+        const groupDoc = await getDoc(groupRef);
+        if (!groupDoc.exists()) {
+          Alert.alert(t('common.error'), t('groups.group_not_found', { defaultValue: 'Group not found' }));
+          router.back();
+          return;
         }
+
+        const data = groupDoc.data();
+        let roomId = data?.voiceRoomId;
+
+        if (isMounted) {
+          setGroupData({ id: groupDoc.id, ...data });
+        }
+
+        let scopedToken: string;
+
+        if (!roomId) {
+          console.log('🚀 Creating voice room and getting token in a single API call...');
+          const callRoomData = await createCallRoom({
+            metadata: {
+              source: 'group_voice',
+              groupId: groupId as string,
+            },
+          });
+          roomId = callRoomData.roomId || callRoomData.meetingId;
+          scopedToken = callRoomData.token;
+
+          if (!roomId || !scopedToken) {
+            throw new Error('Server did not return roomId or token');
+          }
+
+          // Background Firestore update (non-blocking!)
+          updateDoc(groupRef, {
+            voiceRoomId: roomId,
+            voiceRoomActive: true,
+            voiceRoomParticipants: arrayUnion(user.uid),
+          }).catch(err => console.error("Error updating Firestore in background:", err));
+        } else {
+          // Optimization: fetch token and update Firestore in parallel, only blocking on the token!
+          console.log('🚀 Voice room already exists. Fetching token and updating Firestore in parallel...');
+          const tokenPromise = getToken(roomId);
+          
+          const updateRoomPromise = updateDoc(groupRef, {
+            voiceRoomActive: true,
+            voiceRoomParticipants: arrayUnion(user.uid),
+          });
+
+          scopedToken = await tokenPromise;
+
+          // Let Firestore update execute in background without blocking joining flow
+          updateRoomPromise.catch(err => console.error("Error updating participants in background:", err));
+        }
+
+        if (!isMounted) return;
+        setToken(scopedToken);
+        setMeetingId(roomId);
+        setLoading(false);
       } catch (error) {
-        console.error('Error loading group:', error);
+        console.error('Error initializing voice room:', error);
+        Alert.alert(t('common.error'), t('group_voice.create_room_error'));
+        router.back();
+      } finally {
+        isInitializingRoom.current = false;
       }
     };
 
-    loadGroup();
+    initializeVoiceRoom();
 
-    // Listen to voice room status
-    const unsubscribe = onSnapshot(doc(db, 'groups', groupId as string), async (snapshot) => {
+    const unsubscribe = onSnapshot(groupRef, (snapshot) => {
       if (snapshot.exists()) {
-        const data = snapshot.data();
-        let roomId = data?.voiceRoomId;
-
-        // If no room exists, create one
-        if (!roomId) {
-          // Wait for token before creating
-          if (!token) return;
-
-          try {
-            roomId = await createMeeting({ token });
-            await updateDoc(doc(db, 'groups', groupId as string), {
-              voiceRoomId: roomId,
-              voiceRoomActive: true,
-              voiceRoomParticipants: arrayUnion(user.uid),
-            });
-          } catch (error) {
-            console.error('Error creating meeting:', error);
-            Alert.alert(t('common.error'), t('group_voice.create_room_error')); 
-            router.back();
-            return;
-          }
-        } else {
-          // Join existing room
-          await updateDoc(doc(db, 'groups', groupId as string), {
-            voiceRoomActive: true, // âœ… Äáº£m báº£o active = true
-            voiceRoomParticipants: arrayUnion(user.uid),
-          });
-        }
-
-        setMeetingId(roomId);
-        setLoading(false);
+        setGroupData({ id: snapshot.id, ...snapshot.data() });
       }
     });
 
     return () => {
+      isMounted = false;
       unsubscribe();
-      // Remove user from participants when leaving
       if (groupId && user) {
-        updateDoc(doc(db, 'groups', groupId as string), {
+        updateDoc(groupRef, {
           voiceRoomParticipants: arrayRemove(user.uid),
         }).catch(console.error);
       }
     };
-  }, [groupId, user, token]); // Added token dependency
+  }, [groupId, user, router, t]);
 
   const handleLeave = async () => {
     try {
@@ -596,7 +634,7 @@ export default function GroupVoiceRoom() {
 
         // If this is the last person, set voiceRoomActive = false
         if (currentParticipants.length <= 1) {
-          console.log('ðŸ”´ Last person leaving, setting voiceRoomActive = false');
+          console.log('Ã°Å¸â€Â´ Last person leaving, setting voiceRoomActive = false');
           await updateDoc(doc(db, 'groups', groupId as string), {
             voiceRoomActive: false,
           });
@@ -619,7 +657,7 @@ export default function GroupVoiceRoom() {
     );
   }
 
-  console.log('ðŸ”§ Initializing MeetingProvider with:', {
+  console.log('Ã°Å¸â€Â§ Initializing MeetingProvider with:', {
     meetingId,
     userName: user?.displayName || user?.username || t('chat.unknown_user'),
     micEnabled: true,
@@ -650,7 +688,7 @@ export default function GroupVoiceRoom() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a202c',
+    backgroundColor: '#070A1F',
   },
   gradient: {
     flex: 1,
@@ -665,18 +703,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   tiktokHeader: {
-    paddingTop: 56,
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
   },
+  liveBadgeWrapper: {
+    borderRadius: 999,
+    marginRight: 10,
+    overflow: 'hidden',
+    shadowColor: '#ff416c',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+  },
   liveBadge: {
-    backgroundColor: '#ef4444',
-    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    marginRight: 10,
   },
   liveText: {
     color: '#fff',
@@ -688,22 +731,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 19,
+    fontWeight: '800',
     color: '#fff',
+    letterSpacing: 0.2,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(226, 232, 240, 0.78)',
   },
   clearSpotlightButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 999,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   clearSpotlightText: {
     color: '#fff',
@@ -711,17 +757,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   hostSection: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingTop: 4,
   },
   emptyHost: {
-    height: 170,
-    borderRadius: 22,
+    height: 178,
+    borderRadius: 26,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.045)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderStyle: 'dashed',
   },
   emptyHostText: {
     color: '#fff',
@@ -731,19 +778,20 @@ const styles = StyleSheet.create({
   },
   speakersSection: {
     flex: 1,
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: 16,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 14,
   },
   sectionLabel: {
     color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '800',
     marginLeft: 8,
     marginBottom: 8,
+    letterSpacing: 0.3,
   },
   participantsList: {
-    paddingBottom: 120,
+    paddingBottom: 132,
   },
   participantCard: {
     width: (width - 48) / 3,
@@ -755,47 +803,73 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   participantGradient: {
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 12,
     alignItems: 'center',
-    minHeight: 124,
+    minHeight: 128,
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 14,
   },
   hostParticipantGradient: {
-    minHeight: 168,
-    borderRadius: 22,
+    minHeight: 178,
+    borderRadius: 28,
+    overflow: 'hidden',
+    borderColor: 'rgba(255,255,255,0.12)',
   },
   hostParticipantGradientSpeaking: {
-    borderColor: '#22d3ee',
+    borderColor: '#67e8f9',
     shadowColor: '#22d3ee',
-    shadowOpacity: 0.95,
-    shadowRadius: 14,
-    elevation: 14,
+    shadowOpacity: 0.9,
+    shadowRadius: 18,
   },
   participantGradientSpeaking: {
-    borderColor: '#10b981',
-    borderWidth: 3,
-    shadowColor: '#10b981',
+    borderColor: '#34d399',
+    borderWidth: 2,
+    shadowColor: '#34d399',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOpacity: 0.75,
+    shadowRadius: 14,
+  },
+  hostBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 2,
+  },
+  hostBadgeGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  hostBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
   },
   avatarContainer: {
     position: 'relative',
     marginBottom: 12,
   },
   avatar: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.24)',
   },
   micOffBadge: {
     position: 'absolute',
     bottom: -5,
     right: -5,
-    backgroundColor: '#e53e3e',
+    backgroundColor: '#fb7185',
     borderRadius: 12,
     width: 24,
     height: 24,
@@ -838,11 +912,11 @@ const styles = StyleSheet.create({
   participantName: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
   pinHintText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(203,213,225,0.76)',
     fontSize: 10,
     marginTop: 4,
   },
@@ -854,37 +928,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 12,
-    marginBottom: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 22,
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    marginHorizontal: 18,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
+    borderRadius: 34,
+    backgroundColor: 'rgba(13, 18, 40, 0.86)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    gap: 14,
+    borderColor: 'rgba(255,255,255,0.14)',
+    gap: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
   },
   dockButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  micOnButton: {
-    backgroundColor: 'rgba(34,197,94,0.75)',
-  },
-  micOffButton: {
-    backgroundColor: '#ef4444',
-  },
-  leaveButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  heartButton: {
+    backgroundColor: 'rgba(244, 63, 94, 0.24)',
+    borderColor: 'rgba(251, 113, 133, 0.42)',
+  },
+  micOnButton: {
+    backgroundColor: 'rgba(16,185,129,0.26)',
+    borderColor: 'rgba(52,211,153,0.48)',
+  },
+  micOffButton: {
+    backgroundColor: 'rgba(239,68,68,0.26)',
+    borderColor: 'rgba(248,113,113,0.52)',
+  },
+  leaveButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#ef4444',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.32)',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.62,
+    shadowRadius: 16,
+  },
+  hangupIcon: {
+    transform: [{ rotate: '135deg' }],
   },
   speakingPulse: {
     position: 'absolute',
@@ -894,26 +988,28 @@ const styles = StyleSheet.create({
     bottom: -12,
     borderRadius: 72,
     borderWidth: 3,
-    borderColor: '#10b981',
+    borderColor: '#34d399',
   },
   speakingText: {
-    color: '#10b981',
+    color: '#a7f3d0',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     marginTop: 4,
   },
   chatOverlay: {
-    height: 220,
-    marginHorizontal: 10,
-    marginBottom: 8,
-    borderRadius: 16,
+    height: 218,
+    marginHorizontal: 14,
+    marginBottom: 10,
+    borderRadius: 22,
     overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: 'rgba(8, 13, 31, 0.52)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
   },
   heartsLayer: {
     position: 'absolute',
-    right: 24,
-    bottom: 100,
+    right: 28,
+    bottom: 126,
     width: 44,
     height: 190,
     overflow: 'visible',

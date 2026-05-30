@@ -1,9 +1,9 @@
-import React, { createContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useState, useEffect, useMemo, useRef } from 'react';
 import * as Location from 'expo-location';
 import { db } from '../firebaseConfig';
 import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/context/authContext';
-import { getDistance, getRhumbLineBearing, getBounds } from 'geolib';
+import { getDistance, getRhumbLineBearing, getBoundsOfDistance } from 'geolib';
 
 export const LocationContext = createContext();
 
@@ -15,6 +15,7 @@ export const LocationProvider = ({ children }) => {
   const [nearbyUsers, setNearbyUsers] = useState([]);
   const [lastQueryTime, setLastQueryTime] = useState(0);
   const [cachedNearbyUsers, setCachedNearbyUsers] = useState([]);
+  const isMountedRef = useRef(true);
 
   const { user, isAuthenticated } = useAuth();
 
@@ -77,6 +78,8 @@ export const LocationProvider = ({ children }) => {
         timeout: 10000,
       });
 
+      if (!isMountedRef.current) return;
+
       setLocation(currentLocation);
 
       if (currentLocation.coords.latitude && currentLocation.coords.longitude) {
@@ -84,6 +87,7 @@ export const LocationProvider = ({ children }) => {
 
         try {
           const geocode = await Location.reverseGeocodeAsync(currentLocation.coords);
+          if (!isMountedRef.current) return;
           if (geocode.length > 0) {
             const { street, city, district, subregion, region, country } = geocode[0];
             const formattedAddress = [street, district || subregion || city, region, country].filter(Boolean).join(', ');
@@ -101,10 +105,12 @@ export const LocationProvider = ({ children }) => {
         timeInterval: 30000,
         distanceInterval: 10,
       }, (loc) => {
+        if (!isMountedRef.current) return;
         setLocation(loc);
         if (loc.coords.latitude && loc.coords.longitude) {
           saveLocationToFirebase(loc);
           Location.reverseGeocodeAsync(loc.coords).then(geocode => {
+            if (!isMountedRef.current) return;
             if (geocode.length > 0) {
               const { street, city, district, subregion, region, country } = geocode[0];
               const formattedAddress = [street, district || subregion || city, region, country].filter(Boolean).join(', ');
@@ -113,6 +119,11 @@ export const LocationProvider = ({ children }) => {
           }).catch(() => { });
         }
       });
+
+      if (!isMountedRef.current) {
+        subscription.remove();
+        return;
+      }
 
       setLoading(false);
       return subscription;
@@ -133,7 +144,7 @@ export const LocationProvider = ({ children }) => {
 
     try {
       const center = { latitude: location.coords.latitude, longitude: location.coords.longitude };
-      const bounds = getBounds(center, QUERY_DISTANCE);
+      const bounds = getBoundsOfDistance(center, QUERY_DISTANCE);
 
       const usersQuery = query(
         collection(db, 'users'),
@@ -142,6 +153,7 @@ export const LocationProvider = ({ children }) => {
       );
 
       const snapshot = await getDocs(usersQuery);
+      if (!isMountedRef.current) return;
       const nearby = [];
 
       snapshot.forEach(docItem => {
@@ -168,12 +180,18 @@ export const LocationProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     let subscription;
     let queryInterval;
+    let cancelled = false;
 
     if (user?.uid && isAuthenticated === true) {
       (async () => {
         subscription = await startWatchingLocation();
+        if (cancelled) {
+          subscription?.remove();
+          return;
+        }
         queryInterval = setInterval(() => {
           if (user?.uid && isAuthenticated === true) {
             queryNearbyUsers();
@@ -185,6 +203,8 @@ export const LocationProvider = ({ children }) => {
     }
 
     return () => {
+      cancelled = true;
+      isMountedRef.current = false;
       subscription?.remove();
       if (queryInterval) clearInterval(queryInterval);
     };

@@ -7,7 +7,7 @@ import {
   Modal,
   ScrollView
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { PRIVACY_OPTIONS, PrivacyLevel } from '@/utils/postPrivacyUtils';
 

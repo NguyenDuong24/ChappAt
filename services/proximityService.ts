@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import geohash from 'ngeohash';
 import {
   collection,
   query,
@@ -15,6 +16,17 @@ import { getDistance, getGreatCircleBearing } from 'geolib';
 import { safeReverseGeocodeAsync } from '../utils/geocodingUtils';
 import { ref as storageRef, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebaseConfig';
+import { updateLocation } from './nearbyService';
+
+function computeGeohash4(latitude: number, longitude: number): string {
+  try {
+    return geohash.encode(latitude, longitude, 4);
+  } catch {
+    const latBucket = Math.floor((latitude + 90) / 0.7);
+    const lngBucket = Math.floor((longitude + 180) / 0.7);
+    return `${latBucket}|${lngBucket}`.slice(0, 4);
+  }
+}
 
 export interface NearbyUser {
   id: string;
@@ -53,6 +65,7 @@ export interface ProximityOptions {
 class ProximityService {
   private locationSubscription: Location.LocationSubscription | null = null;
   private userSubscriptions: Map<string, () => void> = new Map();
+  private photoUrlCache: Map<string, string> = new Map();
 
   /**
    * Request location permissions
@@ -96,9 +109,18 @@ class ProximityService {
         location: new GeoPoint(location.coords.latitude, location.coords.longitude),
         lastLocationUpdate: Timestamp.now(),
       });
+
+      await updateLocation({
+        userId,
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        geohash4: computeGeohash4(location.coords.latitude, location.coords.longitude),
+        timestamp: Date.now(),
+        source: 'foreground',
+      });
       console.log('✅ Location updated for user:', userId);
     } catch (error) {
-      console.error('Error updating user location:', error);
+      console.error('Error upmatch user location:', error);
       throw error;
     }
   }
@@ -168,11 +190,11 @@ class ProximityService {
             }
           }
 
-          const userLat = userData.location.latitude;
-          const userLon = userData.location.longitude;
+          const normalizedLocation = this.normalizeUserLocation(userData.location);
+          const userLat = normalizedLocation?.latitude;
+          const userLon = normalizedLocation?.longitude;
 
           if (userLat === undefined || userLon === undefined) {
-            console.warn(`⚠️ User ${docSnap.id} has invalid location data`);
             return null;
           }
 
@@ -194,9 +216,11 @@ class ProximityService {
               userLon
             );
 
-            const photoURL = await this.resolvePhotoUrl(userData);
-
             const genderNorm = normalizeGenderFromFirestore(userData?.gender);
+            const rawPhotoURL = userData?.profileUrl || userData?.photoURL || userData?.profileImage || userData?.avatar;
+            const photoURL = typeof rawPhotoURL === 'string' && /^https?:\/\//i.test(rawPhotoURL)
+              ? rawPhotoURL
+              : 'https://via.placeholder.com/150';
 
             return {
               id: docSnap.id,
@@ -252,9 +276,9 @@ class ProximityService {
       // Start watching location
       this.locationSubscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
-          timeInterval: interval,
-          distanceInterval: 10, // Update every 10 meters
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: Math.max(interval, 15000),
+          distanceInterval: 25
         },
         async (location) => {
           console.log('📍 Location updated:', location.coords);
@@ -302,6 +326,12 @@ class ProximityService {
         if (userData.location) {
           const photoUrl = await this.resolvePhotoUrl(userData);
 
+          const normalizedLocation = this.normalizeUserLocation(userData.location);
+          if (!normalizedLocation) {
+            onUpdate(null);
+            return;
+          }
+
           onUpdate({
             id: docSnap.id,
             name: userData.name || userData.username || 'Unknown',
@@ -309,8 +339,8 @@ class ProximityService {
             distance: 0, // Will be calculated by caller
             bearing: 0, // Will be calculated by caller
             location: {
-              latitude: userData.location.latitude,
-              longitude: userData.location.longitude,
+              latitude: normalizedLocation.latitude,
+              longitude: normalizedLocation.longitude,
             },
             bio: typeof userData.bio === 'string' ? userData.bio : undefined,
             age: typeof userData.age === 'number' ? userData.age : undefined,
@@ -322,6 +352,11 @@ class ProximityService {
         }
       } else {
         onUpdate(null);
+      }
+    }, (error) => {
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error("Error in subscribeToUserLocation listener:", error);
       }
     });
 
@@ -442,12 +477,16 @@ class ProximityService {
     // If already an http(s) URL return as-is
     if (/^https?:\/\//i.test(url)) return url;
 
+    const cached = this.photoUrlCache.get(url);
+    if (cached) return cached;
+
     // If GS path like gs://bucket/path/to/file
     if (/^gs:\/\//i.test(url)) {
       const path = url.replace(/^gs:\/\/[\w.-]+\//i, '');
       try {
         const ref = storageRef(storage, path);
         const downloadUrl = await getDownloadURL(ref);
+        this.photoUrlCache.set(url, downloadUrl);
         return downloadUrl;
       } catch (error) {
         console.warn('Failed to get download URL from gs:// path', error);
@@ -460,11 +499,35 @@ class ProximityService {
     try {
       const ref = storageRef(storage, normalizedPath);
       const downloadUrl = await getDownloadURL(ref);
+      this.photoUrlCache.set(url, downloadUrl);
       return downloadUrl;
     } catch (error) {
       console.warn('Failed to get download URL for storage path:', normalizedPath, error);
       return fallback;
     }
+  }
+
+  private normalizeUserLocation(value: any): { latitude: number; longitude: number } | null {
+    if (!value) return null;
+
+    const latitude = Number(
+      value.latitude ??
+      value._latitude ??
+      value._lat ??
+      value.lat
+    );
+    const longitude = Number(
+      value.longitude ??
+      value._longitude ??
+      value._long ??
+      value.lng ??
+      value.lon
+    );
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+
+    return { latitude, longitude };
   }
 
   /**
@@ -546,3 +609,4 @@ class ProximityService {
 export const proximityService = new ProximityService();
 
 export default proximityService;
+

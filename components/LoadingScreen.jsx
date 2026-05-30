@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
   ScrollView, ActivityIndicator, Platform, RefreshControl,
@@ -6,14 +6,14 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { coinServerApi, getErrorMessage } from '../../../src/services/coinServerApi';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BackHandler } from 'react-native';
 import CoinPurchaseSection from '../../../components/payment/CoinPurchaseSection';
-import { RewardedAd, RewardedAdEventType, TestIds, AdEventType } from 'react-native-google-mobile-ads';
 import { useTranslation } from 'react-i18next';
 
-const PROD_REWARDED_AD_UNIT_ID = 'ca-app-pub-9844251118980104/4096893807';
+const PROD_REWARDED_AD_UNIT_ID = 'ca-app-pub-9793421534392971/7526441306';
 
 export const options = { headerShown: false };
 
@@ -26,9 +26,9 @@ interface Transaction {
   metadata?: any;
 }
 
-const CACHED_BALANCE_KEY = '@chappat:cached_balance_v2';
+const CACHED_BALANCE_KEY = '@saigonmatch:cached_balance_v2';
 
-// ─── Memo'd TransactionItem — defined OUTSIDE to never be recreated ───
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Memo'd TransactionItem Ã¢â‚¬â€ defined OUTSIDE to never be recreated Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const TransactionItem = memo(({ tx, details, locale, t }: {
   tx: Transaction;
   details: { title: string; description: string; icon: any; color: string };
@@ -61,7 +61,7 @@ const TransactionItem = memo(({ tx, details, locale, t }: {
   </View>
 ));
 
-// ─── Main Screen ───
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Main Screen Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export default function CoinWalletScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
@@ -75,13 +75,15 @@ export default function CoinWalletScreen() {
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
   const [rewardAdLoaded, setRewardAdLoaded] = useState(false);
   const [giftAdLoaded, setGiftAdLoaded] = useState(false);
-  const [rewardAd, setRewardAd] = useState<RewardedAd | null>(null);
-  const [giftAd, setGiftAd] = useState<RewardedAd | null>(null);
+  const [rewardAd, setRewardAd] = useState<any>(null);
+  const [giftAd, setGiftAd] = useState<any>(null);
 
   const isShowingAdRef = useRef(false);
   const claimedRewardRef = useRef<{ reward: boolean; gift: boolean }>({ reward: false, gift: false });
   const pendingAdIdRef = useRef<string>('');
   const isMountedRef = useRef(true);
+  const adUnsubscribesRef = useRef<(() => void)[]>([]);
+  const rewardResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleBackPress = useCallback(() => {
     if (from === 'profile') {
@@ -152,30 +154,42 @@ export default function CoinWalletScreen() {
     return () => {
       isMountedRef.current = false;
       clearTimeout(adTimer);
+      adUnsubscribesRef.current.forEach(unsubscribe => unsubscribe());
+      adUnsubscribesRef.current = [];
+      if (rewardResetTimerRef.current) clearTimeout(rewardResetTimerRef.current);
     };
   }, [loadBalance, loadTransactions]);
 
-  const loadAds = useCallback(() => {
+  const loadAds = useCallback(async () => {
     if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
-    const adUnitId = __DEV__ ? TestIds.REWARDED : PROD_REWARDED_AD_UNIT_ID;
+    adUnsubscribesRef.current.forEach(unsubscribe => unsubscribe());
+    adUnsubscribesRef.current = [];
+    const adUnitId = PROD_REWARDED_AD_UNIT_ID;
 
-    const reward = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
-    reward.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setRewardAdLoaded(true); });
-    reward.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('reward'));
-    reward.addAdEventListener(AdEventType.CLOSED, () => {
-      if (isMountedRef.current) { setRewardAdLoaded(false); isShowingAdRef.current = false; reward.load(); }
-    });
-    reward.load();
-    setRewardAd(reward);
+    try {
+      const { RewardedAd, RewardedAdEventType, AdEventType } = await import('react-native-google-mobile-ads');
+      if (!isMountedRef.current) return;
 
-    const gift = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
-    gift.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setGiftAdLoaded(true); });
-    gift.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('gift'));
-    gift.addAdEventListener(AdEventType.CLOSED, () => {
-      if (isMountedRef.current) { setGiftAdLoaded(false); isShowingAdRef.current = false; gift.load(); }
-    });
-    gift.load();
-    setGiftAd(gift);
+      const reward = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
+      adUnsubscribesRef.current.push(reward.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setRewardAdLoaded(true); }));
+      adUnsubscribesRef.current.push(reward.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('reward')));
+      adUnsubscribesRef.current.push(reward.addAdEventListener(AdEventType.CLOSED, () => {
+        if (isMountedRef.current) { setRewardAdLoaded(false); isShowingAdRef.current = false; reward.load(); }
+      }));
+      reward.load();
+      setRewardAd(reward);
+
+      const gift = RewardedAd.createForAdRequest(adUnitId, { requestNonPersonalizedAdsOnly: true });
+      adUnsubscribesRef.current.push(gift.addAdEventListener(RewardedAdEventType.LOADED, () => { if (isMountedRef.current) setGiftAdLoaded(true); }));
+      adUnsubscribesRef.current.push(gift.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => handleAdEarned('gift')));
+      adUnsubscribesRef.current.push(gift.addAdEventListener(AdEventType.CLOSED, () => {
+        if (isMountedRef.current) { setGiftAdLoaded(false); isShowingAdRef.current = false; gift.load(); }
+      }));
+      gift.load();
+      setGiftAd(gift);
+    } catch (error) {
+      console.warn('[RewardedAd] Lazy load failed:', error);
+    }
   }, []);
 
   const handleAdEarned = useCallback(async (type: 'reward' | 'gift') => {
@@ -197,8 +211,9 @@ export default function CoinWalletScreen() {
     } catch (error) {
       Alert.alert(t('common.error'), getErrorMessage(error as any));
     } finally {
-      setLoading(false);
-      setTimeout(() => { claimedRewardRef.current[type] = false; }, 1000);
+      if (isMountedRef.current) setLoading(false);
+      if (rewardResetTimerRef.current) clearTimeout(rewardResetTimerRef.current);
+      rewardResetTimerRef.current = setTimeout(() => { claimedRewardRef.current[type] = false; }, 1000);
     }
   }, [t, loadBalance, loadTransactions]);
 
@@ -227,18 +242,18 @@ export default function CoinWalletScreen() {
     });
   }, [loadBalance, loadTransactions]);
 
-  // ✅ Stable callback passed to CoinPurchaseSection — prevents re-render
+  // Ã¢Å“â€¦ Stable callback passed to CoinPurchaseSection Ã¢â‚¬â€ prevents re-render
   const handlePurchaseSuccess = useCallback(() => {
     loadBalance(true);
   }, [loadBalance]);
 
-  // ✅ Memoized stats
+  // Ã¢Å“â€¦ Memoized stats
   const stats = useMemo(() => ({
     earned: transactions.filter(tx => tx.amount > 0).reduce((s, tx) => s + tx.amount, 0),
     spent: Math.abs(transactions.filter(tx => tx.amount < 0).reduce((s, tx) => s + tx.amount, 0)),
   }), [transactions]);
 
-  // ✅ Memoized transaction details (one object per tx, stable references)
+  // Ã¢Å“â€¦ Memoized transaction details (one object per tx, stable references)
   const getTransactionDetails = useCallback((tx: Transaction) => {
     const { type, metadata, amount } = tx;
     if (type === 'reward') return { title: t('wallet.watch_ad'), description: t('wallet.watch_ad_desc'), icon: 'play-circle-outline' as any, color: '#4CAF50' };
@@ -255,7 +270,7 @@ export default function CoinWalletScreen() {
     return { title: type.charAt(0).toUpperCase() + type.slice(1), description: t('wallet.transaction'), icon: (amount > 0 ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline') as any, color: amount > 0 ? '#4CAF50' : '#F44336' };
   }, [t]);
 
-  // ✅ Pre-compute details for all transactions — stable when transactions don't change
+  // Ã¢Å“â€¦ Pre-compute details for all transactions Ã¢â‚¬â€ stable when transactions don't change
   const txWithDetails = useMemo(() =>
     transactions.map(tx => ({ tx, details: getTransactionDetails(tx) })),
     [transactions, getTransactionDetails]
@@ -325,7 +340,7 @@ export default function CoinWalletScreen() {
           </View>
         </View>
 
-        {/* VietQR Purchase — stable callback prevents re-render */}
+        {/* VietQR Purchase Ã¢â‚¬â€ stable callback prevents re-render */}
         <CoinPurchaseSection onPurchaseSuccess={handlePurchaseSuccess} />
 
         {/* Ad Section */}
@@ -340,11 +355,11 @@ export default function CoinWalletScreen() {
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.watchBtn, (!rewardAdLoaded && !__DEV__) && styles.disabledBtn]}
+              style={[styles.watchBtn, !rewardAdLoaded && styles.disabledBtn]}
               onPress={() => showAd('reward')}
-              disabled={loading}
+              disabled={loading || !rewardAdLoaded}
             >
-              <Text style={styles.watchBtnText}>{rewardAdLoaded || __DEV__ ? t('wallet.watch_now') : t('common.loading')}</Text>
+              <Text style={styles.watchBtnText}>{rewardAdLoaded ? t('wallet.watch_now') : t('common.loading')}</Text>
             </TouchableOpacity>
           </View>
 
@@ -357,11 +372,11 @@ export default function CoinWalletScreen() {
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.watchBtn, { backgroundColor: '#9C27B0' }, (!giftAdLoaded && !__DEV__) && styles.disabledBtn]}
+              style={[styles.watchBtn, { backgroundColor: '#9C27B0' }, !giftAdLoaded && styles.disabledBtn]}
               onPress={() => showAd('gift')}
-              disabled={loading}
+              disabled={loading || !giftAdLoaded}
             >
-              <Text style={styles.watchBtnText}>{giftAdLoaded || __DEV__ ? t('wallet.open_gift') : t('common.loading')}</Text>
+              <Text style={styles.watchBtnText}>{giftAdLoaded ? t('wallet.open_gift') : t('common.loading')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -466,3 +481,6 @@ const styles = StyleSheet.create({
   loadingList: { alignItems: 'center', justifyContent: 'center', padding: 20 },
   loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
 });
+
+
+

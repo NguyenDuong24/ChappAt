@@ -5,7 +5,9 @@ import {
   orderBy, 
   limit as firestoreLimit,
   getDocs, 
+  addDoc,
   doc,
+  deleteDoc,
   updateDoc,
   arrayUnion,
   arrayRemove,
@@ -20,6 +22,7 @@ import { db } from '@/firebaseConfig';
 import userCacheService from './userCacheService';
 import optimizedHashtagService from './optimizedHashtagService';
 import ExpoPushNotificationService from './expoPushNotificationService';
+import { POST_COST_LIMITS } from '@/config/costControls';
 
 export interface OptimizedSocialPost {
   id: string;
@@ -126,7 +129,7 @@ class OptimizedSocialService {
       const userIds = new Set<string>();
 
       snapshot.docs.forEach(doc => {
-        const data = doc.data();
+        const data = doc.data() as any;
         
         // Skip shared posts, only keep original posts for explore
         if (data.type === 'share') return;
@@ -138,13 +141,13 @@ class OptimizedSocialService {
           images: Array.isArray(data.images) ? data.images : [],
           hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
           likes: Array.isArray(data.likes) ? data.likes : [],
-          comments: data.comments || 0,
+          comments: data.commentsCount ?? (Array.isArray(data.comments) ? data.comments.length : Number(data.comments || 0)),
           shares: data.shares || 0,
           timestamp: data.timestamp,
           type: data.type || 'post',
           privacy: data.privacy || 'public',
           isLiked: Array.isArray(data.likes) ? data.likes.includes(currentUserId) : false,
-          likeCount: Array.isArray(data.likes) ? data.likes.length : 0
+          likeCount: data.likesCount ?? (Array.isArray(data.likes) ? data.likes.length : 0)
         };
 
         posts.push(post);
@@ -257,7 +260,7 @@ class OptimizedSocialService {
       const userIds = new Set<string>();
 
       snapshot.docs.forEach(doc => {
-        const data = doc.data();
+        const data = doc.data() as any;
         
         if (data.type === 'share') return;
         
@@ -268,13 +271,13 @@ class OptimizedSocialService {
           images: Array.isArray(data.images) ? data.images : [],
           hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
           likes: Array.isArray(data.likes) ? data.likes : [],
-          comments: data.comments || 0,
+          comments: data.commentsCount ?? (Array.isArray(data.comments) ? data.comments.length : Number(data.comments || 0)),
           shares: data.shares || 0,
           timestamp: data.timestamp,
           type: data.type || 'post',
           privacy: data.privacy || 'public',
           isLiked: Array.isArray(data.likes) ? data.likes.includes(currentUserId) : false,
-          likeCount: Array.isArray(data.likes) ? data.likes.length : 0
+          likeCount: data.likesCount ?? (Array.isArray(data.likes) ? data.likes.length : 0)
         };
 
         newPosts.push(post);
@@ -338,12 +341,16 @@ class OptimizedSocialService {
         if (isLiked) {
           // Remove like
           batch.update(postRef, {
-            likes: arrayRemove(userId)
+            likes: arrayRemove(userId),
+            likesCount: increment(-1),
+            updatedAt: serverTimestamp()
           });
         } else {
           // Add like
           batch.update(postRef, {
-            likes: arrayUnion(userId)
+            likes: arrayUnion(userId),
+            likesCount: increment(1),
+            updatedAt: serverTimestamp()
           });
         }
       });
@@ -447,13 +454,13 @@ class OptimizedSocialService {
           images: Array.isArray(data.images) ? data.images : [],
           hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
           likes: Array.isArray(data.likes) ? data.likes : [],
-          comments: data.comments || 0,
+          comments: data.commentsCount ?? (Array.isArray(data.comments) ? data.comments.length : Number(data.comments || 0)),
           shares: data.shares || 0,
           timestamp: data.timestamp,
           type: data.type || 'post',
           privacy: data.privacy || 'public',
           isLiked: Array.isArray(data.likes) ? data.likes.includes(currentUserId) : false,
-          likeCount: Array.isArray(data.likes) ? data.likes.length : 0
+          likeCount: data.likesCount ?? (Array.isArray(data.likes) ? data.likes.length : 0)
         };
 
         posts.push(post);
@@ -554,13 +561,13 @@ class OptimizedSocialService {
             images: Array.isArray(data.images) ? data.images : [],
             hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
             likes: Array.isArray(data.likes) ? data.likes : [],
-            comments: data.comments || 0,
+            comments: data.commentsCount ?? (Array.isArray(data.comments) ? data.comments.length : Number(data.comments || 0)),
             shares: data.shares || 0,
             timestamp: data.timestamp,
             type: data.type || 'post',
             privacy: data.privacy || 'public',
             isLiked: Array.isArray(data.likes) ? data.likes.includes(currentUserId) : false,
-            likeCount: Array.isArray(data.likes) ? data.likes.length : 0
+            likeCount: data.likesCount ?? (Array.isArray(data.likes) ? data.likes.length : 0)
           };
 
           posts.push(post);
@@ -668,16 +675,30 @@ class OptimizedSocialService {
   async addComment(postId: string, commentData: any, skipNotification: boolean = false): Promise<void> {
     try {
       const postRef = doc(db, 'posts', postId);
+      const commentText = String(commentData.text || '').trim().slice(0, POST_COST_LIMITS.maxCommentLength);
+      const newComment = {
+        ...commentData,
+        text: commentText,
+        id: commentData.id || Date.now().toString(),
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
+
+      await addDoc(collection(postRef, 'comments'), newComment);
       await updateDoc(postRef, {
-        comments: arrayUnion({
-          ...commentData,
-          id: commentData.id || Date.now().toString(),
-          timestamp: commentData.timestamp || new Date()
-        })
+        commentsCount: increment(1),
+        updatedAt: serverTimestamp(),
       });
 
       // Clear relevant cache entries
       this.clearCache(commentData.userId);
+      this.postsCache.forEach((cache) => {
+        cache.posts = cache.posts.map(post =>
+          post.id === postId
+            ? { ...post, comments: (post.comments || 0) + 1 }
+            : post
+        );
+      });
       
       console.log('✅ Comment added to post:', postId);
 
@@ -689,7 +710,6 @@ class OptimizedSocialService {
             const post = snap.data() as any;
             const ownerId = post.userId || post.userID;
             const commenterName = commentData.username || commentData.displayName || 'Ai đó';
-            const commentText = commentData.text || '';
             const body = `${commenterName}: ${commentText.substring(0, 100)}`;
 
             if (ownerId && ownerId !== commentData.userId) {
@@ -714,6 +734,39 @@ class OptimizedSocialService {
       }
     } catch (error) {
       console.error('❌ Error adding comment:', error);
+      throw error;
+    }
+  }
+
+  async getPostComments(postId: string, limitCount: number = POST_COST_LIMITS.commentsPreviewLimit): Promise<any[]> {
+    try {
+      const safeLimit = Math.min(limitCount, POST_COST_LIMITS.commentPageSize);
+      const commentsRef = collection(db, 'posts', postId, 'comments');
+      const commentsQuery = query(
+        commentsRef,
+        orderBy('timestamp', 'desc'),
+        firestoreLimit(safeLimit)
+      );
+      const snapshot = await getDocs(commentsQuery);
+      return snapshot.docs.map(commentDoc => ({
+        id: commentDoc.id,
+        ...commentDoc.data(),
+      }));
+    } catch (error) {
+      console.error('âŒ Error loading post comments:', error);
+      return [];
+    }
+  }
+
+  async deletePost(postId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(db, 'posts', postId));
+      this.postsCache.forEach((cache) => {
+        cache.posts = cache.posts.filter(post => post.id !== postId);
+      });
+      console.log('âœ… Post deleted:', postId);
+    } catch (error) {
+      console.error('âŒ Error deleting post:', error);
       throw error;
     }
   }

@@ -7,7 +7,7 @@ import { Linking, Platform } from 'react-native';
 import { getAuth } from 'firebase/auth';
 
 // Cấu hình URL server
-const API_BASE_URL = 'https://saigondating-server.onrender.com/api';
+const API_BASE_URL = 'https://saigonmatch.com.vn/api';
 
 // Các gói coin có sẵn
 export const COIN_PACKAGES = [

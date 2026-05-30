@@ -342,7 +342,7 @@ class SocialNotificationService {
         body: notification.body || notification.message,
         data: notification.data || {},
         priority: 'high',
-        sound: 'default',
+        sound: undefined,
         badge: 1,
         channelId: 'social' // Sử dụng social channel với HIGH importance
       });

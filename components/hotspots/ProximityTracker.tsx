@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,8 @@ import {
   Animated,
   Platform,
 } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -187,7 +188,7 @@ const ProximityTracker: React.FC<ProximityTrackerProps> = ({
         handleCheckIn();
       }
     } catch (error) {
-      console.error('Error updating location:', error);
+      console.error('Error upmatch location:', error);
     }
   };
 

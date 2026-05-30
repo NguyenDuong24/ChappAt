@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -45,6 +45,13 @@ interface ReportData {
 const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, currentUser }: ReportModalProps) => {
   const colors = useThemedColors();
   const { t } = useTranslation();
+
+  // Fallback helper
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
+
   const [selectedReason, setSelectedReason] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -60,29 +67,29 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
 
   const reportReasons = {
     user: [
-      { id: 'harassment', label: t('report_modal.reason.harassment'), icon: 'account-alert' },
-      { id: 'spam', label: t('report_modal.reason.spam'), icon: 'message-alert' },
-      { id: 'fake', label: t('report_modal.reason.fake_account'), icon: 'account-cancel' },
-      { id: 'inappropriate', label: t('report_modal.reason.inappropriate_content'), icon: 'alert-circle' },
-      { id: 'scam', label: t('report_modal.reason.scam'), icon: 'security' },
-      { id: 'other', label: t('report_modal.reason.other'), icon: 'dots-horizontal' },
+      { id: 'harassment', label: tf('report_modal.reason.harassment', 'Quấy rối'), icon: 'account-alert' },
+      { id: 'spam', label: tf('report_modal.reason.spam', 'Spam'), icon: 'message-alert' },
+      { id: 'fake', label: tf('report_modal.reason.fake_account', 'Tài khoản giả mạo'), icon: 'account-cancel' },
+      { id: 'inappropriate', label: tf('report_modal.reason.inappropriate_content', 'Nội dung không phù hợp'), icon: 'alert-circle' },
+      { id: 'scam', label: tf('report_modal.reason.scam', 'Lừa đảo'), icon: 'security' },
+      { id: 'other', label: tf('report_modal.reason.other', 'Khác'), icon: 'dots-horizontal' },
     ],
     message: [
-      { id: 'spam', label: t('report_modal.reason.spam_message'), icon: 'message-alert' },
-      { id: 'harassment', label: t('report_modal.reason.harassment_bullying'), icon: 'account-alert' },
-      { id: 'hate_speech', label: t('report_modal.reason.hate_speech'), icon: 'comment-alert' },
-      { id: 'inappropriate', label: t('report_modal.reason.inappropriate_content'), icon: 'alert-circle' },
-      { id: 'violence', label: t('report_modal.reason.violence_threats'), icon: 'shield-alert' },
-      { id: 'privacy', label: t('report_modal.reason.privacy_violation'), icon: 'lock-alert' },
-      { id: 'other', label: t('report_modal.reason.other'), icon: 'dots-horizontal' },
+      { id: 'spam', label: tf('report_modal.reason.spam_message', 'Tin nhắn spam'), icon: 'message-alert' },
+      { id: 'harassment', label: tf('report_modal.reason.harassment_bullying', 'Quấy rối, bắt nạt'), icon: 'account-alert' },
+      { id: 'hate_speech', label: tf('report_modal.reason.hate_speech', 'Ngôn từ thù địch'), icon: 'comment-alert' },
+      { id: 'inappropriate', label: tf('report_modal.reason.inappropriate_content', 'Nội dung không phù hợp'), icon: 'alert-circle' },
+      { id: 'violence', label: tf('report_modal.reason.violence_threats', 'Đe dọa bạo lực'), icon: 'shield-alert' },
+      { id: 'privacy', label: tf('report_modal.reason.privacy_violation', 'Xâm phạm quyền riêng tư'), icon: 'lock-alert' },
+      { id: 'other', label: tf('report_modal.reason.other', 'Khác'), icon: 'dots-horizontal' },
     ],
     group: [
-      { id: 'inappropriate_content', label: t('report_modal.reason.inappropriate_content'), icon: 'alert-circle' },
-      { id: 'spam', label: t('report_modal.reason.spam_group'), icon: 'message-alert' },
-      { id: 'hate_group', label: t('report_modal.reason.hate_group'), icon: 'account-group-outline' },
-      { id: 'illegal', label: t('report_modal.reason.illegal_activity'), icon: 'gavel' },
-      { id: 'fake', label: t('report_modal.reason.fake_group'), icon: 'account-cancel' },
-      { id: 'other', label: t('report_modal.reason.other'), icon: 'dots-horizontal' },
+      { id: 'inappropriate_content', label: tf('report_modal.reason.inappropriate_content', 'Nội dung không phù hợp'), icon: 'alert-circle' },
+      { id: 'spam', label: tf('report_modal.reason.spam_group', 'Nhóm spam'), icon: 'message-alert' },
+      { id: 'hate_group', label: tf('report_modal.reason.hate_group', 'Nhóm thù địch'), icon: 'account-group-outline' },
+      { id: 'illegal', label: tf('report_modal.reason.illegal_activity', 'Hoạt động phi pháp'), icon: 'gavel' },
+      { id: 'fake', label: tf('report_modal.reason.fake_group', 'Nhóm giả mạo'), icon: 'account-cancel' },
+      { id: 'other', label: tf('report_modal.reason.other', 'Khác'), icon: 'dots-horizontal' },
     ],
   };
 
@@ -96,7 +103,7 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('report_modal.permission_title'), t('report_modal.permission_library'));
+        Alert.alert(tf('report_modal.permission_title', 'Yêu cầu quyền'), tf('report_modal.permission_library', 'Cần quyền truy cập thư viện ảnh'));
         return;
       }
 
@@ -114,15 +121,15 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
         setSelectedImages(prev => [...prev, ...newImages].slice(0, 5));
       }
     } catch {
-      Alert.alert(t('common.error'), t('report_modal.pick_image_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('report_modal.pick_image_error', 'Lỗi chọn ảnh'));
     }
-  }, [t]);
+  }, [tf]);
 
   const takePhoto = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t('report_modal.permission_title'), t('report_modal.permission_camera'));
+        Alert.alert(tf('report_modal.permission_title', 'Yêu cầu quyền'), tf('report_modal.permission_camera', 'Cần quyền truy cập camera'));
         return;
       }
 
@@ -136,9 +143,9 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
         setSelectedImages(prev => [...prev, result.assets[0].uri].slice(0, 5));
       }
     } catch {
-      Alert.alert(t('common.error'), t('report_modal.take_photo_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('report_modal.take_photo_error', 'Lỗi chụp ảnh'));
     }
-  }, [t]);
+  }, [tf]);
 
   const removeImage = useCallback((index: number) => {
     setSelectedImages(prev => prev.filter((_, i) => i !== index));
@@ -146,12 +153,12 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
 
   const handleSubmit = useCallback(async () => {
     if (!selectedReason) {
-      Alert.alert(t('report_modal.missing_info_title'), t('report_modal.reason_required'));
+      Alert.alert(tf('report_modal.missing_info_title', 'Thiếu thông tin'), tf('report_modal.reason_required', 'Vui lòng chọn lý do'));
       return;
     }
 
     if (selectedReason === 'other' && !description.trim()) {
-      Alert.alert(t('report_modal.missing_info_title'), t('report_modal.description_required_for_other'));
+      Alert.alert(tf('report_modal.missing_info_title', 'Thiếu thông tin'), tf('report_modal.description_required_for_other', 'Vui lòng mô tả chi tiết'));
       return;
     }
 
@@ -168,26 +175,26 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
 
       await onSubmit(reportData);
 
-      Alert.alert(t('report_modal.sent_title'), t('report_modal.sent_message'), [{ text: t('common.ok'), onPress: () => { resetForm(); onClose(); } }]);
+      Alert.alert(tf('report_modal.sent_title', 'Đã gửi báo cáo'), tf('report_modal.sent_message', 'Cảm ơn bạn đã báo cáo'), [{ text: tf('common.ok', 'OK'), onPress: () => { resetForm(); onClose(); } }]);
     } catch {
-      Alert.alert(t('common.error'), t('report_modal.send_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('report_modal.send_error', 'Lỗi gửi báo cáo'));
     } finally {
       setSubmitting(false);
     }
-  }, [selectedReason, description, targetType, targetInfo.id, currentUser?.uid, onSubmit, resetForm, onClose, selectedImages, t]);
+  }, [selectedReason, description, targetType, targetInfo.id, currentUser?.uid, onSubmit, resetForm, onClose, selectedImages, tf]);
 
   const getTargetTitle = useCallback(() => {
     switch (targetType) {
       case 'user':
-        return t('report_modal.title_user');
+        return tf('report_modal.title_user', 'Báo cáo người dùng');
       case 'message':
-        return t('report_modal.title_message');
+        return tf('report_modal.title_message', 'Báo cáo tin nhắn');
       case 'group':
-        return t('report_modal.title_group');
+        return tf('report_modal.title_group', 'Báo cáo nhóm');
       default:
-        return t('report_modal.title');
+        return tf('report_modal.title', 'Báo cáo');
     }
-  }, [targetType, t]);
+  }, [targetType, tf]);
 
   if (!visible) return null;
 
@@ -195,22 +202,22 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
     <Modal visible={visible} transparent animationType="slide" presentationStyle="overFullScreen">
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.overlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.background }]}> 
-            <View style={[styles.header, { borderBottomColor: colors.border }]}> 
+          <View style={[styles.modalContainer, { backgroundColor: colors.surfaceElevated || colors.cardBackground || colors.appBackground }]}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <MaterialCommunityIcons name="close" size={24} color={colors.subtleText} />
+                <MaterialCommunityIcons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
               <Text style={[styles.headerTitle, { color: colors.text }]}>{getTargetTitle()}</Text>
               <View style={{ width: 24 }} />
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-              <View style={[styles.targetInfo, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+              <View style={[styles.targetInfo, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <View style={styles.targetHeader}>
                   {targetInfo.avatar ? (
                     <Image source={{ uri: targetInfo.avatar }} style={styles.targetAvatar} />
                   ) : (
-                    <View style={[styles.targetAvatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}> 
+                    <View style={[styles.targetAvatar, styles.avatarPlaceholder, { backgroundColor: colors.border }]}>
                       <MaterialCommunityIcons
                         name={targetType === 'user' ? 'account' : targetType === 'group' ? 'account-group' : 'message'}
                         size={24}
@@ -219,15 +226,15 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
                     </View>
                   )}
                   <View style={styles.targetDetails}>
-                    <Text style={[styles.targetName, { color: colors.text }]}>{targetInfo.name || t('report_modal.unnamed_target')}</Text>
+                    <Text style={[styles.targetName, { color: colors.text }]}>{targetInfo.name || tf('report_modal.unnamed_target', 'Không xác định')}</Text>
                     <Text style={[styles.targetType, { color: colors.subtleText }]}>
-                      {targetType === 'user' ? t('report_modal.target_user') : targetType === 'group' ? t('report_modal.target_group') : t('report_modal.target_message')}
+                      {targetType === 'user' ? tf('report_modal.target_user', 'Người dùng') : targetType === 'group' ? tf('report_modal.target_group', 'Nhóm') : tf('report_modal.target_message', 'Tin nhắn')}
                     </Text>
                   </View>
                 </View>
 
                 {targetInfo.content && (
-                  <View style={[styles.messageContent, { backgroundColor: colors.background, borderLeftColor: colors.primary }]}> 
+                  <View style={[styles.messageContent, { backgroundColor: colors.surfaceElevated || colors.cardBackground || colors.appBackground, borderLeftColor: colors.primary }]}>
                     <Text style={[styles.messageText, { color: colors.text }]} numberOfLines={3} ellipsizeMode="tail">
                       {targetInfo.content}
                     </Text>
@@ -235,38 +242,38 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
                 )}
               </View>
 
-              <View style={[styles.warningBox, { backgroundColor: colors.isDark ? colors.surface : '#FEF2F2' }]}> 
+              <View style={[styles.warningBox, { backgroundColor: colors.isDark ? colors.surface : '#FEF2F2' }]}>
                 <MaterialCommunityIcons name="shield-alert" size={20} color={colors.error} />
-                <Text style={[styles.warningText, { color: colors.error }]}>{t('report_modal.false_report_warning')}</Text>
+                <Text style={[styles.warningText, { color: colors.error }]}>{tf('report_modal.false_report_warning', 'Báo cáo sai có thể dẫn đến khóa tài khoản')}</Text>
               </View>
 
               <View style={styles.reasonsContainer}>
-                <Text style={[styles.reasonsTitle, { color: colors.text }]}>{t('report_modal.reason_title')}</Text>
+                <Text style={[styles.reasonsTitle, { color: colors.text }]}>{tf('report_modal.reason_title', 'Chọn lý do báo cáo')}</Text>
                 {reportReasons[targetType]?.map((reason) => (
                   <TouchableOpacity
                     key={reason.id}
                     style={[
                       styles.reasonButton,
                       { borderColor: colors.border },
-                      selectedReason === reason.id && { backgroundColor: colors.primary, borderColor: colors.primary },
+                      selectedReason === reason.id && { backgroundColor: colors.error, borderColor: colors.error },
                     ]}
                     onPress={() => setSelectedReason(reason.id)}
                   >
-                    <MaterialCommunityIcons name={reason.icon as any} size={20} color={selectedReason === reason.id ? '#FFFFFF' : colors.primary} />
-                    <Text style={[styles.reasonText, { color: colors.text }, selectedReason === reason.id && { color: '#FFFFFF' }]}>{reason.label}</Text>
+                    <MaterialCommunityIcons name={reason.icon as any} size={20} color={selectedReason === reason.id ? '#FFFFFF' : colors.error} />
+                    <Text style={[styles.reasonText, { color: selectedReason === reason.id ? '#FFFFFF' : colors.error }]}>{reason.label}</Text>
                     {selectedReason === reason.id && <MaterialCommunityIcons name="check" size={20} color="#FFFFFF" />}
                   </TouchableOpacity>
                 ))}
               </View>
 
               <View style={styles.descriptionContainer}>
-                <Text style={[styles.descriptionTitle, { color: colors.text }]}> 
-                  {t('report_modal.description_title', { required: selectedReason === 'other' ? '*' : t('report_modal.optional') })}
+                <Text style={[styles.descriptionTitle, { color: colors.text }]}>
+                  {tf('report_modal.description_title', 'Mô tả chi tiết').replace('{{required}}', selectedReason === 'other' ? '*' : tf('report_modal.optional', 'tùy chọn'))}
                 </Text>
                 <TextInput
                   value={description}
                   onChangeText={setDescription}
-                  placeholder={t('report_modal.description_placeholder')}
+                  placeholder={tf('report_modal.description_placeholder', 'Nhập mô tả...')}
                   multiline
                   numberOfLines={4}
                   style={[styles.descriptionInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -278,8 +285,8 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
               </View>
 
               <View style={styles.imagesContainer}>
-                <Text style={[styles.imagesTitle, { color: colors.text }]}>{t('report_modal.attachments_optional')}</Text>
-                <Text style={[styles.imagesSubtitle, { color: colors.subtleText }]}>{t('report_modal.attachments_hint')}</Text>
+                <Text style={[styles.imagesTitle, { color: colors.text }]}>{tf('report_modal.attachments_optional', 'Ảnh đính kèm (tùy chọn)')}</Text>
+                <Text style={[styles.imagesSubtitle, { color: colors.subtleText }]}>{tf('report_modal.attachments_hint', 'Thêm ảnh để minh chứng')}</Text>
 
                 {selectedImages.length > 0 && (
                   <FlatList
@@ -302,33 +309,35 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
                 <View style={styles.imageButtonsContainer}>
                   <TouchableOpacity style={[styles.imageButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={pickImage}>
                     <MaterialCommunityIcons name="image" size={20} color={colors.primary} />
-                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>{t('report_modal.pick_from_library')}</Text>
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>{tf('report_modal.pick_from_library', 'Chọn từ thư viện')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={[styles.imageButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={takePhoto}>
                     <MaterialCommunityIcons name="camera" size={20} color={colors.primary} />
-                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>{t('report_modal.take_photo')}</Text>
+                    <Text style={[styles.imageButtonText, { color: colors.primary }]}>{tf('report_modal.take_photo', 'Chụp ảnh')}</Text>
                   </TouchableOpacity>
                 </View>
 
-                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}>{t('report_modal.images_limit', { count: selectedImages.length, max: 5 })}</Text>
+                <Text style={[styles.imageLimitText, { color: colors.subtleText }]}>
+                  {tf('report_modal.images_limit', '{{count}}/{{max}} ảnh').replace('{{count}}', String(selectedImages.length)).replace('{{max}}', '5')}
+                </Text>
               </View>
 
-              <View style={[styles.privacyNotice, { backgroundColor: colors.isDark ? colors.surface : '#EFF6FF' }]}> 
+              <View style={[styles.privacyNotice, { backgroundColor: colors.isDark ? colors.surface : '#EFF6FF' }]}>
                 <MaterialCommunityIcons name="information" size={16} color={colors.primary} />
-                <Text style={[styles.privacyText, { color: colors.isDark ? colors.text : '#1E40AF' }]}>{t('report_modal.privacy_notice')}</Text>
+                <Text style={[styles.privacyText, { color: colors.isDark ? colors.text : '#1E40AF' }]}>{tf('report_modal.privacy_notice', 'Thông tin của bạn sẽ được bảo mật')}</Text>
               </View>
             </ScrollView>
 
-            <View style={[styles.footer, { borderTopColor: colors.border }]}> 
+            <View style={[styles.footer, { borderTopColor: colors.border }]}>
               <TouchableOpacity style={[styles.submitButton, { opacity: submitting ? 0.7 : 1 }]} onPress={handleSubmit} disabled={submitting}>
                 <LinearGradient colors={[colors.error, colors.error + 'CC']} style={styles.submitGradient}>
                   {submitting ? (
-                    <Text style={styles.submitText}>{t('report_modal.submitting')}</Text>
+                    <Text style={styles.submitText}>{tf('report_modal.submitting', 'Đang gửi...')}</Text>
                   ) : (
                     <>
                       <MaterialCommunityIcons name="flag" size={20} color="#FFFFFF" />
-                      <Text style={styles.submitText}>{t('report_modal.submit')}</Text>
+                      <Text style={styles.submitText}>{tf('report_modal.submit', 'Gửi báo cáo')}</Text>
                     </>
                   )}
                 </LinearGradient>
@@ -344,14 +353,19 @@ const ReportModal = ({ visible, onClose, onSubmit, targetType, targetInfo, curre
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.38)',
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
     maxHeight: '90%',
     height: '80%',
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: -8 },
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',

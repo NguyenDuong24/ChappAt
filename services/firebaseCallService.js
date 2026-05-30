@@ -1,7 +1,6 @@
 import {
   collection,
   doc,
-  addDoc,
   updateDoc,
   onSnapshot,
   query,
@@ -10,18 +9,28 @@ import {
   serverTimestamp,
   deleteDoc,
   getDoc,
+  getDocs,
   limit  // Added for performance
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { createMeeting, token } from '@/api';
+import { createCallRoom } from '@/api';
 import ExpoPushNotificationService from './expoPushNotificationService';
 import callTimeoutService from './callTimeoutService.js';
 import * as Notifications from 'expo-notifications';
 
 // PERFORMANCE: Enable/disable debug mode
 const DEBUG_MODE = false;
-const log = DEBUG_MODE ? console.log : () => { };
-const logError = console.error; // Always log errors
+const log = (...args) => {
+  // Only log in development
+  if (__DEV__) {
+    console.log('[FirebaseCall]', ...args);
+  }
+};
+
+const logError = (...args) => {
+  // Use console.log for errors too, so it doesn't trigger the red LogBox in Expo
+  console.log('[FirebaseCall] ❌ ERROR:', ...args);
+};
 
 // Simple throttle function to prevent rapid-fire callbacks
 const throttle = (func, delay) => {
@@ -70,9 +79,24 @@ export const createCall = async (callerId, receiverId, callType = CALL_TYPE.VIDE
   try {
     log('🔄 Creating new call...');
 
-    // Tạo meeting ID từ VideoSDK
-    const meetingId = await createMeeting({ token });
-    log('✅ VideoSDK Meeting created:', meetingId);
+    // Create the VideoSDK room and Firebase call document on the server.
+    // This keeps the VideoSDK room-create token private and applies quota/cooldown.
+    const callResult = await createCallRoom({
+      receiverId,
+      callType,
+      metadata: {
+        source: 'private_chat',
+        callerId,
+      },
+    });
+    const meetingId = callResult?.meetingId || callResult?.roomId;
+    const callId = callResult?.callId;
+
+    if (!meetingId || !callId) {
+      throw new Error('Server did not return call meeting data');
+    }
+
+    log('✅ Server VideoSDK call created:', callId, meetingId);
 
     // Tạo call document trong Firebase
     const callData = {
@@ -80,13 +104,8 @@ export const createCall = async (callerId, receiverId, callType = CALL_TYPE.VIDE
       receiverId,
       meetingId,
       type: callType,
-      status: CALL_STATUS.RINGING,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      status: CALL_STATUS.RINGING
     };
-
-    const callRef = await addDoc(collection(db, 'calls'), callData);
-    log('✅ Firebase call created:', callRef.id);
 
     // GỬI PUSH NOTIFICATION CHO RECEIVER NGAY LẬP TỨC (giống chat)
     try {
@@ -111,7 +130,7 @@ export const createCall = async (callerId, receiverId, callType = CALL_TYPE.VIDE
             body: 'Incoming call',
             data: {
               type: 'call',
-              callId: callRef.id,
+              callId,
               callerId: callerId,
               meetingId: meetingId,
               callType: callType,
@@ -134,8 +153,8 @@ export const createCall = async (callerId, receiverId, callType = CALL_TYPE.VIDE
             log('✅ Push notification sent successfully for incoming call');
 
             // BẮT ĐẦU TIMEOUT CHO CUỘC GỌI (30 giây)
-            callTimeoutService.startCallTimeout(callRef.id, 30000, async () => {
-              await updateCallStatus(callRef.id, CALL_STATUS.CANCELLED, {
+            callTimeoutService.startCallTimeout(callId, 30000, async () => {
+              await updateCallStatus(callId, CALL_STATUS.CANCELLED, {
                 cancelledBy: 'timeout',
                 cancelledAt: new Date().toISOString(),
                 timeoutReason: 'User did not respond within timeout period'
@@ -155,12 +174,54 @@ export const createCall = async (callerId, receiverId, callType = CALL_TYPE.VIDE
     }
 
     return {
-      id: callRef.id,
+      id: callId,
       meetingId,
       ...callData
     };
   } catch (error) {
-    logError('❌ Error creating call:', error);
+    log('Error details for internal tracking:', error.message);
+
+    // Parse server-side quota/cooldown errors and show user-friendly messages
+    const code = error?.code || '';
+    const details = error?.details || {};
+    let userMessage = 'Không thể tạo cuộc gọi. Vui lòng thử lại.';
+
+    switch (code) {
+      case 'DAILY_CALL_LIMIT':
+        userMessage = `Bạn đã đạt giới hạn ${details.max || 20} cuộc gọi trong ngày. Vui lòng thử lại vào ngày mai.`;
+        break;
+      case 'DAILY_VIDEO_LIMIT':
+        userMessage = 'Bạn đã hết thời lượng gọi video miễn phí hôm nay (5 phút/ngày). Nâng cấp Premium để gọi thêm!';
+        break;
+      case 'DAILY_AUDIO_LIMIT':
+        userMessage = 'Bạn đã hết thời lượng gọi thoại miễn phí hôm nay (20 phút/ngày). Nâng cấp Premium để gọi thêm!';
+        break;
+      case 'CALL_COOLDOWN': {
+        const waitSec = Math.ceil((details.retryAfterMs || 20000) / 1000);
+        userMessage = `Vui lòng chờ ${waitSec} giây trước khi tạo cuộc gọi mới.`;
+        break;
+      }
+      case 'ACTIVE_CALL_EXISTS':
+        userMessage = 'Bạn đang có một cuộc gọi khác chưa kết thúc.';
+        break;
+      case 'CALL_BLOCKED':
+        userMessage = 'Không thể gọi cho người dùng này.';
+        break;
+      case 'RECEIVER_NOT_FOUND':
+        userMessage = 'Người dùng không tồn tại.';
+        break;
+      case 'VIDEOSDK_ROOM_RATE_LIMIT':
+        userMessage = 'Bạn đang tạo cuộc gọi quá nhanh. Vui lòng chờ một chút.';
+        break;
+      case 'VIDEOSDK_UPSTREAM_ERROR':
+      case 'VIDEOSDK_ROOM_FAILED':
+        userMessage = 'Dịch vụ gọi video đang gặp sự cố. Vui lòng thử lại sau ít giây.';
+        break;
+      default:
+        break;
+    }
+
+    error.userMessage = userMessage;
     throw error;
   }
 };
@@ -176,7 +237,7 @@ export const updateCallStatus = async (callId, status, additionalData = {}) => {
     });
     log(`✅ Call status updated to: ${status}`);
   } catch (error) {
-    logError('❌ Error updating call status:', error);
+    logError('❌ Error upmatch call status:', error);
     throw error;
   }
 };
@@ -287,6 +348,11 @@ export const listenForIncomingCalls = (userId, callback) => {
         throttledCallback(callData);
       }
     });
+  }, (error) => {
+    const errorStr = String(error?.message || error?.code || error);
+    if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+      console.error("Error in listenForIncomingCall:", error);
+    }
   });
 };
 
@@ -307,6 +373,11 @@ export const listenForCallStatusChanges = (callId, callback) => {
       };
       log('📱 Call status changed:', callData.status);
       throttledCallback(callData);
+    }
+  }, (error) => {
+    const errorStr = String(error?.message || error?.code || error);
+    if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+      console.error("Error in listenForCallStatusChanges:", error);
     }
   });
 };
@@ -358,6 +429,11 @@ export const listenForUserCallChanges = (userId, callback) => {
         throttledCallback(callData);
       }
     });
+  }, (error) => {
+    const errorStr = String(error?.message || error?.code || error);
+    if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+      console.error("Error in unsubscribeCaller listener:", error);
+    }
   });
 
   const unsubscribeReceiver = onSnapshot(receiverQuery, (snapshot) => {
@@ -385,6 +461,11 @@ export const listenForUserCallChanges = (userId, callback) => {
         throttledCallback(callData);
       }
     });
+  }, (error) => {
+    const errorStr = String(error?.message || error?.code || error);
+    if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+      console.error("Error in unsubscribeReceiver listener:", error);
+    }
   });
 
   // Return function để unsubscribe cả 2 listeners

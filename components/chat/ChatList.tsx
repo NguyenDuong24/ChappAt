@@ -46,18 +46,15 @@ const MemoizedChatItem = memo(ChatItem, (prevProps, nextProps) => {
     );
 });
 
-// Empty State Component
-const EmptyState = memo(({ currentThemeColors, t }: { currentThemeColors: any; t: any }) => (
-    <View style={styles.emptyContainer}>
-        <View style={[styles.emptyCard, { backgroundColor: currentThemeColors.surface }]}>
-            <MaterialCommunityIcons name="chat-outline" size={64} color="#cbd5e1" />
-            <Text style={[styles.emptyTitle, { color: currentThemeColors.text }]}>
-                {t('chat.no_chats')}
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: currentThemeColors.subtleText }]}>
-                {t('chat.no_chats_desc')}
-            </Text>
-        </View>
+// Empty State Component (nhận tf thay vì t)
+const EmptyState = memo(({ tf, currentThemeColors }: { tf: (key: string, fallback: string) => string; currentThemeColors: any }) => (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32, paddingBottom: 80 }}>
+        <Text style={{ fontSize: 16, color: currentThemeColors.text, textAlign: 'center', marginBottom: 10 }}>
+            {tf('chat.no_chats', 'Chưa có cuộc trò chuyện nào')}
+        </Text>
+        <Text style={{ fontSize: 13, textAlign: 'center', color: currentThemeColors.textSecondary, maxWidth: 300 }}>
+            {tf('chat.no_chats_desc', 'Bắt đầu kết nối để trò chuyện ngay')}
+        </Text>
     </View>
 ));
 
@@ -111,6 +108,12 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
     const router = useRouter();
     const currentThemeColors = useThemedColors();
 
+    // Hàm dịch thông minh với fallback
+    const tf = useCallback((key: string, fallback: string) => {
+        const translated = t(key);
+        return translated !== key ? translated : fallback;
+    }, [t]);
+
     const [sortedChats, setSortedChats] = useState<any[]>([]);
     const [refreshing, setRefreshing] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -146,7 +149,6 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
         if (!currenUser?.uid) return;
 
         try {
-            // Clear previous realtime listeners
             unsubscribesRef.current.forEach(unsub => unsub());
             unsubscribesRef.current = [];
             realtimeRoomIdsRef.current.clear();
@@ -163,12 +165,12 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
             const roomsSnapshot = await getDocs(roomsQuery);
             lastRoomDocRef.current = roomsSnapshot.docs[roomsSnapshot.docs.length - 1] || null;
 
-            // Process rooms and embed user info
             const roomChats = await Promise.all(
                 roomsSnapshot.docs.map(async (roomDoc) => {
                     const roomData = roomDoc.data();
                     const otherUserId = roomData.participants?.find((uid: string) => uid !== currenUser.uid);
-                    if (!otherUserId) return null;                    // Embed user info directly in room when available
+                    if (!otherUserId) return null;
+
                     let userData = roomData.participantsData?.[otherUserId] || { id: otherUserId, username: '', profileUrl: null, activeFrame: null };
 
                     userData = {
@@ -177,7 +179,6 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                         username: userData?.username || userData?.displayName || userData?.name || '',
                     };
 
-                    // Fallback: fetch if not embedded
                     if (!userData.username || userData.username === 'Unknown') {
                         try {
                             const userSnap = await getDoc(doc(db, 'users', otherUserId));
@@ -185,7 +186,7 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                                 const data = userSnap.data();
                                 userData = {
                                     id: otherUserId,
-                                    username: normalizeDisplayText(data.username || data.displayName || data.name || ''),
+                                    username: data.username || data.displayName || data.name || '',
                                     profileUrl: data.profileUrl,
                                     activeFrame: data.activeFrame
                                 };
@@ -226,7 +227,6 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                 hotSpotsSnapshot.docs.map(async (chatDoc) => {
                     const chatData = chatDoc.data();
 
-                    // Check expiration
                     if (chatData.endTime) {
                         const endTime = chatData.endTime.seconds
                             ? new Date(chatData.endTime.seconds * 1000)
@@ -280,16 +280,12 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                 })
             );
 
-            // Combine and filter
             const allChats = [...roomChats, ...hotspotChats].filter(c => c !== null && isValidChat(c));
-
-            // Sort by time and pin
             sortChats(allChats, currenUser?.pinnedChatIds);
 
             setSortedChats(allChats);
             setHasMore(roomsSnapshot.docs.length === INITIAL_LOAD_LIMIT || hotSpotsSnapshot.docs.length === INITIAL_LOAD_LIMIT);
 
-            // Setup realtime for first 30 rooms
             setupRealtimeListeners();
 
         } catch (error) {
@@ -297,31 +293,21 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
         }
     }, [currenUser?.uid]);
 
-    // Setup realtime listeners for tracked rooms only
     const setupRealtimeListeners = useCallback(() => {
         if (realtimeRoomIdsRef.current.size === 0 && realtimeHotspotIdsRef.current.size === 0) return;
 
-        // Realtime for regular rooms (max 30)
         if (realtimeRoomIdsRef.current.size > 0) {
             const roomIds = Array.from(realtimeRoomIdsRef.current);
-
-            // Firestore 'in' query has limit of 10, so batch them
             for (let i = 0; i < roomIds.length; i += 10) {
                 const batchIds = roomIds.slice(i, i + 10);
-                const roomsQuery = query(
-                    collection(db, 'rooms'),
-                    where('__name__', 'in', batchIds)
-                );
-
+                const roomsQuery = query(collection(db, 'rooms'), where('__name__', 'in', batchIds));
                 const unsubscribe = onSnapshot(roomsQuery, (snapshot) => {
                     if (!isMountedRef.current) return;
-
                     setSortedChats(prev => {
                         const updated = [...prev];
                         snapshot.docChanges().forEach(change => {
                             const roomData = change.doc.data();
                             const idx = updated.findIndex(c => c.chatRoomId === change.doc.id && c.chatType === 'regular');
-
                             if (change.type === 'modified' && idx !== -1) {
                                 updated[idx] = {
                                     ...updated[idx],
@@ -333,38 +319,31 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                                 };
                             }
                         });
-
-                        // Re-sort
                         sortChats(updated, currenUser?.pinnedChatIds);
-
                         return updated;
                     });
+                }, (error) => {
+                    const errorStr = String(error?.message || error?.code || error);
+                    if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                        console.error("Error in rooms realtime query:", error);
+                    }
                 });
-
                 unsubscribesRef.current.push(unsubscribe);
             }
         }
 
-        // Realtime for hotspot chats
         if (realtimeHotspotIdsRef.current.size > 0) {
             const hotspotIds = Array.from(realtimeHotspotIdsRef.current);
-
             for (let i = 0; i < hotspotIds.length; i += 10) {
                 const batchIds = hotspotIds.slice(i, i + 10);
-                const hotspotQuery = query(
-                    collection(db, 'hotSpotChats'),
-                    where('__name__', 'in', batchIds)
-                );
-
+                const hotspotQuery = query(collection(db, 'hotSpotChats'), where('__name__', 'in', batchIds));
                 const unsubscribe = onSnapshot(hotspotQuery, (snapshot) => {
                     if (!isMountedRef.current) return;
-
                     setSortedChats(prev => {
                         const updated = [...prev];
                         snapshot.docChanges().forEach(change => {
                             const chatData = change.doc.data();
                             const idx = updated.findIndex(c => c.chatRoomId === change.doc.id && c.chatType === 'hotspot');
-
                             if (change.type === 'modified' && idx !== -1) {
                                 updated[idx] = {
                                     ...updated[idx],
@@ -376,28 +355,26 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                                 };
                             }
                         });
-
-                        // Re-sort
                         sortChats(updated, currenUser?.pinnedChatIds);
-
                         return updated;
                     });
+                }, (error) => {
+                    const errorStr = String(error?.message || error?.code || error);
+                    if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                        console.error("Error in hotspot realtime query:", error);
+                    }
                 });
-
                 unsubscribesRef.current.push(unsubscribe);
             }
         }
     }, [currenUser?.uid]);
 
-    // Load more (pagination) - NO realtime for these
     const loadMoreChats = useCallback(async () => {
         if (loadingMore || !hasMore || !currenUser?.uid) return;
-
         setLoadingMore(true);
         try {
             const moreChats: any[] = [];
 
-            // Load more regular rooms
             if (lastRoomDocRef.current) {
                 const roomsQuery = query(
                     collection(db, 'rooms'),
@@ -406,7 +383,6 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                     startAfter(lastRoomDocRef.current),
                     limit(PAGINATION_LIMIT)
                 );
-
                 const roomsSnapshot = await getDocs(roomsQuery);
                 if (roomsSnapshot.docs.length > 0) {
                     lastRoomDocRef.current = roomsSnapshot.docs[roomsSnapshot.docs.length - 1];
@@ -414,40 +390,36 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                     lastRoomDocRef.current = null;
                 }
 
-                const roomChats = await Promise.all(
-                    roomsSnapshot.docs.map(async (roomDoc) => {
-                        const roomData = roomDoc.data();
-                        const otherUserId = roomData.participants?.find((uid: string) => uid !== currenUser.uid);
-                        if (!otherUserId) return null;
+                const roomChats = await Promise.all(roomsSnapshot.docs.map(async (roomDoc) => {
+                    const roomData = roomDoc.data();
+                    const otherUserId = roomData.participants?.find((uid: string) => uid !== currenUser.uid);
+                    if (!otherUserId) return null;
 
-                        let userData = roomData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown', profileUrl: null };
+                    let userData = roomData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown', profileUrl: null };
+                    if (!userData.username || userData.username === 'Unknown') {
+                        try {
+                            const userSnap = await getDoc(doc(db, 'users', otherUserId));
+                            if (userSnap.exists()) {
+                                userData = { id: otherUserId, ...userSnap.data() };
+                            }
+                        } catch (e) { }
+                    }
 
-                        if (!userData.username || userData.username === 'Unknown') {
-                            try {
-                                const userSnap = await getDoc(doc(db, 'users', otherUserId));
-                                if (userSnap.exists()) {
-                                    userData = { id: otherUserId, ...userSnap.data() };
-                                }
-                            } catch (e) { }
-                        }
-
-                        return {
-                            id: roomDoc.id,
-                            chatRoomId: roomDoc.id,
-                            chatType: 'regular',
-                            user: userData,
-                            lastMessage: roomData.lastMessage,
-                            unreadCount: roomData.unreadCounts?.[currenUser.uid] || 0,
-                            updatedAt: roomData.updatedAt,
-                            type: roomData.type,
-                            eventId: roomData.eventId
-                        };
-                    })
-                );
+                    return {
+                        id: roomDoc.id,
+                        chatRoomId: roomDoc.id,
+                        chatType: 'regular',
+                        user: userData,
+                        lastMessage: roomData.lastMessage,
+                        unreadCount: roomData.unreadCounts?.[currenUser.uid] || 0,
+                        updatedAt: roomData.updatedAt,
+                        type: roomData.type,
+                        eventId: roomData.eventId
+                    };
+                }));
                 moreChats.push(...roomChats.filter(c => c !== null));
             }
 
-            // Load more hotspot chats
             if (lastHotspotDocRef.current) {
                 const hotSpotsQuery = query(
                     collection(db, 'hotSpotChats'),
@@ -456,7 +428,6 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                     startAfter(lastHotspotDocRef.current),
                     limit(PAGINATION_LIMIT)
                 );
-
                 const hotSpotsSnapshot = await getDocs(hotSpotsQuery);
                 if (hotSpotsSnapshot.docs.length > 0) {
                     lastHotspotDocRef.current = hotSpotsSnapshot.docs[hotSpotsSnapshot.docs.length - 1];
@@ -464,59 +435,51 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                     lastHotspotDocRef.current = null;
                 }
 
-                const hotspotChats = await Promise.all(
-                    hotSpotsSnapshot.docs.map(async (chatDoc) => {
-                        const chatData = chatDoc.data();
+                const hotspotChats = await Promise.all(hotSpotsSnapshot.docs.map(async (chatDoc) => {
+                    const chatData = chatDoc.data();
+                    if (chatData.endTime) {
+                        const endTime = chatData.endTime.seconds ? new Date(chatData.endTime.seconds * 1000) : new Date(chatData.endTime);
+                        if (endTime < new Date()) return null;
+                    }
 
-                        if (chatData.endTime) {
-                            const endTime = chatData.endTime.seconds
-                                ? new Date(chatData.endTime.seconds * 1000)
-                                : new Date(chatData.endTime);
-                            if (endTime < new Date()) return null;
-                        }
+                    const otherUserId = chatData.participants?.find((id: string) => id !== currenUser.uid);
+                    if (!otherUserId) return null;
 
-                        const otherUserId = chatData.participants?.find((id: string) => id !== currenUser.uid);
-                        if (!otherUserId) return null;
+                    let userData = chatData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown' };
+                    if (!userData.username || userData.username === 'Unknown') {
+                        try {
+                            const userSnap = await getDoc(doc(db, 'users', otherUserId));
+                            if (userSnap.exists()) {
+                                userData = { id: otherUserId, ...userSnap.data() };
+                            }
+                        } catch (e) { }
+                    }
 
-                        let userData = chatData.participantsData?.[otherUserId] || { id: otherUserId, username: 'Unknown' };
-
-                        if (!userData.username || userData.username === 'Unknown') {
-                            try {
-                                const userSnap = await getDoc(doc(db, 'users', otherUserId));
-                                if (userSnap.exists()) {
-                                    userData = { id: otherUserId, ...userSnap.data() };
-                                }
-                            } catch (e) { }
-                        }
-
-                        return {
-                            id: `hotspot_${chatDoc.id}`,
-                            chatRoomId: chatDoc.id,
-                            chatType: 'hotspot',
-                            hotSpotId: chatData.eventId,
-                            hotSpotTitle: chatData.hotSpotTitle || '',
-                            user: userData,
-                            lastMessage: {
-                                text: chatData.lastMessage || '',
-                                lastMessageTime: chatData.lastMessageTime,
-                            },
-                            unreadCount: 0,
-                            updatedAt: chatData.lastMessageTime,
-                            endTime: chatData.endTime
-                        };
-                    })
-                );
+                    return {
+                        id: `hotspot_${chatDoc.id}`,
+                        chatRoomId: chatDoc.id,
+                        chatType: 'hotspot',
+                        hotSpotId: chatData.eventId,
+                        hotSpotTitle: chatData.hotSpotTitle || '',
+                        user: userData,
+                        lastMessage: {
+                            text: chatData.lastMessage || '',
+                            lastMessageTime: chatData.lastMessageTime,
+                        },
+                        unreadCount: 0,
+                        updatedAt: chatData.lastMessageTime,
+                        endTime: chatData.endTime
+                    };
+                }));
                 moreChats.push(...hotspotChats.filter(c => c !== null));
             }
 
             const validChats = moreChats.filter(isValidChat);
-
             if (validChats.length === 0) {
                 setHasMore(false);
             } else {
                 setSortedChats(prev => {
                     const combined = [...prev, ...validChats];
-                    // Sort by time and pin
                     sortChats(combined, currenUser?.pinnedChatIds);
                     return combined;
                 });
@@ -528,12 +491,10 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
         }
     }, [loadingMore, hasMore, currenUser?.uid]);
 
-    // Initial load on mount
     useEffect(() => {
         loadInitialChats();
     }, [loadInitialChats]);
 
-    // Global realtime listeners for list freshness (new message/new room/new hotspot chat)
     useEffect(() => {
         if (!currenUser?.uid || !isFocused) return;
 
@@ -563,10 +524,20 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
 
         const unsubRooms = onSnapshot(roomsLiveQuery, (snapshot) => {
             if (!snapshot.empty && snapshot.docChanges().length > 0) scheduleReload();
+        }, (error) => {
+            const errorStr = String(error?.message || error?.code || error);
+            if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                console.error("Error in rooms live query:", error);
+            }
         });
 
         const unsubHotspots = onSnapshot(hotspotLiveQuery, (snapshot) => {
             if (!snapshot.empty && snapshot.docChanges().length > 0) scheduleReload();
+        }, (error) => {
+            const errorStr = String(error?.message || error?.code || error);
+            if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+                console.error("Error in hotspots live query:", error);
+            }
         });
 
         liveQueryUnsubsRef.current.push(unsubRooms, unsubHotspots);
@@ -594,14 +565,12 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
     }, [onRefresh, loadInitialChats]);
 
     const { registerRefreshHandler } = useRefresh();
-
     useEffect(() => {
         if (registerRefreshHandler) {
             registerRefreshHandler('chat', handleRefresh);
         }
     }, [registerRefreshHandler, handleRefresh]);
 
-    // Re-sort when pinned chats change
     useEffect(() => {
         setSortedChats(prev => {
             const newChats = [...prev];
@@ -622,7 +591,7 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
         return [
             {
                 key: 'open',
-                label: t('chat.open_chat', { defaultValue: 'Open chat' }),
+                label: tf('chat.open_chat', 'Mở trò chuyện'),
                 icon: 'message-text-outline',
                 onPress: () => {
                     if (selectedChat.chatType === 'hotspot') {
@@ -641,7 +610,7 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
             },
             ...(selectedChat.user?.id ? [{
                 key: 'profile',
-                label: t('chat.view_profile', { defaultValue: 'View profile' }),
+                label: tf('chat.view_profile', 'Xem hồ sơ'),
                 icon: 'account-circle-outline' as const,
                 onPress: () => {
                     router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId: selectedChat.user.id } });
@@ -649,7 +618,7 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
             }] : []),
             ...(selectedChat.unreadCount > 0 && selectedChat.chatType === 'regular' ? [{
                 key: 'mark_read',
-                label: t('chat.mark_read', { defaultValue: 'Mark as read' }),
+                label: tf('chat.mark_read', 'Đánh dấu đã đọc'),
                 icon: 'check-all' as const,
                 onPress: async () => {
                     await updateDoc(doc(db, 'rooms', selectedChat.chatRoomId), {
@@ -664,7 +633,7 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
             }] : []),
             {
                 key: 'pin',
-                label: isPinned ? t('chat.list_options.unpin') : t('chat.list_options.pin'),
+                label: isPinned ? tf('chat.list_options.unpin', 'Bỏ ghim') : tf('chat.list_options.pin', 'Ghim'),
                 icon: isPinned ? 'pin-off-outline' : 'pin-outline',
                 onPress: async () => {
                     try {
@@ -675,13 +644,13 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                         }
                     } catch (error) {
                         console.error('Failed to pin/unpin chat:', error);
-                        Alert.alert(t('common.error'), t('chat.error_generic'));
+                        Alert.alert(tf('common.error', 'Lỗi'), tf('chat.error_generic', 'Đã xảy ra lỗi'));
                     }
                 }
             },
             {
                 key: 'delete',
-                label: t('chat.list_options.delete'),
+                label: tf('chat.list_options.delete', 'Xóa'),
                 icon: 'trash-can-outline',
                 variant: 'danger',
                 onPress: async () => {
@@ -691,15 +660,15 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                             return;
                         }
                         console.warn('Delete not implemented for this chat type');
-                        Alert.alert(t('common.error'), t('chat.list_options.type_not_supported'));
+                        Alert.alert(tf('common.error', 'Lỗi'), tf('chat.list_options.type_not_supported', 'Loại chat này không hỗ trợ xóa'));
                     } catch (error) {
                         console.error('Failed to delete chat:', error);
-                        Alert.alert(t('common.error'), t('chat.error_generic'));
+                        Alert.alert(tf('common.error', 'Lỗi'), tf('chat.error_generic', 'Đã xảy ra lỗi'));
                     }
                 }
             }
         ];
-    }, [selectedChat, currenUser?.uid, currenUser?.pinnedChatIds, t, router]);
+    }, [selectedChat, currenUser?.uid, currenUser?.pinnedChatIds, tf, router]);
 
     const keyExtractor = useCallback((item: any) => item.id, []);
 
@@ -741,10 +710,19 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
         { backgroundColor: 'transparent' }
     ], []);
 
+    const listFooterComponent = useMemo(() => (
+        <ListFooter loading={loadingMore} currentThemeColors={currentThemeColors} />
+    ), [loadingMore, currentThemeColors]);
+
+    const handleCloseOptionsModal = useCallback(() => {
+        setShowOptionsModal(false);
+        setSelectedChat(null);
+    }, []);
+
     if (sortedChats.length === 0 && !refreshing) {
         return (
             <View style={[styles.container, { backgroundColor: 'transparent' }]}>
-                <EmptyState currentThemeColors={currentThemeColors} t={t} />
+                <EmptyState tf={tf} currentThemeColors={currentThemeColors} />
             </View>
         );
     }
@@ -767,17 +745,14 @@ const ChatList = ({ currenUser, onRefresh }: { currenUser: any, onRefresh?: () =
                 scrollEventThrottle={16}
                 onEndReached={loadMoreChats}
                 onEndReachedThreshold={0.3}
-                ListFooterComponent={<ListFooter loading={loadingMore} currentThemeColors={currentThemeColors} />}
+                ListFooterComponent={listFooterComponent}
             />
 
             <ConversationOptionsModal
                 visible={showOptionsModal}
-                onClose={() => {
-                    setShowOptionsModal(false);
-                    setSelectedChat(null);
-                }}
-                title={t('chat.list_options.title')}
-                subtitle={selectedChat?.user?.username || selectedChat?.user?.name || t('chat.list_options.subtitle')}
+                onClose={handleCloseOptionsModal}
+                title={tf('chat.list_options.title', 'Tùy chọn')}
+                subtitle={selectedChat?.user?.username || selectedChat?.user?.name || tf('chat.list_options.subtitle', 'Chọn hành động')}
                 options={chatOptions}
             />
         </View>
@@ -791,34 +766,6 @@ const styles = StyleSheet.create({
     listContainer: {
         paddingTop: 8,
         paddingBottom: 110,
-    },
-    emptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 32,
-    },
-    emptyCard: {
-        alignItems: 'center',
-        padding: 40,
-        borderRadius: 20,
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-    },
-    emptyTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        marginTop: 16,
-        textAlign: 'center',
-    },
-    emptySubtitle: {
-        fontSize: 16,
-        marginTop: 8,
-        textAlign: 'center',
-        lineHeight: 22,
     },
     footer: {
         paddingVertical: 20,

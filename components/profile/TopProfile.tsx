@@ -1,11 +1,11 @@
-import React, { useContext, useState, useEffect, useCallback } from 'react';
+﻿import React, { useContext, useState, useEffect, useCallback } from 'react';
 import {
     StyleSheet, View, TextInput, TouchableOpacity, Text,
     Platform, ScrollView, Dimensions,
 } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { db } from '@/firebaseConfig';
-import { doc, updateDoc, collection, query, where, getCountFromServer } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getCountFromServer, limit } from 'firebase/firestore';
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import CustomImage from '../common/CustomImage';
@@ -26,6 +26,41 @@ import { profileVisitService, ProfileVisit } from '@/services/profileVisitServic
 
 const { width } = Dimensions.get('window');
 
+const compactValue = (value: any) => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+    return '';
+};
+
+const pickFirst = (...values: any[]) => values.map(compactValue).find(Boolean) || '';
+
+const getProfileCoverImage = (profile: any) => pickFirst(
+    profile?.coverImage,
+    profile?.coverUrl,
+    profile?.coverPhoto,
+    profile?.coverURL,
+    profile?.backgroundImage,
+);
+
+const calculateAge = (bdayStr: string) => {
+    if (!bdayStr) return null;
+    const parts = bdayStr.split('/');
+    if (parts.length !== 3) return null;
+    try {
+        const bday = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        const today = new Date();
+        let age = today.getFullYear() - bday.getFullYear();
+        const m = today.getMonth() - bday.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < bday.getDate())) {
+            age--;
+        }
+        return age > 0 && age < 120 ? age : null;
+    } catch {
+        return null;
+    }
+};
+
 const TopProfile = ({
     onEditProfile,
     onOpenSettings,
@@ -40,8 +75,20 @@ const TopProfile = ({
     const [bio, setBio] = useState('');
     const router = useRouter();
     const { theme, isDark, palette } = useTheme();
-    
-    // Fallback constants for colors not yet in palette or complex mappings
+
+    // Fallback helper
+    const tf = useCallback((key: string, fallback: string) => {
+        const translated = t(key);
+        return translated !== key ? translated : fallback;
+    }, [t]);
+
+    // Helper with params (replaces {{param}} in fallback)
+    const tfWithParams = useCallback((key: string, params: Record<string, any>, fallback: string) => {
+        const translated = t(key, params);
+        if (translated !== key) return translated;
+        return fallback.replace(/\{\{(\w+)\}\}/g, (_, p) => params[p] ?? '');
+    }, [t]);
+
     const C = {
         background: 'transparent',
         text: palette.textColor,
@@ -55,6 +102,7 @@ const TopProfile = ({
     const [postsCount, setPostsCount] = useState(0);
     const [giftStats, setGiftStats] = useState({ count: 0 });
     const [visitors, setVisitors] = useState<ProfileVisit[]>([]);
+    const coverImage = getProfileCoverImage(user);
 
     const handleOpenSettings = useCallback(() => {
         if (onOpenSettings) {
@@ -70,7 +118,6 @@ const TopProfile = ({
 
     useEffect(() => {
         let isMounted = true;
-
         const loadProfileStats = async () => {
             if (!user?.uid) {
                 if (isMounted) {
@@ -82,55 +129,91 @@ const TopProfile = ({
                 }
                 return;
             }
-
             try {
-                const [
-                    followersSnap,
-                    followingSnap,
-                    postsSnap,
-                    giftsResult,
-                    visitorsData,
-                ] = await Promise.all([
+                const [followersSnap, followingSnap, postsSnap, giftsResult, visitorsData] = await Promise.all([
                     getCountFromServer(query(collection(db, 'followers'), where('followingId', '==', user.uid))),
                     getCountFromServer(query(collection(db, 'followers'), where('followerId', '==', user.uid))),
-                    getCountFromServer(query(collection(db, 'posts'), where('userID', '==', user.uid))),
+                    getCountFromServer(query(collection(db, 'posts'), where('userID', '==', user.uid), limit(1000))),
                     giftService.listReceivedGifts(user.uid, { pageSize: 30 }),
                     profileVisitService.getVisitors(user.uid, 12),
                 ]);
-
                 if (!isMounted) return;
-
                 setFollowersCount(followersSnap.data().count);
                 setFollowingCount(followingSnap.data().count);
                 setPostsCount(postsSnap.data().count);
                 setGiftStats({ count: giftsResult.items.length });
                 setVisitors(visitorsData);
             } catch (error) {
-                console.error('Error loading top profile stats:', error);
+                const errMsg = String(error?.message || error?.code || '');
+                if (!errMsg.includes('permission-denied') && !errMsg.includes('Missing or insufficient permissions')) {
+                    console.error('Error loading top profile stats:', error);
+                }
             }
         };
-
         loadProfileStats();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [user?.uid]);
 
     const fmt = (value: number) => (value >= 1000 ? `${(value / 1000).toFixed(1)}K` : String(value));
 
     const handleSaveBio = async () => {
         if (!user?.uid) return;
-
         try {
-            await updateDoc(doc(db, 'users', user.uid), {
-                bio: bio.trim(),
-            });
+            await updateDoc(doc(db, 'users', user.uid), { bio: bio.trim() });
             setIsEditingBio(false);
         } catch (error) {
             console.error('Error saving bio:', error);
         }
     };
+
+    const personalDetails = [
+        { icon: 'cake-variant-outline' as const, label: 'Tuổi', value: (() => {
+            const ageValue = user?.age;
+            let ageNum: number | null = null;
+            if (typeof ageValue === 'number' && !isNaN(ageValue) && ageValue > 0) {
+                ageNum = ageValue;
+            } else if (ageValue instanceof Date && !isNaN(ageValue.getTime())) {
+                const today = new Date();
+                let age = today.getFullYear() - ageValue.getFullYear();
+                const monthDiff = today.getMonth() - ageValue.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < ageValue.getDate())) age--;
+                ageNum = age > 0 && age < 120 ? age : null;
+            } else if (ageValue && typeof ageValue === 'object' && 'seconds' in ageValue) {
+                try {
+                    const birthDate = new Date((ageValue as any).seconds * 1000);
+                    const today = new Date();
+                    let age = today.getFullYear() - birthDate.getFullYear();
+                    const monthDiff = today.getMonth() - birthDate.getMonth();
+                    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+                    ageNum = age > 0 && age < 120 ? age : null;
+                } catch { ageNum = null; }
+            } else if (typeof ageValue === 'string') {
+                try {
+                    const birthDate = new Date(ageValue);
+                    if (!isNaN(birthDate.getTime())) {
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const monthDiff = today.getMonth() - birthDate.getMonth();
+                        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+                        ageNum = age > 0 && age < 120 ? age : null;
+                    }
+                } catch { ageNum = null; }
+            }
+            if (ageNum === null) {
+                const bday = pickFirst(user?.birthday, user?.birthDate, user?.dob);
+                if (bday) ageNum = calculateAge(bday);
+            }
+            return ageNum ? `${ageNum} tuổi` : '';
+        })(), color: '#8B5CF6' },
+        { icon: 'briefcase-outline' as const, label: 'Nghề nghiệp', value: user?.job || '', color: '#0891B2' },
+        { icon: 'home-heart' as const, label: 'Quê quán', value: pickFirst(user?.hometown, user?.address), color: '#10B981' },
+        { icon: 'map-marker-outline' as const, label: 'Khu vực', value: pickFirst(user?.city, user?.locationName), color: '#6366F1' },
+        { icon: 'heart-outline' as const, label: 'Mục tiêu', value: pickFirst(user?.lookingFor, user?.datingGoal, user?.relationshipGoal), color: '#F43F5E' },
+        { icon: 'account-heart-outline' as const, label: 'Tình trạng', value: pickFirst(user?.relationshipStatus, user?.relationship), color: '#F59E0B' },
+        { icon: 'human-male-height' as const, label: 'Chiều cao', value: user?.height ? `${user.height} cm` : '', color: '#06B6D4' },
+        { icon: 'translate' as const, label: 'Ngôn ngữ', value: Array.isArray(user?.languages) ? user.languages.filter(Boolean).join(', ') : pickFirst(user?.language), color: '#22C55E' },
+        { icon: 'calendar-heart' as const, label: 'Sinh nhật', value: pickFirst(user?.birthday, user?.birthDate, user?.dob), color: '#A855F7' },
+    ].filter(item => item.value);
 
     const HighlightItem = ({
         icon: iconName,
@@ -164,21 +247,27 @@ const TopProfile = ({
 
     return (
         <Animated.View entering={FadeIn.duration(400)} style={[styles.container, { backgroundColor: 'transparent' }]}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <View>
+                {/* COVER IMAGE */}
                 <View style={styles.coverWrapper}>
                     <CustomImage
-                        source={user?.coverUrl || user?.coverPhoto || undefined}
+                        source={coverImage || undefined}
+                        images={coverImage ? [coverImage] : []}
                         style={styles.coverImage}
                         type="cover"
-                        onLongPress={() => { }}
+                        onLongPress={() => {}}
+                        initialIndex={0}
                     />
-                    {/* Gradient fade bottom */}
                     <LinearGradient
-                        colors={['rgba(0,0,0,0.45)', 'transparent', isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.45)']}
+                        colors={[
+                            'rgba(0,0,0,0.45)',
+                            'transparent',
+                            isDark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.45)',
+                        ]}
                         locations={[0, 0.45, 1]}
                         style={StyleSheet.absoluteFill}
+                        pointerEvents="none"
                     />
-                    {/* Header bar over cover */}
                     <View style={styles.overlayHeader}>
                         <View style={styles.headerLeft} />
                         <TouchableOpacity style={styles.overlayIcon} onPress={handleOpenSettings}>
@@ -191,7 +280,6 @@ const TopProfile = ({
 
                 {/* PROFILE SUMMARY */}
                 <View style={styles.profileSummary}>
-                    {/* Avatar */}
                     <View style={styles.avatarContainer}>
                         {activeFrame ? (
                             <View style={styles.avatarFreeContainer}>
@@ -224,8 +312,6 @@ const TopProfile = ({
                                 </View>
                             </LinearGradient>
                         )}
-
-                        {/* Vibe Status Text */}
                         {currentVibe?.customMessage && (
                             <TouchableOpacity
                                 style={[styles.vibeStatusBubble, { backgroundColor: isDark ? 'rgba(40,40,40,0.95)' : 'rgba(255,255,255,0.95)', borderColor: isDark ? '#333' : '#eee' }]}
@@ -237,38 +323,15 @@ const TopProfile = ({
                             </TouchableOpacity>
                         )}
                     </View>
-
-                    {/* Stats */}
-                    <View style={styles.statsContainer}>
-                        <View style={styles.statBox}>
-                            <Text style={[styles.statNumber, { color: C.text }]}>{fmt(postsCount)}</Text>
-                            <Text style={[styles.statLabel, { color: C.subtitle }]}>{t('profile.posts')}</Text>
-                        </View>
-                        <TouchableOpacity style={styles.statBox}>
-                            <Text style={[styles.statNumber, { color: C.text }]}>{fmt(followersCount)}</Text>
-                            <Text style={[styles.statLabel, { color: C.subtitle }]}>{t('profile.followers')}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.statBox}>
-                            <Text style={[styles.statNumber, { color: C.text }]}>{fmt(followingCount)}</Text>
-                            <Text style={[styles.statLabel, { color: C.subtitle }]}>{t('profile.following')}</Text>
-                        </TouchableOpacity>
-                    </View>
                 </View>
 
                 {/* BIO + NAME */}
                 <View style={styles.bioContainer}>
                     <View style={styles.nameRow}>
                         <Text style={[styles.displayName, { color: C.text }]}>{user?.displayName || user?.username}</Text>
-                        {isPremium && (
-                            <MaterialCommunityIcons name="check-decagram" size={18} color="#0095f6" />
-                        )}
+                        {isPremium && <MaterialCommunityIcons name="check-decagram" size={18} color="#0095f6" />}
                     </View>
-
-                    {user?.job && (
-                        <Text style={[styles.jobTitle, { color: C.subtitle }]}>
-                            {user.job}
-                        </Text>
-                    )}
+                    {user?.job && <Text style={[styles.jobTitle, { color: C.subtitle }]}>{user.job}</Text>}
 
                     {isEditingBio ? (
                         <View style={styles.editBioBox}>
@@ -278,80 +341,68 @@ const TopProfile = ({
                                 onChangeText={setBio}
                                 multiline
                                 autoFocus
-                                placeholder={t('profile.bio_placeholder')}
+                                placeholder={tf('profile.bio_placeholder', 'Mô tả về bản thân...')}
                                 placeholderTextColor={C.subtitle}
                             />
                             <View style={styles.bioEditActions}>
                                 <TouchableOpacity onPress={() => setIsEditingBio(false)} style={styles.cancelBtn}>
-                                    <Text style={{ color: C.subtitle, fontWeight: '600', fontSize: 14 }}>{t('common.cancel')}</Text>
+                                    <Text style={{ color: C.subtitle, fontWeight: '600', fontSize: 14 }}>{tf('common.cancel', 'Hủy')}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={handleSaveBio} style={styles.saveBioBtn}>
-                                    <Text style={styles.saveBioText}>{t('common.save')}</Text>
+                                    <Text style={styles.saveBioText}>{tf('common.save', 'Lưu')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
                     ) : (
                         <TouchableOpacity style={styles.bioDisplayRow} onPress={() => setIsEditingBio(true)} activeOpacity={0.7}>
                             <Text style={[styles.bioText, { color: C.text }]}>
-                                {bio || t('profile.bio_empty')}
+                                {bio || tf('profile.bio_empty', 'Thêm tiểu sử')}
                             </Text>
                             <Feather name="edit-2" size={13} color={C.subtitle} style={{ marginLeft: 6, marginTop: 4 }} />
                         </TouchableOpacity>
                     )}
 
-                    {user?.university && (
-                        <View style={styles.infoRow}>
-                            <MaterialCommunityIcons name="school-outline" size={16} color={C.subtitle} />
-                            <Text style={[styles.infoRowText, { color: C.text }]}>
-                                {t('profile.studying_at_label', { school: user.university })}
-                            </Text>
-                        </View>
-                    )}
-
-                    {user?.educationLevel && (
-                        <View style={styles.infoRow}>
-                            <MaterialCommunityIcons name="certificate-outline" size={16} color={C.subtitle} />
-                            <Text style={[styles.infoRowText, { color: C.text }]}>
-                                {t('profile.education_level_label', { value: user.educationLevel })}
-                            </Text>
-                        </View>
-                    )}
-
-                    {Array.isArray(user?.interests) && user.interests.length > 0 && (
-                        <View style={styles.interestsWrapper}>
-                            {user.interests.slice(0, 5).map((interestId: string) => {
-                                const label = getLabelForInterest(interestId);
-                                if (!label) return null;
-                                return (
-                                    <View key={interestId} style={[styles.interestPill, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}>
-                                        <Text style={[styles.interestPillText, { color: C.text }]}>#{label}</Text>
+                    {(personalDetails.length > 0 || (Array.isArray(user?.interests) && user.interests.length > 0)) && (
+                        <View style={[styles.infoPanel, { backgroundColor: isDark ? 'rgba(255,255,255,0.045)' : 'rgba(15,23,42,0.035)' }]}>
+                            <View style={styles.infoPanelHeader}>
+                                <MaterialCommunityIcons name="card-account-details-outline" size={16} color="#8B5CF6" />
+                                <Text style={[styles.infoPanelTitle, { color: C.text }]}>Thông tin hồ sơ</Text>
+                            </View>
+                            <View style={styles.infoPillsWrap}>
+                                {personalDetails.map(item => (
+                                    <View key={item.label} style={[styles.infoPill, { backgroundColor: isDark ? `${item.color}20` : `${item.color}14` }]}>
+                                        <MaterialCommunityIcons name={item.icon} size={14} color={item.color} />
+                                        <Text style={[styles.infoPillText, { color: C.text }]} numberOfLines={1}>{item.label}: {item.value}</Text>
                                     </View>
-                                );
-                            })}
+                                ))}
+                                {Array.isArray(user?.interests) && user.interests.slice(0, 8).map((interestId: string) => {
+                                    const label = getLabelForInterest(interestId);
+                                    if (!label) return null;
+                                    return (
+                                        <View key={`interest-${interestId}`} style={[styles.infoPill, { backgroundColor: isDark ? 'rgba(236,72,153,0.18)' : 'rgba(236,72,153,0.11)' }]}>
+                                            <MaterialCommunityIcons name="heart-outline" size={14} color="#EC4899" />
+                                            <Text style={[styles.infoPillText, { color: C.text }]} numberOfLines={1}>{label}</Text>
+                                        </View>
+                                    );
+                                })}
+                            </View>
                         </View>
                     )}
-                </View>
 
-                {/* ACTION BUTTONS */}
-                <View style={styles.actionRow}>
-                    <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-                        onPress={onEditProfile}
-                    >
-                        <Text style={[styles.actionBtnText, { color: C.text }]}>{t('profile.edit_profile')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-                        onPress={() => { }}
-                    >
-                        <Text style={[styles.actionBtnText, { color: C.text }]}>{t('profile.share_profile')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.actionIconBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}
-                        onPress={() => { }}
-                    >
-                        <Feather name="user-plus" size={18} color={C.text} />
-                    </TouchableOpacity>
+                    <View style={[styles.statsContainer, styles.statsBelowBio]}>
+                        <View style={styles.statBox}>
+                            <Text style={[styles.statNumber, { color: C.text }]}>{fmt(postsCount)}</Text>
+                            <Text style={[styles.statLabel, { color: C.subtitle }]}>{tf('profile.posts', 'Bài viết')}</Text>
+                        </View>
+                        <TouchableOpacity style={styles.statBox}>
+                            <Text style={[styles.statNumber, { color: C.text }]}>{fmt(followersCount)}</Text>
+                            <Text style={[styles.statLabel, { color: C.subtitle }]}>{tf('profile.followers', 'Người theo dõi')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.statBox}>
+                            <Text style={[styles.statNumber, { color: C.text }]}>{fmt(followingCount)}</Text>
+                            <Text style={[styles.statLabel, { color: C.subtitle }]}>{tf('profile.following', 'Đang theo dõi')}</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* VISITORS CARD */}
@@ -372,9 +423,11 @@ const TopProfile = ({
                                 ))}
                             </View>
                             <View>
-                                <Text style={[styles.visitorsTitle, { color: C.text }]}>{t('profile.visitors_title')}</Text>
+                                <Text style={[styles.visitorsTitle, { color: C.text }]}>{tf('profile.visitors_title', 'Khách ghé thăm')}</Text>
                                 <Text style={styles.visitorsSub}>
-                                    <Text style={{ fontWeight: '700', color: '#7C3AED' }}>{t('profile.visitors_summary', { count: visitors.length })}</Text>
+                                    <Text style={{ fontWeight: '700', color: '#7C3AED' }}>
+                                        {tfWithParams('profile.visitors_summary', { count: visitors.length }, '{{count}} lượt ghé thăm')}
+                                    </Text>
                                 </Text>
                             </View>
                         </View>
@@ -386,7 +439,7 @@ const TopProfile = ({
 
                 {/* HIGHLIGHTS */}
                 <View style={styles.highlightsHeader}>
-                    <Text style={[styles.highlightsTitle, { color: C.text }]}>{t('profile.highlights')}</Text>
+                    <Text style={[styles.highlightsTitle, { color: C.text }]}>{tf('profile.highlights', 'Nổi bật')}</Text>
                 </View>
                 <ScrollView
                     horizontal
@@ -403,47 +456,37 @@ const TopProfile = ({
                     />
                     <HighlightItem
                         icon="wallet-outline"
-                        label={t('profile.coins_wallet')}
+                        label={tf('profile.coins_wallet', 'Ví xu')}
                         onPress={() => router.push('/(screens)/wallet/CoinWalletScreen')}
                         colors={['#F59E0B', '#EAB308']}
                         badge={Number(coins || 0) > 0 ? Number(coins).toLocaleString() : null}
                     />
                     <HighlightItem
                         icon="gift-outline"
-                        label={t('profile.gift_box')}
+                        label={tf('profile.gift_box', 'Hộp quà')}
                         onPress={() => router.push('/gifts/Inbox')}
                         colors={['#F43F5E', '#EC4899']}
                         badge={giftStats.count > 0 ? giftStats.count : null}
                     />
                     <HighlightItem
                         icon="shopping-outline"
-                        label={t('profile.store')}
+                        label={tf('profile.store', 'Cửa hàng')}
                         onPress={() => router.push('/(screens)/store/StoreScreen')}
                         colors={['#6366F1', '#4338CA']}
                         badge="HOT"
                     />
                 </ScrollView>
 
-                {/* TAB ROW */}
-                <View style={[styles.tabRow, { borderTopColor: C.border }]}>
-                    <TouchableOpacity style={[styles.tabItem, { borderBottomColor: C.text, borderBottomWidth: 1.5 }]}>
-                        <MaterialCommunityIcons name="grid" size={24} color={C.text} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.tabItem}>
-                        <MaterialCommunityIcons name="movie-play-outline" size={24} color={C.subtitle} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.tabItem}>
-                        <MaterialCommunityIcons name="account-outline" size={26} color={C.subtitle} />
-                    </TouchableOpacity>
-                </View>
-            </ScrollView>
+                <View style={{ height: 24 }} />
+            </View>
         </Animated.View>
     );
 };
 
+// styles giữ nguyên
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    coverWrapper: { height: 230, width: '100%', position: 'relative' },
+    coverWrapper: { height: 200, width: '100%', position: 'relative' },
     coverImage: { width: '100%', height: '100%' },
     overlayHeader: {
         position: 'absolute',
@@ -454,35 +497,22 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
     },
-    headerUsername: { color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: -0.4 },
     headerLeft: { flexDirection: 'row', alignItems: 'center' },
     overlayIcon: {},
     roundBlur: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-    profileSummary: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingLeft: 12,
-        paddingRight: 18,
-        marginTop: -46,
-    },
+    profileSummary: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12, paddingRight: 18, marginTop: -46 },
     avatarContainer: { position: 'relative', alignItems: 'center', justifyContent: 'center' },
-    avatarFreeContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 120,
-        minHeight: 120,
-    },
+    avatarFreeContainer: { alignItems: 'center', justifyContent: 'center', minWidth: 120, minHeight: 120 },
     avatarRing: {
         width: 104, height: 104, borderRadius: 52, padding: 3,
         alignItems: 'center', justifyContent: 'center',
         shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 5,
     },
     avatarInner: { width: 98, height: 98, borderRadius: 49, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-    addAvatarBtnWithFrame: {
-        bottom: 8, right: 8,
-    },
+    addAvatarBtnWithFrame: { bottom: 8, right: 8 },
     addAvatarInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-    statsContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', marginLeft: 14, paddingTop: 46 },
+    statsContainer: { flexDirection: 'row', justifyContent: 'space-around' },
+    statsBelowBio: { marginTop: 12, paddingVertical: 12, borderRadius: 18 },
     statBox: { alignItems: 'center' },
     statNumber: { fontSize: 18, fontWeight: '800' },
     statLabel: { fontSize: 12, fontWeight: '400', marginTop: 2 },
@@ -499,31 +529,17 @@ const styles = StyleSheet.create({
     saveBioBtn: { paddingVertical: 6, paddingHorizontal: 16, backgroundColor: '#0095f6', borderRadius: 8 },
     saveBioText: { color: '#fff', fontWeight: '800', fontSize: 14 },
     vibeStatusBubble: {
-        position: 'absolute',
-        bottom: -4,
-        left: 28,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        borderWidth: 1.5,
-        maxWidth: 110,
-        zIndex: 100,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.15,
-        shadowRadius: 5,
-        elevation: 4,
+        position: 'absolute', bottom: -4, left: 28, paddingHorizontal: 10, paddingVertical: 4,
+        borderRadius: 12, borderWidth: 1.5, maxWidth: 110, zIndex: 100,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 5, elevation: 4,
     },
     vibeStatusBubbleText: { fontSize: 11, fontWeight: '700' },
-    infoRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-    infoRowText: { fontSize: 13 },
-    interestsWrapper: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
-    interestPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
-    interestPillText: { fontSize: 12, fontWeight: '600' },
-    actionRow: { flexDirection: 'row', paddingHorizontal: 18, marginTop: 18, gap: 8 },
-    actionBtn: { flex: 1, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    actionBtnText: { fontSize: 14, fontWeight: '700' },
-    actionIconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    infoPanel: { marginTop: 10, padding: 12, borderRadius: 18 },
+    infoPanelHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 },
+    infoPanelTitle: { fontSize: 14, fontWeight: '800' },
+    infoPillsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    infoPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, maxWidth: '100%' },
+    infoPillText: { fontSize: 12, fontWeight: '700', maxWidth: width - 78 },
     visitorsCard: {
         marginHorizontal: 18, marginTop: 18, borderRadius: 16,
         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

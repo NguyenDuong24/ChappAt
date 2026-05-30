@@ -1,0 +1,20 @@
+diff --git a/node_modules/expo/src/launch/withDevTools.tsx b/node_modules/expo/src/launch/withDevTools.tsx
+index 5a98062..e3ffc90 100644
+--- a/node_modules/expo/src/launch/withDevTools.tsx
++++ b/node_modules/expo/src/launch/withDevTools.tsx
+@@ -7,14 +7,7 @@ export function withDevTools<TComponent extends React.ComponentType<any>>(
+ ): React.ComponentType<React.ComponentProps<TComponent>> {
+   // This hook can be optionally imported because __DEV__ never changes during runtime.
+   // Using __DEV__ like this enables tree shaking to remove the hook in production.
+-  const useOptionalKeepAwake: (tag?: string) => void = (() => {
+-    try {
+-      // Optionally import expo-keep-awake
+-      const { useKeepAwake, ExpoKeepAwakeTag } = require('expo-keep-awake');
+-      return () => useKeepAwake(ExpoKeepAwakeTag, { suppressDeactivateWarnings: true });
+-    } catch {}
+-    return () => {};
+-  })();
++  const useOptionalKeepAwake: (tag?: string) => void = () => {};
+ 
+   function WithDevTools(props: React.ComponentProps<TComponent>) {
+     useOptionalKeepAwake();

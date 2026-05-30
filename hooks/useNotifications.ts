@@ -40,8 +40,8 @@ export const useNotifications = () => {
     error: null,
   });
 
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
@@ -101,10 +101,10 @@ export const useNotifications = () => {
     return () => {
       subscription?.remove();
       if (notificationListener.current) {
-        Notifications.removeNotificationSubscription(notificationListener.current);
+        notificationListener.current.remove();
       }
       if (responseListener.current) {
-        Notifications.removeNotificationSubscription(responseListener.current);
+        responseListener.current.remove();
       }
       notificationService.cleanup();
     };

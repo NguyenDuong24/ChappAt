@@ -2,7 +2,7 @@ import React from 'react';
 import { useLatestPosts, useExploreActions, useExploreState, useExploreLoading } from '@/context/ExploreContext';
 import BaseExploreTab from '@/components/explore/BaseExploreTab';
 
-const Tab1Screen = ({ isActive }: { isActive: boolean }) => {
+const Tab1Screen = ({ isActive, onScroll }, ref) => {
     const { posts: latestPosts, hasMore } = useLatestPosts() || { posts: [], hasMore: false };
     const { loadMore, deletePost, toggleLike, refresh, updatePostPrivacy } = useExploreActions() || {};
     const { loadingInitial, isRefreshing } = useExploreState() || {};
@@ -10,6 +10,8 @@ const Tab1Screen = ({ isActive }: { isActive: boolean }) => {
 
     return (
         <BaseExploreTab
+            ref={ref}
+            onTabScroll={onScroll}
             isActive={isActive}
             posts={latestPosts}
             hasMore={hasMore}
@@ -27,4 +29,4 @@ const Tab1Screen = ({ isActive }: { isActive: boolean }) => {
     );
 };
 
-export default React.memo(Tab1Screen);
+export default React.memo(React.forwardRef(Tab1Screen));

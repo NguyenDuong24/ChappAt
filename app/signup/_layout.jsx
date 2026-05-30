@@ -5,36 +5,19 @@ import { Stack } from 'expo-router'
 const StackLayout = () => {
   return (
     <Stack>
-        <Stack.Screen
-         name="index"
-         options={{
-            headerShown: false
-         }}
-        />
-        <Stack.Screen name="GenderSelectionScreen" options={{
-            headerShown: false
-        }} />
-        <Stack.Screen name="NameInputScreen" options={{  
-            headerShown: false
-        }} />
-        <Stack.Screen name="EmailInputScreen" options={{  
-            headerShown: false
-        }} />
-        <Stack.Screen name="PasswordInputScreen" options={{  
-            headerShown: false
-        }} />
-        <Stack.Screen name="AgeInputScreen" options={{  
-            headerShown: false
-        }} />
-        <Stack.Screen name="IconSelectionScreen" options={{  
-            headerShown: false
-        }} />
-        <Stack.Screen name="EducationSelectionScreen" options={{  
-            headerShown: false
-        }} />
-        <Stack.Screen name="CompleteSocialProfileScreen" options={{  
-            headerShown: false
-        }} />
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="EmailInputScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="EmailVerificationScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="ProfileSetupScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="IconSelectionScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="CompleteSocialProfileScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="GenderSelectionScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="NameInputScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="PasswordInputScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="AgeInputScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="EducationSelectionScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="InterestsSelectionScreen" options={{ headerShown: false }} />
+        <Stack.Screen name="HometownSelectionScreen" options={{ headerShown: false }} />
     </Stack>
   )
 }

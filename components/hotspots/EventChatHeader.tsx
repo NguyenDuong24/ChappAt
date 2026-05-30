@@ -7,7 +7,7 @@ import {
   Alert,
   ActivityIndicator
 } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { EventInvite } from '@/types/eventInvites';

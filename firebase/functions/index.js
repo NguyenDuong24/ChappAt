@@ -18,7 +18,12 @@ function getChannelId(type) {
   }
 }
 
-function isNotificationAllowed(settings, type, isGroup = false) {
+function isNotificationAllowed(userData, type, isGroup = false) {
+  if (userData?.doNotDisturb === true || userData?.notificationSettings?.doNotDisturb === true) {
+    return false;
+  }
+
+  const settings = userData?.notificationSettings;
   if (!settings) return true;
   const map = {
     message: 'messageNotifications',
@@ -33,6 +38,15 @@ function isNotificationAllowed(settings, type, isGroup = false) {
   if (!key) return true;
   const val = settings[key];
   return val !== false; // default allow unless explicitly false
+}
+
+async function isAdminRequest(context) {
+  if (context.auth?.token?.admin === true) return true;
+  const uid = context.auth?.uid;
+  if (!uid) return false;
+
+  const userDoc = await admin.firestore().collection('users').doc(uid).get();
+  return userDoc.exists && userDoc.data()?.role === 'admin';
 }
 
 // Cloud Function trigger khi có tin nhắn mới
@@ -66,7 +80,7 @@ exports.onMessageCreated = functions.firestore
 
       // Tôn trọng user settings
       const isGroup = (messageData.chatId && String(messageData.chatId).startsWith('group_')) || messageData.chatType === 'group';
-      if (!isNotificationAllowed(receiverData.notificationSettings, isGroup ? 'group' : 'message', isGroup)) {
+      if (!isNotificationAllowed(receiverData, isGroup ? 'group' : 'message', isGroup)) {
         console.log('User has disabled message notifications (isGroup=', isGroup, ')');
         return null;
       }
@@ -98,7 +112,7 @@ exports.onMessageCreated = functions.firestore
               `${messageData.text.substring(0, 80)}...` : 
               messageData.text) 
             : (isGroup ? `${senderName} sent a message` : 'Sent you a message'),
-          sound: 'default',
+          sound: undefined,
         },
         data: {
           type,
@@ -113,13 +127,13 @@ exports.onMessageCreated = functions.firestore
             channelId: getChannelId(type),
             icon: 'ic_notification',
             color: '#4f8bff',
-            sound: 'default',
+            sound: undefined,
           },
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
+              sound: undefined,
               badge: 1,
               category: 'message',
             },
@@ -195,7 +209,7 @@ exports.onCallCreated = functions.firestore
       const receiverData = receiverDoc.data();
 
       // Tôn trọng user settings
-      if (!isNotificationAllowed(receiverData.notificationSettings, 'call')) {
+      if (!isNotificationAllowed(receiverData, 'call')) {
         console.log('User has disabled call notifications');
         return null;
       }
@@ -320,7 +334,7 @@ exports.onFriendRequestCreated = functions.firestore
       const toUserData = toUserDoc.data();
 
       // Tôn trọng user settings
-      if (!isNotificationAllowed(toUserData.notificationSettings, 'friend_request')) {
+      if (!isNotificationAllowed(toUserData, 'friend_request')) {
         console.log('User has disabled friend request notifications');
         return null;
       }
@@ -345,7 +359,7 @@ exports.onFriendRequestCreated = functions.firestore
         notification: {
           title: '👋 Friend Request',
           body: `${fromUserName} sent you a friend request`,
-          sound: 'default',
+          sound: undefined,
         },
         data: {
           type: 'friend_request',
@@ -359,13 +373,13 @@ exports.onFriendRequestCreated = functions.firestore
             channelId: getChannelId('friend_request'),
             icon: 'ic_notification',
             color: '#51cf66',
-            sound: 'default',
+            sound: undefined,
           },
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default',
+              sound: undefined,
               badge: 1,
               category: 'friend_request',
             },
@@ -416,6 +430,10 @@ exports.sendNotification = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
+
+    if (!(await isAdminRequest(context))) {
+      throw new functions.https.HttpsError('permission-denied', 'Admin privileges required');
+    }
     
     const { targetUserId, notification } = data;
     
@@ -438,7 +456,7 @@ exports.sendNotification = functions.https.onCall(async (data, context) => {
     // Respect user settings by type if provided
     const type = notification?.data?.type || notification?.categoryId;
     const isGroup = type === 'group';
-    if (type && !isNotificationAllowed(userData.notificationSettings, type, isGroup)) {
+    if (type && !isNotificationAllowed(userData, type, isGroup)) {
       return { success: true, message: 'Suppressed by user settings' };
     }
     
@@ -453,20 +471,20 @@ exports.sendNotification = functions.https.onCall(async (data, context) => {
       notification: {
         title: notification.title,
         body: notification.body,
-        sound: 'default',
+        sound: undefined,
       },
       data: notification.data || {},
       android: {
         priority: 'high',
         notification: {
           channelId: getChannelId(type),
-          sound: 'default',
+          sound: undefined,
         },
       },
       apns: {
         payload: {
           aps: {
-            sound: 'default',
+            sound: undefined,
             badge: notification.badge || 1,
             category: notification.categoryId || type,
           },

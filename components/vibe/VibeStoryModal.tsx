@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { PRIMARY_COLOR } from '@/constants/Colors';
 import { UserVibe } from '@/types/vibe';

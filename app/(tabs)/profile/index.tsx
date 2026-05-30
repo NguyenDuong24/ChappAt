@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useContext, useMemo, useRef, memo } from 'react';
-import { StyleSheet, FlatList, RefreshControl, InteractionManager, useWindowDimensions } from 'react-native';
+import { StyleSheet, FlatList, RefreshControl, InteractionManager, useWindowDimensions, View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { db } from '@/firebaseConfig';
-import { collection, getDocs, query, where, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, arrayUnion, arrayRemove, increment, limit } from 'firebase/firestore';
 import AddPostButton from '@/components/profile/AddPostButton';
 import TopProfile from '@/components/profile/TopProfile';
 import PostCard from '@/components/profile/PostCard';
@@ -16,7 +16,6 @@ import { useRefresh } from '@/context/RefreshContext';
 import LiquidScreen from '@/components/liquid/LiquidScreen';
 import { RevealScalableView } from '@/components/reveal';
 import AppDrawer, { FeatureDrawerKey } from '@/components/drawer/AppDrawer';
-import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
 
 // Define a Post shape compatible with PostCard props
 interface Comment {
@@ -101,7 +100,7 @@ const ProfileScreen = memo(() => {
 
     try {
       const postsCollection = collection(db, 'posts');
-      const userPostsQuery = query(postsCollection, where('userID', '==', user.uid));
+      const userPostsQuery = query(postsCollection, where('userID', '==', user.uid), limit(50));
       const postsSnapshot = await getDocs(userPostsQuery);
 
       const postsList: PostForCard[] = postsSnapshot.docs.map((docSnap) => {
@@ -114,6 +113,8 @@ const ProfileScreen = memo(() => {
           address: typeof data?.address === 'string' ? data.address : undefined,
           likes: Array.isArray(data?.likes) ? data.likes : [],
           comments: Array.isArray(data?.comments) ? data.comments : [],
+          likesCount: typeof data?.likesCount === 'number' ? data.likesCount : (Array.isArray(data?.likes) ? data.likes.length : 0),
+          commentsCount: typeof data?.commentsCount === 'number' ? data.commentsCount : (Array.isArray(data?.comments) ? data.comments.length : 0),
           shares: typeof data?.shares === 'number' ? data.shares : 0,
           timestamp: data?.timestamp ?? data?.createdAt ?? null,
           userID: data?.userID ?? data?.userId ?? '',
@@ -181,9 +182,9 @@ const ProfileScreen = memo(() => {
     try {
       const postRef = doc(db, 'posts', postId);
       if (isLiked) {
-        await updateDoc(postRef, { likes: arrayRemove(userId) });
+        await updateDoc(postRef, { likes: arrayRemove(userId), likesCount: increment(-1) });
       } else {
-        await updateDoc(postRef, { likes: arrayUnion(userId) });
+        await updateDoc(postRef, { likes: arrayUnion(userId), likesCount: increment(1) });
       }
 
       // Optimistic update instead of refetching
@@ -193,13 +194,13 @@ const ProfileScreen = memo(() => {
             const newLikes = isLiked
               ? post.likes.filter(id => id !== userId)
               : [...post.likes, userId];
-            return { ...post, likes: newLikes };
+            return { ...post, likes: newLikes, likesCount: newLikes.length };
           }
           return post;
         })
       );
     } catch (error) {
-      console.error('Error updating like status:', error);
+      console.error('Error upmatch like status:', error);
       // Refetch on error to sync state
       fetchPosts();
     }
@@ -297,8 +298,9 @@ const ProfileScreen = memo(() => {
         onEditProfile={handleEditProfile}
         onOpenSettings={handleOpenSettings}
       />
+      <View style={[styles.sectionDivider, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(15,23,42,0.12)' }]} />
     </>
-  ), [handleEditProfile, handleOpenFeatureDrawer, handleOpenSettings]);
+  ), [handleEditProfile, handleOpenSettings, theme]);
 
 
   const handleScroll = useCallback(() => setIsScroll(true), []);
@@ -350,7 +352,7 @@ const ProfileScreen = memo(() => {
         onClose={handleCloseDrawer}
       />
 
-      <FeatureActionDrawer
+      <AppDrawer
         visible={!!featureDrawer}
         drawerKey={featureDrawer}
         onClose={handleCloseFeatureDrawer}
@@ -365,6 +367,16 @@ const styles = StyleSheet.create({
   },
   revealContainer: {
     flex: 1,
+  },
+  postSectionHeader: {
+    // legacy
+  },
+  sectionDivider: {
+    height: 1.5,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 24,
+    borderRadius: 1,
   },
 });
 

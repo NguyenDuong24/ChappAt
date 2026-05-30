@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { StyleSheet, BackHandler, useWindowDimensions, View } from 'react-native';
 import ChatListHeader from '@/components/chat/ChatListHeader';
 import ThemedStatusBar from '@/components/common/ThemedStatusBar';
-import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
+import AppDrawer from '@/components/drawer/AppDrawer';
 import { RevealScalableView } from '@/components/reveal';
 import { useTheme } from '@/context/ThemeContext';
 import { LiquidScreen } from '@/components/liquid';
@@ -62,7 +62,7 @@ const StackLayout = () => {
         </View>
       </RevealScalableView>
 
-      <FeatureActionDrawer
+      <AppDrawer
         visible={isDrawerVisible}
         drawerKey={featureDrawer}
         onClose={closeFeatureDrawer}

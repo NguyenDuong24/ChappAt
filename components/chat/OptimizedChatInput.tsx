@@ -1,6 +1,7 @@
 import React, { memo, useCallback } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { ChatTheme } from '@/context/ChatThemeContext';
 import ReplyPreview from './ReplyPreview';
 import VoiceRecorder from './VoiceRecorder';

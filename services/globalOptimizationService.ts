@@ -15,7 +15,6 @@ import {
 import { db } from '@/firebaseConfig';
 import userCacheService from './userCacheService';
 import messageBatchService from './messageBatchService';
-import optimizedGroupService from './optimizedGroupService';
 import connectionManager from './connectionManager';
 
 interface CacheConfig {
@@ -173,9 +172,9 @@ class GlobalOptimizationService {
       }
 
       const snapshot = await getDocs(postsQuery);
-      const posts = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
+      const posts: Array<Record<string, any> & { id: string }> = snapshot.docs.map(postDoc => ({
+        id: postDoc.id,
+        ...(postDoc.data() as Record<string, any>)
       }));
 
       // Preload user data for all post authors
@@ -323,7 +322,7 @@ class GlobalOptimizationService {
   } {
     const cacheStats = {
       userCache: userCacheService.getCacheStats(),
-      groupCache: optimizedGroupService.getCacheStats(),
+      groupCache: { groupCacheSize: 0 },
       locationCacheSize: this.locationCache.size,
       postCacheSize: this.postCache.size
     };
@@ -344,7 +343,7 @@ class GlobalOptimizationService {
     // Simplified cache hit rate calculation
     const totalCacheSize = 
       userCacheService.getCacheStats().size +
-      optimizedGroupService.getCacheStats().groupCacheSize +
+      { groupCacheSize: 0 }.groupCacheSize +
       this.locationCache.size +
       this.postCache.size;
     
@@ -360,8 +359,7 @@ class GlobalOptimizationService {
     
     // Cleanup services
     userCacheService.clearCache();
-    optimizedGroupService.cleanup();
-    connectionManager.cleanup();
+        connectionManager.cleanup();
     
     // Flush pending batch operations
     messageBatchService.flush();

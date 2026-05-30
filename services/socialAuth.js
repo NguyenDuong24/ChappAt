@@ -1,15 +1,21 @@
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-// Removed Facebook SDK - no longer needed
+import { AccessToken, LoginManager } from 'react-native-fbsdk-next';
 import { db } from '../firebaseConfig';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth } from '../firebaseConfig';
-import { GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut } from 'firebase/auth';
+import { FacebookAuthProvider, GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut } from 'firebase/auth';
 
+const GOOGLE_SIGNIN_TROUBLESHOOTING = [
+  'Google Sign-In DEVELOPER_ERROR/code 10 usually means Android package name, SHA-1/SHA-256, or OAuth client mismatch.',
+  'Current app.json android.package is saigonmatch.com.vn, but google-services.json must contain an Android OAuth client for that exact package.',
+  'Add debug/release SHA-1 and SHA-256 in Firebase Console > Project settings > Android app, download the new google-services.json, then rebuild the native app.',
+  'Do not expect this to be fixed by JS reload; it requires a new dev/release build with the updated native config.',
+].join(' ');
 // Google Sign-In Configuration
 export const configureGoogleSignIn = () => {
   GoogleSignin.configure({
-    webClientId: '256923005911-70tma6mbfguvjmpota9ia5adm457dinf.apps.googleusercontent.com', // Web client ID từ google-services.json
-    iosClientId: '256923005911-m2j0sqfikfi21dor3mjo0rlnehe7p4a1.apps.googleusercontent.com', // iOS client ID từ file bạn vừa gửi
+    webClientId: '256923005911-70tma6mbfguvjmpota9ia5adm457dinf.apps.googleusercontent.com', // Web client ID tá»« google-services.json
+    iosClientId: '256923005911-m2j0sqfikfi21dor3mjo0rlnehe7p4a1.apps.googleusercontent.com', // iOS client ID tá»« file báº¡n vá»«a gá»­i
     offlineAccess: true,
     hostedDomain: '',
     forceCodeForRefreshToken: true,
@@ -21,7 +27,7 @@ export const signInWithGoogle = async (onSuccessNavigate, options = {}) => {
   const { forceAccountSelection = false, forceChooseAccount } = options;
   const forceChooser = forceAccountSelection || forceChooseAccount === true;
   try {
-    console.log('🔍 Starting Google Sign-In... forceChooser=', forceChooser);
+    console.log('ðŸ” Starting Google Sign-In... forceChooser=', forceChooser);
 
     configureGoogleSignIn();
 
@@ -33,40 +39,40 @@ export const signInWithGoogle = async (onSuccessNavigate, options = {}) => {
         try { await GoogleSignin.revokeAccess(); } catch (_e) {}
         // Ensure Firebase is signed out
         if (auth.currentUser) {
-          console.log('🔄 Signing out Firebase user to force fresh auth state');
+          console.log('ðŸ”„ Signing out Firebase user to force fresh auth state');
           await firebaseSignOut(auth);
         }
       } catch (preErr) {
-        console.log('⚠️ Pre sign-out error (can ignore):', preErr?.message || preErr);
+        console.log('âš ï¸ Pre sign-out error (can ignore):', preErr?.message || preErr);
       }
     }
 
-    console.log('🔍 Checking Google Play Services...');
+    console.log('ðŸ” Checking Google Play Services...');
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     
-    console.log('🔍 Attempting Google Sign-In...');
+    console.log('ðŸ” Attempting Google Sign-In...');
     const signInResult = await GoogleSignin.signIn();
-    console.log('🔍 Raw Google signIn result keys:', Object.keys(signInResult || {}));
-    console.log('🔍 signInResult.user:', signInResult?.user);
-    console.log('🔍 signInResult.idToken present?', !!signInResult?.idToken);
+    console.log('ðŸ” Raw Google signIn result keys:', Object.keys(signInResult || {}));
+    console.log('ðŸ” signInResult.user:', signInResult?.user);
+    console.log('ðŸ” signInResult.idToken present?', !!signInResult?.idToken);
 
     let { user } = signInResult || {};
     let idToken = signInResult?.idToken;
 
     // Fallback: try to explicitly fetch tokens if idToken missing
     if (!idToken) {
-      console.log('⚠️ idToken missing from signInResult, attempting GoogleSignin.getTokens() fallback...');
+      console.log('âš ï¸ idToken missing from signInResult, attempting GoogleSignin.getTokens() fallback...');
       try {
         const tokens = await GoogleSignin.getTokens();
-        console.log('🔍 getTokens() keys:', Object.keys(tokens || {}));
+        console.log('ðŸ” getTokens() keys:', Object.keys(tokens || {}));
         if (tokens?.idToken) {
           idToken = tokens.idToken;
-          console.log('✅ Retrieved idToken via getTokens()');
+          console.log('âœ… Retrieved idToken via getTokens()');
         } else {
-          console.log('❌ getTokens() did not return idToken');
+          console.log('âŒ getTokens() did not return idToken');
         }
       } catch (tokenErr) {
-        console.log('❌ Error calling getTokens():', tokenErr?.message || tokenErr);
+        console.log('âŒ Error calling getTokens():', tokenErr?.message || tokenErr);
       }
     }
 
@@ -75,12 +81,12 @@ export const signInWithGoogle = async (onSuccessNavigate, options = {}) => {
       throw new Error('No ID token received from Google Sign-In (after fallback). Check webClientId & SHA-1.');
     }
 
-    console.log('✅ Google Sign-In successful, user:', user?.name || user?.email || 'Unknown');
-    console.log('🔍 Creating Google credential (modular SDK)...');
+    console.log('âœ… Google Sign-In successful, user:', user?.name || user?.email || 'Unknown');
+    console.log('ðŸ” Creating Google credential (modular SDK)...');
     const googleCredential = GoogleAuthProvider.credential(idToken);
-    console.log('🔍 Signing in with Firebase (modular auth)...');
+    console.log('ðŸ” Signing in with Firebase (modular auth)...');
     const userCredential = await signInWithCredential(auth, googleCredential);
-    console.log('🔍 Saving user to Firestore...');
+    console.log('ðŸ” Saving user to Firestore...');
     await saveUserToFirestore(userCredential.user, {
       displayName: user?.name || user?.givenName || userCredential.user.displayName,
       email: user?.email || userCredential.user.email,
@@ -91,20 +97,20 @@ export const signInWithGoogle = async (onSuccessNavigate, options = {}) => {
     if (typeof onSuccessNavigate === 'function') {
       try { onSuccessNavigate(userCredential.user); } catch (navErr) { console.log('Navigation callback error', navErr); }
     }
-    console.log('✅ Google Sign-In complete!');
+    console.log('âœ… Google Sign-In complete!');
     return {
       success: true,
       user: userCredential.user,
-      message: 'Đăng nhập Google thành công!'
+      message: 'ÄÄƒng nháº­p Google thÃ nh cÃ´ng!'
     };
   } catch (error) {
     // Handle cancel explicitly BEFORE other logic
     if (error?.code === statusCodes.SIGN_IN_CANCELLED || error?.code === 'sign_in_cancelled' || error?.code === '-5') {
-      console.log('🚫 User cancelled Google Sign-In');
+      console.log('ðŸš« User cancelled Google Sign-In');
       return {
         success: false,
         cancelled: true,
-        message: 'Đăng nhập đã bị hủy'
+        message: 'ÄÄƒng nháº­p Ä‘Ã£ bá»‹ há»§y'
       };
     }
     console.error('Google Sign-In Error:', error);
@@ -114,49 +120,51 @@ export const signInWithGoogle = async (onSuccessNavigate, options = {}) => {
       stack: error?.stack
     });
     
-    let errorMessage = 'Đăng nhập Google thất bại';
+    let errorMessage = 'ÄÄƒng nháº­p Google tháº¥t báº¡i';
     
-    // Kiểm tra nếu error có thuộc tính code
+    // Kiá»ƒm tra náº¿u error cÃ³ thuá»™c tÃ­nh code
     if (error && error.code) {
       switch (error.code) {
         case 'auth/account-exists-with-different-credential':
-          errorMessage = 'Tài khoản đã tồn tại với phương thức đăng nhập khác';
+          errorMessage = 'TÃ i khoáº£n Ä‘Ã£ tá»“n táº¡i vá»›i phÆ°Æ¡ng thá»©c Ä‘Äƒng nháº­p khÃ¡c';
           break;
         case 'auth/invalid-credential':
-          errorMessage = 'Thông tin đăng nhập không hợp lệ';
+          errorMessage = 'ThÃ´ng tin Ä‘Äƒng nháº­p khÃ´ng há»£p lá»‡';
           break;
         case 'auth/operation-not-allowed':
-          errorMessage = 'Đăng nhập Google chưa được kích hoạt';
+          errorMessage = 'ÄÄƒng nháº­p Google chÆ°a Ä‘Æ°á»£c kÃ­ch hoáº¡t';
           break;
         case 'auth/user-disabled':
-          errorMessage = 'Tài khoản đã bị vô hiệu hóa';
+          errorMessage = 'TÃ i khoáº£n Ä‘Ã£ bá»‹ vÃ´ hiá»‡u hÃ³a';
           break;
         case 'auth/user-not-found':
-          errorMessage = 'Không tìm thấy tài khoản';
+          errorMessage = 'KhÃ´ng tÃ¬m tháº¥y tÃ i khoáº£n';
           break;
         case 'auth/wrong-password':
-          errorMessage = 'Mật khẩu không đúng';
+          errorMessage = 'Máº­t kháº©u khÃ´ng Ä‘Ãºng';
           break;
         case 'sign_in_required':
-          errorMessage = 'Cần đăng nhập lại';
+          errorMessage = 'Cáº§n Ä‘Äƒng nháº­p láº¡i';
           break;
         case 'network_error':
-          errorMessage = 'Lỗi kết nối mạng';
+          errorMessage = 'Lá»—i káº¿t ná»‘i máº¡ng';
           break;
         case '12501': // Google Sign-In error (usually config issue)
-          errorMessage = 'Lỗi cấu hình Google Sign-In. Kiểm tra SHA-1 fingerprint';
+          errorMessage = 'Lá»—i cáº¥u hÃ¬nh Google Sign-In. Kiá»ƒm tra SHA-1 fingerprint';
           break;
         case '10': // Developer error
-          errorMessage = 'Lỗi cấu hình developer. Kiểm tra Client ID';
+          console.error('[GoogleSignIn] Developer configuration error:', GOOGLE_SIGNIN_TROUBLESHOOTING);
+          errorMessage = 'Lỗi cấu hình Google Sign-In (code 10). Cần cập nhật package name + SHA-1/SHA-256 trong Firebase rồi rebuild app.';
           break;
         default:
-          errorMessage = `Lỗi Google Sign-In: ${error.code}`;
+          errorMessage = `Lá»—i Google Sign-In: ${error.code}`;
       }
     } else if (error && error.message) {
       if (error.message.includes('DEVELOPER_ERROR')) {
-        errorMessage = 'Lỗi cấu hình Google Sign-In. Kiểm tra Client ID và SHA-1';
+        console.error('[GoogleSignIn] Developer configuration error:', GOOGLE_SIGNIN_TROUBLESHOOTING);
+        errorMessage = 'Lỗi cấu hình Google Sign-In. Cần cập nhật package name + SHA-1/SHA-256 trong Firebase rồi rebuild app.';
       } else if (error.message.includes('No ID token')) {
-        errorMessage = 'Không nhận được token từ Google. Kiểm tra webClientId (type 3) & SHA-1';
+        errorMessage = 'KhÃ´ng nháº­n Ä‘Æ°á»£c token tá»« Google. Kiá»ƒm tra webClientId (type 3) & SHA-1';
       } else {
         errorMessage = error.message;
       }
@@ -173,52 +181,52 @@ export const signInWithGoogle = async (onSuccessNavigate, options = {}) => {
 // Facebook Sign-In
 export const signInWithFacebook = async (onSuccessNavigate) => {
   try {
-    console.log('🔍 Starting Facebook Sign-In...');
+    console.log('ðŸ” Starting Facebook Sign-In...');
     
     // Check current access token
     const currentToken = await AccessToken.getCurrentAccessToken();
-    console.log('🔍 Current Facebook token:', currentToken ? 'exists' : 'none');
+    console.log('ðŸ” Current Facebook token:', currentToken ? 'exists' : 'none');
     
     // Attempt login with permissions
-    console.log('🔍 Requesting Facebook permissions...');
+    console.log('ðŸ” Requesting Facebook permissions...');
     const result = await LoginManager.logInWithPermissions(['public_profile', 'email']);
-    console.log('🔍 Facebook login result:', result);
+    console.log('ðŸ” Facebook login result:', result);
     
     if (result.isCancelled) {
-      console.log('❌ Facebook login cancelled by user');
+      console.log('âŒ Facebook login cancelled by user');
       return {
         success: false,
-        message: 'Đăng nhập Facebook đã bị hủy'
+        message: 'ÄÄƒng nháº­p Facebook Ä‘Ã£ bá»‹ há»§y'
       };
     }
     
     // Once signed in, get the users AccessToken
-    console.log('🔍 Getting Facebook access token...');
+    console.log('ðŸ” Getting Facebook access token...');
     const data = await AccessToken.getCurrentAccessToken();
-    console.log('🔍 Facebook access token:', data ? 'obtained' : 'failed');
+    console.log('ðŸ” Facebook access token:', data ? 'obtained' : 'failed');
     
     if (!data) {
-      console.log('❌ No Facebook access token');
+      console.log('âŒ No Facebook access token');
       return {
         success: false,
-        message: 'Không thể lấy token Facebook'
+        message: 'KhÃ´ng thá»ƒ láº¥y token Facebook'
       };
     }
     
     // Create a Facebook credential with the AccessToken (modular SDK)
-    console.log('🔍 Creating Facebook credential (modular SDK)...');
+    console.log('ðŸ” Creating Facebook credential (modular SDK)...');
     const facebookCredential = FacebookAuthProvider.credential(data.accessToken);
     
     // Sign-in the user with the credential (modular SDK)
-    console.log('🔍 Signing in with Firebase (modular auth)...');
+    console.log('ðŸ” Signing in with Firebase (modular auth)...');
     const userCredential = await signInWithCredential(auth, facebookCredential);
     
     // Get additional user info from Facebook Graph API
-    console.log('🔍 Getting Facebook user info...');
+    console.log('ðŸ” Getting Facebook user info...');
     const userInfo = await getUserInfoFromFacebook(data.accessToken);
     
     // Save user data to Firestore
-    console.log('🔍 Saving user to Firestore...');
+    console.log('ðŸ” Saving user to Firestore...');
     await saveUserToFirestore(userCredential.user, {
       displayName: userInfo.name || userCredential.user.displayName,
       email: userInfo.email || userCredential.user.email,
@@ -230,33 +238,33 @@ export const signInWithFacebook = async (onSuccessNavigate) => {
     if (typeof onSuccessNavigate === 'function') {
       try { onSuccessNavigate(userCredential.user); } catch (navErr) { console.log('Navigation callback error', navErr); }
     }
-    console.log('✅ Facebook Sign-In complete!');
+    console.log('âœ… Facebook Sign-In complete!');
     return {
       success: true,
       user: userCredential.user,
-      message: 'Đăng nhập Facebook thành công!'
+      message: 'ÄÄƒng nháº­p Facebook thÃ nh cÃ´ng!'
     };
   } catch (error) {
     console.error('Facebook Sign-In Error:', error);
     
-    let errorMessage = 'Đăng nhập Facebook thất bại';
+    let errorMessage = 'ÄÄƒng nháº­p Facebook tháº¥t báº¡i';
     
-    // Kiểm tra nếu error có thuộc tính code
+    // Kiá»ƒm tra náº¿u error cÃ³ thuá»™c tÃ­nh code
     if (error && error.code) {
       if (error.code === 'auth/account-exists-with-different-credential') {
-        errorMessage = 'Tài khoản đã tồn tại với phương thức đăng nhập khác';
+        errorMessage = 'TÃ i khoáº£n Ä‘Ã£ tá»“n táº¡i vá»›i phÆ°Æ¡ng thá»©c Ä‘Äƒng nháº­p khÃ¡c';
       } else if (error.code === 'auth/invalid-credential') {
-        errorMessage = 'Thông tin đăng nhập Facebook không hợp lệ';
+        errorMessage = 'ThÃ´ng tin Ä‘Äƒng nháº­p Facebook khÃ´ng há»£p lá»‡';
       } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = 'Đăng nhập Facebook chưa được kích hoạt';
+        errorMessage = 'ÄÄƒng nháº­p Facebook chÆ°a Ä‘Æ°á»£c kÃ­ch hoáº¡t';
       } else if (error.code === 'auth/user-disabled') {
-        errorMessage = 'Tài khoản đã bị vô hiệu hóa';
+        errorMessage = 'TÃ i khoáº£n Ä‘Ã£ bá»‹ vÃ´ hiá»‡u hÃ³a';
       }
     } else if (error && error.message) {
       if (error.message.includes('not available')) {
-        errorMessage = 'Facebook Login chưa được cấu hình đúng';
+        errorMessage = 'Facebook Login chÆ°a Ä‘Æ°á»£c cáº¥u hÃ¬nh Ä‘Ãºng';
       } else if (error.message.includes('cancelled')) {
-        errorMessage = 'Đăng nhập Facebook đã bị hủy';
+        errorMessage = 'ÄÄƒng nháº­p Facebook Ä‘Ã£ bá»‹ há»§y';
       } else {
         errorMessage = error.message;
       }
@@ -319,7 +327,7 @@ const saveUserToFirestore = async (user, additionalData) => {
     };
 
     if (isNew) {
-      console.log('🆕 New social user detected -> profileCompleted = false');
+      console.log('ðŸ†• New social user detected -> profileCompleted = false');
       await setDoc(userRef, userData);
     } else {
       // Merge while preserving existing custom fields
@@ -338,7 +346,7 @@ export const signOutFromSocial = async () => {
   try {
     // 1) Clear Google session first so next login shows chooser
     try { await GoogleSignin.signOut(); } catch (_e) {}
-    try { await GoogleSignin.revokeAccess(); console.log('🔐 Google access revoked'); } catch (_e) {}
+    try { await GoogleSignin.revokeAccess(); console.log('ðŸ” Google access revoked'); } catch (_e) {}
     
     // 2) Log out from Facebook session
     try { await LoginManager.logOut(); } catch (_e) {}
@@ -348,14 +356,15 @@ export const signOutFromSocial = async () => {
     
     return {
       success: true,
-      message: 'Đăng xuất thành công!'
+      message: 'ÄÄƒng xuáº¥t thÃ nh cÃ´ng!'
     };
   } catch (error) {
     console.error('Social sign out error:', error);
     return {
       success: false,
-      message: 'Lỗi khi đăng xuất',
+      message: 'Lá»—i khi Ä‘Äƒng xuáº¥t',
       error: error
     };
   }
 };
+

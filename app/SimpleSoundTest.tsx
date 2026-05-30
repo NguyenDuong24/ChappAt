@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Button, StyleSheet } from 'react-native';
 import { Audio } from 'expo-av';
+import { safePlay, safeUnload } from '@/utils/safeSound';
 
 export default function SimpleSoundTest() {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -20,12 +21,12 @@ export default function SimpleSoundTest() {
       setStatus('Playing...');
       console.log('🔊 Playing Sound');
       
-      await newSound.playAsync();
+      await safePlay(newSound);
       setStatus('Played! Did you hear it?');
       
       // Auto cleanup after 3 seconds
       setTimeout(() => {
-        newSound.unloadAsync();
+        safeUnload(newSound);
         setStatus('Ready');
       }, 3000);
       
@@ -48,11 +49,11 @@ export default function SimpleSoundTest() {
       setStatus('Playing join.mp3...');
       console.log('🔊 Playing join.mp3');
       
-      await newSound.playAsync();
+      await safePlay(newSound);
       setStatus('join.mp3 played!');
       
       setTimeout(() => {
-        newSound.unloadAsync();
+        safeUnload(newSound);
         setStatus('Ready');
       }, 3000);
       
@@ -75,11 +76,11 @@ export default function SimpleSoundTest() {
       setStatus('Playing calling.mp3...');
       console.log('🔊 Playing calling.mp3');
       
-      await newSound.playAsync();
+      await safePlay(newSound);
       setStatus('calling.mp3 played!');
       
       setTimeout(() => {
-        newSound.unloadAsync();
+        safeUnload(newSound);
         setStatus('Ready');
       }, 3000);
       
@@ -111,7 +112,7 @@ export default function SimpleSoundTest() {
     return () => {
       if (sound) {
         console.log('🧹 Unloading Sound');
-        sound.unloadAsync();
+        safeUnload(sound);
       }
     };
   }, [sound]);

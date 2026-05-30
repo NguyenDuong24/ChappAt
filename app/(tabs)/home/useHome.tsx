@@ -1,195 +1,187 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { useAuth } from '@/context/authContext';
-import { getDocs, query, where, orderBy, limit, startAfter, QueryDocumentSnapshot, DocumentData, onSnapshot } from 'firebase/firestore';
+import {
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
+  startAfter,
+  QueryDocumentSnapshot,
+  DocumentData,
+} from 'firebase/firestore';
 import { userRef } from '@/firebaseConfig';
 import { useStateCommon } from '@/context/stateCommon';
 import { normalizeInterestsArray } from '@/utils/interests';
-import { InteractionManager } from 'react-native';
 
 const PAGE_SIZE = 20;
 
 const useHome = (isFocused: boolean = true) => {
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filtering, setFiltering] = useState(false);
-  const { stateCommon } = useStateCommon();
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const { stateCommon } = useStateCommon();
+  const requestLockRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const lastTriggerKeyRef = useRef<string>('');
-  const isFetchingRef = useRef(false);
-  const unsubRef = useRef<(() => void) | null>(null);
 
-  // Memoize filter object
-  const filterMemo = useMemo(() => ({
-    gender: stateCommon.filter?.gender || '',
-    minAge: stateCommon.filter?.minAge || '',
-    maxAge: stateCommon.filter?.maxAge || '',
-    job: stateCommon.filter?.job || '',
-    educationLevel: stateCommon.filter?.educationLevel || '',
-    university: stateCommon.filter?.university || '',
-    interests: normalizeInterestsArray(
-      Array.isArray(stateCommon.filter?.interests)
-        ? stateCommon.filter.interests
-        : (stateCommon.filter?.interests ? [stateCommon.filter.interests] : [])
-    ),
-  }), [stateCommon.filter]);
+  const filterMemo = useMemo(() => {
+    return {
+      gender: stateCommon.filter?.gender || '',
+      minAge: stateCommon.filter?.minAge || '',
+      maxAge: stateCommon.filter?.maxAge || '',
+      job: stateCommon.filter?.job || '',
+      educationLevel: stateCommon.filter?.educationLevel || '',
+      university: stateCommon.filter?.university || '',
+      interests: normalizeInterestsArray(
+        Array.isArray(stateCommon.filter?.interests)
+          ? stateCommon.filter.interests
+          : []
+      ),
+    };
+  }, [stateCommon.filter]);
 
   const filterKey = useMemo(() => {
     return `${filterMemo.gender}|${filterMemo.minAge}|${filterMemo.maxAge}|${filterMemo.job}|${filterMemo.educationLevel}|${filterMemo.university}|${(filterMemo.interests || []).join(',')}`;
   }, [filterMemo]);
 
-  const buildConstraints = useCallback((isPagination = false, cursor = null) => {
-    const constraints: any[] = [];
+  const buildConstraints = useCallback(
+    (isPagination = false, cursor = null) => {
+      const constraints: any[] = [];
 
-    if (filterMemo.gender && filterMemo.gender !== 'all') {
-      constraints.push(where('gender', '==', filterMemo.gender));
-    }
-    if (filterMemo.job) {
-      constraints.push(where('job', '==', filterMemo.job));
-    }
-    if (filterMemo.educationLevel) {
-      constraints.push(where('educationLevel', '==', filterMemo.educationLevel));
-    }
-    if (filterMemo.university && filterMemo.educationLevel === 'Cao đẳng/Đại học') {
-      constraints.push(where('university', '==', filterMemo.university));
-    }
-    if (Array.isArray(filterMemo.interests) && filterMemo.interests.length > 0) {
-      if (filterMemo.interests.length === 1) {
-        constraints.push(where('interests', 'array-contains', filterMemo.interests[0]));
+      if (filterMemo.gender && filterMemo.gender !== 'all') {
+        constraints.push(where('gender', '==', filterMemo.gender));
+      }
+      if (filterMemo.job) {
+        constraints.push(where('job', '==', filterMemo.job));
+      }
+      if (filterMemo.educationLevel) {
+        constraints.push(where('educationLevel', '==', filterMemo.educationLevel));
+      }
+      if (filterMemo.university && filterMemo.educationLevel === 'Cao ?????ng/? ???i h?? c') {
+        constraints.push(where('university', '==', filterMemo.university));
+      }
+
+      if (filterMemo.minAge) constraints.push(where('age', '>=', Number(filterMemo.minAge)));
+      if (filterMemo.maxAge) constraints.push(where('age', '<=', Number(filterMemo.maxAge)));
+
+      if (filterMemo.minAge || filterMemo.maxAge) {
+        constraints.push(orderBy('age', 'asc'));
       } else {
-        constraints.push(where('interests', 'array-contains-any', filterMemo.interests.slice(0, 10)));
+        constraints.push(orderBy('isOnline', 'desc'));
+        constraints.push(orderBy('__name__', 'asc'));
       }
-    }
 
-    const hasMin = !!filterMemo.minAge;
-    const hasMax = !!filterMemo.maxAge;
-    if (hasMin) constraints.push(where('age', '>=', Number(filterMemo.minAge)));
-    if (hasMax) constraints.push(where('age', '<=', Number(filterMemo.maxAge)));
+      if (isPagination && cursor) {
+        constraints.push(startAfter(cursor));
+      }
 
-    if (hasMin || hasMax) {
-      constraints.push(orderBy('age', 'asc'));
+      constraints.push(limit(PAGE_SIZE));
+      return constraints;
+    },
+    [filterMemo]
+  );
+
+  const fetchInitial = useCallback(async (isRefresh = false) => {
+    if (!user?.uid || requestLockRef.current) return;
+    requestLockRef.current = true;
+    
+    if (isRefresh) {
+      setRefreshing(true);
     } else {
-      constraints.push(orderBy('isOnline', 'desc'));
-      constraints.push(orderBy('__name__', 'asc'));
+      setInitialLoading(true);
     }
-
-    if (isPagination && cursor) {
-      constraints.push(startAfter(cursor));
-    }
-
-    constraints.push(limit(PAGE_SIZE));
-    return constraints;
-  }, [filterMemo]);
-
-  const sortUsers = useCallback((fetchedUsers: any[]) => {
-    const filtered = fetchedUsers.filter((u) => u.id !== user?.uid);
-    const viewerShowOnline = user?.showOnlineStatus !== false;
-
-    if (!viewerShowOnline) return filtered;
-
-    return filtered.sort((a, b) => {
-      if (a.isOnline === b.isOnline) return 0;
-      return a.isOnline ? -1 : 1;
-    });
-  }, [user?.uid, user?.showOnlineStatus]);
-
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
-
-  // Real-time subscription for the first page
-  useEffect(() => {
-    if (!user?.uid || !isFocused) return;
-
-    const key = `${user.uid}|${filterKey}|${refreshTrigger}`;
-    if (lastTriggerKeyRef.current === key) return;
-    lastTriggerKeyRef.current = key;
-
-    // Only show loading indicator on initial load (no data yet).
-    // When re-focusing a tab or re-fetching with existing data, load silently
-    // so the current list stays visible instead of flashing a skeleton screen.
-    setUsers((prev) => {
-      if (prev.length === 0) {
-        // No data yet – show the skeleton loading screen
-        setLoading(true);
-      }
-      // Keep existing data visible while fetching in background
-      return prev;
-    });
-
-    if (unsubRef.current) unsubRef.current();
-
-    const constraints = buildConstraints(false);
-    const q = query(userRef, ...constraints);
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      const fetchedUsers = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-      setUsers(sortUsers(fetchedUsers));
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] as any || null);
-      setHasMore(snapshot.docs.length === PAGE_SIZE);
-      setLoading(false);
-      setRefreshing(false);
-    }, (err) => {
-      console.error('Error in user subscription:', err);
-      setError(err.message);
-      setLoading(false);
-    });
-
-    unsubRef.current = unsub;
-    return () => {
-      if (unsubRef.current) unsubRef.current();
-    };
-  }, [user?.uid, isFocused, filterKey, buildConstraints, sortUsers, refreshTrigger]);
-
-  const loadMore = useCallback(async () => {
-    if (loading || isFetchingRef.current || !hasMore || !lastDoc) return;
-    isFetchingRef.current = true;
 
     try {
-      const constraints = buildConstraints(true, lastDoc as any);
-      const q = query(userRef, ...constraints);
+      setError(null);
+      const q = query(userRef, ...buildConstraints(false));
       const snapshot = await getDocs(q);
 
-      const fetchedUsers = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-      const sortedNewUsers = sortUsers(fetchedUsers);
+      const fetchedUsers = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as any),
+      }));
 
-      setUsers(prev => [...prev, ...sortedNewUsers]);
+      // Filter out self, private profiles, and incognito users
+      const validUsers = fetchedUsers.filter(u => u.id !== user.uid && u.profileVisible !== false && u.isIncognito !== true);
+      setUsers(validUsers);
+      
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] as any || null);
+      setHasMore(snapshot.docs.length === PAGE_SIZE);
+    } catch (err: any) {
+      console.error('Fetch initial error:', err);
+      setError(err.message);
+    } finally {
+      setInitialLoading(false);
+      setRefreshing(false);
+      requestLockRef.current = false;
+    }
+  }, [user?.uid, buildConstraints]);
+
+  // Initial load or filter change
+  useEffect(() => {
+    if (isFocused && user?.uid) {
+      fetchInitial(false);
+    }
+  }, [isFocused, filterKey, user?.uid]); // Re-fetch only when filter changes or screen is focused
+
+  const loadMore = useCallback(async () => {
+    if (initialLoading || loadingMore || !hasMore || !lastDoc || requestLockRef.current) return;
+    requestLockRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const q = query(userRef, ...buildConstraints(true, lastDoc as any));
+      const snapshot = await getDocs(q);
+
+      const fetchedUsers = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as any),
+      }));
+      
+      const newUsers = fetchedUsers.filter(u => u.id !== user?.uid && u.profileVisible !== false && u.isIncognito !== true);
+
+      setUsers(prev => {
+        const combined = [...prev, ...newUsers];
+        return Array.from(new Map(combined.map(u => [u.id || u.uid, u])).values());
+      });
+      
       setLastDoc(snapshot.docs[snapshot.docs.length - 1] as any || null);
       setHasMore(snapshot.docs.length === PAGE_SIZE);
     } catch (err: any) {
       console.error('Error loading more users:', err);
       setError(err.message);
     } finally {
-      isFetchingRef.current = false;
+      setLoadingMore(false);
+      requestLockRef.current = false;
     }
-  }, [loading, hasMore, lastDoc, buildConstraints, sortUsers]);
+  }, [initialLoading, loadingMore, hasMore, lastDoc, buildConstraints, user?.uid]);
 
   const handleRefresh = useCallback(() => {
-    // Do NOT clear users — keep showing the old list while refreshing
-    // to avoid a blank flash on pull-to-refresh.
-    setRefreshing(true);
-    setRefreshTrigger(prev => prev + 1);
-  }, []);
-
-  // Wrapper for compatibility
-  const getUsers = useCallback((force?: boolean) => {
-    if (force) {
-      handleRefresh();
-    }
-  }, [handleRefresh]);
+    fetchInitial(true);
+  }, [fetchInitial]);
 
   return {
     users,
-    loading,
-    filtering: !!filterKey.replace(/\|/g, ''),
+    loading: initialLoading,
+    loadingMore,
     refreshing,
+    filtering: !!filterKey.replace(/|/g, ''),
     hasMore,
     loadMore,
     handleRefresh,
-    getUsers,
     error,
   };
 };
 
 export default useHome;
+

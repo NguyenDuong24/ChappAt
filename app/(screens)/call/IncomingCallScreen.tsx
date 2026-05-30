@@ -15,8 +15,9 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { collection, doc, getDocs, query, updateDoc, where, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Audio } from 'expo-av';
+import { safeStopAndUnload } from '@/utils/safeSound';
 import { cancelCall, acceptCall, CALL_STATUS } from '@/services/firebaseCallService';
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
 import { BlurView } from 'expo-blur';
@@ -176,8 +177,7 @@ export default function IncomingCallScreen() {
 
         return () => {
             if (soundRef.current) {
-                soundRef.current.stopAsync();
-                soundRef.current.unloadAsync();
+                safeStopAndUnload(soundRef.current);
             }
         };
     }, []);
@@ -185,8 +185,7 @@ export default function IncomingCallScreen() {
     const stopRingtone = async () => {
         if (soundRef.current) {
             try {
-                await soundRef.current.stopAsync();
-                await soundRef.current.unloadAsync();
+                await safeStopAndUnload(soundRef.current);
             } catch (error) {
                 console.error('Error stopping ringtone:', error);
             }
@@ -470,7 +469,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.3,
         shadowRadius: 20,
-        elevation: 10,
     },
     avatar: {
         width: '100%',
@@ -528,7 +526,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 12,
-        elevation: 8,
     },
     declineButtonText: {
         color: '#FFFFFF',

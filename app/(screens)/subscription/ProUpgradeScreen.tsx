@@ -10,7 +10,7 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../../context/authContext';
@@ -138,7 +138,7 @@ export default function ProUpgradeScreen() {
                     >
                         <Ionicons name="diamond" size={32} color="#fff" />
                     </LinearGradient>
-                    <Text style={[styles.headerTitle, { color: palette.textColor }]}>{t('pro_upgrade.title', 'ChappAt Pro')}</Text>
+                    <Text style={[styles.headerTitle, { color: palette.textColor }]}>{t('pro_upgrade.title', 'SaiGon Match Pro')}</Text>
                     <Text style={[styles.headerSubtitle, { color: palette.subtitleColor }]}>{t('pro_upgrade.header_subtitle')}</Text>
                 </View>
 
@@ -381,7 +381,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 12,
-        elevation: 6,
         overflow: 'hidden',
     },
     pricingHeader: {

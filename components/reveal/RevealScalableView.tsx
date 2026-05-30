@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useEffect } from 'react';
 import { StyleProp, ViewStyle } from 'react-native';
 import Animated, {

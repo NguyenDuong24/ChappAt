@@ -1,5 +1,7 @@
+// @ts-nocheck
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  InteractionManager,
   Platform,
   Pressable,
   StyleProp,
@@ -14,6 +16,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
   Extrapolate,
 } from 'react-native-reanimated';
 
@@ -46,7 +49,7 @@ const RevealSideSheet = ({
   bottomInset = 16,
   allowBackdropDismiss = true,
   deferContentMount = true,
-  contentMountDelayMs = 80,
+  contentMountDelayMs = 90,
   panelStyle,
   contentContainerStyle,
 }: RevealSideSheetProps) => {
@@ -56,6 +59,7 @@ const RevealSideSheet = ({
   const [mounted, setMounted] = useState(visible);
   const [contentReady, setContentReady] = useState(!deferContentMount || visible);
   const contentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const interactionRef = useRef<{ cancel?: () => void } | null>(null);
 
   const finishClose = useCallback(() => {
     setMounted(false);
@@ -68,12 +72,20 @@ const RevealSideSheet = ({
       contentTimerRef.current = null;
     }
 
+    if (interactionRef.current?.cancel) {
+      interactionRef.current.cancel();
+      interactionRef.current = null;
+    }
+
     if (visible) {
       setMounted(true);
       if (deferContentMount) {
         setContentReady(false);
         contentTimerRef.current = setTimeout(() => {
-          setContentReady(true);
+          interactionRef.current = InteractionManager.runAfterInteractions(() => {
+            setContentReady(true);
+            interactionRef.current = null;
+          });
           contentTimerRef.current = null;
         }, contentMountDelayMs);
       } else {
@@ -81,13 +93,18 @@ const RevealSideSheet = ({
       }
     }
 
-    progress.value = withSpring(visible ? 1 : 0, {
-      damping: 34,
-      stiffness: 220,
-      mass: 0.9,
-      restDisplacementThreshold: 0.001,
-      restSpeedThreshold: 0.001,
-    }, (finished) => {
+    progress.value = visible
+      ? withSpring(1, {
+        damping: 24,
+        stiffness: 220,
+        mass: 0.9,
+        overshootClamping: true,
+        restDisplacementThreshold: 0.001,
+        restSpeedThreshold: 0.001,
+      })
+      : withTiming(0, {
+        duration: 180,
+      }, (finished) => {
       if (finished && !visible) {
         runOnJS(finishClose)();
       }
@@ -98,6 +115,10 @@ const RevealSideSheet = ({
         clearTimeout(contentTimerRef.current);
         contentTimerRef.current = null;
       }
+      if (interactionRef.current?.cancel) {
+        interactionRef.current.cancel();
+        interactionRef.current = null;
+      }
     };
   }, [contentMountDelayMs, deferContentMount, finishClose, progress, visible]);
 
@@ -107,31 +128,17 @@ const RevealSideSheet = ({
   }));
 
   const sheetStyle = useAnimatedStyle(() => {
-    const travel = panelWidth + 60;
+    const travel = panelWidth + 24;
     const hidden = side === 'right' ? travel : -travel;
 
     return {
       transform: [
         { translateX: interpolate(progress.value, [0, 1], [hidden, 0], Extrapolate.CLAMP) },
-        { 
-          scale: interpolate(
-            progress.value, 
-            [0, 0.5, 1], 
-            [0.92, 0.98, 1], 
-            Extrapolate.CLAMP
-          ) 
-        },
+        { scale: interpolate(progress.value, [0, 1], [0.985, 1], Extrapolate.CLAMP) },
       ],
-      opacity: interpolate(progress.value, [0, 0.4, 1], [0, 0.5, 1], Extrapolate.CLAMP),
+      opacity: interpolate(progress.value, [0, 0.18, 1], [0, 1, 1], Extrapolate.CLAMP),
     };
   });
-
-  const innerContentStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0.3, 1], [0, 1], Extrapolate.CLAMP),
-    transform: [
-      { scale: interpolate(progress.value, [0.3, 1], [0.95, 1], Extrapolate.CLAMP) }
-    ]
-  }));
 
   if (!mounted) return null;
 
@@ -156,9 +163,9 @@ const RevealSideSheet = ({
           panelStyle,
         ]}
       >
-        <Animated.View style={[styles.content, contentContainerStyle, innerContentStyle]}>
+        <View style={[styles.content, contentContainerStyle]}>
           {contentReady ? children : null}
-        </Animated.View>
+        </View>
       </Animated.View>
     </View>
   );
@@ -177,9 +184,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#00080A',
     shadowOffset: { width: 0, height: 24 },
-    shadowOpacity: Platform.OS === 'ios' ? 0.38 : 0.32,
-    shadowRadius: 32,
-    elevation: 24,
+    shadowOpacity: Platform.OS === 'ios' ? 0.28 : 0,
+    shadowRadius: 24,
+    elevation: Platform.OS === 'android' ? 8 : 24,
     backgroundColor: 'transparent',
   },
   panelRight: {

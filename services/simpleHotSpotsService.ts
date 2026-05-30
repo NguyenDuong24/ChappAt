@@ -295,16 +295,6 @@ class SimpleHotSpotsService {
     }
   }
 
-  async removeInteraction(hotSpotId: string, userId: string): Promise<void> {
-    try {
-      const interactionRef = doc(this.interactionsCollection, `${userId}_${hotSpotId}`);
-      await deleteDoc(interactionRef);
-    } catch (error) {
-      console.error('Error removing interaction:', error);
-      throw error;
-    }
-  }
-
   // ============ GET USER INTERACTIONS ============
 
   async getUserInteractions(userId: string): Promise<UserHotSpotInteraction[]> {

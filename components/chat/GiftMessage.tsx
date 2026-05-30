@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +27,7 @@ interface GiftMessageProps {
   themeColors: ThemeColors;
 }
 
-export default function GiftMessage({ gift, senderName, isCurrentUser, themeColors }: GiftMessageProps) {
+function GiftMessage({ gift, senderName, isCurrentUser, themeColors }: GiftMessageProps) {
   const { t } = useTranslation();
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -41,140 +41,108 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
   const particleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Dramatic entry animation
+    const loops: Animated.CompositeAnimation[] = [];
+
     Animated.sequence([
       Animated.parallel([
         Animated.spring(scaleAnim, {
-          toValue: 1.15,
+          toValue: 1.08,
           tension: 40,
-          friction: 5,
+          friction: 6,
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 300,
+          duration: 220,
           easing: Easing.out(Easing.exp),
           useNativeDriver: true,
         }),
         Animated.timing(cardRotate, {
           toValue: 1,
-          duration: 600,
-          easing: Easing.bezier(0.34, 1.56, 0.64, 1),
+          duration: 420,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
       ]),
       Animated.spring(scaleAnim, {
         toValue: 1,
         tension: 60,
-        friction: 7,
+        friction: 8,
         useNativeDriver: true,
       }),
     ]).start();
 
-    // Emoji dramatic entrance
     Animated.sequence([
-      Animated.delay(150),
+      Animated.delay(120),
       Animated.parallel([
         Animated.spring(emojiScale, {
-          toValue: 1.3,
-          tension: 50,
-          friction: 4,
+          toValue: 1,
+          tension: 55,
+          friction: 7,
           useNativeDriver: true,
         }),
         Animated.timing(emojiRotate, {
           toValue: 1,
-          duration: 800,
-          easing: Easing.bezier(0.68, -0.55, 0.265, 1.55),
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
       ]),
-      Animated.spring(emojiScale, {
-        toValue: 1,
-        tension: 70,
-        friction: 6,
-        useNativeDriver: true,
-      }),
     ]).start();
 
-    // Floating bounce
-    Animated.loop(
+    loops.push(Animated.loop(
       Animated.sequence([
         Animated.timing(emojiBounce, {
-          toValue: -8,
-          duration: 1000,
+          toValue: -5,
+          duration: 1200,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
         Animated.timing(emojiBounce, {
           toValue: 0,
-          duration: 1000,
+          duration: 1200,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    ));
 
-    // Sparkle explosion
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(sparkleAnim, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(sparkleAnim, {
-          toValue: 0,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Shine sweep
-    Animated.loop(
+    loops.push(Animated.loop(
       Animated.sequence([
         Animated.timing(shineAnim, {
           toValue: 400,
-          duration: 2500,
+          duration: 2600,
           easing: Easing.out(Easing.exp),
           useNativeDriver: true,
         }),
-        Animated.delay(1500),
+        Animated.delay(1800),
       ])
-    ).start();
+    ));
 
-    // Glow pulse
-    Animated.loop(
+    loops.push(Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, {
           toValue: 1,
-          duration: 2000,
+          duration: 2400,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(glowAnim, {
           toValue: 0,
-          duration: 2000,
+          duration: 2400,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    ));
 
-    // Particle float
-    Animated.loop(
-      Animated.timing(particleAnim, {
-        toValue: 1,
-        duration: 3000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  }, []);
+    loops.forEach((loop) => loop.start());
 
-  if (!gift) return null;
+    return () => {
+      loops.forEach((loop) => loop.stop());
+    };
+  }, [cardRotate, emojiBounce, emojiRotate, emojiScale, fadeAnim, glowAnim, scaleAnim, shineAnim]);
+  const rarity = useMemo(() => gift ? getRarity(gift.price) : 'common', [gift?.price]);
 
   // Determine rarity level based on price
   const getRarity = (price: number) => {
@@ -184,7 +152,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
     return 'common';
   };
 
-  const rarity = getRarity(gift.price);
+
 
   const getRarityStyles = (level: string) => {
     switch (level) {
@@ -193,7 +161,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
           colors: ['#FF0080', '#7928CA', '#0070F3'] as const,
           glow: ['rgba(255, 0, 128, 0.5)', 'rgba(121, 40, 202, 0.5)', 'rgba(0, 112, 243, 0.5)'] as const,
           priceColors: ['#000000', '#333333'] as const,
-          particle: '💎',
+          particle: 'ðŸ’Ž',
           shadow: '#7928CA'
         };
       case 'epic':
@@ -201,7 +169,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
           colors: ['#FFD700', '#FFA500', '#FF8C00'] as const,
           glow: ['rgba(255, 215, 0, 0.5)', 'rgba(255, 165, 0, 0.5)', 'rgba(255, 140, 0, 0.5)'] as const,
           priceColors: ['#FFD700', '#FFA500'] as const,
-          particle: '🌟',
+          particle: 'ðŸŒŸ',
           shadow: '#FFA500'
         };
       case 'rare':
@@ -209,7 +177,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
           colors: ['#00D2FF', '#3A7BD5', '#00D2FF'] as const,
           glow: ['rgba(0, 210, 255, 0.5)', 'rgba(58, 123, 213, 0.5)', 'rgba(0, 210, 255, 0.5)'] as const,
           priceColors: ['#00D2FF', '#3A7BD5'] as const,
-          particle: '💧',
+          particle: 'ðŸ’§',
           shadow: '#3A7BD5'
         };
       default:
@@ -217,7 +185,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
           colors: ['#FFE6F0', '#FFF5FA', '#FFE6F0'] as const,
           glow: ['rgba(255, 105, 180, 0.3)', 'rgba(255, 182, 193, 0.3)', 'rgba(255, 105, 180, 0.3)'] as const,
           priceColors: ['#FF69B4', '#FFB6C1'] as const,
-          particle: '✨',
+          particle: 'âœ¨',
           shadow: '#FF69B4'
         };
     }
@@ -349,7 +317,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
             },
           ]}
         >
-          ✨
+          âœ¨
         </Animated.Text>
         <Animated.Text
           style={[
@@ -361,7 +329,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
             },
           ]}
         >
-          💫
+          ðŸ’«
         </Animated.Text>
         <Animated.Text
           style={[
@@ -373,7 +341,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
             },
           ]}
         >
-          ⭐
+          â­
         </Animated.Text>
         <Animated.Text
           style={[
@@ -385,7 +353,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
             },
           ]}
         >
-          ✨
+          âœ¨
         </Animated.Text>
 
         <View style={styles.row}>
@@ -404,7 +372,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
                 },
               ]}
             >
-              {gift.icon || '🎁'}
+              {gift.icon || 'ðŸŽ'}
             </Animated.Text>
           </View>
 
@@ -427,7 +395,7 @@ export default function GiftMessage({ gift, senderName, isCurrentUser, themeColo
               style={styles.priceGradient}
             >
               <Text style={[styles.priceText, { color: '#FFFFFF' }]}>
-                {gift.currencyType === 'coins' ? '💎' : '🥖'} {gift.price}
+                {gift.currencyType === 'coins' ? 'ðŸ’Ž' : 'ðŸ¥–'} {gift.price}
               </Text>
             </LinearGradient>
           </View>
@@ -566,3 +534,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
 });
+export default memo(GiftMessage);
+
+

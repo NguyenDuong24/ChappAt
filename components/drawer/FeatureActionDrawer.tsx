@@ -84,10 +84,10 @@ const pushUniqueResult = (items: SearchResultItem[], item: SearchResultItem, max
   items.push(item);
 };
 
-const buildUserSearchResult = (id: string, data: any, t: any): SearchResultItem => {
-  const title = data?.displayName || data?.fullName || data?.name || data?.username || t('chat.unknown_user');
+const buildUserSearchResult = (id: string, data: any, tf: (key: string, fallback: string) => string): SearchResultItem => {
+  const title = data?.displayName || data?.fullName || data?.name || data?.username || tf('chat.unknown_user', 'Người dùng');
   const handle = data?.username ? `@${data.username}` : data?.email || '';
-  const bio = data?.bio || data?.job || data?.university || '';
+  const bio = data?.bio || data?.job || data?.university || tf('drawer.addFriend.user_result', 'Kết quả tìm kiếm');
   return {
     id,
     title,
@@ -153,45 +153,50 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
   const localPalette = useMemo(() => getLiquidPalette(theme), [theme]);
   const palette = contextPalette || localPalette;
 
+  // Fallback helper
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
+
   const textColor = palette.textColor;
   const subtextColor = palette.subtitleColor;
   const glassPanelBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
   const glassBorder = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)';
-  const iconWrapBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.05)';
   const sheetPanelStyle = useMemo(() => ({ backgroundColor: palette.menuBackground }), [palette.menuBackground]);
 
   const copyMap: Record<FeatureDrawerKey, { title: string; subtitle: string; icon: any }> = useMemo(() => ({
     notification: {
-      title: t('drawer.notifications.title'),
-      subtitle: t('drawer.notifications.subtitle'),
+      title: tf('drawer.notifications.title', 'Thông báo'),
+      subtitle: tf('drawer.notifications.subtitle', 'Xem các thông báo của bạn'),
       icon: 'bell-badge-outline',
     },
     chatSearch: {
-      title: t('drawer.chatSearch.title'),
-      subtitle: t('drawer.chatSearch.subtitle'),
+      title: tf('drawer.chatSearch.title', 'Tìm kiếm chat'),
+      subtitle: tf('drawer.chatSearch.subtitle', 'Tìm tin nhắn và cuộc trò chuyện'),
       icon: 'message-search-outline',
     },
     groupSearch: {
-      title: t('drawer.groupSearch.title'),
-      subtitle: t('drawer.groupSearch.subtitle'),
+      title: tf('drawer.groupSearch.title', 'Tìm kiếm nhóm'),
+      subtitle: tf('drawer.groupSearch.subtitle', 'Khám phá các nhóm'),
       icon: 'account-group-outline',
     },
     addFriend: {
-      title: t('drawer.addFriend.title'),
-      subtitle: t('drawer.addFriend.subtitle'),
+      title: tf('drawer.addFriend.title', 'Thêm bạn'),
+      subtitle: tf('drawer.addFriend.subtitle', 'Tìm và kết nối với bạn bè'),
       icon: 'account-plus-outline',
     },
     groupManagement: {
-      title: t('drawer.groupManagement.title'),
-      subtitle: t('drawer.groupManagement.subtitle'),
+      title: tf('drawer.groupManagement.title', 'Quản lý nhóm'),
+      subtitle: tf('drawer.groupManagement.subtitle', 'Quản trị nhóm của bạn'),
       icon: 'shield-crown-outline',
     },
     createGroup: {
-      title: t('drawer.createGroup.title'),
-      subtitle: t('drawer.createGroup.subtitle'),
+      title: tf('drawer.createGroup.title', 'Tạo nhóm'),
+      subtitle: tf('drawer.createGroup.subtitle', 'Tạo nhóm mới'),
       icon: 'account-multiple-plus-outline',
     },
-  }), [t]);
+  }), [tf]);
 
   const data = useMemo(() => {
     if (!currentDrawerKey) return null;
@@ -287,17 +292,16 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
         const data = d.data();
         return {
           id: d.id,
-          title: data.title || t('notifications.new_notification'),
+          title: data.title || tf('notifications.new_notification', 'Thông báo mới'),
           subtitle: data.message || data.body || '',
           type: 'notification',
-          meta: { ...data, id: d.id }, // Keep original data in meta
+          meta: { ...data, id: d.id },
         };
       });
       setResults(mapped);
       setLoading(false);
     }, (err) => {
       console.error('Notification listener error:', err);
-      // Fallback to simple query if index is missing
       const simpleQ = query(
         collection(db, 'notifications'),
         where('receiverId', '==', currentUser.uid),
@@ -306,7 +310,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       getDocs(simpleQ).then(snap => {
          const mapped: SearchResultItem[] = snap.docs.map(d => ({
             id: d.id,
-            title: d.data().title || t('notifications.new_notification'),
+            title: d.data().title || tf('notifications.new_notification', 'Thông báo mới'),
             subtitle: d.data().message || d.data().body || '',
             type: 'notification',
             meta: { ...d.data(), id: d.id },
@@ -317,7 +321,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
     });
 
     setUnsubscribe(() => unsub);
-  }, [t, unsubscribe]);
+  }, [tf, unsubscribe]);
 
   const pickGroupImage = async () => {
     try {
@@ -360,11 +364,9 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       setCurrentUserGroupRole(role);
       setCanManageCurrentGroup(!!permission.hasPermission);
 
-      // Load members for drawer management
       const members = (groupData.members || []).slice(0, 40);
       const memberRoles = groupData.memberRoles || {};
       
-      // Optimize: batch fetch with Promise.all but limit concurrent requests
       const memberDocs = await Promise.allSettled(
         members.map((uid: string) => getDoc(doc(db, 'users', uid)).catch(() => null))
       );
@@ -375,7 +377,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
             const doc = result.value;
             return {
               uid: doc.id,
-              displayName: doc.data()?.displayName || doc.data()?.username || 'User',
+              displayName: doc.data()?.displayName || doc.data()?.username || tf('chat.unknown_user', 'Người dùng'),
               photoURL: doc.data()?.profilePicture || doc.data()?.profileUrl || doc.data()?.photoURL,
               role: memberRoles[doc.id] || 'member'
             };
@@ -404,11 +406,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       }
     } catch (err) {
       console.log('Load group details error:', err);
-      setManagementError(t('drawer.groupManagement.detail_error' as any));
+      setManagementError(tf('drawer.groupManagement.detail_error', 'Lỗi tải chi tiết nhóm'));
     } finally {
       setGroupDetailsLoading(false);
     }
-  }, [t]);
+  }, [tf]);
 
   const loadMyGroups = useCallback(async () => {
     const currentUser = auth.currentUser;
@@ -417,7 +419,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       setResults([]);
       setManagementGroupData(null);
       setGroupMembers([]);
-      setManagementError(t('drawer.groupManagement.open_from_group' as any));
+      setManagementError(tf('drawer.groupManagement.open_from_group', 'Vui lòng mở từ nhóm'));
       setLoading(false);
       return;
     }
@@ -427,11 +429,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       await loadGroupDetailsForManagement(managementGroupId);
     } catch (err) {
       console.log('Groups management error:', err);
-      setManagementError(t('drawer.groupManagement.load_error' as any));
+      setManagementError(tf('drawer.groupManagement.load_error', 'Lỗi tải danh sách nhóm'));
     } finally {
       setLoading(false);
     }
-  }, [loadGroupDetailsForManagement, managementGroupId, t]);
+  }, [loadGroupDetailsForManagement, managementGroupId, tf]);
 
   const performSearch = useCallback(async (text: string) => {
     const term = text.trim();
@@ -470,8 +472,8 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
               } catch { }
             }
             if (userMatchesTerm(otherUserData, normalizedTerm)) {
-              const title = otherUserData?.displayName || otherUserData?.username || otherUserData?.name || t('chat.unknown_user');
-              const preview = roomData?.lastMessage?.text || t('chat.message');
+              const title = otherUserData?.displayName || otherUserData?.username || otherUserData?.name || tf('chat.unknown_user', 'Người dùng');
+              const preview = roomData?.lastMessage?.text || tf('chat.message', 'Tin nhắn');
               pushUniqueResult(newResults, {
                 id: `${roomId}_conversation`,
                 title,
@@ -492,7 +494,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
             if (normalizeSearchText(d.data().text).includes(normalizedTerm)) {
               pushUniqueResult(newResults, {
                 id: `${roomId}_${d.id}`,
-                title: d.data().senderName || t('chat.unknown_user'),
+                title: d.data().senderName || tf('chat.unknown_user', 'Người dùng'),
                 subtitle: d.data().text,
                 type: 'chat',
                 meta: { roomId, messageId: d.id, senderAvatar: d.data().profileUrl, type: 'message' },
@@ -515,7 +517,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
             if (d.id === currentUser.uid) return;
             const data = d.data();
             if (!userMatchesTerm(data, normalizedTerm)) return;
-            pushUniqueResult(newResults, buildUserSearchResult(d.id, data, t), 14);
+            pushUniqueResult(newResults, buildUserSearchResult(d.id, data, tf), 14);
           });
         });
 
@@ -525,7 +527,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
             if (d.id === currentUser.uid) return;
             const data = d.data();
             if (!userMatchesTerm(data, normalizedTerm)) return;
-            pushUniqueResult(newResults, buildUserSearchResult(d.id, data, t), 14);
+            pushUniqueResult(newResults, buildUserSearchResult(d.id, data, tf), 14);
           });
         }
       } else if (currentDrawerKey === 'groupSearch') {
@@ -540,7 +542,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
             const data = d.data();
             const matches = normalizeSearchText(`${data?.name || ''} ${data?.description || ''}`).includes(normalizedTerm);
             if (!matches) return;
-            pushUniqueResult(newResults, { id: d.id, title: data.name || t('groups.unnamed'), subtitle: data.description || '', type: 'group', meta: { groupId: d.id } });
+            pushUniqueResult(newResults, { id: d.id, title: data.name || tf('groups.unnamed', 'Nhóm không tên'), subtitle: data.description || '', type: 'group', meta: { groupId: d.id } });
           });
         });
       }
@@ -551,11 +553,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
     } finally {
       setLoading(false);
     }
-  }, [currentDrawerKey, loadNotifications, loadMyGroups, t]);
+  }, [currentDrawerKey, loadNotifications, loadMyGroups, tf]);
 
   const handleCreateGroup = useCallback(async () => {
     if (!groupName.trim()) {
-        Alert.alert(t('group_create.errors.name_required'), '');
+        Alert.alert(tf('group_create.errors.name_required', 'Tên nhóm không được để trống'), '');
         return;
     }
     const currentUser = auth.currentUser;
@@ -591,11 +593,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
         });
     } catch (err) {
         console.log('Create group error:', err);
-        Alert.alert(t('common.error'), t('group_create.errors.uid_add_failed'));
+        Alert.alert(tf('common.error', 'Lỗi'), tf('group_create.errors.uid_add_failed', 'Lỗi thêm thành viên'));
     } finally {
         setLoading(false);
     }
-  }, [groupName, groupDesc, groupType, groupImage, onClose, router, t]);
+  }, [groupName, groupDesc, groupType, groupImage, onClose, router, tf]);
 
   const handleKeywordChange = (text: string) => {
     setKeyword(text);
@@ -623,17 +625,16 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
         case 'like_back':
           if (item.meta.postId && item.meta.senderId) {
              await NotificationActionsService.likePost(currentUser.uid, item.meta.postId, item.meta.senderId);
-             Alert.alert(t('common.success'), t('notifications.liked_back'));
+             Alert.alert(tf('common.success', 'Thành công'), tf('notifications.liked_back', 'Đã thích lại'));
           }
           break;
         case 'follow_back':
           if (item.meta.senderId) {
-             await NotificationActionsService.followUser(currentUser.uid, item.meta.senderId, item.meta.senderName || 'User');
-             Alert.alert(t('common.success'), t('notifications.followed_back'));
+             await NotificationActionsService.followUser(currentUser.uid, item.meta.senderId, item.meta.senderName || tf('chat.unknown_user', 'Người dùng'));
+             Alert.alert(tf('common.success', 'Thành công'), tf('notifications.followed_back', 'Đã theo dõi lại'));
           }
           break;
         case 'accept_friend':
-           // Add friend logic if available in service
            break;
       }
     } catch (e) {
@@ -650,7 +651,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
   const saveManagedGroupInfo = useCallback(async () => {
     if (!managementGroupId || !canManageCurrentGroup) return;
     if (!editedGroupName.trim()) {
-      Alert.alert(t('common.error'), t('group_management.empty_group_name'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.empty_group_name', 'Tên nhóm không được để trống'));
       return;
     }
 
@@ -662,14 +663,14 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
         updatedAt: serverTimestamp(),
       });
       await loadGroupDetailsForManagement(managementGroupId);
-      Alert.alert(t('common.success'), t('group_management.update_group_success'));
+      Alert.alert(tf('common.success', 'Thành công'), tf('group_management.update_group_success', 'Cập nhật nhóm thành công'));
     } catch (error) {
       console.log('Save managed group error:', error);
-      Alert.alert(t('common.error'), t('group_management.update_group_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.update_group_error', 'Lỗi cập nhật nhóm'));
     } finally {
       setGroupDetailsLoading(false);
     }
-  }, [canManageCurrentGroup, editedGroupDesc, editedGroupName, loadGroupDetailsForManagement, managementGroupId, t]);
+  }, [canManageCurrentGroup, editedGroupDesc, editedGroupName, loadGroupDetailsForManagement, managementGroupId, tf]);
 
   const changeManagedGroupAvatar = useCallback(async () => {
     if (!managementGroupId || !canManageCurrentGroup) return;
@@ -697,11 +698,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       }
     } catch (error) {
       console.log('Managed avatar error:', error);
-      Alert.alert(t('common.error'), t('group_management.update_avatar_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.update_avatar_error', 'Lỗi cập nhật ảnh đại diện'));
     } finally {
       setGroupDetailsLoading(false);
     }
-  }, [canManageCurrentGroup, loadGroupDetailsForManagement, managementGroupId, t]);
+  }, [canManageCurrentGroup, loadGroupDetailsForManagement, managementGroupId, tf]);
 
   const addManagedMember = useCallback(async () => {
     const uid = newMemberUid.trim();
@@ -711,11 +712,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
     try {
       const userDoc = await getDoc(doc(db, 'users', uid));
       if (!userDoc.exists()) {
-        Alert.alert(t('common.error'), t('group_management.user_not_found_uid'));
+        Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.user_not_found_uid', 'Không tìm thấy người dùng'));
         return;
       }
       if ((managementGroupData?.members || []).includes(uid)) {
-        Alert.alert(t('common.error'), t('group_management.user_already_member'));
+        Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.user_already_member', 'Người dùng đã là thành viên'));
         return;
       }
 
@@ -731,11 +732,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       await loadGroupDetailsForManagement(managementGroupId);
     } catch (error) {
       console.log('Managed add member error:', error);
-      Alert.alert(t('common.error'), t('group_management.add_member_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.add_member_error', 'Lỗi thêm thành viên'));
     } finally {
       setGroupDetailsLoading(false);
     }
-  }, [canManageCurrentGroup, loadGroupDetailsForManagement, managementGroupData, managementGroupId, newMemberUid, t]);
+  }, [canManageCurrentGroup, loadGroupDetailsForManagement, managementGroupData, managementGroupId, newMemberUid, tf]);
 
   const changeManagedMemberRole = useCallback(async (targetUserId: string, newRole: GroupRole) => {
     const currentUser = auth.currentUser;
@@ -744,41 +745,41 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
     try {
       const result = await groupPermissionService.changeMemberRole(managementGroupId, targetUserId, newRole, currentUser.uid);
       if (!result.success) {
-        Alert.alert(t('common.error'), result.message);
+        Alert.alert(tf('common.error', 'Lỗi'), result.message);
       }
       await loadGroupDetailsForManagement(managementGroupId);
     } catch {
-      Alert.alert(t('common.error'), t('group_management.change_role_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.change_role_error', 'Lỗi thay đổi vai trò'));
     } finally {
       setGroupDetailsLoading(false);
     }
-  }, [loadGroupDetailsForManagement, managementGroupId, t]);
+  }, [loadGroupDetailsForManagement, managementGroupId, tf]);
 
   const removeManagedMember = useCallback((targetUserId: string) => {
     const currentUser = auth.currentUser;
     if (!managementGroupId || !currentUser) return;
-    Alert.alert(t('common.confirm'), t('group_management.remove_member_confirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
+    Alert.alert(tf('common.confirm', 'Xác nhận'), tf('group_management.remove_member_confirm', 'Bạn có chắc muốn xóa thành viên này?'), [
+      { text: tf('common.cancel', 'Hủy'), style: 'cancel' },
       {
-        text: t('common.delete'),
+        text: tf('common.delete', 'Xóa'),
         style: 'destructive',
         onPress: async () => {
           setGroupDetailsLoading(true);
           try {
             const result = await groupPermissionService.removeMember(managementGroupId, targetUserId, currentUser.uid);
             if (!result.success) {
-              Alert.alert(t('common.error'), result.message);
+              Alert.alert(tf('common.error', 'Lỗi'), result.message);
             }
             await loadGroupDetailsForManagement(managementGroupId);
           } catch {
-            Alert.alert(t('common.error'), t('group_management.remove_member_error'));
+            Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.remove_member_error', 'Lỗi xóa thành viên'));
           } finally {
             setGroupDetailsLoading(false);
           }
         },
       },
     ]);
-  }, [loadGroupDetailsForManagement, managementGroupId, t]);
+  }, [loadGroupDetailsForManagement, managementGroupId, tf]);
 
   const handleManagedRequest = useCallback(async (requestUid: string, action: 'approve' | 'reject') => {
     const currentUser = auth.currentUser;
@@ -789,14 +790,14 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       const result = action === 'approve'
         ? await groupRequestService.approveRequest(managementGroupId, requestUid, currentUser.uid)
         : await groupRequestService.rejectRequest(managementGroupId, requestUid);
-      if (!result.success) Alert.alert(t('common.error'), result.message);
+      if (!result.success) Alert.alert(tf('common.error', 'Lỗi'), result.message);
       await loadGroupDetailsForManagement(managementGroupId);
     } catch {
-      Alert.alert(t('common.error'), action === 'approve' ? t('group_management.approve_request_error') : t('group_management.reject_request_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), action === 'approve' ? tf('group_management.approve_request_error', 'Lỗi phê duyệt yêu cầu') : tf('group_management.reject_request_error', 'Lỗi từ chối yêu cầu'));
     } finally {
       setGroupDetailsLoading(false);
     }
-  }, [loadGroupDetailsForManagement, managementGroupId, t]);
+  }, [loadGroupDetailsForManagement, managementGroupId, tf]);
 
   const updateManagedGroupType = useCallback(async (nextType: 'public' | 'private') => {
     if (!managementGroupId || !canManageCurrentGroup) return;
@@ -809,19 +810,19 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       });
       await loadGroupDetailsForManagement(managementGroupId);
     } catch {
-      Alert.alert(t('common.error'), t('group_management.update_group_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.update_group_error', 'Lỗi cập nhật nhóm'));
     } finally {
       setGroupDetailsLoading(false);
     }
-  }, [canManageCurrentGroup, loadGroupDetailsForManagement, managementGroupId, t]);
+  }, [canManageCurrentGroup, loadGroupDetailsForManagement, managementGroupId, tf]);
 
   const leaveManagedGroup = useCallback(() => {
     const currentUser = auth.currentUser;
     if (!managementGroupId || !currentUser) return;
-    Alert.alert(t('group_management.leave_group_title'), t('group_management.leave_group_confirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
+    Alert.alert(tf('group_management.leave_group_title', 'Rời nhóm'), tf('group_management.leave_group_confirm', 'Bạn có chắc muốn rời nhóm?'), [
+      { text: tf('common.cancel', 'Hủy'), style: 'cancel' },
       {
-        text: t('group_management.leave_group_action'),
+        text: tf('group_management.leave_group_action', 'Rời nhóm'),
         style: 'destructive',
         onPress: async () => {
           setGroupDetailsLoading(true);
@@ -831,17 +832,17 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
               onClose();
               router.replace('/(tabs)/groups');
             } else {
-              Alert.alert(t('common.error'), result.message);
+              Alert.alert(tf('common.error', 'Lỗi'), result.message);
             }
           } catch {
-            Alert.alert(t('common.error'), t('group_management.leave_group_error'));
+            Alert.alert(tf('common.error', 'Lỗi'), tf('group_management.leave_group_error', 'Lỗi rời nhóm'));
           } finally {
             setGroupDetailsLoading(false);
           }
         },
       },
     ]);
-  }, [managementGroupId, onClose, router, t]);
+  }, [managementGroupId, onClose, router, tf]);
 
   const handleResultPress = (item: SearchResultItem) => {
     if (item.type === 'notification') {
@@ -880,22 +881,52 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       }
     });
   };
+
   const quickActions = useMemo(() => {
     switch (currentDrawerKey) {
-      case 'notification': return [t('notifications.unread'), t('notifications.types.mention'), t('notifications.types.friend_request'), t('notifications.types.call')];
-      case 'chatSearch': return [t('chat.message'), t('chat.user'), t('drawer.chatSearch.links' as any), t('drawer.chatSearch.photos' as any)];
-      case 'groupSearch': return [t('social.trending'), t('drawer.groupSearch.local' as any), t('drawer.groupSearch.global' as any), t('drawer.groupSearch.gaming' as any)];
-      case 'groupManagement': return [t('drawer.groupManagement.ownership' as any), t('drawer.groupManagement.moderating' as any), t('drawer.groupManagement.invites' as any)];
-      default: return [t('social.latest'), t('signup.name_placeholder'), t('proximity.title')];
+      case 'notification': return [
+        tf('notifications.categories.all', 'Tất cả'),
+        tf('notifications.categories.mention', 'Nhắc đến'),
+        tf('notifications.categories.friend_request', 'Lời mời kết bạn'),
+        tf('notifications.categories.call', 'Cuộc gọi')
+      ];
+      case 'chatSearch': return [
+        tf('chat.message', 'Tin nhắn'),
+        tf('chat.user', 'Người dùng'),
+        tf('drawer.chatSearch.links', 'Liên kết'),
+        tf('drawer.chatSearch.photos', 'Ảnh')
+      ];
+      case 'addFriend': return [
+        tf('drawer.addFriend.nearby', 'Gần đây'),
+        tf('drawer.addFriend.same_city', 'Cùng thành phố'),
+        tf('drawer.addFriend.same_school', 'Cùng trường'),
+        tf('drawer.addFriend.interests', 'Sở thích')
+      ];
+      case 'groupSearch': return [
+        tf('social.trending', 'Xu hướng'),
+        tf('drawer.groupSearch.local', 'Địa phương'),
+        tf('drawer.groupSearch.global', 'Toàn cầu'),
+        tf('drawer.groupSearch.gaming', 'Game')
+      ];
+      case 'groupManagement': return [
+        tf('drawer.groupManagement.ownership', 'Sở hữu'),
+        tf('drawer.groupManagement.moderating', 'Quản lý'),
+        tf('drawer.groupManagement.invites', 'Lời mời')
+      ];
+      default: return [
+        tf('social.latest', 'Mới nhất'),
+        tf('signup.name_placeholder', 'Tên'),
+        tf('proximity.title', 'Gần đây')
+      ];
     }
-  }, [currentDrawerKey, t]);
+  }, [currentDrawerKey, tf]);
   
   const getRelativeTime = (timestamp: any) => {
     if (!timestamp) return '';
     const now = new Date().getTime();
     const then = timestamp.seconds * 1000;
     const diff = (now - then) / 1000;
-    if (diff < 60) return 'Now';
+    if (diff < 60) return tf('time.now', 'Vừa xong');
     if (diff < 3600) return `${Math.floor(diff / 60)}m`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
     return `${Math.floor(diff / 86400)}d`;
@@ -943,7 +974,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
       widthRatio={0.92}
       maxWidth={520}
       bottomInset={totalBottomInset}
-      contentMountDelayMs={110}
+      contentMountDelayMs={70}
       panelStyle={sheetPanelStyle}
     >
       <LiquidSurface themeMode={theme} borderRadius={40} intensity={theme === 'dark' ? 44 : 58} style={styles.outerContainer}>
@@ -963,7 +994,15 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
               <TextInput
                 value={keyword}
                 onChangeText={handleKeywordChange}
-                placeholder={t('common.search')}
+                placeholder={
+                  currentDrawerKey === 'addFriend'
+                    ? tf('drawer.addFriend.search_placeholder', 'Tìm theo tên...')
+                    : currentDrawerKey === 'chatSearch'
+                      ? tf('drawer.chatSearch.search_placeholder', 'Tìm tin nhắn...')
+                      : currentDrawerKey === 'groupSearch'
+                        ? tf('drawer.groupSearch.search_placeholder', 'Tìm nhóm...')
+                        : tf('common.search', 'Tìm kiếm')
+                }
                 placeholderTextColor={subtextColor}
                 style={[styles.input, { color: textColor }]}
                 autoCapitalize="none"
@@ -1008,12 +1047,12 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                           <Text style={[styles.groupInfoTitle, { color: textColor }]} numberOfLines={1}>{managementGroupData.name}</Text>
                           <View style={[styles.roleCapsule, { backgroundColor: Colors.primary + '18' }]}>
                             <Text style={[styles.roleCapsuleText, { color: Colors.primary }]}>
-                              {t(`drawer.groupManagement.${selectedGroupRole}` as any)}
+                              {tf(`drawer.groupManagement.${selectedGroupRole}`, selectedGroupRole)}
                             </Text>
                           </View>
                         </View>
                         <Text style={[styles.groupInfoSubtitle, { color: subtextColor }]} numberOfLines={2}>
-                          {managementGroupData.description || t('drawer.groupManagement.no_description' as any)}
+                          {managementGroupData.description || tf('group_management.no_description', 'Chưa có mô tả')}
                         </Text>
                       </View>
                     </View>
@@ -1021,25 +1060,25 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                     <View style={styles.groupMetricRow}>
                       <View style={styles.groupMetricItem}>
                         <Text style={[styles.groupMetricValue, { color: textColor }]}>{managementGroupData.members?.length || 0}</Text>
-                        <Text style={[styles.groupMetricLabel, { color: subtextColor }]}>{t('drawer.groupManagement.members' as any)}</Text>
+                        <Text style={[styles.groupMetricLabel, { color: subtextColor }]}>{tf('group_management.members', 'Thành viên')}</Text>
                       </View>
                       <View style={styles.groupMetricItem}>
                         <Text style={[styles.groupMetricValue, { color: textColor }]}>{pendingRequestCount}</Text>
-                        <Text style={[styles.groupMetricLabel, { color: subtextColor }]}>{t('drawer.groupManagement.pending' as any)}</Text>
+                        <Text style={[styles.groupMetricLabel, { color: subtextColor }]}>{tf('group_management.pending', 'Đang chờ')}</Text>
                       </View>
                       <View style={styles.groupMetricItem}>
-                        <Text style={[styles.groupMetricValue, { color: textColor }]}>{managementGroupData.type === 'private' ? t('drawer.private') : t('drawer.public')}</Text>
-                        <Text style={[styles.groupMetricLabel, { color: subtextColor }]}>{t('drawer.groupManagement.visibility' as any)}</Text>
+                        <Text style={[styles.groupMetricValue, { color: textColor }]}>{managementGroupData.type === 'private' ? tf('drawer.private', 'Riêng tư') : tf('drawer.public', 'Công khai')}</Text>
+                        <Text style={[styles.groupMetricLabel, { color: subtextColor }]}>{tf('group_management.visibility', 'Hiển thị')}</Text>
                       </View>
                     </View>
                   </LinearGradient>
 
                   <View style={styles.managementTabs}>
                     {[
-                      { key: 'overview', icon: 'view-dashboard-outline', label: t('drawer.groupManagement.overview' as any) },
-                      { key: 'members', icon: 'account-multiple-outline', label: t('drawer.groupManagement.members' as any) },
-                      { key: 'requests', icon: 'account-clock-outline', label: t('drawer.groupManagement.requests' as any) },
-                      { key: 'settings', icon: 'cog-outline', label: t('drawer.groupManagement.settings' as any) },
+                      { key: 'overview', icon: 'view-dashboard-outline', label: tf('group_management.overview', 'Tổng quan') },
+                      { key: 'members', icon: 'account-multiple-outline', label: tf('group_management.members', 'Thành viên') },
+                      { key: 'requests', icon: 'account-clock-outline', label: tf('group_management.requests', 'Yêu cầu') },
+                      { key: 'settings', icon: 'cog-outline', label: tf('group_management.settings', 'Cài đặt') },
                     ].map((tab) => {
                       const active = managementTab === tab.key;
                       return (
@@ -1059,30 +1098,30 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                     <View style={styles.quickManagementGrid}>
                       <Pressable style={[styles.quickManagementAction, { backgroundColor: glassPanelBg, borderColor: glassBorder }]} onPress={changeManagedGroupAvatar} disabled={!canManageCurrentGroup}>
                         <MaterialCommunityIcons name="camera-enhance-outline" size={22} color={textColor} />
-                        <Text style={[styles.quickManagementText, { color: textColor }]}>{t('drawer.groupManagement.change_avatar' as any)}</Text>
+                        <Text style={[styles.quickManagementText, { color: textColor }]}>{tf('group_management.change_avatar', 'Đổi ảnh')}</Text>
                       </Pressable>
                       <Pressable style={[styles.quickManagementAction, { backgroundColor: glassPanelBg, borderColor: glassBorder }]} onPress={() => setManagementTab('members')}>
                         <MaterialCommunityIcons name="account-cog-outline" size={22} color={textColor} />
-                        <Text style={[styles.quickManagementText, { color: textColor }]}>{t('drawer.groupManagement.manage_members' as any)}</Text>
+                        <Text style={[styles.quickManagementText, { color: textColor }]}>{tf('group_management.manage_members', 'Quản lý TV')}</Text>
                       </Pressable>
                       <Pressable style={[styles.quickManagementAction, { backgroundColor: glassPanelBg, borderColor: glassBorder, opacity: canManageCurrentGroup ? 1 : 0.45 }]} onPress={() => setManagementTab('requests')} disabled={!canManageCurrentGroup}>
                         <MaterialCommunityIcons name="account-clock-outline" size={22} color={textColor} />
-                        <Text style={[styles.quickManagementText, { color: textColor }]}>{t('drawer.groupManagement.requests' as any)}</Text>
+                        <Text style={[styles.quickManagementText, { color: textColor }]}>{tf('group_management.requests', 'Yêu cầu')}</Text>
                       </Pressable>
                     </View>
                   )}
 
                   {managementTab === 'settings' && (
                     <View style={styles.managementForm}>
-                      <Text style={[styles.label, { color: subtextColor }]}>{t('drawer.group_name')}</Text>
+                      <Text style={[styles.label, { color: subtextColor }]}>{tf('drawer.group_name', 'Tên nhóm')}</Text>
                       <View style={[styles.formInputBox, { backgroundColor: glassPanelBg, borderColor: glassBorder, opacity: canManageCurrentGroup ? 1 : 0.55 }]}>
                         <TextInput value={editedGroupName} onChangeText={setEditedGroupName} editable={canManageCurrentGroup} style={[styles.formInput, { color: textColor }]} placeholderTextColor={subtextColor} />
                       </View>
-                      <Text style={[styles.label, { color: subtextColor, marginTop: 14 }]}>{t('drawer.description')}</Text>
+                      <Text style={[styles.label, { color: subtextColor, marginTop: 14 }]}>{tf('drawer.description', 'Mô tả')}</Text>
                       <View style={[styles.formInputBox, styles.textArea, { backgroundColor: glassPanelBg, borderColor: glassBorder, opacity: canManageCurrentGroup ? 1 : 0.55 }]}>
                         <TextInput value={editedGroupDesc} onChangeText={setEditedGroupDesc} editable={canManageCurrentGroup} multiline style={[styles.formInput, { color: textColor }]} placeholderTextColor={subtextColor} />
                       </View>
-                      <Text style={[styles.label, { color: subtextColor, marginTop: 14 }]}>{t('drawer.privacy_settings')}</Text>
+                      <Text style={[styles.label, { color: subtextColor, marginTop: 14 }]}>{tf('drawer.privacy_settings', 'Quyền riêng tư')}</Text>
                       <View style={styles.privacyRow}>
                         {(['public', 'private'] as const).map((type) => {
                           const active = managementGroupData.type === type;
@@ -1101,18 +1140,18 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                               ]}
                             >
                               <MaterialCommunityIcons name={type === 'public' ? 'earth' : 'lock-outline'} size={18} color={active ? Colors.primary : subtextColor} />
-                              <Text style={[styles.privacyName, { color: active ? Colors.primary : subtextColor }]}>{type === 'public' ? t('drawer.public') : t('drawer.private')}</Text>
+                              <Text style={[styles.privacyName, { color: active ? Colors.primary : subtextColor }]}>{type === 'public' ? tf('drawer.public', 'Công khai') : tf('drawer.private', 'Riêng tư')}</Text>
                             </Pressable>
                           );
                         })}
                       </View>
                       <Pressable style={[styles.fullScreenButton, { backgroundColor: Colors.primary, opacity: canManageCurrentGroup ? 1 : 0.5 }]} onPress={saveManagedGroupInfo} disabled={!canManageCurrentGroup || groupDetailsLoading}>
                         {groupDetailsLoading ? <ActivityIndicator color="#FFF" /> : <MaterialCommunityIcons name="content-save-outline" size={18} color="#FFF" />}
-                        <Text style={styles.fullScreenButtonText}>{t('drawer.groupManagement.save_changes' as any)}</Text>
+                        <Text style={styles.fullScreenButtonText}>{tf('group_management.save_changes', 'Lưu thay đổi')}</Text>
                       </Pressable>
                       <Pressable style={[styles.fullScreenButton, { backgroundColor: '#EF4444' }]} onPress={leaveManagedGroup}>
                         <MaterialCommunityIcons name="exit-to-app" size={18} color="#FFF" />
-                        <Text style={styles.fullScreenButtonText}>{t('group_management.leave_group_action')}</Text>
+                        <Text style={styles.fullScreenButtonText}>{tf('group_management.leave_group_action', 'Rời nhóm')}</Text>
                       </Pressable>
                     </View>
                   )}
@@ -1120,7 +1159,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                   {managementTab === 'members' && (
                     <View style={styles.membersSection}>
                       <View style={[styles.addMemberBox, { backgroundColor: glassPanelBg, borderColor: glassBorder, opacity: canManageCurrentGroup ? 1 : 0.55 }]}>
-                        <TextInput value={newMemberUid} onChangeText={setNewMemberUid} editable={canManageCurrentGroup} placeholder={t('group_management.user_uid_placeholder')} placeholderTextColor={subtextColor} style={[styles.addMemberInput, { color: textColor }]} />
+                        <TextInput value={newMemberUid} onChangeText={setNewMemberUid} editable={canManageCurrentGroup} placeholder={tf('group_management.user_uid_placeholder', 'UID người dùng')} placeholderTextColor={subtextColor} style={[styles.addMemberInput, { color: textColor }]} />
                         <Pressable onPress={addManagedMember} disabled={!canManageCurrentGroup || !newMemberUid.trim()} style={[styles.addMemberButton, { backgroundColor: Colors.primary }]}>
                           <MaterialCommunityIcons name="account-plus-outline" size={18} color="#FFF" />
                         </Pressable>
@@ -1137,7 +1176,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                             )}
                             <Pressable style={styles.memberInfoCompact} onPress={() => router.push({ pathname: '/(screens)/user/UserProfileScreen', params: { userId: member.uid } })}>
                               <Text style={[styles.memberNameCompact, { color: textColor }]} numberOfLines={1}>{member.displayName}</Text>
-                              <Text style={[styles.memberRoleCompact, { color: subtextColor }]}>{t(`drawer.groupManagement.${member.role || 'member'}` as any)}</Text>
+                              <Text style={[styles.memberRoleCompact, { color: subtextColor }]}>{tf(`drawer.groupManagement.${member.role || 'member'}`, member.role || 'Member')}</Text>
                             </Pressable>
                             {manageable && (
                               <View style={styles.memberActionRow}>
@@ -1160,7 +1199,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                       {pendingRequests.length === 0 ? (
                         <View style={[styles.managementNotice, { backgroundColor: glassPanelBg, borderColor: glassBorder }]}>
                           <MaterialCommunityIcons name="account-check-outline" size={18} color={subtextColor} />
-                          <Text style={[styles.managementNoticeText, { color: subtextColor }]}>{t('group_management.no_pending_requests')}</Text>
+                          <Text style={[styles.managementNoticeText, { color: subtextColor }]}>{tf('group_management.no_pending_requests', 'Không có yêu cầu đang chờ')}</Text>
                         </View>
                       ) : pendingRequests.map((request) => (
                         <View key={request.uid} style={[styles.memberItemCompact, { backgroundColor: glassPanelBg, borderColor: glassBorder }]}>
@@ -1171,7 +1210,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                           )}
                           <View style={styles.memberInfoCompact}>
                             <Text style={[styles.memberNameCompact, { color: textColor }]} numberOfLines={1}>{request.displayName}</Text>
-                            <Text style={[styles.memberRoleCompact, { color: subtextColor }]}>{t('drawer.groupManagement.pending' as any)}</Text>
+                            <Text style={[styles.memberRoleCompact, { color: subtextColor }]}>{tf('group_management.pending', 'Đang chờ')}</Text>
                           </View>
                           <View style={styles.memberActionRow}>
                             <Pressable onPress={() => handleManagedRequest(request.uid, 'approve')} style={styles.memberIconButton}>
@@ -1206,26 +1245,26 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                                 <MaterialCommunityIcons name="camera-enhance-outline" size={32} color={textColor} />
                             )}
                         </Pressable>
-                        <Text style={[styles.imageActionText, { color: subtextColor }]}>{t('drawer.set_avatar')}</Text>
+                        <Text style={[styles.imageActionText, { color: subtextColor }]}>{tf('drawer.set_avatar', 'Đặt ảnh đại diện')}</Text>
                     </View>
 
-                    <Text style={[styles.label, { color: subtextColor }]}>{t('drawer.group_name')}</Text>
+                    <Text style={[styles.label, { color: subtextColor }]}>{tf('drawer.group_name', 'Tên nhóm')}</Text>
                     <View style={[styles.formInputBox, { backgroundColor: glassPanelBg, borderColor: glassBorder }]}>
                         <TextInput
                             value={groupName}
                             onChangeText={setGroupName}
-                            placeholder={t('group_management.group_name_label')}
+                            placeholder={tf('group_management.group_name_label', 'Tên nhóm')}
                             placeholderTextColor={subtextColor}
                             style={[styles.formInput, { color: textColor }]}
                         />
                     </View>
 
-                    <Text style={[styles.label, { color: subtextColor, marginTop: 20 }]}>{t('drawer.description')}</Text>
+                    <Text style={[styles.label, { color: subtextColor, marginTop: 20 }]}>{tf('drawer.description', 'Mô tả')}</Text>
                     <View style={[styles.formInputBox, styles.textArea, { backgroundColor: glassPanelBg, borderColor: glassBorder }]}>
                         <TextInput
                             value={groupDesc}
                             onChangeText={setGroupDesc}
-                            placeholder={t('group_management.description_label')}
+                            placeholder={tf('group_management.description_label', 'Mô tả')}
                             placeholderTextColor={subtextColor}
                             style={[styles.formInput, { color: textColor }]}
                             multiline
@@ -1233,28 +1272,28 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                         />
                     </View>
 
-                    <Text style={[styles.label, { color: subtextColor, marginTop: 20 }]}>{t('drawer.privacy_settings')}</Text>
+                    <Text style={[styles.label, { color: subtextColor, marginTop: 20 }]}>{tf('drawer.privacy_settings', 'Quyền riêng tư')}</Text>
                     <View style={styles.privacyRow}>
                         <Pressable 
                             onPress={() => setGroupType('public')}
                             style={[styles.privacyOption, groupType === 'public' && { backgroundColor: theme === 'dark' ? 'rgba(235,255,248,0.15)' : 'rgba(0,0,0,0.06)', borderColor: textColor }, { borderColor: glassBorder }]}
                         >
                             <MaterialCommunityIcons name="earth" size={20} color={groupType === 'public' ? textColor : subtextColor} />
-                            <Text style={[styles.privacyName, { color: groupType === 'public' ? textColor : subtextColor }]}>{t('drawer.public')}</Text>
+                            <Text style={[styles.privacyName, { color: groupType === 'public' ? textColor : subtextColor }]}>{tf('drawer.public', 'Công khai')}</Text>
                         </Pressable>
                         <Pressable 
                             onPress={() => setGroupType('private')}
                             style={[styles.privacyOption, groupType === 'private' && { backgroundColor: theme === 'dark' ? 'rgba(235,255,248,0.15)' : 'rgba(0,0,0,0.06)', borderColor: textColor }, { borderColor: glassBorder }]}
                         >
                             <MaterialCommunityIcons name="lock-outline" size={20} color={groupType === 'private' ? textColor : subtextColor} />
-                            <Text style={[styles.privacyName, { color: groupType === 'private' ? textColor : subtextColor }]}>{t('drawer.private')}</Text>
+                            <Text style={[styles.privacyName, { color: groupType === 'private' ? textColor : subtextColor }]}>{tf('drawer.private', 'Riêng tư')}</Text>
                         </Pressable>
                     </View>
 
                     <View style={styles.featureList}>
                         <View style={styles.featureItem}>
                             <MaterialCommunityIcons name="shield-check-outline" size={16} color={textColor} />
-                            <Text style={[styles.featureText, { color: subtextColor }]}>{t('drawer.secure_feature')}</Text>
+                            <Text style={[styles.featureText, { color: subtextColor }]}>{tf('drawer.secure_feature', 'Tính năng bảo mật')}</Text>
                         </View>
                     </View>
                 </Animated.View>
@@ -1286,15 +1325,17 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                                 style={{ marginRight: 6 }} 
                              />
                              <Text style={[styles.instaPillText, { color: category === cat.id ? '#FFF' : subtextColor }]}>
-                                {t(`notifications.categories.${cat.id}` as any)}
+                                {tf(`notifications.categories.${cat.id}`, cat.id === 'all' ? 'Tất cả' : cat.id === 'message' ? 'Tin nhắn' : cat.id === 'like' ? 'Thích' : cat.id === 'friend_request' ? 'Lời mời' : cat.id === 'system' ? 'Hệ thống' : 'Cuộc gọi')}
                              </Text>
                           </Pressable>
                         ))}
                       </ScrollView>
                     </View>
-                ) : (currentDrawerKey === 'chatSearch' || currentDrawerKey === 'groupSearch') && !keyword ? (
+                ) : (currentDrawerKey === 'chatSearch' || currentDrawerKey === 'groupSearch' || currentDrawerKey === 'addFriend') && !keyword ? (
                   <View style={styles.discoveryGrid}>
-                    <Text style={[styles.sectionTitle, { color: subtextColor, marginBottom: 16 }]}>{t('drawer.start_discovering')}</Text>
+                    <Text style={[styles.sectionTitle, { color: subtextColor, marginBottom: 16 }]}>
+                      {currentDrawerKey === 'addFriend' ? tf('drawer.addFriend.start_discovering', 'Bắt đầu khám phá') : tf('drawer.start_discovering', 'Bắt đầu khám phá')}
+                    </Text>
                     <View style={styles.filterGrid}>
                        {quickActions.map((label, idx) => (
                          <Pressable 
@@ -1308,7 +1349,11 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                          >
                             <View style={[styles.filterIconBox, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
                                <MaterialCommunityIcons 
-                                 name={
+                                 name={currentDrawerKey === 'addFriend' ? (
+                                   idx === 0 ? 'map-marker-radius' :
+                                   idx === 1 ? 'city-variant-outline' :
+                                   idx === 2 ? 'school-outline' : 'heart-outline'
+                                 ) :
                                    label.includes('Trending') || label.includes('Thịnh') ? 'fire' :
                                    label.includes('Local') || label.includes('Gần') ? 'map-marker-radius' :
                                    label.includes('Global') || label.includes('Toàn') ? 'earth' :
@@ -1332,9 +1377,9 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                 ) : (
                   <View style={styles.sectionHeader}>
                     <Text style={[styles.sectionTitle, { color: subtextColor }]}>
-                      {keyword ? t('drawer.matching_results') : t('drawer.your_groups')}
+                      {keyword ? tf('drawer.matching_results', 'Kết quả phù hợp') : tf('drawer.your_groups', 'Nhóm của bạn')}
                     </Text>
-                    {results.length > 0 && <Text style={[styles.resultCount, { color: subtextColor }]}>{t('drawer.items_count', { count: results.length })}</Text>}
+                    {results.length > 0 && <Text style={[styles.resultCount, { color: subtextColor }]}>{tf('drawer.items_count', '{{count}} mục').replace('{{count}}', String(results.length))}</Text>}
                   </View>
                 )}
 
@@ -1368,7 +1413,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                         <View style={styles.instaContent}>
                            <Text numberOfLines={3} style={[styles.instaText, { color: textColor }]}>
                               <Text style={styles.instaUsername}>{item.meta?.senderName || item.title}</Text>
-                              {' '}{item.subtitle || t(`notifications.types.${item.meta?.type}` as any)}
+                              {' '}{item.subtitle || tf(`notifications.types.${item.meta?.type}`, item.meta?.type || '')}
                               <Text style={styles.instaTime}>  {getRelativeTime(item.meta?.timestamp)}</Text>
                            </Text>
                         </View>
@@ -1378,12 +1423,12 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                               <>
                                  {item.meta?.type === 'like' && (
                                     <Pressable onPress={() => handleAction(item, 'like_back')} style={styles.instaButton}>
-                                       <Text style={styles.instaButtonText}>{t('notifications.actions.like_back')}</Text>
+                                       <Text style={styles.instaButtonText}>{tf('notifications.actions.like_back', 'Thích lại')}</Text>
                                     </Pressable>
                                  )}
                                  {item.meta?.type === 'friend_request' && (
                                     <Pressable onPress={() => handleAction(item, 'follow_back')} style={[styles.instaButton, { backgroundColor: Colors.primary }]}>
-                                       <Text style={[styles.instaButtonText, { color: '#FFF' }]}>{t('notifications.actions.follow_back')}</Text>
+                                       <Text style={[styles.instaButtonText, { color: '#FFF' }]}>{tf('notifications.actions.follow_back', 'Theo dõi lại')}</Text>
                                     </Pressable>
                                  )}
                               </>
@@ -1398,7 +1443,9 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                 ) : (
                   <View style={styles.emptyState}>
                     <MaterialCommunityIcons name="cloud-search-outline" size={56} color={subtextColor} style={{ opacity: 0.2 }} />
-                    <Text style={[styles.emptyText, { color: subtextColor }]}>{t('drawer.no_results' as any)}</Text>
+                    <Text style={[styles.emptyText, { color: subtextColor }]}>
+                      {currentDrawerKey === 'addFriend' ? tf('drawer.addFriend.no_results', 'Không tìm thấy người dùng') : tf('drawer.no_results', 'Không có kết quả')}
+                    </Text>
                   </View>
                 )}
               </>
@@ -1420,7 +1467,7 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
                 ) : (
                     <>
                         <Text style={[styles.primaryButtonText, { color: isDark ? '#0A4A3A' : '#FFFFFF' }]}>
-                            {currentDrawerKey === 'createGroup' ? t('drawer.launch_community') : t('drawer.close_drawer')}
+                            {currentDrawerKey === 'createGroup' ? tf('drawer.launch_community', 'Tạo nhóm') : tf('drawer.close_drawer', 'Đóng')}
                         </Text>
                         {currentDrawerKey === 'createGroup' && <MaterialCommunityIcons name="rocket-launch-outline" size={22} color={isDark ? '#0A4A3A' : '#FFFFFF'} />}
                     </>
@@ -1436,15 +1483,6 @@ const FeatureActionDrawer = ({ visible, drawerKey, onClose, paramsByKey }: Featu
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, overflow: 'hidden' },
   container: { flex: 1, paddingHorizontal: 20 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20, paddingTop: 10 },
-  headerIconWrap: { width: 58, height: 58, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
-  headerTextWrap: { flex: 1, minWidth: 0 },
-  discoveryGrid: { marginTop: 10 },
-  filterGrid: { gap: 12 },
-  filterCard: { flexDirection: 'row', alignItems: 'center', height: 72, borderRadius: 20, paddingHorizontal: 16, borderWidth: 1, gap: 14 },
-  filterIconBox: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  filterLabel: { flex: 1, fontSize: 16, fontWeight: '700' },
-  filterChevron: { width: 24, alignItems: 'center' },
   instaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, paddingHorizontal: 4 },
   instaTitle: { fontSize: 28, fontWeight: '900', letterSpacing: 0 },
   instaCloseCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
@@ -1475,9 +1513,6 @@ const styles = StyleSheet.create({
   resultCount: { fontSize: 11, fontWeight: '700', opacity: 0.5 },
   emptyState: { alignItems: 'center', marginTop: 80, gap: 16 },
   emptyText: { fontSize: 15, fontWeight: '600' },
-  centerLoading: { flex: 1, justifyContent: 'center', paddingVertical: 100 },
-  guideBox: { marginTop: 36, flexDirection: 'row', gap: 12, paddingHorizontal: 12, opacity: 0.4 },
-  guideText: { fontSize: 12, fontWeight: '600', flex: 1, lineHeight: 18 },
   footerWrap: { marginTop: 10 },
   primaryButton: { height: 66, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.2, shadowRadius: 18, flexDirection: 'row', gap: 12 },
   primaryButtonText: { fontSize: 17, fontWeight: '900', letterSpacing: 0.6 },
@@ -1496,31 +1531,9 @@ const styles = StyleSheet.create({
   featureList: { marginTop: 24, gap: 12 },
   featureItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   featureText: { fontSize: 13, fontWeight: '600' },
-  // Group Management Drawer Styles
   managementContainer: { gap: 12, marginBottom: 12 },
-  managementSearchBox: { height: 52, borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  managementSearchInput: { flex: 1, fontSize: 15, fontWeight: '700' },
-  managementStatsRow: { flexDirection: 'row', gap: 8 },
-  managementStatPill: { flex: 1, minHeight: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 8, alignItems: 'center', justifyContent: 'center' },
-  managementStatValue: { fontSize: 16, fontWeight: '900', marginBottom: 2 },
-  managementStatLabel: { fontSize: 10, fontWeight: '800', textAlign: 'center' },
   managementNotice: { minHeight: 48, borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   managementNoticeText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '700' },
-  groupSelectorScroll: { maxHeight: 108 },
-  groupSelectorContainer: { gap: 10, paddingRight: 16 },
-  groupSelectorItem: {
-    width: 164,
-    minHeight: 96,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    justifyContent: 'center'
-  },
-  groupSelectorTopLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
-  groupSelectorRole: { fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
-  groupSelectorText: { fontSize: 15, fontWeight: '900', marginBottom: 5 },
-  groupSelectorSubtext: { fontSize: 12, fontWeight: '700' },
   managementContent: { gap: 12 },
   groupInfoCard: { padding: 14, borderRadius: 22, borderWidth: 1, overflow: 'hidden' },
   groupInfoHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -1548,8 +1561,6 @@ const styles = StyleSheet.create({
   memberActionRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   memberIconButton: { width: 34, height: 34, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
   membersSection: { gap: 8 },
-  sectionHeaderManagement: { marginBottom: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitleMgmt: { fontSize: 14, fontWeight: '900' },
   memberItemCompact: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1570,7 +1581,6 @@ const styles = StyleSheet.create({
   memberInfoCompact: { flex: 1 },
   memberNameCompact: { fontSize: 14, fontWeight: '800' },
   memberRoleCompact: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', marginTop: 2 },
-  moreMembers: { fontSize: 12, fontWeight: '600', marginTop: 4 },
   fullScreenButton: { 
     flexDirection: 'row', 
     alignItems: 'center', 

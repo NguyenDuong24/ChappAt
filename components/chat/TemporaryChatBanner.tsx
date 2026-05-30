@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Audio } from 'expo-av';
-import { MaterialIcons } from '@expo/vector-icons';
-
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 interface VoiceRecorderProps {
     onSend: (uri: string, duration: number) => void;
     onCancel: () => void;
@@ -13,7 +12,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onSend, onCancel, current
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [duration, setDuration] = useState(0);
     const [isRecording, setIsRecording] = useState(false);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const scaleAnim = useRef(new Animated.Value(1)).current;
 
     useEffect(() => {

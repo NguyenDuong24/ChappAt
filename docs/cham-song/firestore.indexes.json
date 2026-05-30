@@ -1,0 +1,73 @@
+// ==============================================================
+// Firestore Composite Indexes — Required for Chạm Sóng queries
+// ==============================================================
+// Copy this into firestore.indexes.json or create via Firebase CLI:
+// firebase firestore:indexes
+// ==============================================================
+
+{
+  "indexes": [
+    // nearby_encounters — find active encounters
+    {
+      "collectionGroup": "nearby_encounters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userAId", "order": "ASCENDING" },
+        { "fieldPath": "userBId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    // nearby_encounters — find by status for expiration
+    {
+      "collectionGroup": "nearby_encounters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userAId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "nearby_encounters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userBId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    // nearby_encounters — sorted history
+    {
+      "collectionGroup": "nearby_encounters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userAId", "order": "ASCENDING" },
+        { "fieldPath": "lastSeenAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "nearby_encounters",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userBId", "order": "ASCENDING" },
+        { "fieldPath": "lastSeenAt", "order": "DESCENDING" }
+      ]
+    },
+    // nearby_signals — check for mutual signals
+    {
+      "collectionGroup": "nearby_signals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "encounterId", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" }
+      ]
+    },
+    // location_snapshots — find nearby users
+    {
+      "collectionGroup": "location_snapshots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "geohash4", "order": "ASCENDING" },
+        { "fieldPath": "userId", "order": "ASCENDING" }
+      ]
+    }
+  ]
+}

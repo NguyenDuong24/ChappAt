@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,105 +8,155 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotificationContext } from '../context/NotificationProvider';
 import { useAuth } from '../context/authContext';
 import { db } from '../firebaseConfig';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
+import { useTheme } from '../context/ThemeContext';
+import { getLiquidPalette, LiquidGlassBackground, LiquidSurface } from '../components/liquid';
 
 interface NotificationSetting {
   id: string;
-  title: string;
-  description: string;
+  titleKey: string;
+  descKey: string;
   icon: string;
   enabled: boolean;
   category: 'message' | 'call' | 'social' | 'system';
 }
 
+const DEFAULT_NOTIFICATION_SETTINGS: Record<string, boolean> = {
+  doNotDisturb: false,
+  messageNotifications: true,
+  groupNotifications: true,
+  mentionNotifications: true,
+  callNotifications: true,
+  friendRequestNotifications: true,
+  reactionNotifications: false,
+  systemNotifications: true,
+};
+
 const NotificationSettingsScreen = () => {
-  const [settings, setSettings] = useState<NotificationSetting[]>([
+  const { t } = useTranslation();
+  const router = useRouter();
+  const { user } = useAuth();
+  const { theme, isDark, palette: contextPalette } = useTheme();
+  const { clearBadge, scheduleNotification } = useNotificationContext();
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const palette = useMemo(() => {
+    const cp = contextPalette || getLiquidPalette(theme);
+    return {
+      text: cp.textColor,
+      subtleText: cp.subtitleColor,
+      softText: isDark ? 'rgba(255,255,248,0.62)' : 'rgba(11,33,36,0.62)',
+      border: cp.menuBorder || (isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.12)'),
+      success: '#2FE0AC',
+      warning: '#F6C966',
+      info: '#8BD9FF',
+      danger: '#FF6B7F',
+    };
+  }, [theme, isDark, contextPalette]);
+
+  const [settingValues, setSettingValues] = useState<Record<string, boolean>>(DEFAULT_NOTIFICATION_SETTINGS);
+
+  const staticSettings = useMemo<NotificationSetting[]>(() => [
     {
       id: 'messageNotifications',
-      title: 'Messages',
-      description: 'Get notified of new messages',
-      icon: 'message-text',
-      enabled: true,
+      titleKey: 'settings.messages',
+      descKey: 'settings.messages_desc',
+      icon: 'message-text-outline',
+      enabled: settingValues.messageNotifications,
       category: 'message',
     },
     {
       id: 'groupNotifications',
-      title: 'Group Messages',
-      description: 'Get notified of group messages',
-      icon: 'account-group',
-      enabled: true,
+      titleKey: 'settings.group_messages',
+      descKey: 'settings.group_messages_desc',
+      icon: 'account-group-outline',
+      enabled: settingValues.groupNotifications,
       category: 'message',
     },
     {
       id: 'mentionNotifications',
-      title: 'Mentions',
-      description: 'Get notified when someone mentions you',
+      titleKey: 'settings.mentions',
+      descKey: 'settings.mentions_desc',
       icon: 'at',
-      enabled: true,
+      enabled: settingValues.mentionNotifications,
       category: 'message',
     },
     {
       id: 'callNotifications',
-      title: 'Calls',
-      description: 'Get notified of incoming calls',
-      icon: 'phone',
-      enabled: true,
+      titleKey: 'settings.calls',
+      descKey: 'settings.calls_desc',
+      icon: 'phone-outline',
+      enabled: settingValues.callNotifications,
       category: 'call',
     },
     {
       id: 'friendRequestNotifications',
-      title: 'Friend Requests',
-      description: 'Get notified of new friend requests',
-      icon: 'account-plus',
-      enabled: true,
+      titleKey: 'settings.friend_requests',
+      descKey: 'settings.friend_requests_desc',
+      icon: 'account-plus-outline',
+      enabled: settingValues.friendRequestNotifications,
       category: 'social',
     },
     {
       id: 'reactionNotifications',
-      title: 'Reactions',
-      description: 'Get notified when someone reacts to your messages',
-      icon: 'emoticon-happy',
-      enabled: false,
+      titleKey: 'settings.reactions',
+      descKey: 'settings.reactions_desc',
+      icon: 'emoticon-happy-outline',
+      enabled: settingValues.reactionNotifications,
       category: 'social',
     },
     {
       id: 'systemNotifications',
-      title: 'System Updates',
-      description: 'Get notified of app updates and system messages',
-      icon: 'cog',
-      enabled: true,
+      titleKey: 'settings.system_updates',
+      descKey: 'settings.system_updates_desc',
+      icon: 'cog-outline',
+      enabled: settingValues.systemNotifications,
       category: 'system',
     },
-  ]);
-
-  const [loading, setLoading] = useState(true);
-  const { clearBadge, scheduleNotification } = useNotificationContext();
-  const { user } = useAuth();
-
-  useEffect(() => {
-    loadSettings();
-  }, []);
+  ], [settingValues]);
 
   const loadSettings = async () => {
     try {
+      setLoading(true);
       const savedSettings = await AsyncStorage.getItem('notificationSettings');
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        setSettings(currentSettings =>
-          currentSettings.map(setting => ({
-            ...setting,
-            enabled: parsed[setting.id] !== undefined ? parsed[setting.id] : setting.enabled,
-          }))
-        );
+      const savedDnd = await AsyncStorage.getItem('doNotDisturb');
+      let nextSettings = { ...DEFAULT_NOTIFICATION_SETTINGS };
+
+      if (user?.uid) {
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists()) {
+          const data = userSnap.data() as any;
+          nextSettings = {
+            ...nextSettings,
+            ...(data.notificationSettings || {}),
+            doNotDisturb: data.doNotDisturb ?? data.notificationSettings?.doNotDisturb ?? nextSettings.doNotDisturb,
+          };
+        }
       }
+
+      if (savedSettings) {
+        nextSettings = {
+          ...nextSettings,
+          ...JSON.parse(savedSettings),
+        };
+      }
+
+      if (savedDnd !== null) {
+        nextSettings.doNotDisturb = savedDnd === 'true';
+      }
+
+      setSettingValues(nextSettings);
     } catch (error) {
       console.error('Error loading notification settings:', error);
     } finally {
@@ -114,347 +164,360 @@ const NotificationSettingsScreen = () => {
     }
   };
 
+  useEffect(() => {
+    loadSettings();
+  }, [user?.uid]);
+
   const syncSettingsToFirestore = async (settingsObject: Record<string, boolean>) => {
     try {
       if (!user?.uid) return;
       const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, { notificationSettings: settingsObject }, { merge: true });
+      await setDoc(userRef, {
+        notificationSettings: settingsObject,
+        doNotDisturb: settingsObject.doNotDisturb === true,
+      }, { merge: true });
     } catch (error) {
       console.error('Error syncing notification settings to Firestore:', error);
     }
   };
 
-  const saveSettings = async (newSettings: NotificationSetting[]) => {
-    try {
-      const settingsObject = newSettings.reduce((acc, setting) => {
-        acc[setting.id] = setting.enabled;
-        return acc;
-      }, {} as Record<string, boolean>);
+  const toggleSetting = async (settingId: string) => {
+    const updatedValue = !settingValues[settingId];
+    const newValues = {
+      ...settingValues,
+      [settingId]: updatedValue,
+    };
+    setSettingValues(newValues);
 
-      await AsyncStorage.setItem('notificationSettings', JSON.stringify(settingsObject));
-      await syncSettingsToFirestore(settingsObject);
+    try {
+      setSaving(true);
+      await AsyncStorage.setItem('notificationSettings', JSON.stringify(newValues));
+      await AsyncStorage.setItem('doNotDisturb', String(newValues.doNotDisturb === true));
+      await syncSettingsToFirestore(newValues);
     } catch (error) {
       console.error('Error saving notification settings:', error);
+      Alert.alert(t('common.error'), t('settings.update_error'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const toggleSetting = (settingId: string) => {
-    const newSettings = settings.map(setting =>
-      setting.id === settingId
-        ? { ...setting, enabled: !setting.enabled }
-        : setting
-    );
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
-
   const testNotification = async () => {
+    if (settingValues.doNotDisturb) {
+      Alert.alert(t('settings.dnd_settings'), t('settings.dnd_settings_desc'));
+      return;
+    }
     try {
       await scheduleNotification({
-        title: '🔔 Test Notification',
-        body: 'This is a test notification from ChappAt!',
+        title: `🔔 ${t('settings.test_notification')}`,
+        body: 'This is a test notification from SaiGon Match!',
         data: { type: 'system' },
       });
     } catch (error) {
       console.log('[Notification] Lỗi test notification:', error);
-      Alert.alert('Error', 'Failed to send test notification');
+      Alert.alert(t('common.error'), 'Failed to send test notification');
     }
   };
 
   const clearAllBadges = async () => {
     try {
       await clearBadge();
-      Alert.alert('Success', 'All notification badges cleared');
+      Alert.alert(t('common.success'), t('settings.clear_all_badges'));
     } catch (error) {
-      Alert.alert('Error', 'Failed to clear badges');
+      console.error('Failed to clear badges:', error);
+      Alert.alert(t('common.error'), 'Failed to clear badges');
     }
   };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
       case 'message':
-        return '#4f8bff';
+        return palette.info;
       case 'call':
-        return '#ff6b6b';
+        return palette.success;
       case 'social':
-        return '#51cf66';
+        return palette.warning;
       case 'system':
-        return '#ffd43b';
+        return '#9BC4FF';
       default:
-        return '#868e96';
+        return palette.subtleText;
     }
   };
-
-  const groupedSettings = settings.reduce((acc, setting) => {
-    if (!acc[setting.category]) {
-      acc[setting.category] = [];
-    }
-    acc[setting.category].push(setting);
-    return acc;
-  }, {} as Record<string, NotificationSetting[]>);
 
   const getCategoryTitle = (category: string) => {
     switch (category) {
       case 'message':
-        return 'Messages';
+        return t('settings.messages');
       case 'call':
-        return 'Calls';
+        return t('settings.calls');
       case 'social':
-        return 'Social';
+        return t('settings.friend_requests');
       case 'system':
-        return 'System';
+        return t('settings.system_updates');
       default:
-        return 'Other';
+        return t('settings.preferences');
     }
   };
 
+  const groupedSettings = useMemo(() => {
+    return staticSettings.reduce((acc, setting) => {
+      if (!acc[setting.category]) {
+        acc[setting.category] = [];
+      }
+      acc[setting.category].push(setting);
+      return acc;
+    }, {} as Record<string, NotificationSetting[]>);
+  }, [staticSettings]);
+
+  const backButtonBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)';
+  const backButtonBorder = isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.08)';
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4f8bff" />
-        <Text style={styles.loadingText}>Loading settings...</Text>
-      </View>
+      <LiquidGlassBackground themeMode={theme} style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={palette.text} />
+      </LiquidGlassBackground>
     );
   }
 
+  const isDndActive = settingValues.doNotDisturb || false;
+
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#0a0e1a', '#1a1f3a', '#2a2f4a']}
-        style={styles.background}
-      />
-      
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Notification Settings</Text>
-          <Text style={styles.subtitle}>Customize your notification preferences</Text>
+    <LiquidGlassBackground themeMode={theme} style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={[styles.backButton, { backgroundColor: backButtonBg, borderColor: backButtonBorder }]}
+          activeOpacity={0.86}
+        >
+          <MaterialCommunityIcons name="chevron-left" size={24} color={palette.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: palette.text }]}>{t('settings.notification_settings')}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
+        
+        {/* Do Not Disturb Master Toggle */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: palette.softText }]}>{t('settings.quick_menu', { defaultValue: 'CÀI ĐẶT NHANH' })}</Text>
+          <LiquidSurface themeMode={theme} style={styles.sectionCard} intensity={isDark ? 16 : 8}>
+            <View style={[styles.settingItem, { borderBottomWidth: 0 }]}>
+              <View style={styles.settingLeft}>
+                <View style={[styles.settingIcon, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
+                  <MaterialCommunityIcons
+                    name="bell-off-outline"
+                    size={20}
+                    color={palette.danger}
+                  />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingTitleText, { color: palette.text }]}>
+                    {t('settings.dnd_settings')}
+                  </Text>
+                  <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>
+                    {t('settings.dnd_settings_desc')}
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={isDndActive}
+                onValueChange={() => toggleSetting('doNotDisturb')}
+                trackColor={{
+                  false: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
+                  true: 'rgba(255,107,127,0.48)',
+                }}
+                thumbColor={isDndActive ? '#FFF5F6' : '#FFFFFF'}
+                disabled={saving}
+              />
+            </View>
+          </LiquidSurface>
         </View>
 
+        {/* Regular Settings Categorized */}
         {Object.entries(groupedSettings).map(([category, categorySettings]) => (
-          <View key={category} style={styles.categorySection}>
-            <View style={styles.categoryHeader}>
-              <View
-                style={[
-                  styles.categoryIndicator,
-                  { backgroundColor: getCategoryColor(category) },
-                ]}
-              />
-              <Text style={styles.categoryTitle}>{getCategoryTitle(category)}</Text>
-            </View>
-
-            <View style={[styles.settingsCard, { backgroundColor: 'rgba(0,0,0,0.8)' }]}>
-              <LinearGradient
-                colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
-                style={styles.cardGradient}
-              >
-                {categorySettings.map((setting, index) => (
+          <View key={category} style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: palette.softText }]}>{getCategoryTitle(category)}</Text>
+            <LiquidSurface themeMode={theme} style={styles.sectionCard} intensity={isDark ? 16 : 8}>
+              {categorySettings.map((setting, index) => {
+                const displayEnabled = isDndActive ? false : setting.enabled;
+                return (
                   <View
                     key={setting.id}
                     style={[
                       styles.settingItem,
-                      index < categorySettings.length - 1 && styles.settingItemBorder,
+                      { borderBottomColor: palette.border },
+                      index === categorySettings.length - 1 && { borderBottomWidth: 0 }
                     ]}
                   >
-                    <View style={styles.settingLeft}>
-                      <View
-                        style={[
-                          styles.iconContainer,
-                          { backgroundColor: `${getCategoryColor(category)}20` },
-                        ]}
-                      >
+                    <View style={[styles.settingLeft, isDndActive && { opacity: 0.5 }]}>
+                      <View style={[styles.settingIcon, { backgroundColor: 'rgba(255,255,255,0.08)' }]}>
                         <MaterialCommunityIcons
                           name={setting.icon as any}
-                          size={24}
+                          size={20}
                           color={getCategoryColor(category)}
                         />
                       </View>
-                      <View style={styles.settingInfo}>
-                        <Text style={styles.settingTitle}>{setting.title}</Text>
-                        <Text style={styles.settingDescription}>
-                          {setting.description}
+                      <View style={styles.settingContent}>
+                        <Text style={[styles.settingTitleText, { color: palette.text }]}>
+                          {t(setting.titleKey)}
+                        </Text>
+                        <Text style={[styles.settingSubtitle, { color: palette.subtleText }]}>
+                          {t(setting.descKey)}
                         </Text>
                       </View>
                     </View>
                     <Switch
-                      value={setting.enabled}
+                      value={displayEnabled}
                       onValueChange={() => toggleSetting(setting.id)}
                       trackColor={{
-                        false: 'rgba(255,255,255,0.2)',
-                        true: getCategoryColor(category),
+                        false: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)',
+                        true: 'rgba(89,224,177,0.48)',
                       }}
-                      thumbColor={setting.enabled ? '#ffffff' : '#f4f3f4'}
+                      thumbColor={displayEnabled ? '#EFFFF8' : '#FFFFFF'}
+                      disabled={saving || isDndActive}
                     />
                   </View>
-                ))}
-              </LinearGradient>
-            </View>
+                );
+              })}
+            </LiquidSurface>
           </View>
         ))}
 
         <View style={styles.actionSection}>
-          <TouchableOpacity style={styles.actionButton} onPress={testNotification}>
-            <LinearGradient
-              colors={['#4f8bff', '#2d5aa0']}
-              style={styles.actionButtonGradient}
+          <TouchableOpacity style={styles.actionButton} onPress={testNotification} activeOpacity={0.88} disabled={isDndActive}>
+            <LiquidSurface
+              themeMode={theme}
+              style={[styles.actionButtonGradient, isDndActive && { opacity: 0.4 }]}
+              intensity={24}
             >
-              <MaterialCommunityIcons name="bell-ring" size={20} color="#ffffff" />
-              <Text style={styles.actionButtonText}>Test Notification</Text>
-            </LinearGradient>
+              <MaterialCommunityIcons name="bell-ring-outline" size={20} color={palette.text} />
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>{t('settings.test_notification')}</Text>
+            </LiquidSurface>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton} onPress={clearAllBadges}>
-            <LinearGradient
-              colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.05)']}
+          <TouchableOpacity style={styles.actionButton} onPress={clearAllBadges} activeOpacity={0.88}>
+            <LiquidSurface
+              themeMode={theme}
               style={styles.actionButtonGradient}
+              intensity={12}
             >
-              <MaterialCommunityIcons name="notification-clear-all" size={20} color="#ffffff" />
-              <Text style={styles.actionButtonText}>Clear All Badges</Text>
-            </LinearGradient>
+              <MaterialCommunityIcons name="notification-clear-all" size={20} color={palette.text} />
+              <Text style={[styles.actionButtonText, { color: palette.text }]}>{t('settings.clear_all_badges')}</Text>
+            </LiquidSurface>
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            You can change these settings anytime. Some notifications may still appear
-            based on system requirements.
-          </Text>
         </View>
       </ScrollView>
-    </View>
+    </LiquidGlassBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0e1a',
-  },
-  background: {
-    ...StyleSheet.absoluteFillObject,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0a0e1a',
-  },
-  loadingText: {
-    color: '#ffffff',
-    marginTop: 16,
-    fontSize: 16,
-  },
-  scrollView: {
-    flex: 1,
-    paddingHorizontal: 20,
   },
   header: {
-    marginTop: 60,
-    marginBottom: 30,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-  },
-  categorySection: {
-    marginBottom: 20,
-  },
-  categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: Platform.OS === 'ios' ? 56 : 24,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  headerTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  headerSpacer: {
+    width: 38,
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 26,
+  },
+  section: {
     marginBottom: 12,
   },
-  categoryIndicator: {
-    width: 4,
-    height: 20,
-    borderRadius: 2,
-    marginRight: 12,
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 7,
+    marginLeft: 2,
+    letterSpacing: 0.7,
   },
-  categoryTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  settingsCard: {
-    borderRadius: 16,
+  sectionCard: {
+    borderRadius: 18,
     overflow: 'hidden',
-  },
-  cardGradient: {
-    padding: 20,
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-  },
-  settingItemBorder: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
   settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+  settingIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: 10,
   },
-  settingInfo: {
+  settingContent: {
     flex: 1,
+    paddingRight: 8,
   },
-  settingTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  settingDescription: {
+  settingTitleText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '700',
+  },
+  settingSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
   },
   actionSection: {
-    marginVertical: 30,
+    marginTop: 18,
     gap: 12,
   },
   actionButton: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   actionButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    height: 50,
   },
   actionButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     marginLeft: 8,
-  },
-  footer: {
-    marginBottom: 40,
-    paddingHorizontal: 20,
-  },
-  footerText: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
-    lineHeight: 18,
   },
 });
 

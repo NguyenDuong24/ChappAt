@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     StyleSheet,
     View,
@@ -34,6 +34,12 @@ const ProfileVisitorsScreen = () => {
     const router = useRouter();
     const colors = useThemedColors();
 
+    // Fallback helper
+    const tf = useCallback((key: string, fallback: string) => {
+        const translated = t(key);
+        return translated !== key ? translated : fallback;
+    }, [t]);
+
     useEffect(() => {
         fetchVisitors();
     }, [user?.uid]);
@@ -44,7 +50,6 @@ const ProfileVisitorsScreen = () => {
             setLoading(true);
             const data = await profileVisitService.getVisitors(user.uid, 100);
 
-            // Group visitors by visitorId to avoid duplicates
             const groupedVisitors: { [key: string]: ProfileVisit & { visitCount: number } } = {};
 
             data.forEach(visit => {
@@ -52,7 +57,6 @@ const ProfileVisitorsScreen = () => {
                     groupedVisitors[visit.visitorId] = { ...visit, visitCount: 1 };
                 } else {
                     groupedVisitors[visit.visitorId].visitCount += 1;
-                    // Ensure we keep the latest timestamp (they are already sorted by desc timestamp from service)
                 }
             });
 
@@ -124,14 +128,14 @@ const ProfileVisitorsScreen = () => {
                                 </View>
                             ) : (
                                 <Text style={[styles.visitorName, { color: colors.text }]} numberOfLines={1}>
-                                    {visitor?.username || visitor?.displayName || t('chat.unknown_user')}
+                                    {visitor?.username || visitor?.displayName || tf('chat.unknown_user', 'Người dùng')}
                                 </Text>
                             )}
 
                             {!isBlurred && item.visitCount && item.visitCount > 1 && (
                                 <View style={[styles.visitCountBadge, { backgroundColor: colors.primary + '15' }]}>
                                     <Text style={[styles.visitCountText, { color: colors.primary }]}>
-                                        {t('profile.visit_count', { count: item.visitCount })}
+                                        {tf('profile.visit_count', '{{count}} lượt').replace('{{count}}', String(item.visitCount))}
                                     </Text>
                                 </View>
                             )}
@@ -175,7 +179,9 @@ const ProfileVisitorsScreen = () => {
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Feather name="arrow-left" size={24} color={colors.text} />
                 </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.text }]}>{t('profile.visitors')}</Text>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>
+                    {tf('profile.visitors', 'Khách ghé thăm')}
+                </Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -195,8 +201,12 @@ const ProfileVisitorsScreen = () => {
                                 <Feather name="award" size={24} color="#fff" />
                             </View>
                             <View style={styles.bannerTextContainer}>
-                                <Text style={styles.bannerTitle}>{t('profile.unlock_visitors')}</Text>
-                                <Text style={styles.bannerSubTitle}>{t('profile.unlock_visitors_desc')}</Text>
+                                <Text style={styles.bannerTitle}>
+                                    {tf('profile.unlock_visitors', 'Mở khóa danh sách')}
+                                </Text>
+                                <Text style={styles.bannerSubTitle}>
+                                    {tf('profile.unlock_visitors_desc', 'Nâng cấp VIP để xem chi tiết')}
+                                </Text>
                             </View>
                             <Feather name="chevron-right" size={20} color="#fff" />
                         </View>
@@ -213,7 +223,7 @@ const ProfileVisitorsScreen = () => {
                     <View style={styles.emptyContainer}>
                         <Feather name="users" size={64} color={colors.border} />
                         <Text style={[styles.emptyText, { color: colors.subtleText }]}>
-                            {t('profile.no_visitors')}
+                            {tf('profile.no_visitors', 'Chưa có khách ghé thăm')}
                         </Text>
                     </View>
                 }
@@ -258,7 +268,6 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         borderRadius: 24,
         padding: 20,
-        elevation: 8,
         shadowColor: '#8B5CF6',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
@@ -304,7 +313,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.03,
         shadowRadius: 8,
-        elevation: 2,
     },
     avatarWrapper: {
         position: 'relative',

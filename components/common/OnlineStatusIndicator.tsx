@@ -3,7 +3,7 @@ import { ScrollView, Platform } from 'react-native';
 import { ExploreHeaderContext } from '@/context/ExploreHeaderContext';
 
 const OptimizedScrollView = ({ children, style, contentContainerStyle, ...props }) => {
-  const { scrollY, handleScroll } = useContext(ExploreHeaderContext) || {};
+  const { handleScroll } = useContext(ExploreHeaderContext) || {};
 
   return (
     <ScrollView
@@ -13,11 +13,6 @@ const OptimizedScrollView = ({ children, style, contentContainerStyle, ...props 
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={Platform.OS === 'android'}
-      maxToRenderPerBatch={10}
-      updateCellsBatchingPeriod={50}
-      initialNumToRender={8}
-      windowSize={10}
-      getItemLayout={undefined}
       bounces={true}
       bouncesZoom={false}
       alwaysBounceVertical={false}

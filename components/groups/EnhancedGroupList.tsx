@@ -24,6 +24,7 @@ interface GroupListProps {
   pinnedGroupIds?: string[];
   hiddenGroupIds?: string[];
   onLongPressGroup?: (group: any) => void;
+  onScroll?: (event: any) => void;
 }
 
 // Memoized Empty State Component
@@ -46,8 +47,9 @@ const EnhancedGroupList = ({
   isSearchMode = false,
   pinnedGroupIds = [],
   hiddenGroupIds = [],
-  onLongPressGroup
-}: GroupListProps) => {
+  onLongPressGroup,
+  onScroll,
+}: GroupListProps, ref: any) => {
   const { t } = useTranslation();
   const currentThemeColors = useThemedColors();
   const { theme, isDark, palette } = currentThemeColors;
@@ -318,6 +320,7 @@ const EnhancedGroupList = ({
   return (
     <View style={styles.container}>
       <FlatList
+        ref={ref}
         data={sortedGroups}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
@@ -332,6 +335,8 @@ const EnhancedGroupList = ({
         windowSize={7}
         removeClippedSubviews={true}
         updateCellsBatchingPeriod={100}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
         showsVerticalScrollIndicator={false}
       />
     </View>
@@ -362,5 +367,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EnhancedGroupList;
+export default React.memo(React.forwardRef(EnhancedGroupList));
 

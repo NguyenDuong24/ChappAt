@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Audio } from 'expo-av';
-import { MaterialIcons } from '@expo/vector-icons';
-
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { safePause, safePlay, safeReplay, safeUnload } from '@/utils/safeSound';
 interface AudioMessageProps {
     uri: string;
     duration?: number;
@@ -16,26 +16,57 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration = 0, isCurren
     const [position, setPosition] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [soundDuration, setSoundDuration] = useState(duration * 1000); // ms
+    const soundRef = useRef<Audio.Sound | null>(null);
+    const soundDurationRef = useRef(duration * 1000);
+    const lastPositionUpdateRef = useRef(0);
 
     useEffect(() => {
         return () => {
-            if (sound) {
-                sound.unloadAsync();
+            if (soundRef.current) {
+                safeUnload(soundRef.current);
+                soundRef.current = null;
             }
         };
-    }, [sound]);
+    }, []);
 
-    const loadSound = async () => {
+    const onPlaybackStatusUpdate = useCallback((status: any) => {
+        if (!status.isLoaded) return;
+
+        const nextDuration = status.durationMillis || soundDurationRef.current;
+        if (nextDuration !== soundDurationRef.current) {
+            soundDurationRef.current = nextDuration;
+            setSoundDuration(nextDuration);
+        }
+
+        const now = Date.now();
+        if (status.didJustFinish) {
+            setIsPlaying(false);
+            setPosition(0);
+            lastPositionUpdateRef.current = now;
+            return;
+        }
+
+        setIsPlaying(status.isPlaying);
+        if (now - lastPositionUpdateRef.current > 250 || !status.isPlaying) {
+            setPosition(status.positionMillis || 0);
+            lastPositionUpdateRef.current = now;
+        }
+    }, []);
+
+    const loadSound = useCallback(async () => {
+        if (isLoading) return;
         setIsLoading(true);
         try {
             const { sound: newSound, status } = await Audio.Sound.createAsync(
                 { uri },
-                { shouldPlay: true },
+                { shouldPlay: true, progressUpdateIntervalMillis: 250 },
                 onPlaybackStatusUpdate
             );
+            soundRef.current = newSound;
             setSound(newSound);
             setIsPlaying(true);
             if (status.isLoaded && status.durationMillis) {
+                soundDurationRef.current = status.durationMillis;
                 setSoundDuration(status.durationMillis);
             }
         } catch (error) {
@@ -43,43 +74,34 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration = 0, isCurren
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isLoading, onPlaybackStatusUpdate, uri]);
 
-    const onPlaybackStatusUpdate = (status: any) => {
-        if (status.isLoaded) {
-            setPosition(status.positionMillis);
-            setSoundDuration(status.durationMillis || soundDuration);
-            setIsPlaying(status.isPlaying);
-            if (status.didJustFinish) {
-                setIsPlaying(false);
-                setPosition(0);
-                // sound?.setPositionAsync(0); // Optional: reset to start
-            }
-        }
-    };
-
-    const handlePlayPause = async () => {
+    const handlePlayPause = useCallback(async () => {
         if (!sound) {
             await loadSound();
         } else {
             if (isPlaying) {
-                await sound.pauseAsync();
+                await safePause(sound);
             } else {
                 if (position >= soundDuration) {
-                    await sound.replayAsync();
+                    await safeReplay(sound);
                 } else {
-                    await sound.playAsync();
+                    await safePlay(sound);
                 }
             }
         }
-    };
+    }, [isPlaying, loadSound, position, sound, soundDuration]);
 
-    const formatTime = (millis: number) => {
+    const formatTime = useCallback((millis: number) => {
         const totalSeconds = Math.floor(millis / 1000);
         const mins = Math.floor(totalSeconds / 60);
         const secs = totalSeconds % 60;
         return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-    };
+    }, []);
+
+    const progressPercent = useMemo(() => (
+        soundDuration > 0 ? Math.min((position / soundDuration) * 100, 100) : 0
+    ), [position, soundDuration]);
 
     return (
         <View style={styles.container}>
@@ -100,7 +122,7 @@ const AudioMessage: React.FC<AudioMessageProps> = ({ uri, duration = 0, isCurren
                     <View style={[
                         styles.progressFill,
                         {
-                            width: `${Math.min((position / soundDuration) * 100, 100)}%`,
+                            width: `${progressPercent}%`,
                             backgroundColor: isCurrentUser ? '#FFF' : themeColors.tint
                         }
                     ]} />
@@ -142,4 +164,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default AudioMessage;
+export default memo(AudioMessage);

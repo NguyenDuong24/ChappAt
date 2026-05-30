@@ -1,7 +1,7 @@
 // ============================================================
 // Premium Color Palette 2025
 // Professional · Harmonious · Hermes-Safe
-// 5 Light Themes + 7 Dark Themes
+// 10 Light Themes + 9 Dark Themes
 // ============================================================
 
 // ============================================================
@@ -27,109 +27,203 @@ const FALLBACK_THEME: Record<string, any> = {
 };
 
 // ============================================================
-// LIGHT THEMES
+// LIGHT THEMES (màu tươi, cá tính)
 // ============================================================
 
-const pearl: Record<string, any> = {
-  text: '#2A2620',
-  background: '#FDFBF7',
-  surface: 'rgba(255, 255, 255, 0.96)',
-  tint: '#D4A744',
-  tintLight: '#E8C368',
-  tintDark: '#A67C1A',
-  icon: '#D4A744',
-  subtleText: 'rgba(42, 38, 32, 0.58)',
-  border: '#F0E8DE',
-  gradientBackground: ['#FDFBF7', '#FAF6F0', '#FDFAF5'],
-  gradientPrimary: ['#D4A744', '#E8C368'],
-  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(253, 250, 245, 0.82)'],
-  glowTop: ['rgba(212, 167, 68, 0.14)', 'rgba(212, 167, 68, 0)'],
-  glowBottom: ['rgba(232, 195, 104, 0.10)', 'rgba(232, 195, 104, 0)'],
-  menuBackground: 'rgba(253, 251, 248, 0.98)',
-  menuBorder: 'rgba(212, 167, 68, 0.28)',
+const pearl = {
+  text: '#2B2418',
+  background: '#FFF9F0',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#B8860B',
+  tintLight: '#DAA520',
+  tintDark: '#8B6508',
+  icon: '#B8860B',
+  subtleText: 'rgba(43, 36, 24, 0.62)',
+  border: '#F0E0C8',
+  gradientBackground: ['#FFF9F0', '#FDF3E2', '#FFF7EE'],
+  gradientPrimary: ['#B8860B', '#DAA520'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(253, 243, 226, 0.84)'],
+  glowTop: ['rgba(184, 134, 11, 0.16)', 'rgba(184, 134, 11, 0)'],
+  glowBottom: ['rgba(218, 165, 32, 0.12)', 'rgba(218, 165, 32, 0)'],
+  menuBackground: 'rgba(255, 251, 243, 0.98)',
+  menuBorder: 'rgba(184, 134, 11, 0.30)',
 };
 
-const ivory: Record<string, any> = {
-  text: '#2E3B2A',
-  background: '#FAF9F5',
-  surface: 'rgba(255, 255, 255, 0.94)',
-  tint: '#6B9366',
-  tintLight: '#8FB591',
-  tintDark: '#4A6B42',
-  icon: '#6B9366',
-  subtleText: 'rgba(46, 59, 42, 0.60)',
-  border: '#E2EDD9',
-  gradientBackground: ['#FAF9F5', '#F4F7F0', '#F7F6F2'],
-  gradientPrimary: ['#6B9366', '#8FB591'],
-  gradientCard: ['rgba(255, 255, 255, 0.94)', 'rgba(244, 247, 240, 0.78)'],
-  glowTop: ['rgba(107, 147, 102, 0.14)', 'rgba(107, 147, 102, 0)'],
-  glowBottom: ['rgba(143, 181, 145, 0.10)', 'rgba(143, 181, 145, 0)'],
-  menuBackground: 'rgba(252, 253, 250, 0.98)',
-  menuBorder: 'rgba(107, 147, 102, 0.28)',
+const ivory = {
+  text: '#1E3A28',
+  background: '#F6F9F2',
+  surface: 'rgba(255, 255, 255, 0.96)',
+  tint: '#4A7C59',
+  tintLight: '#7C9F6E',
+  tintDark: '#2F5A3C',
+  icon: '#4A7C59',
+  subtleText: 'rgba(30, 58, 40, 0.64)',
+  border: '#D9E8D5',
+  gradientBackground: ['#F6F9F2', '#EEF5EA', '#F4F8F0'],
+  gradientPrimary: ['#4A7C59', '#7C9F6E'],
+  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(238, 245, 234, 0.80)'],
+  glowTop: ['rgba(74, 124, 89, 0.14)', 'rgba(74, 124, 89, 0)'],
+  glowBottom: ['rgba(124, 159, 110, 0.10)', 'rgba(124, 159, 110, 0)'],
+  menuBackground: 'rgba(250, 253, 248, 0.98)',
+  menuBorder: 'rgba(74, 124, 89, 0.28)',
 };
 
-const cloud: Record<string, any> = {
-  text: '#1B3352',
-  background: '#F6F9FE',
-  surface: 'rgba(255, 255, 255, 0.96)',
-  tint: '#2E7FD8',
-  tintLight: '#5A9FE8',
-  tintDark: '#1A5DB8',
-  icon: '#2E7FD8',
-  subtleText: 'rgba(27, 51, 82, 0.60)',
-  border: '#DDF0FA',
-  gradientBackground: ['#F6F9FE', '#EEF5FD', '#F2F8FE'],
-  gradientPrimary: ['#2E7FD8', '#5A9FE8'],
-  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(238, 245, 253, 0.80)'],
-  glowTop: ['rgba(46, 127, 216, 0.14)', 'rgba(46, 127, 216, 0)'],
-  glowBottom: ['rgba(90, 159, 232, 0.10)', 'rgba(90, 159, 232, 0)'],
+const cloud = {
+  text: '#112240',
+  background: '#F4F9FF',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#1E6DF2',
+  tintLight: '#4D8EF7',
+  tintDark: '#0F4FC2',
+  icon: '#1E6DF2',
+  subtleText: 'rgba(17, 34, 64, 0.62)',
+  border: '#D8E9FC',
+  gradientBackground: ['#F4F9FF', '#EAF3FF', '#F0F7FF'],
+  gradientPrimary: ['#1E6DF2', '#4D8EF7'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(234, 243, 255, 0.82)'],
+  glowTop: ['rgba(30, 109, 242, 0.14)', 'rgba(30, 109, 242, 0)'],
+  glowBottom: ['rgba(77, 142, 247, 0.10)', 'rgba(77, 142, 247, 0)'],
   menuBackground: 'rgba(250, 253, 255, 0.98)',
-  menuBorder: 'rgba(46, 127, 216, 0.28)',
+  menuBorder: 'rgba(30, 109, 242, 0.28)',
 };
 
-const lavender: Record<string, any> = {
-  text: '#3A2454',
-  background: '#F9F8FE',
-  surface: 'rgba(255, 255, 255, 0.96)',
-  tint: '#8D5FE8',
-  tintLight: '#B59FF5',
-  tintDark: '#6D3FD0',
-  icon: '#8D5FE8',
-  subtleText: 'rgba(58, 36, 84, 0.62)',
-  border: '#F0ECFF',
-  gradientBackground: ['#F9F8FE', '#F3EFFF', '#F7F4FF'],
-  gradientPrimary: ['#8D5FE8', '#B59FF5'],
-  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(243, 239, 255, 0.80)'],
-  glowTop: ['rgba(141, 95, 232, 0.14)', 'rgba(141, 95, 232, 0)'],
-  glowBottom: ['rgba(181, 159, 245, 0.10)', 'rgba(181, 159, 245, 0)'],
+const lavender = {
+  text: '#2D1B4E',
+  background: '#F8F6FF',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#7C3AED',
+  tintLight: '#A78BFA',
+  tintDark: '#5B21B6',
+  icon: '#7C3AED',
+  subtleText: 'rgba(45, 27, 78, 0.64)',
+  border: '#EDE9FE',
+  gradientBackground: ['#F8F6FF', '#F0EBFF', '#F5F2FF'],
+  gradientPrimary: ['#7C3AED', '#A78BFA'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(240, 235, 255, 0.82)'],
+  glowTop: ['rgba(124, 58, 237, 0.16)', 'rgba(124, 58, 237, 0)'],
+  glowBottom: ['rgba(167, 139, 250, 0.12)', 'rgba(167, 139, 250, 0)'],
   menuBackground: 'rgba(253, 251, 255, 0.98)',
-  menuBorder: 'rgba(141, 95, 232, 0.28)',
+  menuBorder: 'rgba(124, 58, 237, 0.30)',
 };
 
-const sand: Record<string, any> = {
-  text: '#4A2E1C',
-  background: '#FCF7F2',
-  surface: 'rgba(255, 255, 255, 0.96)',
-  tint: '#D17240',
-  tintLight: '#E5956A',
-  tintDark: '#B84D28',
-  icon: '#D17240',
-  subtleText: 'rgba(74, 46, 28, 0.62)',
-  border: '#F2E3D5',
-  gradientBackground: ['#FCF7F2', '#F8EEEA', '#FAF5F0'],
-  gradientPrimary: ['#D17240', '#E5956A'],
-  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(248, 238, 234, 0.82)'],
-  glowTop: ['rgba(209, 114, 64, 0.14)', 'rgba(209, 114, 64, 0)'],
-  glowBottom: ['rgba(229, 149, 106, 0.10)', 'rgba(229, 149, 106, 0)'],
+const sand = {
+  text: '#4A2A1A',
+  background: '#FDF6F0',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#D9703A',
+  tintLight: '#ED9460',
+  tintDark: '#B84D22',
+  icon: '#D9703A',
+  subtleText: 'rgba(74, 42, 26, 0.64)',
+  border: '#F2D9C8',
+  gradientBackground: ['#FDF6F0', '#F9EBE0', '#FCF3EC'],
+  gradientPrimary: ['#D9703A', '#ED9460'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(249, 235, 224, 0.84)'],
+  glowTop: ['rgba(217, 112, 58, 0.16)', 'rgba(217, 112, 58, 0)'],
+  glowBottom: ['rgba(237, 148, 96, 0.12)', 'rgba(237, 148, 96, 0)'],
   menuBackground: 'rgba(255, 252, 249, 0.98)',
-  menuBorder: 'rgba(209, 114, 64, 0.28)',
+  menuBorder: 'rgba(217, 112, 58, 0.30)',
+};
+
+const prism = {
+  text: '#0F2E44',
+  background: '#F5FBFC',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#0D9488',
+  tintLight: '#F43F5E',
+  tintDark: '#0F766E',
+  icon: '#0D9488',
+  subtleText: 'rgba(15, 46, 68, 0.62)',
+  border: '#D2EBEE',
+  gradientBackground: ['#F5FBFC', '#EAF6F8', '#FFF5F5'],
+  gradientPrimary: ['#0D9488', '#F43F5E'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(234, 246, 248, 0.82)'],
+  glowTop: ['rgba(13, 148, 136, 0.16)', 'rgba(13, 148, 136, 0)'],
+  glowBottom: ['rgba(244, 63, 94, 0.12)', 'rgba(244, 63, 94, 0)'],
+  menuBackground: 'rgba(251, 254, 254, 0.98)',
+  menuBorder: 'rgba(13, 148, 136, 0.30)',
+};
+
+const orchard = {
+  text: '#1A3225',
+  background: '#F5FBF4',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#2D6A4F',
+  tintLight: '#E6A23C',
+  tintDark: '#1B4332',
+  icon: '#2D6A4F',
+  subtleText: 'rgba(26, 50, 37, 0.64)',
+  border: '#DAEDD5',
+  gradientBackground: ['#F5FBF4', '#EDF7E9', '#FFF8EC'],
+  gradientPrimary: ['#2D6A4F', '#E6A23C'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(237, 247, 233, 0.82)'],
+  glowTop: ['rgba(45, 106, 79, 0.14)', 'rgba(45, 106, 79, 0)'],
+  glowBottom: ['rgba(230, 162, 60, 0.10)', 'rgba(230, 162, 60, 0)'],
+  menuBackground: 'rgba(251, 254, 248, 0.98)',
+  menuBorder: 'rgba(45, 106, 79, 0.28)',
+};
+
+const roseQuartz = {
+  text: '#4A1C2D',
+  background: '#FFF5F7',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#E11D48',
+  tintLight: '#FB7185',
+  tintDark: '#BE123C',
+  icon: '#E11D48',
+  subtleText: 'rgba(74, 28, 45, 0.64)',
+  border: '#FFD6DF',
+  gradientBackground: ['#FFF5F7', '#FFE9EE', '#FFF2F5'],
+  gradientPrimary: ['#E11D48', '#FB7185'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(255, 233, 238, 0.84)'],
+  glowTop: ['rgba(225, 29, 72, 0.16)', 'rgba(225, 29, 72, 0)'],
+  glowBottom: ['rgba(251, 113, 133, 0.12)', 'rgba(251, 113, 133, 0)'],
+  menuBackground: 'rgba(255, 249, 250, 0.98)',
+  menuBorder: 'rgba(225, 29, 72, 0.30)',
+};
+
+const mint = {
+  text: '#0A3A2E',
+  background: '#F2FCF8',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#059669',
+  tintLight: '#34D399',
+  tintDark: '#047857',
+  icon: '#059669',
+  subtleText: 'rgba(10, 58, 46, 0.64)',
+  border: '#C6F6D5',
+  gradientBackground: ['#F2FCF8', '#E6F9F2', '#EEFDF6'],
+  gradientPrimary: ['#059669', '#34D399'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(230, 249, 242, 0.82)'],
+  glowTop: ['rgba(5, 150, 105, 0.14)', 'rgba(5, 150, 105, 0)'],
+  glowBottom: ['rgba(52, 211, 153, 0.10)', 'rgba(52, 211, 153, 0)'],
+  menuBackground: 'rgba(249, 253, 251, 0.98)',
+  menuBorder: 'rgba(5, 150, 105, 0.28)',
+};
+
+const citrus = {
+  text: '#4A2C0A',
+  background: '#FFFDF5',
+  surface: 'rgba(255, 255, 255, 0.97)',
+  tint: '#F59E0B',
+  tintLight: '#FBBF24',
+  tintDark: '#B45309',
+  icon: '#F59E0B',
+  subtleText: 'rgba(74, 44, 10, 0.64)',
+  border: '#FDE68A',
+  gradientBackground: ['#FFFDF5', '#FFF9E0', '#FFFCEF'],
+  gradientPrimary: ['#F59E0B', '#FBBF24'],
+  gradientCard: ['rgba(255, 255, 255, 0.97)', 'rgba(255, 249, 224, 0.82)'],
+  glowTop: ['rgba(245, 158, 11, 0.18)', 'rgba(245, 158, 11, 0)'],
+  glowBottom: ['rgba(251, 191, 36, 0.12)', 'rgba(251, 191, 36, 0)'],
+  menuBackground: 'rgba(255, 253, 245, 0.98)',
+  menuBorder: 'rgba(245, 158, 11, 0.30)',
 };
 
 // ============================================================
-// DARK THEMES
+// DARK THEMES (giữ nguyên, chỉ cần copy lại)
 // ============================================================
-
-const obsidian: Record<string, any> = {
+const obsidian = {
   text: '#EAEAED',
   background: '#080808',
   surface: 'rgba(18, 18, 20, 0.84)',
@@ -148,7 +242,7 @@ const obsidian: Record<string, any> = {
   menuBorder: 'rgba(176, 176, 188, 0.18)',
 };
 
-const sapphire: Record<string, any> = {
+const sapphire = {
   text: '#D4E6FF',
   background: '#030C1C',
   surface: 'rgba(6, 20, 44, 0.80)',
@@ -167,7 +261,7 @@ const sapphire: Record<string, any> = {
   menuBorder: 'rgba(79, 142, 247, 0.24)',
 };
 
-const amethyst: Record<string, any> = {
+const amethyst = {
   text: '#E6DCFF',
   background: '#090614',
   surface: 'rgba(16, 10, 32, 0.80)',
@@ -186,7 +280,7 @@ const amethyst: Record<string, any> = {
   menuBorder: 'rgba(155, 93, 229, 0.25)',
 };
 
-const ember: Record<string, any> = {
+const ember = {
   text: '#F5E6C4',
   background: '#0C0908',
   surface: 'rgba(24, 18, 12, 0.80)',
@@ -205,7 +299,7 @@ const ember: Record<string, any> = {
   menuBorder: 'rgba(212, 160, 23, 0.24)',
 };
 
-const carbon: Record<string, any> = {
+const carbon = {
   text: '#DEF0F6',
   background: '#0C1014',
   surface: 'rgba(18, 26, 34, 0.80)',
@@ -224,7 +318,7 @@ const carbon: Record<string, any> = {
   menuBorder: 'rgba(6, 182, 212, 0.24)',
 };
 
-const copper: Record<string, any> = {
+const copper = {
   text: '#FFE2C8',
   background: '#0C0806',
   surface: 'rgba(26, 14, 8, 0.80)',
@@ -243,7 +337,7 @@ const copper: Record<string, any> = {
   menuBorder: 'rgba(205, 127, 50, 0.25)',
 };
 
-const slate: Record<string, any> = {
+const slate = {
   text: '#CDD9E5',
   background: '#0D1117',
   surface: 'rgba(22, 30, 40, 0.80)',
@@ -262,45 +356,7 @@ const slate: Record<string, any> = {
   menuBorder: 'rgba(88, 166, 255, 0.22)',
 };
 
-const prism: Record<string, any> = {
-  text: '#14213D',
-  background: '#F7FAFC',
-  surface: 'rgba(255, 255, 255, 0.95)',
-  tint: '#0EA5A8',
-  tintLight: '#F9738A',
-  tintDark: '#0F766E',
-  icon: '#0EA5A8',
-  subtleText: 'rgba(20, 33, 61, 0.58)',
-  border: '#DCE8EF',
-  gradientBackground: ['#F7FAFC', '#EEF8F6', '#FFF5F6'],
-  gradientPrimary: ['#0EA5A8', '#F9738A'],
-  gradientCard: ['rgba(255, 255, 255, 0.96)', 'rgba(238, 248, 246, 0.78)'],
-  glowTop: ['rgba(14, 165, 168, 0.14)', 'rgba(14, 165, 168, 0)'],
-  glowBottom: ['rgba(249, 115, 138, 0.10)', 'rgba(249, 115, 138, 0)'],
-  menuBackground: 'rgba(250, 253, 253, 0.98)',
-  menuBorder: 'rgba(14, 165, 168, 0.26)',
-};
-
-const orchard: Record<string, any> = {
-  text: '#173225',
-  background: '#F6FBF5',
-  surface: 'rgba(255, 255, 255, 0.95)',
-  tint: '#2F855A',
-  tintLight: '#E0A458',
-  tintDark: '#276749',
-  icon: '#2F855A',
-  subtleText: 'rgba(23, 50, 37, 0.58)',
-  border: '#DDEDDC',
-  gradientBackground: ['#F6FBF5', '#EDF7EE', '#FFF8EA'],
-  gradientPrimary: ['#2F855A', '#E0A458'],
-  gradientCard: ['rgba(255, 255, 255, 0.95)', 'rgba(237, 247, 238, 0.80)'],
-  glowTop: ['rgba(47, 133, 90, 0.14)', 'rgba(47, 133, 90, 0)'],
-  glowBottom: ['rgba(224, 164, 88, 0.10)', 'rgba(224, 164, 88, 0)'],
-  menuBackground: 'rgba(251, 254, 250, 0.98)',
-  menuBorder: 'rgba(47, 133, 90, 0.26)',
-};
-
-const nocturne: Record<string, any> = {
+const nocturne = {
   text: '#EEF6F2',
   background: '#07110E',
   surface: 'rgba(13, 28, 24, 0.84)',
@@ -319,7 +375,7 @@ const nocturne: Record<string, any> = {
   menuBorder: 'rgba(45, 212, 191, 0.24)',
 };
 
-const rosewood: Record<string, any> = {
+const rosewood = {
   text: '#FFEFF4',
   background: '#13070B',
   surface: 'rgba(34, 12, 18, 0.84)',
@@ -342,10 +398,8 @@ const rosewood: Record<string, any> = {
 // COLORS MAP
 // ============================================================
 export const Colors: Record<string, any> = {
-  // Legacy aliases for backwards compatibility
   light: cloud,
   dark: obsidian,
-  // Light
   pearl,
   ivory,
   cloud,
@@ -353,7 +407,9 @@ export const Colors: Record<string, any> = {
   sand,
   prism,
   orchard,
-  // Dark
+  roseQuartz,
+  mint,
+  citrus,
   obsidian,
   sapphire,
   amethyst,
@@ -363,7 +419,7 @@ export const Colors: Record<string, any> = {
   slate,
   nocturne,
   rosewood,
-  // Semantic (global — không phải theme object)
+  // Semantic
   success: '#10B981',
   error: '#EF4444',
   warning: '#F59E0B',
@@ -377,10 +433,10 @@ export const Colors: Record<string, any> = {
 };
 
 export const PRIMARY_COLOR = '#C9A84C';
-export const DEFAULT_THEME = 'cloud';
+export const DEFAULT_THEME = 'dark';
 
 // ============================================================
-// REQUIRED KEYS — validate theme object
+// REQUIRED KEYS
 // ============================================================
 const REQUIRED_KEYS: string[] = [
   'text',
@@ -399,12 +455,9 @@ const REQUIRED_KEYS: string[] = [
 ];
 
 // ============================================================
-// UTILITIES — tất cả an toàn với Hermes, không dùng ?. hay ??
+// UTILITIES
 // ============================================================
 
-/**
- * Kiểm tra object có đủ cấu trúc theme không.
- */
 export function isThemeLike(value: unknown): value is Record<string, any> {
   if (value === null || value === undefined) return false;
   if (typeof value !== 'object') return false;
@@ -416,9 +469,6 @@ export function isThemeLike(value: unknown): value is Record<string, any> {
   return true;
 }
 
-/**
- * Danh sách tên theme hợp lệ.
- */
 export function getAvailableThemes(): string[] {
   const result: string[] = [];
   const keys = Object.keys(Colors);
@@ -430,43 +480,26 @@ export function getAvailableThemes(): string[] {
   return result;
 }
 
-/**
- * Kiểm tra key có phải theme hợp lệ không.
- */
 export function isThemeKey(theme: unknown): theme is string {
   if (typeof theme !== 'string' || theme.length === 0) return false;
   return isThemeLike(Colors[theme]);
 }
 
-/**
- * Lấy màu theme — LUÔN trả về object hợp lệ.
- * Không bao giờ trả về undefined, null, hoặc {}.
- */
 export function getThemeColors(theme?: string | null): Record<string, any> {
-  // 1. Theme được yêu cầu
   if (typeof theme === 'string' && theme.length > 0) {
     const requested = Colors[theme];
     if (isThemeLike(requested)) return requested;
   }
-
-  // 2. DEFAULT_THEME
   const def = Colors[DEFAULT_THEME];
   if (isThemeLike(def)) return def;
-
-  // 3. Bất kỳ theme nào tìm được
   const keys = Object.keys(Colors);
   for (let i = 0; i < keys.length; i++) {
     const t = Colors[keys[i]];
     if (isThemeLike(t)) return t;
   }
-
-  // 4. Hard fallback — không bao giờ crash dù Colors bị xóa hết
   return FALLBACK_THEME;
 }
 
-/**
- * Chuyển hex string sang RGB. An toàn với Hermes.
- */
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   if (typeof hex !== 'string' || hex.length === 0) return null;
   const clean = hex.charAt(0) === '#' ? hex.slice(1) : hex;
@@ -487,9 +520,6 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   return null;
 }
 
-/**
- * Tính relative luminance — trả về null nếu không tính được.
- */
 function getRelativeLuminance(themeColors: Record<string, any>): number | null {
   if (!isThemeLike(themeColors)) return null;
   const bg = themeColors['background'];
@@ -503,9 +533,6 @@ function getRelativeLuminance(themeColors: Record<string, any>): number | null {
   return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
 }
 
-/**
- * Kiểm tra theme có phải dark mode không.
- */
 export function isDarkTheme(theme?: string | null): boolean {
   const colors = getThemeColors(theme);
   const lum = getRelativeLuminance(colors);
@@ -513,10 +540,6 @@ export function isDarkTheme(theme?: string | null): boolean {
   return lum < 0.35;
 }
 
-/**
- * Chuyển camelCase key thành tên hiển thị.
- * Ví dụ: 'roseQuartz' → 'Rose Quartz'
- */
 export function getThemeDisplayName(themeKey: string): string {
   if (typeof themeKey !== 'string' || themeKey.length === 0) return '';
   return themeKey

@@ -1,28 +1,29 @@
 import React, { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react';
-import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity, ImageBackground, BackHandler, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Text, KeyboardAvoidingView, Platform, TouchableOpacity, ImageBackground, BackHandler, useWindowDimensions, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { doc, getDoc, collection, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import GroupChatHeader from '@/components/groups/GroupChatHeader';
 import GroupMessageList from '@/components/groups/GroupMessageList';
 import * as ImagePicker from 'expo-image-picker';
 import ReportModalSimple from '@/components/common/ReportModalSimple';
 import { useOptimizedGroupMessages } from '@/hooks/useOptimizedGroupMessages';
-import { nsfwService } from '@/services/nsfwService';
-import OptimizedGroupInput from '@/components/groups/OptimizedGroupInput';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
+import UnifiedChatInput from '@/components/chat/UnifiedChatInput';
 import { useTranslation } from 'react-i18next';
 import { ChatThemeProvider, useChatTheme } from '@/context/ChatThemeContext';
 import ChatBackgroundEffects from '@/components/chat/ChatBackgroundEffects';
 import GiftBurst from '@/components/chat/GiftBurst';
 import { LinearGradient } from 'expo-linear-gradient';
 import { uploadLocalFileToStorage } from '@/utils/storageUpload';
-import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
-import { type FeatureDrawerKey } from '@/components/drawer/AppDrawer';
+import AppDrawer, { type FeatureDrawerKey } from '@/components/drawer/AppDrawer';
 import { RevealScalableView } from '@/components/reveal';
-
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { getSensitiveImageBlockMessage, moderateImageBeforePublish } from '@/services/imageModerationGuard';
 export default function GroupChatScreen() {
   return (
     <ChatThemeProvider>
@@ -34,6 +35,8 @@ export default function GroupChatScreen() {
 function GroupChatContent() {
   const { t } = useTranslation();
   const { id } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
   const { user } = useAuth();
   const themeCtx = useContext(ThemeContext);
   const theme = (themeCtx && typeof themeCtx === 'object' && 'theme' in themeCtx) ? themeCtx.theme : 'light';
@@ -46,13 +49,13 @@ function GroupChatContent() {
   const [replyTo, setReplyTo] = useState<any>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
+  const [, setError] = useState<string | null>(null);
   const [reportVisible, setReportVisible] = useState(false);
   const [reportTarget, setReportTarget] = useState<any>(null);
   const [scrollToEndTrigger, setScrollToEndTrigger] = useState(0);
   const [burstEmoji, setBurstEmoji] = useState<string | null>(null);
   const [featureDrawer, setFeatureDrawer] = useState<FeatureDrawerKey | null>(null);
+  const [pendingImageMessages, setPendingImageMessages] = useState<any[]>([]);
 
   const { currentTheme, currentEffect, loadTheme, loadEffect } = useChatTheme();
   const chatThemeForUI = useMemo(() => currentTheme?.id === 'default' ? undefined : currentTheme, [currentTheme]);
@@ -89,16 +92,18 @@ function GroupChatContent() {
     return {
       ...baseColors,
       background: chatThemeForUI.backgroundColor,
-      backgroundHeader: hasBgImage ? 'rgba(0,0,0,0.1)' : chatThemeForUI.backgroundColor,
+      backgroundHeader: hasBgImage
+        ? (isDarkChatTheme ? 'rgba(8,12,24,0.62)' : 'rgba(255,255,255,0.72)')
+        : chatThemeForUI.backgroundColor,
       surface: hasBgImage
-        ? (isDarkChatTheme ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)')
-        : (isDarkChatTheme ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.9)'),
+        ? (isDarkChatTheme ? 'rgba(15,23,42,0.72)' : 'rgba(255,255,255,0.86)')
+        : (isDarkChatTheme ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.92)'),
       text: chatThemeForUI.textColor,
       tint: chatThemeForUI.sentMessageColor,
       sentMessageGradient: chatThemeForUI.sentMessageGradient,
       receivedMessageColor: chatThemeForUI.receivedMessageColor,
-      border: isDarkChatTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-      subtleText: isDarkChatTheme ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)',
+      border: isDarkChatTheme ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.10)',
+      subtleText: isDarkChatTheme ? 'rgba(255,255,255,0.68)' : 'rgba(15,23,42,0.58)',
       isDarkChatTheme,
     };
   }, [theme, chatThemeForUI]);
@@ -109,7 +114,6 @@ function GroupChatContent() {
     loading: messagesLoading,
     hasMore,
     loadMore,
-    refresh,
     isLoadingMore,
     isInitialLoadComplete
   } = useOptimizedGroupMessages({
@@ -118,6 +122,27 @@ function GroupChatContent() {
     pageSize: 30,
     enabled: true
   });
+
+  const displayMessages = useMemo(() => {
+    if (pendingImageMessages.length === 0) return messages;
+    const confirmedClientIds = new Set(messages.map((message: any) => message?.clientId).filter(Boolean));
+    const visiblePending = pendingImageMessages.filter(message => !confirmedClientIds.has(message.clientId));
+    return [...messages, ...visiblePending].sort((a: any, b: any) => {
+      const toMs = (value: any) => {
+        if (!value) return 0;
+        if (typeof value.toMillis === 'function') return value.toMillis();
+        if (typeof value.seconds === 'number') return value.seconds * 1000;
+        if (value instanceof Date) return value.getTime();
+        if (typeof value === 'number') return value;
+        return 0;
+      };
+      return toMs(a.createdAt) - toMs(b.createdAt);
+    });
+  }, [messages, pendingImageMessages]);
+
+  useEffect(() => {
+    setPendingImageMessages([]);
+  }, [id]);
 
   // Real-time group listener
   useEffect(() => {
@@ -140,7 +165,9 @@ function GroupChatContent() {
           const groupData = { id: docSnapshot.id, ...docSnapshot.data() } as any;
 
           // Check membership
-          if (!groupData.members || !Array.isArray(groupData.members) || !groupData.members.includes(user.uid)) {
+          const members = Array.isArray(groupData.members) ? groupData.members : [];
+          const memberIds = Array.isArray(groupData.memberIds) ? groupData.memberIds : [];
+          if (!members.includes(user.uid) && !memberIds.includes(user.uid)) {
             setError(t('groups.not_member'));
             setGroup(null);
           } else {
@@ -183,12 +210,14 @@ function GroupChatContent() {
     }
   }, [highlightedMessageId]);
 
-  const handleSend = useCallback(async () => {
-    if (!newMessage.trim()) return;
+  const handleSend = useCallback(async (textOverride?: string) => {
+    const raw = typeof textOverride === 'string' ? textOverride : newMessage;
+    const messageText = raw.trim();
+    if (!messageText) return;
     try {
       const messagesRef = collection(doc(db, 'groups', id as string), 'messages');
       const messageData: any = {
-        text: newMessage,
+        text: messageText,
         createdAt: serverTimestamp(),
         uid: user.uid,
         profileUrl: user.photoURL || user.profileUrl || '',
@@ -294,7 +323,18 @@ function GroupChatContent() {
   }, [id, reportTarget]);
 
   const handlePickImage = useCallback(async () => {
+    let pendingClientId = '';
     try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(t('common.error'), t('groups.photo_permission_error'));
+        return;
+      }
+      if (!user?.uid) {
+        Alert.alert(t('common.error'), t('groups.login_required'));
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -303,11 +343,44 @@ function GroupChatContent() {
       });
       if (!result.canceled && result.assets?.[0]?.uri) {
         const uri = result.assets[0].uri;
-        const checkResult = await nsfwService.classifyImage(uri);
+        const moderation = await moderateImageBeforePublish(uri, {
+          context: 'group_chat',
+          actorId: user.uid,
+          actorName: user.displayName || user.username || '',
+          groupId: id as string,
+          source: 'group_chat_image',
+        });
+
+        if (!moderation.allowed) {
+          Alert.alert(
+            t('moderation.sensitive_image_title', 'Anh nhay cam'),
+            getSensitiveImageBlockMessage(moderation.reason),
+          );
+          return;
+        }
+
+        const clientId = `local-group-image-${Date.now()}`;
+        pendingClientId = clientId;
+        const pendingMessage = {
+          id: clientId,
+          clientId,
+          imageUrl: uri,
+          url: uri,
+          createdAt: new Date(),
+          uid: user.uid,
+          profileUrl: user.photoURL || user.profileUrl || '',
+          senderName: user.displayName || user.username || '',
+          status: 'uploading',
+          type: 'image',
+          activeFrame: user.activeFrame || null,
+          isLocalPending: true,
+        };
+        setPendingImageMessages(prev => [...prev, pendingMessage]);
+        setScrollToEndTrigger(prev => prev + 1);
 
         const downloadURL = await uploadLocalFileToStorage({
           uri,
-          path: `group-images/${id}/${Date.now()}.jpg`,
+          path: `group-images/${id}/${user.uid}/${Date.now()}.jpg`,
           contentType: 'image/jpeg',
         });
 
@@ -321,40 +394,35 @@ function GroupChatContent() {
           senderName: user.displayName || user.username || '',
           status: 'sent',
           type: 'image',
+          clientId,
           activeFrame: user.activeFrame || null,
         });
-
-        if (checkResult.isInappropriate) {
-          try {
-            await addDoc(collection(db, 'flagged_content'), {
-              context: 'group_chat',
-              createdAt: serverTimestamp(),
-              imageUrl: downloadURL,
-              reason: checkResult.reason || 'NSFW detected',
-              groupId: id,
-              senderId: user.uid,
-              senderName: user.displayName || user.username || '',
-              scores: checkResult.scores || {},
-              status: 'pending',
-              type: 'image',
-            });
-          } catch (flagErr) {
-            console.warn('âš ï¸  [uploadImage] Failed to log flagged content:', flagErr);
-          }
-        }
+        setScrollToEndTrigger(prev => prev + 1);
       }
     } catch (error) {
       console.error('[ERROR] Send image failed:', (error as any).message);
       setError(`${t('groups.send_image_error')}: ${(error as any).message}`);
+      if (pendingClientId) {
+        setPendingImageMessages(prev => prev.filter(message => message.clientId !== pendingClientId));
+      }
     }
   }, [id, user, t]);
 
   const renderContent = () => (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={[{ flex: 1 }, Platform.OS === 'android' && { paddingBottom: Math.max(insets.bottom, 8) + keyboardHeight }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.container, { backgroundColor: chatThemeForUI ? 'transparent' : currentThemeColors.background }]}>
+        {!chatThemeForUI && (
+          <LinearGradient
+            colors={theme === 'dark'
+              ? ['rgba(14,165,233,0.12)', 'transparent', 'rgba(244,63,94,0.08)']
+              : ['rgba(14,165,233,0.10)', 'rgba(255,255,255,0)', 'rgba(244,63,94,0.08)']}
+            style={styles.chatBackdrop}
+            pointerEvents="none"
+          />
+        )}
         <GroupChatHeader
           group={group}
           onBack={() => router.back()}
@@ -364,7 +432,7 @@ function GroupChatContent() {
         <View style={styles.messagesContainer}>
           <GroupMessageList
             scrollViewRef={scrollViewRef}
-            messages={messages}
+            messages={displayMessages}
             currentUser={user}
             groupId={id as string}
             onReply={handleReply}
@@ -392,29 +460,40 @@ function GroupChatContent() {
             <View style={[styles.replyBar, { backgroundColor: currentThemeColors.tint }]} />
             <View style={styles.replyContent}>
               <Text style={[styles.replyLabel, { color: currentThemeColors.tint }]}>
-                â†© {t('groups.reply_to', { name: replyTo.senderName })}
+                {t('groups.reply_to', { name: replyTo.senderName || t('groups.user') })}
               </Text>
-              <Text style={[styles.replyText, { color: currentThemeColors.text }]} numberOfLines={1}>
-                {replyTo.imageUrl ? `ðŸ“· ${t('groups.image')}` : replyTo.text}
-              </Text>
+              <View style={styles.replyPreviewRow}>
+                {replyTo.imageUrl && (
+                  <Ionicons name="image-outline" size={15} color={currentThemeColors.subtleText} />
+                )}
+                <Text style={[styles.replyText, { color: currentThemeColors.text }]} numberOfLines={1}>
+                  {replyTo.imageUrl ? t('groups.image') : replyTo.text}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity
               onPress={cancelReply}
               style={[styles.cancelReply, { backgroundColor: currentThemeColors.border }]}
               activeOpacity={0.7}
+              accessibilityLabel={t('groups.cancel_reply')}
             >
-              <Text style={[styles.cancelText, { color: currentThemeColors.subtleText }]}>âœ•</Text>
+              <Ionicons name="close" size={18} color={currentThemeColors.subtleText} />
             </TouchableOpacity>
           </View>
         )}
 
-        <OptimizedGroupInput
-          newMessage={newMessage}
+        <UnifiedChatInput
+          value={newMessage}
           onChangeText={setNewMessage}
           onSend={handleSend}
+          onQuickSend={handleSend}
           onImagePress={handlePickImage}
           sendDisabled={newMessage.trim().length === 0}
-          currentThemeColors={currentThemeColors}
+          showImage
+          showGift={false}
+          showAudio={false}
+          leftIconVariant="add"
+          themeColors={currentThemeColors}
         />
 
         <ChatBackgroundEffects
@@ -459,7 +538,7 @@ function GroupChatContent() {
   );
 
   const drawers = (
-    <FeatureActionDrawer
+    <AppDrawer
       visible={!!featureDrawer}
       drawerKey={featureDrawer}
       onClose={closeFeatureDrawer}
@@ -509,6 +588,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  chatBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -549,43 +631,56 @@ const styles = StyleSheet.create({
   },
   messagesContainer: {
     flex: 1,
+    backgroundColor: 'transparent',
   },
   replyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: 12,
+    marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderTopWidth: 1,
-    gap: 12,
+    borderWidth: 1,
+    borderRadius: 18,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 3,
   },
   replyBar: {
     width: 4,
-    height: '100%',
+    height: 38,
     minHeight: 36,
-    borderRadius: 2,
+    borderRadius: 999,
   },
   replyContent: {
     flex: 1,
     gap: 2,
   },
   replyLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12.5,
+    fontWeight: '900',
   },
   replyText: {
-    fontSize: 14,
+    fontSize: 13.5,
+    fontWeight: '600',
     opacity: 0.8,
+    flexShrink: 1,
+  },
+  replyPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   cancelReply: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cancelText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 });
 

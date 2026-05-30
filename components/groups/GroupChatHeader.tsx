@@ -9,6 +9,14 @@ import { useAuth } from '@/context/authContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const withAlpha = (color: string | undefined, alphaHex: string, fallback: string) => {
+  if (typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)) {
+    return `${color}${alphaHex}`;
+  }
+  return fallback;
+};
 
 interface GroupChatHeaderProps {
   group: any;
@@ -22,6 +30,11 @@ const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors, o
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
   const currentThemeColors = chatThemeColors || (Colors[theme] || Colors.light);
+  const isDarkHeader = !!currentThemeColors.isDarkChatTheme || !!themeCtx?.isDark || theme === 'dark';
+  const headerBackground = currentThemeColors.backgroundHeader || currentThemeColors.background;
+  const headerBorder = currentThemeColors.menuBorder || currentThemeColors.border;
+  const tintSoft = withAlpha(currentThemeColors.tint, '22', isDarkHeader ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)');
+  const tintBorder = withAlpha(currentThemeColors.tint, '55', headerBorder || 'rgba(148,163,184,0.22)');
   const router = useRouter();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -59,13 +72,19 @@ const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors, o
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: currentThemeColors.backgroundHeader || currentThemeColors.background, paddingTop: insets.top }]}>
+    <View style={[styles.container, { backgroundColor: headerBackground, borderBottomColor: headerBorder, paddingTop: insets.top }]}>
       {/* Control status bar color when native header is hidden */}
-      <StatusBar style={currentThemeColors.isDarkChatTheme ? 'light' : 'dark'} backgroundColor={currentThemeColors.backgroundHeader || currentThemeColors.background} />
+      <StatusBar style={isDarkHeader ? 'light' : 'dark'} backgroundColor={headerBackground} />
+      <LinearGradient
+        colors={isDarkHeader
+          ? [currentThemeColors.surface || 'rgba(255,255,255,0.08)', 'rgba(0,0,0,0.12)']
+          : [currentThemeColors.surface || 'rgba(255,255,255,0.88)', headerBackground]}
+        style={StyleSheet.absoluteFill}
+      />
       <View style={styles.header}>
         <View style={styles.leftSection}>
           <TouchableOpacity
-            style={styles.backButton}
+            style={[styles.iconButton, { backgroundColor: currentThemeColors.surface, borderColor: currentThemeColors.border }]}
             onPress={handleBackPress}
           >
             <MaterialCommunityIcons
@@ -79,35 +98,47 @@ const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors, o
             style={styles.avatarSection}
             onPress={handleGroupInfo}
           >
-            <Avatar.Image
-              size={40}
-              source={{ uri: getGroupAvatar() }}
-              style={styles.avatar}
-            />
+            <View style={[styles.avatarRing, { borderColor: tintBorder, backgroundColor: tintSoft }]}>
+              <Avatar.Image
+                size={42}
+                source={{ uri: getGroupAvatar() }}
+                style={styles.avatar}
+              />
+            </View>
 
             <View style={styles.groupInfo}>
               <Text style={[styles.groupName, { color: currentThemeColors.text }]} numberOfLines={1}>
                 {group?.name || t('groups.unnamed')}
               </Text>
-              <Text style={[styles.memberInfo, { color: currentThemeColors.subtleText }]}
-              >
-                {t('groups.members_count', { count: getMemberCount() })}
-              </Text>
+              <View style={styles.metaRow}>
+                <View style={[styles.onlineDot, { backgroundColor: currentThemeColors.tint }]} />
+                <Text style={[styles.memberInfo, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
+                  {t('groups.members_count', { count: getMemberCount() })}
+                </Text>
+              </View>
             </View>
           </TouchableOpacity>
         </View>
 
         <View style={styles.rightSection}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.iconButton, styles.voiceButton, { backgroundColor: tintSoft, borderColor: tintBorder }]}
             onPress={handleJoinVoiceChat}
           >
             <MaterialCommunityIcons
-              name="phone"
-              size={24}
+              name="phone-in-talk"
+              size={21}
               color={currentThemeColors.tint}
             />
           </TouchableOpacity>
+          {isGroupAdmin() && (
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: currentThemeColors.surface, borderColor: currentThemeColors.border }]}
+              onPress={handleGroupInfo}
+            >
+              <MaterialCommunityIcons name="cog-outline" size={21} color={currentThemeColors.text} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -116,57 +147,81 @@ const GroupChatHeader = ({ group, onBack, currentThemeColors: chatThemeColors, o
 
 const styles = StyleSheet.create({
   container: {
-    // dedicated wrapper to apply safe-area padding and background
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(148,163,184,0.18)',
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    // Removed hardcoded paddingTop to avoid double spacing under cutouts
-    elevation: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
   },
   leftSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  backButton: {
-    marginRight: 12,
-    padding: 4,
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
   avatarSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    marginLeft: 10,
+  },
+  avatarRing: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    marginRight: 10,
   },
   avatar: {
-    marginRight: 12,
+    backgroundColor: 'transparent',
   },
   groupInfo: {
     flex: 1,
   },
   groupName: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    marginRight: 6,
   },
   memberInfo: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginTop: 2,
+    fontSize: 12.5,
+    fontWeight: '700',
   },
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  actionButton: {
-    marginLeft: 16,
-    padding: 4,
+  voiceButton: {
+    marginRight: 8,
   },
   menu: {
     borderRadius: 12,

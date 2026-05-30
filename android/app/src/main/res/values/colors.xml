@@ -4,9 +4,8 @@
   <integer-array name="androidcolors">
     <item>@color/orange</item>
   </integer-array>
-  <color name="iconBackground">#ffffff</color>
-  <color name="colorPrimary">#023c69</color>
-  <color name="colorPrimaryDark">#000000</color>
-  <color name="splashscreen_background">#000000</color>
-  <color name="notification_icon_color">#4f8bff</color>
+  <color name="iconBackground">#030014</color>
+  <color name="colorPrimary">#7C3AED</color>
+  <color name="splashscreen_background">#030014</color>
+  <color name="notification_icon_color">#C026D3</color>
 </resources>

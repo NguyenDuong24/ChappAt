@@ -7,7 +7,8 @@ import {
   Dimensions
 } from 'react-native';
 import { Image } from 'expo-image';
-import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { formatTime } from '@/utils/common';
 import { ThemeContext } from '@/context/ThemeContext';
 import { getLiquidPalette, LiquidSurface } from '../liquid';

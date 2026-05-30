@@ -92,7 +92,7 @@ const PrivacySecurityModal = ({ visible, onClose }: PrivacySecurityModalProps) =
           break;
       }
     } catch (error) {
-      console.error('Error updating setting:', error);
+      console.error('Error upmatch setting:', error);
       Alert.alert('Lỗi', 'Không thể cập nhật cài đặt');
     } finally {
       setLoading(false);

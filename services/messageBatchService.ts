@@ -6,13 +6,15 @@ import {
   query,
   where,
   getDocs,
-  serverTimestamp
+  serverTimestamp,
+  limit
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
+import { CHAT_COST_LIMITS } from '@/config/costControls';
 
 class MessageBatchService {
   private updateQueue: Map<string, any> = new Map();
-  private batchTimeout: NodeJS.Timeout | null = null;
+  private batchTimeout: ReturnType<typeof setTimeout> | null = null;
   private readonly BATCH_DELAY = 1000; // 1 second delay
   private readonly MAX_BATCH_SIZE = 500; // Firestore limit
 
@@ -112,7 +114,8 @@ class MessageBatchService {
       const messagesRef = collection(doc(db, 'rooms', roomId), 'messages');
       const q = query(
         messagesRef,
-        where('createdAt', '<', cutoffDate)
+        where('createdAt', '<', cutoffDate),
+        limit(CHAT_COST_LIMITS.readReceiptBatchSize)
       );
 
       const snapshot = await getDocs(q);

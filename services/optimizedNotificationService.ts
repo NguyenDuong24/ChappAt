@@ -323,9 +323,12 @@ class OptimizedNotificationService {
           }
         });
       }, (error) => {
-        console.error('❌ Notification listener error:', error);
-        // Fallback to simple listener without ordering
-        this.setupFallbackListener(userId, callback, category);
+        const errorStr = String(error?.message || error?.code || error);
+        if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+          console.error('? ? Notification listener error:', error);
+          // Fallback to simple listener without ordering
+          this.setupFallbackListener(userId, callback, category);
+        }
       });
 
       // Register with connection manager
@@ -387,6 +390,11 @@ class OptimizedNotificationService {
           callback(notification);
         }
       });
+    }, (error) => {
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error('? ? Fallback notification listener error:', error);
+      }
     });
 
     connectionManager.registerListener(listenerKey, unsubscribe, 'notifications', 'messages');

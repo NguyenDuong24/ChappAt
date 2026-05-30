@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useTrendingPosts, useExploreActions, useExploreState, useExploreLoading } from '@/context/ExploreContext';
 import BaseExploreTab from '@/components/explore/BaseExploreTab';
 
-const Tab2Screen = ({ isActive }: { isActive: boolean }) => {
+const Tab2Screen = ({ isActive, onScroll }, ref) => {
     const { posts: trendingPosts, hasMore } = useTrendingPosts() || { posts: [], hasMore: false };
     const { loadMoreTrending, deletePost, toggleLike, refresh, ensureFeedReady, updatePostPrivacy } = useExploreActions() || {};
     const { loadingInitial, isRefreshing } = useExploreState() || {};
@@ -16,6 +16,8 @@ const Tab2Screen = ({ isActive }: { isActive: boolean }) => {
 
     return (
         <BaseExploreTab
+            ref={ref}
+            onTabScroll={onScroll}
             isActive={isActive}
             posts={trendingPosts}
             hasMore={hasMore}
@@ -33,4 +35,4 @@ const Tab2Screen = ({ isActive }: { isActive: boolean }) => {
     );
 };
 
-export default React.memo(Tab2Screen);
+export default React.memo(React.forwardRef(Tab2Screen));

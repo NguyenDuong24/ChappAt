@@ -133,7 +133,10 @@ export const profileVisitService = {
 
             return visits;
         } catch (error) {
-            console.error('Error fetching profile visitors:', error);
+            const errMsg = String(error?.message || error?.code || '');
+            if (!errMsg.includes('permission-denied') && !errMsg.includes('Missing or insufficient permissions')) {
+                console.error('Error fetching profile visitors:', error);
+            }
             return [];
         }
     }

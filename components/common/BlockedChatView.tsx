@@ -1,6 +1,6 @@
-import React, { useContext } from 'react';
+import React, { useContext, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ThemeContext } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
@@ -16,11 +16,23 @@ export const BlockedChatView: React.FC<BlockedChatViewProps> = ({ reason, onBack
     const theme = themeContext?.theme || 'light';
     const currentThemeColors = Colors[theme] || Colors.light;
 
+    // Fallback helper
+    const tf = useCallback((key: string, fallback: string) => {
+        const translated = t(key);
+        return translated !== key ? translated : fallback;
+    }, [t]);
+
     const isBlockedByUser = reason === 'chat.blocked_subtitle';
 
-    const title = isBlockedByUser ? t('chat.blocked_title') : t('chat.blocked_by_title');
-    const subtitle = t(reason);
-    const suggestion = isBlockedByUser ? t('chat.blocked_suggestion') : '';
+    const title = isBlockedByUser
+        ? tf('chat.blocked_title', 'Đã chặn người dùng')
+        : tf('chat.blocked_by_title', 'Bị chặn');
+
+    const subtitle = tf(reason, isBlockedByUser ? 'Bạn đã chặn người dùng này' : 'Người dùng này đã chặn bạn');
+
+    const suggestion = isBlockedByUser
+        ? tf('chat.blocked_suggestion', 'Bỏ chặn để tiếp tục trò chuyện')
+        : '';
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: currentThemeColors.background }]}>
@@ -53,7 +65,7 @@ export const BlockedChatView: React.FC<BlockedChatViewProps> = ({ reason, onBack
                     style={[styles.button, { backgroundColor: currentThemeColors.tint }]}
                     onPress={onBack}
                 >
-                    <Text style={styles.buttonText}>{t('common.back')}</Text>
+                    <Text style={styles.buttonText}>{tf('common.back', 'Quay lại')}</Text>
                 </TouchableOpacity>
             </View>
         </SafeAreaView>
@@ -119,4 +131,3 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
 });
-

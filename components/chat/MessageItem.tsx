@@ -11,7 +11,7 @@ import MessageActionSheet from './MessageActionSheet';
 import MessageReactions from './MessageReactions';
 import EditMessageModal from './EditMessageModal';
 import { useMessageActions } from '@/hooks/useMessageActions';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useChatTheme } from '@/context/ChatThemeContext';
 import VibeAvatar from '../vibe/VibeAvatar';
@@ -25,6 +25,10 @@ interface MessageItemProps {
     onMessageLayout?: (messageId: string, y: number) => void;
     isHighlighted?: boolean;
     onReport?: (message: any) => void;
+    isFirstInSequence?: boolean;
+    isLastInSequence?: boolean;
+    isSameSenderAsPrev?: boolean;
+    isSameSenderAsNext?: boolean;
 }
 
 const IMAGE_BUBBLE_WIDTH = Math.min(Dimensions.get('window').width * 0.62, 260);
@@ -38,6 +42,7 @@ export default function MessageItem({
     isHighlighted,
     onReport,
 }: MessageItemProps) {
+    const router = useRouter();
     const isCurrentUser = message?.uid === currentUser?.uid;
     const [showTime, setShowTime] = useState(false);
     const [showActionSheet, setShowActionSheet] = useState(false);
@@ -48,28 +53,37 @@ export default function MessageItem({
     const { id: routePeerId } = useLocalSearchParams<{ id?: string }>();
     const currentUid = currentUser?.uid ?? currentUser?.id ?? currentUser?.userId;
     const otherUid = otherUser?.uid ?? otherUser?.id ?? otherUser?.userId ?? (routePeerId as string | undefined);
-    const computedRoomId = currentUid && otherUid ? getRoomId(currentUid, otherUid) : undefined;
+    const computedRoomId = useMemo(
+        () => currentUid && otherUid ? getRoomId(currentUid, otherUid) : undefined,
+        [currentUid, otherUid]
+    );
     const roomId = computedRoomId || (message?.roomId as string | undefined) || (message?.chatId as string | undefined) || '';
 
-    // Messenger-style colors using chat theme
+    // Messenger-style colors using chat theme — memoized to avoid recalc per render
     const { currentTheme: selectedChatTheme } = useChatTheme();
-    const fallbackChatTheme = selectedChatTheme || {
-        id: 'default',
-        sentMessageColor: currentThemeColors.primary,
-        receivedMessageColor: currentThemeColors.inputBackground || currentThemeColors.surface,
-        textColor: currentThemeColors.text,
-    };
-    const chatTheme = fallbackChatTheme.id === 'default'
-        ? {
-            ...fallbackChatTheme,
+    const chatTheme = useMemo<any>(() => {
+        const fallback = selectedChatTheme || {
+            id: 'default',
             sentMessageColor: currentThemeColors.primary,
             receivedMessageColor: currentThemeColors.inputBackground || currentThemeColors.surface,
             textColor: currentThemeColors.text,
+        };
+        if (fallback.id === 'default') {
+            return {
+                ...fallback,
+                sentMessageColor: currentThemeColors.primary,
+                receivedMessageColor: currentThemeColors.inputBackground || currentThemeColors.surface,
+                textColor: currentThemeColors.text,
+            };
         }
-        : fallbackChatTheme;
-    const sentBubbleColor = chatTheme.sentMessageColor;
-    const receivedBubbleColor = chatTheme.receivedMessageColor;
-    const bubbleColors: readonly [string, string] = isCurrentUser ? [sentBubbleColor, sentBubbleColor] : [receivedBubbleColor, receivedBubbleColor];
+        return fallback;
+    }, [selectedChatTheme?.id, currentThemeColors.primary, currentThemeColors.inputBackground, currentThemeColors.surface, currentThemeColors.text]);
+
+    const bubbleColors = useMemo<readonly [string, string]>(() => {
+        const sent = chatTheme.sentMessageColor;
+        const recv = chatTheme.receivedMessageColor;
+        return isCurrentUser ? [sent, sent] : [recv, recv];
+    }, [isCurrentUser, chatTheme.sentMessageColor, chatTheme.receivedMessageColor]);
 
     const {
         toggleReaction,
@@ -142,10 +156,10 @@ export default function MessageItem({
         }
     };
 
-    const formatMessageTime = () => {
+    const formattedTime = useMemo(() => {
         if (!message?.createdAt) return '';
         return formatTime(message.createdAt);
-    };
+    }, [message?.createdAt]);
 
     const onContainerLayout = (e: any) => {
         const y = e?.nativeEvent?.layout?.y;
@@ -156,9 +170,10 @@ export default function MessageItem({
     };
 
     const isReplyingToVibe = message?.replyTo?.type === 'vibe';
-    const isImageMessage = !!message?.imageUrl && !message?.text;
-    const isGiftMessage = message?.type === 'gift' && message?.gift;
-    const isAudioMessage = message?.type === 'audio' && message?.audioUrl;
+    const isImageMessage = useMemo(() => !!message?.imageUrl && !message?.text, [message?.imageUrl, message?.text]);
+    const isGiftMessage = useMemo(() => message?.type === 'gift' && !!message?.gift, [message?.type, message?.gift]);
+    const isAudioMessage = useMemo(() => message?.type === 'audio' && !!message?.audioUrl, [message?.type, message?.audioUrl]);
+    const isSharedPost = message?.type === 'shared_post';
     const isSystemMessage = message?.type === 'system' || message?.uid === 'system';
 
     if (isSystemMessage) {
@@ -301,9 +316,81 @@ export default function MessageItem({
                                         gift={message.gift}
                                         senderName={message?.senderName}
                                         isCurrentUser={isCurrentUser}
-                                        themeColors={currentThemeColors}
-                                    />
-                                ) : isAudioMessage ? (
+                                    themeColors={currentThemeColors}
+                                />
+                            ) : isSharedPost ? (
+                                <View style={styles.sharedPostContainer}>
+                                    <View style={styles.sharedPostHeader}>
+                                        <MaterialIcons name="share" size={14} color={isCurrentUser ? "#FFF" : chatTheme.sentMessageColor} />
+                                        <Text style={[styles.sharedPostHeaderText, { color: isCurrentUser ? "#FFF" : chatTheme.sentMessageColor }]}>
+                                            Bài post được chia sẻ
+                                        </Text>
+                                    </View>
+                                    
+                                    <View style={styles.sharedPostContent}>
+                                        {message.postImage ? (
+                                            <Image source={{ uri: message.postImage }} style={styles.sharedPostImage} contentFit="cover" />
+                                        ) : (
+                                            <View style={[styles.sharedPostImage, { backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' }]}>
+                                                <MaterialIcons name="article" size={30} color="#999" />
+                                            </View>
+                                        )}
+                                        <View style={styles.sharedPostTextContainer}>
+                                            <Text style={[styles.sharedPostTitle, { color: isCurrentUser ? "#FFF" : currentThemeColors.text }]} numberOfLines={1}>
+                                                Bài post từ {message.postOwnerName || 'Người dùng'}
+                                            </Text>
+                                            <Text style={[styles.sharedPostDesc, { color: isCurrentUser ? "rgba(255,255,255,0.8)" : currentThemeColors.subtleText }]} numberOfLines={2}>
+                                                {message.postContent || ''}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <TouchableOpacity 
+                                        style={styles.viewPostButton}
+                                        onPress={() => {
+                                            // Điều hướng đến chi tiết bài viết
+                                            const routePeId = message.postId;
+                                            if (routePeId) {
+                                                const path = `/(screens)/social/PostDetailScreen` as any;
+                                                // @ts-ignore
+                                                router.push({ pathname: path, params: { postId: routePeId } });
+                                            }
+                                        }}
+                                    >
+                                        <Text style={[styles.viewPostText, { color: isCurrentUser ? "#FFF" : chatTheme.sentMessageColor }]}>
+                                            Xem post gốc
+                                        </Text>
+                                        <MaterialIcons name="open-in-new" size={14} color={isCurrentUser ? "#FFF" : chatTheme.sentMessageColor} />
+                                    </TouchableOpacity>
+
+                                    {message?.text ? (
+                                        <View style={{ paddingHorizontal: 10, paddingBottom: 6 }}>
+                                            <Text style={[styles.messageText, { color: isCurrentUser ? '#FFFFFF' : chatTheme.textColor }]}>
+                                                {message.text}
+                                            </Text>
+                                        </View>
+                                    ) : null}
+
+                                    <View style={styles.timeStatusRow}>
+                                        <Text style={[styles.timeText, { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText }]}>
+                                            {formattedTime}
+                                        </Text>
+                                        {isCurrentUser && (
+                                            (() => {
+                                                switch (message?.status) {
+                                                    case 'read':
+                                                        return <MaterialIcons name="visibility" size={14} color="#FFF" />;
+                                                    case 'sent':
+                                                    case 'delivered':
+                                                        return <MaterialIcons name="done" size={14} color="rgba(255,255,255,0.7)" />;
+                                                    default:
+                                                        return <MaterialIcons name="schedule" size={14} color="rgba(255,255,255,0.7)" />;
+                                                }
+                                            })()
+                                        )}
+                                    </View>
+                                </View>
+                            ) : isAudioMessage ? (
                                     <AudioMessage
                                         uri={message.audioUrl}
                                         duration={message.duration}
@@ -321,35 +408,35 @@ export default function MessageItem({
                                                 },
                                             ]}
                                         >
-                                        <CustomImage
-                                            source={message.imageUrl}
-                                            style={styles.messageImage}
-                                            onLongPress={handleLongPress}
-                                        />
-                                        <LinearGradient
-                                            colors={['transparent', 'rgba(0,0,0,0.5)']}
-                                            style={styles.imageOverlay}
-                                        >
-                                            <View style={styles.imageMetaPill}>
-                                                <Text style={[styles.timeText, { color: '#FFFFFF' }]}>
-                                                    {formatMessageTime()}
-                                                </Text>
-                                                {isCurrentUser && (
-                                                    (() => {
-                                                        switch (message?.status) {
-                                                            case 'read':
-                                                                return <MaterialIcons name="visibility" size={14} color="#FFF" />;
-                                                            case 'sent':
-                                                            case 'delivered':
-                                                                return <MaterialIcons name="done" size={14} color="#FFF" />;
-                                                            default:
-                                                                return <MaterialIcons name="schedule" size={14} color="#FFF" />;
-                                                        }
-                                                    })()
-                                                )}
-                                            </View>
-                                        </LinearGradient>
-                                    </View>
+                                            <CustomImage
+                                                source={message.imageUrl}
+                                                style={styles.messageImage}
+                                                onLongPress={handleLongPress}
+                                            />
+                                            <LinearGradient
+                                                colors={['transparent', 'rgba(0,0,0,0.5)']}
+                                                style={styles.imageOverlay}
+                                            >
+                                                <View style={styles.imageMetaPill}>
+                                                    <Text style={[styles.timeText, { color: '#FFFFFF' }]}>
+                                                        {formattedTime}
+                                                    </Text>
+                                                    {isCurrentUser && (
+                                                        (() => {
+                                                            switch (message?.status) {
+                                                                case 'read':
+                                                                    return <MaterialIcons name="visibility" size={14} color="#FFF" />;
+                                                                case 'sent':
+                                                                case 'delivered':
+                                                                    return <MaterialIcons name="done" size={14} color="#FFF" />;
+                                                                default:
+                                                                    return <MaterialIcons name="schedule" size={14} color="#FFF" />;
+                                                            }
+                                                        })()
+                                                    )}
+                                                </View>
+                                            </LinearGradient>
+                                        </View>
                                         {message.text ? (
                                             <View
                                                 style={[
@@ -381,7 +468,7 @@ export default function MessageItem({
                                                     </Text>
                                                     <View style={styles.timeStatusRow}>
                                                         <Text style={[styles.timeText, { color: 'rgba(255,255,255,0.8)' }]}>
-                                                            {formatMessageTime()}
+                                                            {formattedTime}
                                                         </Text>
                                                         {(() => {
                                                             switch (message?.status) {
@@ -404,7 +491,7 @@ export default function MessageItem({
                                                 </Text>
                                                 <View style={styles.timeStatusRow}>
                                                     <Text style={[styles.timeText, { color: isCurrentUser ? 'rgba(255,255,255,0.8)' : currentThemeColors.subtleText }]}>
-                                                        {formatMessageTime()}
+                                                        {formattedTime}
                                                     </Text>
                                                     {isCurrentUser && (
                                                         (() => {
@@ -697,5 +784,59 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '500',
         textAlign: 'center',
+    },
+    sharedPostContainer: {
+        width: 260,
+    },
+    sharedPostHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingTop: 10,
+        paddingBottom: 6,
+    },
+    sharedPostHeaderText: {
+        fontSize: 11,
+        fontWeight: '700',
+        opacity: 0.9,
+    },
+    sharedPostContent: {
+        backgroundColor: 'rgba(0,0,0,0.03)',
+        borderRadius: 12,
+        marginHorizontal: 8,
+        marginBottom: 10,
+        overflow: 'hidden',
+    },
+    sharedPostImage: {
+        width: '100%',
+        height: 140,
+        backgroundColor: 'rgba(0,0,0,0.05)',
+    },
+    sharedPostTextContainer: {
+        padding: 10,
+    },
+    sharedPostTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    sharedPostDesc: {
+        fontSize: 12,
+        lineHeight: 16,
+    },
+    viewPostButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: 'rgba(0,0,0,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+    },
+    viewPostText: {
+        fontSize: 12,
+        fontWeight: '700',
     },
 });

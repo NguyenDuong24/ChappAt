@@ -1,4 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, {
+    useState,
+    useRef,
+    useEffect,
+    useCallback,
+    useMemo,
+} from 'react';
+
 import {
     View,
     Modal,
@@ -9,74 +16,96 @@ import {
     StatusBar,
     FlatList,
 } from 'react-native';
+
 import { Image } from 'expo-image';
-import { MaterialIcons } from '@expo/vector-icons';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, runOnJS } from 'react-native-reanimated';
+
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+import {
+    Gesture,
+    GestureDetector,
+    GestureHandlerRootView,
+} from 'react-native-gesture-handler';
+
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    runOnJS,
+} from 'react-native-reanimated';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
+const MIN_SCALE = 0.5;
+const MAX_SCALE = 5;
+const ZOOM_THRESHOLD = 1.1;
+
+// Hàm clamp (worklet)
+const clamp = (value, min, max) => {
+    'worklet';
+    return Math.min(Math.max(value, min), max);
+};
+
 const ZoomableImage = ({ source, onZoomChange }) => {
     const [containerHeight, setContainerHeight] = useState(screenHeight * 0.7);
+    const [panEnabled, setPanEnabled] = useState(false); // 👈 boolean state cho gesture
 
-    // Gesture values
     const scale = useSharedValue(1);
     const translateX = useSharedValue(0);
     const translateY = useSharedValue(0);
 
-    // Temporary values for gestures
     const originScale = useSharedValue(1);
     const originX = useSharedValue(0);
     const originY = useSharedValue(0);
+
     const focalRelX = useSharedValue(0);
     const focalRelY = useSharedValue(0);
+
+    // Shared value vẫn giữ lại để dùng nội bộ
+    const isZoomed = useSharedValue(false);
 
     useEffect(() => {
         scale.value = 1;
         translateX.value = 0;
         translateY.value = 0;
+        isZoomed.value = false;
+        runOnJS(onZoomChange)(false);
+        runOnJS(setPanEnabled)(false);
     }, [source]);
 
-    const reportZoom = (isZoomed) => {
-        if (onZoomChange) {
-            onZoomChange(isZoomed);
-        }
+    const reportZoom = (zoomed) => {
+        onZoomChange?.(zoomed);
     };
 
-    // Pinch gesture
-    const pinch = Gesture.Pinch()
-        .onStart((g) => {
-            originScale.value = scale.value;
-            originX.value = translateX.value;
-            originY.value = translateY.value;
-            focalRelX.value = g.focalX - screenWidth / 2;
-            focalRelY.value = g.focalY - containerHeight / 2;
-        })
-        .onUpdate((g) => {
-            const delta = g.scale;
-            scale.value = Math.max(0.5, Math.min(5, originScale.value * delta));
-            translateX.value = originX.value * delta + focalRelX.value * (1 - delta);
-            translateY.value = originY.value * delta + focalRelY.value * (1 - delta);
+    const updateZoomState = (newScale) => {
+        'worklet';
+        const zoomed = newScale > 1;
+        isZoomed.value = zoomed;
+        runOnJS(setPanEnabled)(zoomed);
+        runOnJS(reportZoom)(zoomed);
+    };
 
-            if (scale.value > 1.1) {
-                runOnJS(reportZoom)(true);
-            }
-        })
-        .onEnd(() => {
-            if (scale.value < 1) {
-                scale.value = withSpring(1);
-                translateX.value = withSpring(0);
-                translateY.value = withSpring(0);
-                runOnJS(reportZoom)(false);
-            } else if (scale.value === 1) {
-                runOnJS(reportZoom)(false);
-            }
-        });
+    const clampTranslation = () => {
+        'worklet';
+        const viewWidth = screenWidth;
+        const viewHeight = containerHeight;
+        const scaledWidth = screenWidth * scale.value;
+        const scaledHeight = containerHeight * scale.value;
 
-    // Pan gesture
+        const maxTx = Math.max(0, (scaledWidth - viewWidth) / 2 / scale.value);
+        const maxTy = Math.max(0, (scaledHeight - viewHeight) / 2 / scale.value);
+
+        translateX.value = clamp(translateX.value, -maxTx, maxTx);
+        translateY.value = clamp(translateY.value, -maxTy, maxTy);
+    };
+
+    // Pan gesture: enabled dùng boolean state thay vì SharedValue
     const pan = Gesture.Pan()
+        .enabled(panEnabled)  // ✅ boolean
         .onStart(() => {
             originX.value = translateX.value;
             originY.value = translateY.value;
@@ -87,41 +116,73 @@ const ZoomableImage = ({ source, onZoomChange }) => {
             translateY.value = originY.value + g.translationY / scale.value;
         })
         .onEnd(() => {
-            // Clamp to bounds
-            const viewWidth = screenWidth;
-            const viewHeight = containerHeight;
-            const imageWidth = screenWidth;
-            const imageHeight = containerHeight;
-            const scaledWidth = imageWidth * scale.value;
-            const scaledHeight = imageHeight * scale.value;
-            const maxTx = Math.max(0, (scaledWidth - viewWidth) / 2 / scale.value);
-            const maxTy = Math.max(0, (scaledHeight - viewHeight) / 2 / scale.value);
-            translateX.value = Math.max(-maxTx, Math.min(maxTx, translateX.value));
-            translateY.value = Math.max(-maxTy, Math.min(maxTy, translateY.value));
+            clampTranslation();
         });
 
-    // Double tap gesture
+    const pinch = Gesture.Pinch()
+        .onStart((g) => {
+            originScale.value = scale.value;
+            originX.value = translateX.value;
+            originY.value = translateY.value;
+
+            focalRelX.value = g.focalX - screenWidth / 2;
+            focalRelY.value = g.focalY - containerHeight / 2;
+        })
+        .onUpdate((g) => {
+            const delta = g.scale;
+            scale.value = clamp(originScale.value * delta, MIN_SCALE, MAX_SCALE);
+
+            translateX.value =
+                originX.value * delta + focalRelX.value * (1 - delta);
+            translateY.value =
+                originY.value * delta + focalRelY.value * (1 - delta);
+
+            updateZoomState(scale.value);
+        })
+        .onEnd(() => {
+            if (scale.value < ZOOM_THRESHOLD) {
+                scale.value = withSpring(1);
+                translateX.value = withSpring(0);
+                translateY.value = withSpring(0);
+                isZoomed.value = false;
+                runOnJS(setPanEnabled)(false);
+                runOnJS(reportZoom)(false);
+            } else {
+                clampTranslation();
+                updateZoomState(scale.value);
+            }
+        });
+
     const doubleTap = Gesture.Tap()
         .numberOfTaps(2)
         .onEnd((g) => {
             const currentScale = scale.value;
             const targetScale = currentScale > 1 ? 1 : 2.5;
             const delta = targetScale / currentScale;
+
             const tapFocalX = g.x - screenWidth / 2;
             const tapFocalY = g.y - containerHeight / 2;
 
-            translateX.value = withSpring(translateX.value * delta + tapFocalX * (1 - delta));
-            translateY.value = withSpring(translateY.value * delta + tapFocalY * (1 - delta));
+            let newTransX = translateX.value * delta + tapFocalX * (1 - delta);
+            let newTransY = translateY.value * delta + tapFocalY * (1 - delta);
+
+            const viewWidth = screenWidth;
+            const viewHeight = containerHeight;
+            const scaledWidth = screenWidth * targetScale;
+            const scaledHeight = containerHeight * targetScale;
+            const maxTx = Math.max(0, (scaledWidth - viewWidth) / 2 / targetScale);
+            const maxTy = Math.max(0, (scaledHeight - viewHeight) / 2 / targetScale);
+
+            newTransX = clamp(newTransX, -maxTx, maxTx);
+            newTransY = clamp(newTransY, -maxTy, maxTy);
+
+            translateX.value = withSpring(newTransX);
+            translateY.value = withSpring(newTransY);
             scale.value = withSpring(targetScale);
 
-            if (targetScale > 1) {
-                runOnJS(reportZoom)(true);
-            } else {
-                runOnJS(reportZoom)(false);
-            }
+            updateZoomState(targetScale);
         });
 
-    // Compose gestures: pinch simultaneous with (doubleTap or pan)
     const composedGestures = Gesture.Simultaneous(
         pinch,
         Gesture.Race(doubleTap, pan)
@@ -139,7 +200,10 @@ const ZoomableImage = ({ source, onZoomChange }) => {
         <GestureDetector gesture={composedGestures}>
             <View
                 style={[styles.imageContainer, { width: screenWidth }]}
-                onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
+                onLayout={(e) => {
+                    const { height } = e.nativeEvent.layout;
+                    setContainerHeight(height);
+                }}
             >
                 <AnimatedImage
                     source={source}
@@ -151,144 +215,184 @@ const ZoomableImage = ({ source, onZoomChange }) => {
     );
 };
 
-const CustomImage = ({ source, style, type = 'normal', onLongPress, images = null, initialIndex = 0 }) => {
+const CustomImage = ({
+    source,
+    style,
+    type = 'normal',
+    onLongPress,
+    images = null,
+    initialIndex = 0,
+}) => {
+    const insets = useSafeAreaInsets();
     const [modalVisible, setModalVisible] = useState(false);
     const [scrollEnabled, setScrollEnabled] = useState(true);
     const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const flatListRef = useRef(null);
 
-    const handleOpenModal = () => {
+    const handleOpenModal = useCallback(() => {
         setModalVisible(true);
         setCurrentIndex(initialIndex);
-    };
+    }, [initialIndex]);
 
-    const handleCloseModal = () => {
+    const handleCloseModal = useCallback(() => {
         setModalVisible(false);
+    }, []);
+
+    const galleryData = useMemo(() => {
+        if (images && images.length > 0) return images;
+        if (source) return [source];
+        if (type === 'cover') return [null];
+        return [];
+    }, [images, source, type]);
+
+    const resolveSource = (img) => {
+        if (img == null) return require('../../assets/images/cover.webp');
+        if (typeof img === 'string') return { uri: img };
+        return img;
     };
 
-    const handleNext = () => {
+    const thumbnailSource = useMemo(() => {
+        if (type === 'cover') {
+            return source && typeof source === 'string' && source.trim()
+                ? { uri: source }
+                : require('../../assets/images/cover.webp');
+        }
+        return resolveSource(source);
+    }, [source, type]);
+
+    const renderItem = useCallback(
+        ({ item }) => {
+            const itemSource = type === 'cover' && !item
+                ? require('../../assets/images/cover.webp')
+                : resolveSource(item);
+
+            return (
+                <ZoomableImage
+                    source={itemSource}
+                    onZoomChange={(isZoomed) => setScrollEnabled(!isZoomed)}
+                />
+            );
+        },
+        [type]
+    );
+
+    const getItemLayout = useCallback(
+        (_, index) => ({
+            length: screenWidth,
+            offset: screenWidth * index,
+            index,
+        }),
+        []
+    );
+
+    const keyExtractor = useCallback(
+        (item, index) => `${item || 'cover'}-${index}`,
+        []
+    );
+
+    const onViewableItemsChanged = useRef(({ viewableItems }) => {
+        if (viewableItems.length > 0) {
+            setCurrentIndex(viewableItems[0].index ?? 0);
+        }
+    }).current;
+
+    const viewabilityConfig = useRef({
+        viewAreaCoveragePercentThreshold: 50,
+    }).current;
+
+    const handleNext = useCallback(() => {
         if (currentIndex < galleryData.length - 1) {
             const nextIndex = currentIndex + 1;
             flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
             setCurrentIndex(nextIndex);
         }
-    };
+    }, [currentIndex, galleryData.length]);
 
-    const handlePrev = () => {
+    const handlePrev = useCallback(() => {
         if (currentIndex > 0) {
             const prevIndex = currentIndex - 1;
             flatListRef.current?.scrollToIndex({ index: prevIndex, animated: true });
             setCurrentIndex(prevIndex);
         }
-    };
-
-    let thumbnailSource;
-    if (type === 'cover') {
-        thumbnailSource = source
-            ? { uri: source }
-            : require('../../assets/images/cover.png');
-    } else {
-        thumbnailSource = { uri: source };
-    }
-
-    // Prepare gallery data
-    const galleryData = images && images.length > 0
-        ? images
-        : (source ? [source] : (type === 'cover' ? [null] : []));
-
-    const renderItem = ({ item }) => {
-        const itemSource = type === 'cover' && !item
-            ? require('../../assets/images/cover.png')
-            : { uri: item };
-
-        return (
-            <ZoomableImage
-                source={itemSource}
-                onZoomChange={(isZoomed) => setScrollEnabled(!isZoomed)}
-            />
-        );
-    };
+    }, [currentIndex]);
 
     return (
-        <View style={style}>
+        <View style={[style, { overflow: 'hidden' }]}>
             <TouchableOpacity
+                activeOpacity={0.95}
                 onPress={handleOpenModal}
                 onLongPress={onLongPress}
-                style={{ width: '100%', height: '100%' }}
+                style={styles.thumbnail}
             >
                 <Image
                     source={thumbnailSource}
-                    style={{ width: '100%', height: '100%' }}
+                    style={styles.thumbnailImage}
                     contentFit="cover"
                     transition={100}
                     cachePolicy="memory-disk"
+                    recyclingKey={source || 'cover'}
                 />
             </TouchableOpacity>
 
             <Modal
                 visible={modalVisible}
-                transparent={true}
+                transparent
                 animationType="fade"
                 onRequestClose={handleCloseModal}
+                statusBarTranslucent
             >
-                <StatusBar backgroundColor="rgba(0, 0, 0, 0.9)" barStyle="light-content" />
                 <GestureHandlerRootView style={styles.modalBackground}>
-                    {/* Header */}
-                    <View style={styles.headerContainer}>
-                        <TouchableOpacity
-                            style={styles.closeButton}
-                            onPress={handleCloseModal}
-                        >
-                            <MaterialIcons name="close" size={28} color="white" />
+                    <View style={[styles.headerContainer, { paddingTop: insets.top + 10 }]}>
+                        <TouchableOpacity style={styles.closeButton} onPress={handleCloseModal}>
+                            <MaterialIcons name="close" size={28} color="#fff" />
                         </TouchableOpacity>
                         <Text style={styles.instructionText}>
                             {galleryData.length > 1
                                 ? `${currentIndex + 1} / ${galleryData.length}`
-                                : ""}
+                                : ''}
                         </Text>
                         <View style={styles.placeholder} />
                     </View>
 
-                    {/* Gallery */}
                     <FlatList
                         ref={flatListRef}
                         data={galleryData}
                         horizontal
                         pagingEnabled
                         scrollEnabled={scrollEnabled}
-                        initialScrollIndex={initialIndex}
-                        getItemLayout={(data, index) => (
-                            { length: screenWidth, offset: screenWidth * index, index }
-                        )}
-                        keyExtractor={(item, index) => index.toString()}
+                        initialScrollIndex={Math.min(initialIndex, galleryData.length - 1)}
+                        getItemLayout={getItemLayout}
+                        keyExtractor={keyExtractor}
                         renderItem={renderItem}
-                        onMomentumScrollEnd={(e) => {
-                            const newIndex = Math.round(e.nativeEvent.contentOffset.x / screenWidth);
-                            setCurrentIndex(newIndex);
-                        }}
+                        onViewableItemsChanged={onViewableItemsChanged}
+                        viewabilityConfig={viewabilityConfig}
+                        initialNumToRender={1}
+                        maxToRenderPerBatch={1}
+                        windowSize={3}
+                        removeClippedSubviews
                         showsHorizontalScrollIndicator={false}
                     />
 
-                    {/* Navigation Buttons */}
                     {galleryData.length > 1 && (
                         <>
                             {currentIndex > 0 && (
-                                <TouchableOpacity style={[styles.navButton, styles.leftNavButton]} onPress={handlePrev}>
-                                    <MaterialIcons name="chevron-left" size={40} color="white" />
+                                <TouchableOpacity
+                                    style={[styles.navButton, styles.leftNavButton]}
+                                    onPress={handlePrev}
+                                >
+                                    <MaterialIcons name="chevron-left" size={40} color="#fff" />
                                 </TouchableOpacity>
                             )}
                             {currentIndex < galleryData.length - 1 && (
-                                <TouchableOpacity style={[styles.navButton, styles.rightNavButton]} onPress={handleNext}>
-                                    <MaterialIcons name="chevron-right" size={40} color="white" />
+                                <TouchableOpacity
+                                    style={[styles.navButton, styles.rightNavButton]}
+                                    onPress={handleNext}
+                                >
+                                    <MaterialIcons name="chevron-right" size={40} color="#fff" />
                                 </TouchableOpacity>
                             )}
                         </>
                     )}
-
-                    {/* Bottom Controls */}
-                    <View style={styles.bottomContainer}>
-                        {/* Optional: Add indicators or other controls */}
-                    </View>
                 </GestureHandlerRootView>
             </Modal>
         </View>
@@ -298,7 +402,7 @@ const CustomImage = ({ source, style, type = 'normal', onLongPress, images = nul
 const styles = StyleSheet.create({
     modalBackground: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.95)',
+        backgroundColor: 'rgba(0,0,0,0.95)',
     },
     headerContainer: {
         position: 'absolute',
@@ -309,25 +413,24 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: 50,
         paddingHorizontal: 20,
         paddingBottom: 10,
     },
     closeButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: 'rgba(255,255,255,0.12)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     instructionText: {
-        color: 'rgba(255, 255, 255, 0.8)',
+        color: 'rgba(255,255,255,0.8)',
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '600',
     },
     placeholder: {
-        width: 40,
+        width: 42,
     },
     imageContainer: {
         flex: 1,
@@ -339,31 +442,33 @@ const styles = StyleSheet.create({
         width: screenWidth,
         height: screenHeight * 0.8,
     },
-    bottomContainer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-        paddingVertical: 20,
-    },
     navButton: {
         position: 'absolute',
         top: '50%',
-        marginTop: -25,
-        width: 50,
-        height: 50,
+        marginTop: -26,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.3)',
-        borderRadius: 25,
+        backgroundColor: 'rgba(0,0,0,0.35)',
         zIndex: 5,
     },
     leftNavButton: {
-        left: 10,
+        left: 12,
     },
     rightNavButton: {
-        right: 10,
+        right: 12,
+    },
+    thumbnail: {
+        width: '100%',
+        height: '100%',
+        flex: 1,
+    },
+    thumbnailImage: {
+        width: '100%',
+        height: '100%',
+        flex: 1,
     },
 });
 

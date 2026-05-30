@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Menu } from 'react-native-paper';
-import { MaterialIcons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useThemedColors } from '@/hooks/useThemedColors';
 import { useTheme } from '@/context/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -27,6 +27,7 @@ interface PostHeaderProps {
   postPrivacy?: 'public' | 'friends' | 'private';
   isFollowing?: boolean;
   onFollowPress?: () => void;
+  hideFollowButton?: boolean;
 }
 
 const PostHeader: React.FC<PostHeaderProps> = ({
@@ -39,7 +40,8 @@ const PostHeader: React.FC<PostHeaderProps> = ({
   onPrivacyChange,
   postPrivacy = 'public',
   isFollowing = false,
-  onFollowPress
+  onFollowPress,
+  hideFollowButton = false
 }) => {
   const colors = useThemedColors();
   const { theme } = useTheme();
@@ -74,21 +76,26 @@ const PostHeader: React.FC<PostHeaderProps> = ({
             <Text style={[styles.username, { color: colors.text }]} numberOfLines={1}>
               {userInfo?.username || 'Unknown User'}
             </Text>
-            {/* Privacy Icon */}
+            <MaterialIcons name="verified" size={14} color="#A855F7" style={{ marginLeft: 4 }} />
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <Text style={{ fontSize: 12, fontWeight: '500', opacity: 0.7, color: colors.subtleText }}>
+              {formatTime(timestamp)}
+            </Text>
+            <Text style={{ fontSize: 12, marginHorizontal: 4, fontWeight: '700', color: colors.subtleText }}>·</Text>
             <MaterialIcons
               name={getPrivacyIcon(postPrivacy) as any}
-              size={14}
+              size={12}
               color={colors.subtleText}
-              style={styles.privacyIcon}
             />
+            <Text style={{ fontSize: 11, fontWeight: '500', marginLeft: 4, color: colors.subtleText }}>
+              {postPrivacy === 'public' ? 'Công khai' : postPrivacy === 'friends' ? 'Bạn bè' : 'Chỉ mình tôi'}
+            </Text>
           </View>
-          <Text style={[styles.time, { color: colors.subtleText }]}>
-            {formatTime(timestamp)}
-          </Text>
         </View>
       </TouchableOpacity>
 
-      {!isOwner && (
+      {!isOwner && !hideFollowButton && (
         <TouchableOpacity
           style={[styles.followButton,
             {

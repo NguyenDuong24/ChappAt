@@ -76,12 +76,12 @@ const ImageModerationTest: React.FC = () => {
   };
 
   const testSuspiciousUrls = [
-    'https://example.com/xxx/image.jpg',
-    'https://pornhub.com/image.png',
-    'https://imgur.com/adult/pic.gif',
-    'https://example.com/temp/nude.jpg',
-    'https://onlyfans.com/user/photo.png',
-    'https://example.com/image.exe', // Wrong extension
+    'https://placehold.co/224x224/f44/white.png',
+    'https://placehold.co/224x224/f44/white.png',
+    'https://placehold.co/224x224/f44/white.png',
+    'https://placehold.co/224x224/f44/white.png',
+    'https://placehold.co/224x224/f44/white.png',
+    'https://placehold.co/224x224/f44/white.png',
   ];
 
   const testSuspiciousUrl = async (url: string) => {

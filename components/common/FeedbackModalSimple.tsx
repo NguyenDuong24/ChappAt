@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useThemedColors } from '@/hooks/useThemedColors';
+import { useTranslation } from 'react-i18next';
 
 interface FeedbackModalProps {
   visible: boolean;
@@ -27,6 +28,7 @@ interface FeedbackData {
 }
 
 const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
+  const { t } = useTranslation();
   const colors = useThemedColors();
   const [rating, setRating] = useState(0);
   const [category, setCategory] = useState('');
@@ -34,8 +36,13 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
   const [contactInfo, setContactInfo] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Fallback helper
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
+
   useEffect(() => {
-    // Ensure inputs are reset when modal opens
     if (visible) {
       setRating(0);
       setCategory('');
@@ -45,11 +52,11 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
   }, [visible]);
 
   const feedbackCategories = [
-    { id: 'bug', label: 'Báo lỗi', icon: 'bug' },
-    { id: 'feature', label: 'Yêu cầu tính năng', icon: 'lightbulb' },
-    { id: 'ui', label: 'Giao diện', icon: 'palette' },
-    { id: 'performance', label: 'Hiệu suất', icon: 'speedometer' },
-    { id: 'other', label: 'Khác', icon: 'dots-horizontal' },
+    { id: 'bug', label: tf('feedback_modal.categories.bug', 'Lỗi'), icon: 'bug' },
+    { id: 'feature', label: tf('feedback_modal.categories.feature', 'Tính năng'), icon: 'lightbulb' },
+    { id: 'ui', label: tf('feedback_modal.categories.ui', 'Giao diện'), icon: 'palette' },
+    { id: 'performance', label: tf('feedback_modal.categories.performance', 'Hiệu suất'), icon: 'speedometer' },
+    { id: 'other', label: tf('feedback_modal.categories.other', 'Khác'), icon: 'dots-horizontal' },
   ];
 
   const resetForm = () => {
@@ -61,17 +68,17 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
 
   const handleSubmit = async () => {
     if (rating === 0) {
-      Alert.alert('⚠️ Thiếu thông tin', 'Vui lòng đánh giá ứng dụng');
+      Alert.alert(tf('feedback_modal.missing_info', 'Thiếu thông tin'), tf('feedback_modal.please_rate', 'Vui lòng đánh giá'));
       return;
     }
 
     if (!category) {
-      Alert.alert('⚠️ Thiếu thông tin', 'Vui lòng chọn loại phản hồi');
+      Alert.alert(tf('feedback_modal.missing_info', 'Thiếu thông tin'), tf('feedback_modal.please_select_category', 'Vui lòng chọn danh mục'));
       return;
     }
 
     if (!comment.trim()) {
-      Alert.alert('⚠️ Thiếu thông tin', 'Vui lòng nhập nội dung phản hồi');
+      Alert.alert(tf('feedback_modal.missing_info', 'Thiếu thông tin'), tf('feedback_modal.please_enter_comment', 'Vui lòng nhập nội dung'));
       return;
     }
 
@@ -87,11 +94,12 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
 
       await onSubmit(feedbackData);
 
-      Alert.alert('🎉 Cảm ơn!', 'Phản hồi của bạn đã được gửi thành công', [
+      Alert.alert(tf('feedback_modal.thank_you', 'Cảm ơn bạn'), tf('feedback_modal.submit_success', 'Gửi phản hồi thành công'), [
         { text: 'OK', onPress: () => { resetForm(); onClose(); } }
       ]);
     } catch (error) {
-      Alert.alert('❌ Lỗi', 'Không thể gửi phản hồi. Vui lòng thử lại.');
+      console.error('Failed to submit feedback:', error);
+      Alert.alert(tf('common.error', 'Lỗi'), tf('feedback_modal.submit_error', 'Lỗi gửi phản hồi'));
     } finally {
       setSubmitting(false);
     }
@@ -102,20 +110,18 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
   return (
     <Modal visible={visible} transparent animationType="slide" presentationStyle="overFullScreen">
       <View style={styles.overlay}>
-        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-          {/* Header */}
+        <View style={[styles.modalContainer, { backgroundColor: colors.surfaceElevated || colors.cardBackground || colors.appBackground }]}>
           <View style={[styles.header, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialCommunityIcons name="close" size={24} color={colors.subtleText} />
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Phản hồi & Đánh giá</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>{tf('feedback_modal.title', 'Gửi phản hồi')}</Text>
             <View style={{ width: 24 }} />
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Star Rating */}
             <View style={styles.ratingContainer}>
-              <Text style={[styles.ratingLabel, { color: colors.text }]}>Đánh giá ứng dụng *</Text>
+              <Text style={[styles.ratingLabel, { color: colors.text }]}>{tf('feedback_modal.rate_app', 'Đánh giá ứng dụng')}</Text>
               <View style={styles.starsContainer}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <TouchableOpacity
@@ -126,23 +132,22 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
                     <MaterialCommunityIcons
                       name={star <= rating ? 'star' : 'star-outline'}
                       size={32}
-                      color={star <= rating ? '#FFD700' : colors.border}
+                      color={star <= rating ? '#FBBF24' : colors.border}
                     />
                   </TouchableOpacity>
                 ))}
               </View>
               <Text style={[styles.ratingText, { color: colors.subtleText }]}>
-                {rating === 0 ? 'Chưa đánh giá' :
-                  rating === 1 ? 'Rất tệ' :
-                    rating === 2 ? 'Tệ' :
-                      rating === 3 ? 'Bình thường' :
-                        rating === 4 ? 'Tốt' : 'Xuất sắc'}
+                {rating === 0 ? tf('feedback_modal.ratings.unrated', 'Chưa đánh giá') :
+                  rating === 1 ? tf('feedback_modal.ratings.terrible', 'Rất tệ') :
+                    rating === 2 ? tf('feedback_modal.ratings.bad', 'Tệ') :
+                      rating === 3 ? tf('feedback_modal.ratings.normal', 'Bình thường') :
+                        rating === 4 ? tf('feedback_modal.ratings.good', 'Tốt') : tf('feedback_modal.ratings.excellent', 'Rất tốt')}
               </Text>
             </View>
 
-            {/* Categories */}
             <View style={styles.categoriesContainer}>
-              <Text style={[styles.categoryLabel, { color: colors.text }]}>Loại phản hồi *</Text>
+              <Text style={[styles.categoryLabel, { color: colors.text }]}>{tf('feedback_modal.category_label', 'Danh mục')}</Text>
               <View style={styles.categoriesGrid}>
                 {feedbackCategories.map((cat) => (
                   <TouchableOpacity
@@ -160,7 +165,7 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
                     />
                     <Text style={[
                       styles.categoryText,
-                      { color: category === cat.id ? '#FFFFFF' : colors.primary }
+                      { color: category === cat.id ? '#FFFFFF' : colors.text }
                     ]}>
                       {cat.label}
                     </Text>
@@ -169,13 +174,12 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
               </View>
             </View>
 
-            {/* Comment */}
             <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Nội dung phản hồi *</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>{tf('feedback_modal.content_label', 'Nội dung')}</Text>
               <TextInput
                 value={comment}
                 onChangeText={setComment}
-                placeholder="Chia sẻ trải nghiệm hoặc gợi ý cải thiện..."
+                placeholder={tf('feedback_modal.content_placeholder', 'Nhập nội dung phản hồi...')}
                 multiline
                 numberOfLines={4}
                 style={[styles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
@@ -185,30 +189,26 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
               <Text style={[styles.charCount, { color: colors.subtleText }]}>{comment.length}/500</Text>
             </View>
 
-            {/* Contact Info */}
             <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: colors.text }]}>Thông tin liên hệ (tùy chọn)</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>{tf('feedback_modal.contact_info_label', 'Thông tin liên hệ (tùy chọn)')}</Text>
               <TextInput
                 value={contactInfo}
                 onChangeText={setContactInfo}
-                placeholder="Email hoặc số điện thoại để chúng tôi phản hồi"
+                placeholder={tf('feedback_modal.contact_info_placeholder', 'Email hoặc số điện thoại')}
                 style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 maxLength={100}
                 placeholderTextColor={colors.subtleText}
               />
             </View>
 
-            {/* Info Box */}
             <View style={[styles.infoBox, { backgroundColor: colors.isDark ? colors.surface : '#EFF6FF' }]}>
               <MaterialCommunityIcons name="information" size={20} color={colors.primary} />
               <Text style={[styles.infoText, { color: colors.isDark ? colors.text : '#1E40AF' }]}>
-                Phản hồi của bạn giúp chúng tôi cải thiện ứng dụng tốt hơn
+                {tf('feedback_modal.help_us_improve', 'Phản hồi của bạn sẽ giúp chúng tôi cải thiện ứng dụng')}
               </Text>
             </View>
           </ScrollView>
 
-          {/* Submit Button */}
-          {/* Footer */}
           <View style={[styles.footer, { borderTopColor: colors.border }]}>
             <TouchableOpacity
               style={[styles.submitButton, { opacity: submitting ? 0.7 : 1 }]}
@@ -220,11 +220,11 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
                 style={styles.submitGradient}
               >
                 {submitting ? (
-                  <Text style={styles.submitText}>Đang gửi...</Text>
+                  <Text style={styles.submitText}>{tf('feedback_modal.submitting', 'Đang gửi...')}</Text>
                 ) : (
                   <>
                     <MaterialCommunityIcons name="send" size={20} color="#FFFFFF" />
-                    <Text style={styles.submitText}>Gửi phản hồi</Text>
+                    <Text style={styles.submitText}>{tf('feedback_modal.submit', 'Gửi phản hồi')}</Text>
                   </>
                 )}
               </LinearGradient>
@@ -239,17 +239,21 @@ const FeedbackModal = ({ visible, onClose, onSubmit }: FeedbackModalProps) => {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15,23,42,0.38)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContainer: {
     width: '90%',
     maxHeight: '80%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 18,
     overflow: 'hidden',
-    height: '80%', // Ensure ScrollView (flex:1) has space to render on Android
+    height: '80%',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 10,
   },
   header: {
     flexDirection: 'row',
@@ -257,7 +261,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
   },
   closeButton: {
     padding: 4,
@@ -266,7 +269,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
-    color: '#0F172A',
     textAlign: 'center',
   },
   content: {

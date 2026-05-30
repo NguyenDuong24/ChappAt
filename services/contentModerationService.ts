@@ -23,16 +23,25 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { nsfwService } from './nsfwService';
 
 // ============================================
 // TYPES & INTERFACES
 // ============================================
-interface ModerationResult {
+export interface ModerationResult {
   isClean: boolean;
   filteredText?: string;
   violationType?: 'profanity' | 'nsfw' | 'custom';
   confidence?: number;
   blockedWords?: string[];
+}
+
+export interface ImageModerationResult {
+  isInappropriate: boolean;
+  confidence: number;
+  reason?: string;
+  scores?: Record<string, number>;
+  violationType?: 'nsfw' | 'image';
 }
 
 export interface BadWordDocument {
@@ -233,7 +242,7 @@ class ContentModerationService {
       
       console.log(`Filter updated with ${combined.length} words (active + local)`);
     } catch (error) {
-      console.error('Error updating filter:', error);
+      console.error('Error upmatch filter:', error);
     }
   }
 
@@ -464,10 +473,43 @@ class ContentModerationService {
   // COMBINED MODERATION
   // ============================================
 
+  async moderateImage(imageUri: string): Promise<ImageModerationResult> {
+    if (!imageUri) {
+      return { isInappropriate: false, confidence: 0, reason: 'No image provided', violationType: 'image' };
+    }
+
+    try {
+      const result = await nsfwService.classifyImage(imageUri);
+      const scoreValues = Object.values(result.scores || {}).filter(
+        (value): value is number => typeof value === 'number' && Number.isFinite(value)
+      );
+      const confidence = scoreValues.length ? Math.max(...scoreValues) : 0;
+
+      return {
+        isInappropriate: result.isInappropriate,
+        confidence,
+        reason: result.reason,
+        scores: result.scores || {},
+        violationType: result.isInappropriate ? 'nsfw' : 'image',
+      };
+    } catch (error) {
+      console.error('Error moderating image:', error);
+      return {
+        isInappropriate: true,
+        confidence: 1,
+        reason: 'Image moderation failed',
+        scores: {},
+        violationType: 'image',
+      };
+    }
+  }
+
   async moderateContent(
-    text?: string
+    text?: string,
+    imageUri?: string
   ): Promise<{
     textResult?: ModerationResult;
+    imageResult?: ImageModerationResult;
     isContentClean: boolean;
   }> {
     const results: any = {};
@@ -476,8 +518,13 @@ class ContentModerationService {
       results.textResult = await this.moderateText(text);
     }
 
+    if (imageUri) {
+      results.imageResult = await this.moderateImage(imageUri);
+    }
+
     const isContentClean = (
-      (!results.textResult || results.textResult.isClean)
+      (!results.textResult || results.textResult.isClean) &&
+      (!results.imageResult || !results.imageResult.isInappropriate)
     );
 
     return {
@@ -486,7 +533,11 @@ class ContentModerationService {
     };
   }
 
-  generateWarningMessage(result: ModerationResult): string {
+  generateWarningMessage(result: ModerationResult | ImageModerationResult): string {
+    if ('isInappropriate' in result) {
+      return 'Hinh anh khong phu hop voi quy dinh cong dong.';
+    }
+
     if ('violationType' in result) {
       switch (result.violationType) {
         case 'profanity':
@@ -683,7 +734,7 @@ class ContentModerationService {
       });
       
       if (JSON.stringify(freshWords) !== JSON.stringify(this.firebaseBadWords)) {
-        console.log('Firebase data differs from cache, updating...');
+        console.log('Firebase data differs from cache, upmatch...');
         this.firebaseBadWords = freshWords;
         this.updateFilter();
         await this.saveToCache(freshWords);
@@ -873,149 +924,8 @@ class ContentModerationService {
     return this.isInitialized && !!this.filter;
   }
 
-  /**
-   * Resolve constructor của bad-words theo mọi kiểu export có thể
-   */
-  private resolveBadWordsCtor(): any | null {
-    try {
-      if (!BadWordsFilter) return null;
-      // CJS: export trực tiếp là constructor
-      if (typeof BadWordsFilter === 'function') return BadWordsFilter;
-      // ESM default export là constructor
-      if (BadWordsFilter && typeof BadWordsFilter.default === 'function') {
-        return BadWordsFilter.default;
-      }
-      // Một số bundler export dưới dạng { Filter }
-      if (BadWordsFilter && typeof BadWordsFilter.Filter === 'function') {
-        return BadWordsFilter.Filter;
-      }
-      // nested default.Filter
-      if (
-        BadWordsFilter &&
-        BadWordsFilter.default &&
-        typeof BadWordsFilter.default.Filter === 'function'
-      ) {
-        return BadWordsFilter.default.Filter;
-      }
-      return null;
-    } catch (e) {
-      console.error('resolveBadWordsCtor error:', e);
-      return null;
-    }
-  }
-
-  /**
-   * Tạo instance filter một cách an toàn
-   */
-  private createFilterInstance(): any | null {
-    const Ctor = this.resolveBadWordsCtor();
-    if (!Ctor) return null;
-    try {
-      const inst = new Ctor();
-      // Validate methods
-      if (
-        inst &&
-        typeof inst.isProfane === 'function' &&
-        typeof inst.clean === 'function' &&
-        typeof inst.addWords === 'function'
-      ) {
-        return inst;
-      }
-      return null;
-    } catch (e) {
-      console.error('createFilterInstance error:', e);
-      return null;
-    }
-  }
-
-  private async loadLocalCustomWords(): Promise<void> {
-    try {
-      const raw = await AsyncStorage.getItem(this.LOCAL_WORDS_KEY);
-      this.localCustomWords = raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      console.warn('loadLocalCustomWords error:', e);
-      this.localCustomWords = [];
-    }
-  }
-
-  private async saveLocalCustomWords(): Promise<void> {
-    try {
-      await AsyncStorage.setItem(this.LOCAL_WORDS_KEY, JSON.stringify(this.localCustomWords));
-    } catch (e) {
-      console.warn('saveLocalCustomWords error:', e);
-    }
-  }
-
-  async addLocalWords(words: string[]): Promise<void> {
-    const set = new Set([...(this.localCustomWords || [])]);
-    words.map(w => w.trim().toLowerCase()).filter(Boolean).forEach(w => set.add(w));
-    this.localCustomWords = Array.from(set);
-    await this.saveLocalCustomWords();
-    this.updateFilter();
-  }
-
-  async removeLocalWords(words: string[]): Promise<void> {
-    const blacklist = new Set(words.map(w => w.trim().toLowerCase()));
-    this.localCustomWords = (this.localCustomWords || []).filter(w => !blacklist.has(w));
-    await this.saveLocalCustomWords();
-    this.updateFilter();
-  }
-
-  /**
-   * Xóa mọi cache/bộ nhớ cục bộ của moderation để reset lại hoàn toàn
-   */
-  async clearModerationCache(): Promise<void> {
-    try {
-      await AsyncStorage.multiRemove([
-        this.CACHE_KEY,
-        this.CACHE_TIMESTAMP_KEY,
-        this.LOCAL_WORDS_KEY,
-      ]);
-      this.firebaseBadWords = [];
-      this.localCustomWords = [];
-      this.filter = this.createFilterInstance();
-      console.log('Cleared moderation caches and reinitialized filter');
-      this.updateFilter();
-    } catch (e) {
-      console.error('clearModerationCache error:', e);
-    }
-  }
-
-  /**
-   * Chuẩn hóa và tạo các biến thể để phát hiện nội dung bị che giấu
-   */
-  private normalizeTextVariants(text: string): string[] {
-    const lower = (text || '').toLowerCase();
-
-    // Loại bỏ ký tự vô hình (zero-width)
-    const noZeroWidth = lower.replace(/[\u200B-\u200D\uFEFF]/g, '');
-
-    // Bản loại bỏ khoảng trắng và ký tự không phải chữ/số
-    const collapsed = noZeroWidth.replace(/[^\p{L}\p{N}]+/gu, '');
-
-    // Thay thế leet-speak phổ biến
-    const LEET_MAP: Record<string, string> = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '@': 'a', '$': 's', '!': 'i' };
-    const deLeet = noZeroWidth.replace(/[013457@\$!]/g, (ch) => LEET_MAP[ch] || ch);
-    const deLeetCollapsed = deLeet.replace(/[^\p{L}\p{N}]+/gu, '');
-
-    // Rút gọn ký tự lặp (fuuuuck -> fuck)
-    const dedup = noZeroWidth.replace(/(\p{L})\1{2,}/gu, '$1');
-    const dedupCollapsed = dedup.replace(/[^\p{L}\p{N}]+/gu, '');
-
-    const variants = Array.from(new Set([lower, noZeroWidth, collapsed, deLeet, deLeetCollapsed, dedup, dedupCollapsed]));
-    return variants.filter(Boolean);
-  }
-
-  /**
-   * Tạo regex để bắt biến thể có ký tự chen giữa các chữ (f.u-c k, f u c k, f**ck)
-   */
-  private buildObfuscationRegex(word: string): RegExp {
-    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = escaped.split('').join('[^\p{L}\p{N}]?');
-    return new RegExp(pattern, 'giu');
-  }
 }
 
 // Export singleton instance
 export default new ContentModerationService();
-export { ContentModerationService, ModerationResult };
+export { ContentModerationService };

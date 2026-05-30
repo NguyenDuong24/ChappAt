@@ -12,10 +12,15 @@ import {
   Alert,
   Modal,
   ScrollView,
+  Dimensions,
 } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useKeyboardHeight } from '@/hooks/useKeyboardHeight';
 import { useAuth } from '@/context/authContext';
 import { Colors } from '@/constants/Colors';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -31,16 +36,14 @@ import {
   updateDoc,
   where,
   getDocs,
-  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadLocalFileToStorage } from '@/utils/storageUpload';
 import { giftService } from '@/services/giftService';
 import GoTogetherConfirm from '@/components/hotspots/GoTogetherConfirm';
 import ProximityTracker from '@/components/hotspots/ProximityTracker';
 import { HotSpotInvite } from '@/types/hotSpotInvites';
-import * as Clipboard from 'expo-clipboard';
 import ReportModalSimple from '@/components/common/ReportModalSimple';
 import { submitReport } from '@/services/supportService';
 import ReplyPreview from '@/components/chat/ReplyPreview';
@@ -72,7 +75,8 @@ interface Message {
   reactions?: Record<string, string[]>; // emoji -> [userIds]
 }
 
-const REACTION_EMOJIS = ['??', '??', '??', '??', '??', '??'];
+const { width: screenWidth } = Dimensions.get('window');
+const MESSAGE_IMAGE_WIDTH = Math.min(screenWidth * 0.58, 236);
 
 const normalizeMojibakeText = (value: string = ''): string => {
   const text = String(value || '');
@@ -90,17 +94,37 @@ const HotSpotChatScreen = () => {
   const { t } = useTranslation();
   const router = useRouter();
   const { chatRoomId, hotSpotId, hotSpotTitle } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
   const { user } = useAuth();
   const themeCtx = useContext(ThemeContext);
   const theme = themeCtx?.theme || 'light';
+  const isDark = theme === 'dark';
   const currentThemeColors = Colors[theme] || Colors.light;
   const { playMessageReceivedSound, playMessageSentSound } = useSound();
   const previousMessageCountRef = useRef(0);
+  const chatPalette = {
+    background: isDark ? '#07110F' : '#F7F8FB',
+    surface: isDark ? '#10201D' : '#FFFFFF',
+    surfaceSoft: isDark ? '#172B27' : '#F1F5F9',
+    border: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)',
+    text: isDark ? '#F8FAFC' : '#111827',
+    muted: isDark ? '#A7B7B3' : '#64748B',
+    sent: '#0F766E',
+    received: isDark ? '#152A26' : '#FFFFFF',
+    accent: '#F97316',
+  };
+
+  const tt = (key: string, fallback: string) => {
+    const value = t(key);
+    return !value || value === key || value.startsWith('hotspots.') ? fallback : value;
+  };
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [hotSpotData, setHotSpotData] = useState<any>(null);
   const [otherUser, setOtherUser] = useState<any>(null);
   const [giftCatalog, setGiftCatalog] = useState<any[]>([]);
@@ -205,7 +229,7 @@ const HotSpotChatScreen = () => {
             [`locations.${user?.uid}`]: coords,
           });
         } catch (error) {
-          console.error('Error updating location:', error);
+          console.error('Error upmatch location:', error);
         }
       }, 10000); // Update every 10 seconds
     };
@@ -365,37 +389,75 @@ const HotSpotChatScreen = () => {
   };
 
   const handleImagePicker = async () => {
+    if (!chatRoomId || !user?.uid || uploadingImage) return;
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== 'granted') {
+      Alert.alert(
+        t('common.error'),
+        tt('hotspots.chat.photo_permission_error', 'Please allow photo library access to send images.')
+      );
+      return;
+    }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
+      allowsEditing: false,
+      quality: 0.82,
     });
 
-    if (!result.canceled) {
-      const imageUri = result.assets[0].uri;
-      await uploadImage(imageUri);
+    if (!result.canceled && result.assets?.[0]) {
+      await uploadImage(result.assets[0]);
     }
   };
 
-  const uploadImage = async (uri: string) => {
-    try {
-      const blob = await (await fetch(uri)).blob();
-      const storage = getStorage();
-      const storageRef = ref(storage, `hotspot-chat-images/${chatRoomId}/${Date.now()}`);
+  const uploadImage = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (!chatRoomId || !user?.uid) return;
 
-      await uploadBytes(storageRef, blob);
-      const downloadURL = await getDownloadURL(storageRef);
+    setUploadingImage(true);
+    try {
+      const rawFileName = asset.fileName || '';
+      const rawExtension = rawFileName.split('.').pop()?.toLowerCase();
+      const extension = rawExtension && ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(rawExtension)
+        ? rawExtension
+        : 'jpg';
+      const safeChatRoomId = String(chatRoomId).replace(/[\/?#\[\]]/g, '_');
+      const storagePath = `hotspot-chat-images/${user.uid}/${safeChatRoomId}/${Date.now()}.${extension}`;
+      const downloadURL = await uploadLocalFileToStorage({
+        uri: asset.uri,
+        path: storagePath,
+        contentType: asset.mimeType || 'image/jpeg',
+        metadata: {
+          customMetadata: {
+            ownerId: user.uid,
+            chatRoomId: String(chatRoomId),
+            kind: 'hotspot-chat-image',
+          },
+        },
+        maxRetries: 2,
+      });
+
+      const messageData: any = {
+        text: '',
+        imageUrl: downloadURL,
+        senderId: user.uid,
+        senderName: user.displayName || user.username || t('groups.user'),
+        timestamp: Timestamp.now(),
+        type: 'image',
+      };
+
+      if (replyingTo) {
+        messageData.replyTo = {
+          messageId: replyingTo.id,
+          senderName: replyingTo.senderName,
+          text: replyingTo.text,
+          type: replyingTo.type,
+        };
+      }
 
       // Send message with image URL
       const messagesRef = collection(db, 'hotSpotChats', chatRoomId as string, 'messages');
-      await addDoc(messagesRef, {
-        text: '',
-        imageUrl: downloadURL,
-        senderId: user?.uid,
-        senderName: user?.displayName || user?.username || t('groups.user'),
-        timestamp: Timestamp.now(),
-        type: 'image',
-      });
+      await addDoc(messagesRef, messageData);
 
       // Update last message in chat room
       const chatRef = doc(db, 'hotSpotChats', chatRoomId as string);
@@ -404,10 +466,14 @@ const HotSpotChatScreen = () => {
         lastMessageTime: Timestamp.now(),
       });
 
+      playMessageSentSound();
       setNewMessage('');
+      setReplyingTo(null);
     } catch (error: any) {
       console.error('Error uploading image:', error);
-      Alert.alert(t('common.error'), t('hotspots.chat.upload_image_error'));
+      Alert.alert(t('common.error'), tt('hotspots.chat.upload_image_error', 'Unable to upload image.'));
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -537,80 +603,62 @@ const HotSpotChatScreen = () => {
     await toggleReaction(roomIdForActions, message.id, emoji, user.uid);
   };
 
-  const renderReactions = (item: Message, isMyMessage: boolean) => {
-    // Use shared MessageReactions for consistency
+  const renderReactions = (item: Message) => {
+    if (!item.reactions || Object.keys(item.reactions).length === 0) return null;
+
     return (
-      <MessageReactions
-        reactions={item.reactions || {}}
-        onReactionPress={(emoji) => handleReactionPress(item, emoji)}
-        currentUserId={user?.uid || ''}
-      />
+      <View style={styles.reactionStrip}>
+        <MessageReactions
+          reactions={item.reactions || {}}
+          onReactionPress={(emoji) => handleReactionPress(item, emoji)}
+          currentUserId={user?.uid || ''}
+        />
+      </View>
+    );
+  };
+
+  const formatMessageTime = (timestamp: any) => {
+    const date = timestamp?.toDate?.();
+    return date ? date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+  };
+
+  const renderAvatar = (avatarUrl: string | undefined, style: any, iconSize = 18) => {
+    if (avatarUrl) {
+      return <Image source={{ uri: avatarUrl }} style={style} contentFit="cover" />;
+    }
+
+    return (
+      <View style={[style, styles.avatarFallback, { backgroundColor: isDark ? '#1E3A34' : '#E0F2F1' }]}>
+        <MaterialIcons name="person" size={iconSize} color={chatPalette.sent} />
+      </View>
     );
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isMyMessage = item.senderId === user?.uid;
     const isSystemMessage = item.type === 'system';
+    const messageTime = formatMessageTime(item.timestamp);
+    const bubbleStyle = [
+      styles.messageBubble,
+      isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
+      item.type === 'image' && styles.imageMessageBubble,
+      item.type === 'gift' && styles.giftMessageBubble,
+      !isMyMessage && item.type !== 'image' && {
+        backgroundColor: chatPalette.received,
+        borderColor: chatPalette.border,
+      },
+    ];
+    const textColor = isMyMessage ? '#FFFFFF' : chatPalette.text;
+    const metaColor = item.type === 'image'
+      ? chatPalette.muted
+      : isMyMessage ? 'rgba(255,255,255,0.74)' : chatPalette.muted;
 
     if (isSystemMessage) {
       return (
-        <View style={styles.systemMessage}>
-          <Text style={styles.systemMessageText}>{item.text}</Text>
+        <View style={[styles.systemMessage, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)' }]}>
+          <Ionicons name="sparkles" size={13} color={chatPalette.accent} />
+          <Text style={[styles.systemMessageText, { color: chatPalette.muted }]}>{item.text}</Text>
         </View>
-      );
-    }
-
-    if (item.type === 'image') {
-      return (
-        <TouchableOpacity
-          style={[styles.messageContainer, isMyMessage ? styles.myMessage : styles.otherMessage]}
-          onLongPress={() => handleMessageLongPress(item)}
-          activeOpacity={0.9}
-        >
-          {!isMyMessage && (
-            <CustomImage
-              source={otherUser?.profileUrl || 'https://via.placeholder.com/40'}
-              style={styles.avatar}
-              onLongPress={() => { }}
-            />
-          )}
-          <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble]}>
-            {!isMyMessage && <Text style={styles.senderName}>{item.senderName}</Text>}
-            <CustomImage source={item.imageUrl} style={styles.messageImage} onLongPress={handleMessageLongPress} />
-            {renderReactions(item, isMyMessage)}
-            <Text style={[styles.timestamp, isMyMessage ? styles.myTimestamp : styles.otherTimestamp]}>
-              {item.timestamp?.toDate?.().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
-    }
-
-    if (item.type === 'gift') {
-      return (
-        <TouchableOpacity
-          style={[styles.messageContainer, isMyMessage ? styles.myMessage : styles.otherMessage]}
-          onLongPress={() => handleMessageLongPress(item)}
-          activeOpacity={0.9}
-        >
-          {!isMyMessage && (
-            <CustomImage
-              source={otherUser?.profileUrl || 'https://via.placeholder.com/40'}
-              style={styles.avatar}
-              onLongPress={() => { }}
-            />
-          )}
-          <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble]}>
-            {!isMyMessage && <Text style={styles.senderName}>{item.senderName}</Text>}
-            <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>
-              {item.text}
-            </Text>
-            {renderReactions(item, isMyMessage)}
-            <Text style={[styles.timestamp, isMyMessage ? styles.myTimestamp : styles.otherTimestamp]}>
-              {item.timestamp?.toDate?.().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-        </TouchableOpacity>
       );
     }
 
@@ -620,34 +668,83 @@ const HotSpotChatScreen = () => {
         onLongPress={() => handleMessageLongPress(item)}
         activeOpacity={0.9}
       >
-        {!isMyMessage && (
-          <CustomImage
-            source={otherUser?.profileUrl || 'https://via.placeholder.com/40'}
-            style={styles.avatar}
-            onLongPress={() => { }}
-          />
-        )}
-        <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble]}>
-          {!isMyMessage && <Text style={styles.senderName}>{item.senderName}</Text>}
-          {/* Reply Context */}
-          {item.replyTo && (
-            <View style={styles.replyContainer}>
-              <View style={styles.replyLine} />
-              <View style={styles.replyContent}>
-                <Text style={styles.replySender}>{item.replyTo.senderName}</Text>
-                <Text style={styles.replyText} numberOfLines={1}>
-                  {item.replyTo.type === 'image' ? t('chat.image') : item.replyTo.text}
-                </Text>
+        {!isMyMessage && renderAvatar(otherUser?.profileUrl, styles.avatar)}
+
+        <View style={[styles.messageStack, isMyMessage ? styles.messageStackRight : styles.messageStackLeft]}>
+          {!isMyMessage && <Text style={[styles.senderName, { color: chatPalette.muted }]}>{item.senderName}</Text>}
+
+          <View style={bubbleStyle}>
+            {item.replyTo && (
+              <View
+                style={[
+                  styles.replyContainer,
+                  {
+                    backgroundColor: isMyMessage ? 'rgba(255,255,255,0.14)' : isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.05)',
+                    borderLeftColor: isMyMessage ? 'rgba(255,255,255,0.75)' : chatPalette.sent,
+                  },
+                ]}
+              >
+                <View style={styles.replyContent}>
+                  <Text style={[styles.replySender, { color: isMyMessage ? '#FFFFFF' : chatPalette.sent }]}>
+                    {item.replyTo.senderName}
+                  </Text>
+                  <Text
+                    style={[styles.replyText, { color: isMyMessage ? 'rgba(255,255,255,0.78)' : chatPalette.muted }]}
+                    numberOfLines={1}
+                  >
+                    {item.replyTo.type === 'image' ? t('chat.image') : item.replyTo.text}
+                  </Text>
+                </View>
               </View>
+            )}
+
+            {item.type === 'image' ? (
+              <View style={styles.imageContent}>
+                <CustomImage
+                  source={item.imageUrl}
+                  style={styles.messageImage}
+                  onLongPress={() => handleMessageLongPress(item)}
+                />
+                {item.text ? (
+                  <Text style={[styles.messageText, styles.imageCaptionText, { color: textColor }]}>
+                    {item.text}
+                  </Text>
+                ) : null}
+              </View>
+            ) : item.type === 'gift' ? (
+              <View style={styles.giftContent}>
+                <LinearGradient
+                  colors={isMyMessage ? ['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.10)'] : ['#FFF7ED', '#ECFDF5']}
+                  style={styles.giftIconBox}
+                >
+                  <Text style={styles.giftIconText}>{item.gift?.icon || 'Gift'}</Text>
+                </LinearGradient>
+                <View style={styles.giftTextBlock}>
+                  <Text style={[styles.giftLabel, { color: isMyMessage ? 'rgba(255,255,255,0.76)' : chatPalette.muted }]}>
+                    {t('chat.gift')}
+                  </Text>
+                  <Text style={[styles.messageText, styles.giftMessageText, { color: textColor }]}>
+                    {item.gift?.name || item.text}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <Text style={[styles.messageText, { color: textColor }]}>
+                {item.text}
+              </Text>
+            )}
+
+            <View style={styles.messageMetaRow}>
+              <Text style={[styles.timestamp, { color: metaColor }]}>
+                {messageTime}
+              </Text>
+              {isMyMessage && (
+                <MaterialIcons name="done" size={13} color={metaColor} />
+              )}
             </View>
-          )}
-          <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>
-            {item.text}
-          </Text>
-          {renderReactions(item, isMyMessage)}
-          <Text style={[styles.timestamp, isMyMessage ? styles.myTimestamp : styles.otherTimestamp]}>
-            {item.timestamp?.toDate?.().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-          </Text>
+          </View>
+
+          {renderReactions(item)}
         </View>
       </TouchableOpacity>
     );
@@ -655,29 +752,36 @@ const HotSpotChatScreen = () => {
 
   const renderHotSpotInfo = () => {
     if (!hotSpotData) return null;
+    const hotSpotImage = hotSpotData.thumbnail || hotSpotData.imageUrl || hotSpotData.images?.[0];
 
     return (
       <TouchableOpacity
-        style={styles.hotSpotInfo}
+        style={[styles.hotSpotInfo, { backgroundColor: chatPalette.surface, borderColor: chatPalette.border }]}
         onPress={() => router.push({ pathname: '/(screens)/hotspots/HotSpotDetailScreen', params: { hotSpotId } })}
+        activeOpacity={0.88}
       >
-        <LinearGradient
-          colors={['#8B5CF6', '#EC4899']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.hotSpotGradient}
-        >
-          <View style={styles.hotSpotContent}>
-            <Ionicons name="location" size={20} color="white" />
-            <View style={styles.hotSpotTextContainer}>
-              <Text style={styles.hotSpotLabel}>{t('hotspots.chat.talking_about')}</Text>
-              <Text style={styles.hotSpotTitle} numberOfLines={1}>
-                {hotSpotTitle || hotSpotData.title}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="white" />
+        <View style={styles.hotSpotContent}>
+          <View style={styles.hotSpotThumbWrap}>
+            {hotSpotImage ? (
+              <Image source={{ uri: hotSpotImage }} style={styles.hotSpotThumb} contentFit="cover" />
+            ) : (
+              <LinearGradient colors={['#0F766E', '#F97316']} style={styles.hotSpotThumbFallback}>
+                <Ionicons name="location" size={18} color="#FFFFFF" />
+              </LinearGradient>
+            )}
           </View>
-        </LinearGradient>
+          <View style={styles.hotSpotTextContainer}>
+            <Text style={[styles.hotSpotLabel, { color: chatPalette.muted }]}>
+              {tt('hotspots.chat.talking_about', 'Talking about')}
+            </Text>
+            <Text style={[styles.hotSpotTitle, { color: chatPalette.text }]} numberOfLines={1}>
+              {hotSpotTitle || hotSpotData.title}
+            </Text>
+          </View>
+          <View style={[styles.hotSpotChevron, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#F1F5F9' }]}>
+            <Ionicons name="chevron-forward" size={18} color={chatPalette.muted} />
+          </View>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -722,9 +826,23 @@ const HotSpotChatScreen = () => {
     }
   };
 
+  const renderEmptyMessages = () => (
+    <View style={styles.emptyMessages}>
+      <View style={[styles.emptyIcon, { backgroundColor: isDark ? 'rgba(249,115,22,0.16)' : '#FFF7ED' }]}>
+        <Ionicons name="chatbubble-ellipses" size={26} color={chatPalette.accent} />
+      </View>
+      <Text style={[styles.emptyTitle, { color: chatPalette.text }]}>
+        {tt('chat.empty_messages', 'No messages yet. Send a greeting!')}
+      </Text>
+      <Text style={[styles.emptySubtitle, { color: chatPalette.muted }]}>
+        {tt('hotspots.chat.empty_hint', 'Start planning your Hot Spot meetup here.')}
+      </Text>
+    </View>
+  );
+
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: chatPalette.background }]}>
         <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
@@ -732,39 +850,42 @@ const HotSpotChatScreen = () => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[
+        styles.container,
+        { backgroundColor: chatPalette.background },
+        Platform.OS === 'android' && { paddingBottom: keyboardHeight },
+      ]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Header */}
       <LinearGradient
-        colors={['#8B5CF6', '#EC4899', '#F59E0B']}
+        colors={['#0F766E', '#F97316', '#EF4444']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 10 }]}
       >
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.headerIconButton} onPress={() => router.back()} activeOpacity={0.82}>
           <MaterialIcons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
 
         <View style={styles.headerCenter}>
-          <CustomImage
-            source={otherUser?.profileUrl || 'https://via.placeholder.com/40'}
-            style={styles.headerAvatar}
-            onLongPress={() => { }}
-          />
-          <View>
-            <Text style={styles.headerTitle}>{otherUser?.username || 'User'}</Text>
+          {renderAvatar(otherUser?.profileUrl, styles.headerAvatar, 21)}
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {otherUser?.username || otherUser?.displayName || tt('hotspots.chat.other_user', 'Other user')}
+            </Text>
             <View style={styles.hotSpotBadge}>
               <Ionicons name="flame" size={12} color="#F59E0B" />
-
+              <Text style={styles.hotSpotBadgeText}>Hot Spot chat</Text>
             </View>
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.infoButton}
+          style={styles.headerIconButton}
           onPress={() => router.push({ pathname: '/(screens)/hotspots/HotSpotDetailScreen', params: { hotSpotId } })}
+          activeOpacity={0.82}
         >
           <MaterialIcons name="info-outline" size={24} color="white" />
         </TouchableOpacity>
@@ -875,9 +996,9 @@ const HotSpotChatScreen = () => {
             {distance !== null ? (
               <View style={styles.distanceInfo}>
                 <Text style={styles.distanceValue}>
-                  {distance < 1
-                    ? `${(distance * 1000).toFixed(0)} m`
-                    : `${distance.toFixed(1)} km`}
+                  {(distance ?? 0) < 1
+                    ? `${((distance ?? 0) * 1000).toFixed(0)} m`
+                    : `${(distance ?? 0).toFixed(1)} km`}
                 </Text>
                 <Text style={styles.distanceLabel}>
                   Distance between you and {otherUser?.username}
@@ -902,13 +1023,27 @@ const HotSpotChatScreen = () => {
         data={messages}
         keyExtractor={(item, index) => `${item.id}_${index}`}
         renderItem={renderMessage}
-        contentContainerStyle={styles.messagesList}
+        contentContainerStyle={[styles.messagesList, messages.length === 0 && styles.messagesListEmpty]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={renderEmptyMessages}
+        initialNumToRender={18}
+        windowSize={8}
+        removeClippedSubviews={Platform.OS === 'android'}
         inverted={false}
       />
 
       {/* Input */}
-      <View style={styles.inputContainer}>
+      <View
+        style={[
+          styles.inputContainer,
+          {
+            backgroundColor: chatPalette.surface,
+            borderTopColor: chatPalette.border,
+            paddingBottom: Math.max(insets.bottom, 8),
+          },
+        ]}
+      >
         {/* Reply Preview */}
         {replyingTo && (
           <ReplyPreview
@@ -923,19 +1058,28 @@ const HotSpotChatScreen = () => {
           />
         )}
 
-        <View style={styles.inputWrapper}>
-          <TouchableOpacity onPress={() => setShowGifts(true)} style={styles.iconButton}>
-            <Text style={{ fontSize: 18 }}>??</Text>
+        <View style={[styles.inputWrapper, { backgroundColor: chatPalette.surfaceSoft, borderColor: chatPalette.border }]}>
+          <TouchableOpacity onPress={() => setShowGifts(true)} style={styles.iconButton} activeOpacity={0.78}>
+            <MaterialIcons name="card-giftcard" size={22} color={chatPalette.accent} />
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleImagePicker} style={styles.iconButton}>
-            <MaterialIcons name="image" size={24} color="#666" />
+          <TouchableOpacity
+            onPress={handleImagePicker}
+            style={[styles.iconButton, uploadingImage && styles.iconButtonDisabled]}
+            disabled={uploadingImage}
+            activeOpacity={0.78}
+          >
+            {uploadingImage ? (
+              <ActivityIndicator size="small" color={chatPalette.sent} />
+            ) : (
+              <MaterialIcons name="image" size={23} color={chatPalette.sent} />
+            )}
           </TouchableOpacity>
 
           <TextInput
-            style={styles.input}
-            placeholder={t('hotspots.chat.message_placeholder')}
-            placeholderTextColor="#999"
+            style={[styles.input, { color: chatPalette.text }]}
+            placeholder={tt('hotspots.chat.message_placeholder', 'Message about this Hot Spot...')}
+            placeholderTextColor={chatPalette.muted}
             value={newMessage}
             onChangeText={setNewMessage}
             multiline
@@ -946,6 +1090,7 @@ const HotSpotChatScreen = () => {
             style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
             onPress={handleSendMessage}
             disabled={!newMessage.trim() || sending}
+            activeOpacity={0.82}
           >
             {sending ? (
               <ActivityIndicator size="small" color="white" />
@@ -965,24 +1110,29 @@ const HotSpotChatScreen = () => {
       >
         <TouchableOpacity activeOpacity={1} onPress={() => setShowGifts(false)} style={styles.modalBackdrop} />
 
-        <View style={styles.modalSheet}>
+        <View style={[styles.modalSheet, { backgroundColor: chatPalette.surface, paddingBottom: Math.max(insets.bottom + 12, 24) }]}>
           <View style={styles.modalHeaderRow}>
-            <Text style={styles.modalTitle}>{t('chat.send_gift')}</Text>
-            <TouchableOpacity onPress={() => setShowGifts(false)}>
-              <MaterialIcons name="close" size={24} color="#333" />
+            <Text style={[styles.modalTitle, { color: chatPalette.text }]}>{t('chat.send_gift')}</Text>
+            <TouchableOpacity onPress={() => setShowGifts(false)} style={styles.modalCloseButton} activeOpacity={0.78}>
+              <MaterialIcons name="close" size={22} color={chatPalette.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.giftGrid}>
-            {giftCatalog.map((gift: any) => (
+            {giftCatalog.length === 0 ? (
+              <Text style={[styles.giftEmptyText, { color: chatPalette.muted }]}>
+                {tt('gift_picker.empty', 'No gifts found')}
+              </Text>
+            ) : giftCatalog.map((gift: any) => (
               <TouchableOpacity
                 key={gift.id}
-                style={styles.giftTile}
+                style={[styles.giftTile, { backgroundColor: chatPalette.surfaceSoft, borderColor: chatPalette.border }]}
                 onPress={() => handleSendGift(gift.id)}
+                activeOpacity={0.84}
               >
                 <Text style={{ fontSize: 24 }}>{gift.icon}</Text>
-                <Text style={styles.giftTitle}>{gift.name}</Text>
-                <Text style={styles.giftPrice}>{gift.price} Bread</Text>
+                <Text style={[styles.giftTitle, { color: chatPalette.text }]} numberOfLines={1}>{gift.name}</Text>
+                <Text style={[styles.giftPrice, { color: chatPalette.muted }]}>{gift.price} Bread</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -1035,45 +1185,66 @@ const HotSpotChatScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 50 : 50,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#0F766E',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
   },
-  backButton: {
-    padding: 8,
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   headerCenter: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 12,
+    marginHorizontal: 12,
+    minWidth: 0,
   },
   headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     marginRight: 12,
     borderWidth: 2,
-    borderColor: 'white',
+    borderColor: 'rgba(255,255,255,0.75)',
+  },
+  avatarFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTextBlock: {
+    flex: 1,
+    minWidth: 0,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: 'white',
   },
   hotSpotBadge: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
     marginTop: 4,
     gap: 4,
   },
@@ -1086,46 +1257,71 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   hotSpotInfo: {
-    marginHorizontal: 16,
-    marginVertical: 12,
+    marginHorizontal: 14,
+    marginTop: 12,
+    marginBottom: 6,
     borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    borderWidth: 1,
+    padding: 10,
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  hotSpotGradient: {
-    padding: 16,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
   },
   hotSpotContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+  },
+  hotSpotThumbWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginRight: 10,
+  },
+  hotSpotThumb: {
+    width: '100%',
+    height: '100%',
+  },
+  hotSpotThumbFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   hotSpotTextContainer: {
     flex: 1,
+    minWidth: 0,
   },
   hotSpotLabel: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   hotSpotTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'white',
     marginTop: 2,
   },
+  hotSpotChevron: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
   messagesList: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    flexGrow: 1,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 14,
+  },
+  messagesListEmpty: {
+    justifyContent: 'center',
   },
   messageContainer: {
     flexDirection: 'row',
-    marginVertical: 4,
-    paddingHorizontal: 12,
+    alignItems: 'flex-end',
+    marginVertical: 5,
   },
   myMessage: {
     justifyContent: 'flex-end',
@@ -1138,133 +1334,187 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     marginRight: 8,
+    marginBottom: 2,
+  },
+  messageStack: {
+    maxWidth: '80%',
+  },
+  messageStackRight: {
+    alignItems: 'flex-end',
+    marginLeft: 46,
+  },
+  messageStackLeft: {
+    alignItems: 'flex-start',
+  },
+  reactionStrip: {
+    marginTop: 3,
   },
   messageBubble: {
-    maxWidth: '70%',
-    padding: 12,
-    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   myMessageBubble: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0F766E',
+    borderColor: 'rgba(15,118,110,0.24)',
     alignSelf: 'flex-end',
+    borderTopRightRadius: 8,
   },
   otherMessageBubble: {
-    backgroundColor: '#E5E5EA',
     alignSelf: 'flex-start',
+    borderTopLeftRadius: 8,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 7,
+  },
+  imageMessageBubble: {
+    padding: 0,
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    overflow: 'visible',
+  },
+  giftMessageBubble: {
+    minWidth: 190,
   },
   senderName: {
     fontSize: 12,
-    color: '#8E8E93',
+    fontWeight: '600',
     marginBottom: 4,
-    marginLeft: 40,
+    marginLeft: 2,
   },
   messageText: {
     fontSize: 15,
-    lineHeight: 20,
+    lineHeight: 21,
   },
-  myMessageText: {
-    color: 'white',
+  imageCaptionText: {
+    paddingHorizontal: 8,
+    paddingTop: 8,
   },
-  otherMessageText: {
-    color: '#333',
+  giftContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  giftIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  giftIconText: {
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  giftTextBlock: {
+    flex: 1,
+    minWidth: 0,
+  },
+  giftLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  giftMessageText: {
+    fontWeight: '700',
+  },
+  messageMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginTop: 5,
   },
   timestamp: {
     fontSize: 10,
-    marginTop: 4,
+    fontWeight: '600',
   },
-  myTimestamp: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'right',
-  },
-  otherTimestamp: {
-    color: '#8E8E93',
-    textAlign: 'left',
-  },
-  giftImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-  },
-  otherUserAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#FFF',
-  },
-  // Reply styles
   replyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-  },
-  replyLine: {
-    width: 2,
-    height: '100%',
-    backgroundColor: '#007AFF',
-    marginRight: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderLeftWidth: 3,
   },
   replyContent: {
     flex: 1,
+    minWidth: 0,
   },
   replySender: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#007AFF',
+    fontWeight: '700',
   },
   replyText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    marginTop: 2,
   },
-  // Input styles
+  imageContent: {
+    width: MESSAGE_IMAGE_WIDTH,
+  },
+  messageImage: {
+    width: MESSAGE_IMAGE_WIDTH,
+    aspectRatio: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
+  },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
-    backgroundColor: '#FFF',
   },
   inputWrapper: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    marginRight: 8,
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    minHeight: 48,
   },
   iconButton: {
-    padding: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonDisabled: {
+    opacity: 0.7,
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    paddingVertical: 8,
-    maxHeight: 100,
+    fontSize: 15,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 7,
+    paddingHorizontal: 6,
+    maxHeight: 110,
   },
   sendButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#0F766E',
     justifyContent: 'center',
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#C7C7CC',
+    backgroundColor: '#94A3B8',
   },
-  // Modal styles
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalSheet: {
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 18,
     maxHeight: '70%',
   },
   modalHeaderRow: {
@@ -1275,21 +1525,35 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   giftGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    paddingBottom: 4,
   },
   giftTile: {
     width: '30%',
-    aspectRatio: 1,
+    minHeight: 104,
     marginBottom: 12,
-    borderRadius: 8,
-    backgroundColor: '#F2F2F7',
+    borderRadius: 14,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  giftEmptyText: {
+    width: '100%',
+    textAlign: 'center',
+    paddingVertical: 28,
   },
   // Confirmation section styles
   confirmationSection: {
@@ -1303,7 +1567,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
   },
   confirmationTitle: {
     fontSize: 16,
@@ -1385,7 +1648,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
-    elevation: 4,
     borderWidth: 1,
     borderColor: '#FDE68A',
   },
@@ -1428,22 +1690,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  messageImage: {
-    width: 250,
-    height: 250,
-    borderRadius: 20,
-  },
   systemMessage: {
     alignSelf: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 7,
+    borderRadius: 999,
     marginVertical: 8,
   },
   systemMessageText: {
     fontSize: 12,
-    color: '#64748B',
+    fontWeight: '600',
     textAlign: 'center',
   },
   giftTitle: {
@@ -1458,6 +1717,30 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 4,
+  },
+  emptyMessages: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 30,
+  },
+  emptyIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 6,
   },
 });
 

@@ -1,60 +1,38 @@
-import { db } from '@/firebaseConfig';
+﻿import { db } from '@/firebaseConfig';
 import { formatTime, getRoomId } from '@/utils/common';
 import { useRouter, useSegments } from 'expo-router';
 import { collection, doc, DocumentData, onSnapshot, orderBy, query, limit, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import React, { useEffect, useState, useContext, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { ThemeContext } from '@/context/ThemeContext';
-import { Colors } from '@/constants/Colors';
-import { LinearGradient } from 'expo-linear-gradient';
-import VibeAvatar from '@/components/vibe/VibeAvatar';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/context/authContext';
 import { useTranslation } from 'react-i18next';
 import { normalizeDisplayText } from '@/utils/textEncoding';
-import { useThemedColors } from '@/hooks/useThemedColors';
+import UnifiedChatItem from './UnifiedChatItem';
 
 const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLastMessage = null, unreadCount: externalUnreadCount, chatType, chatRoomId, hotSpotId, hotSpotTitle, onLongPress, isPinned = false, roomType, eventId }: { item: any, noBorder?: boolean, currenUser: any, lastMessage?: DocumentData | null, unreadCount?: number, chatType?: string, chatRoomId?: string, hotSpotId?: string, hotSpotTitle?: string, onLongPress?: () => void, isPinned?: boolean, roomType?: string, eventId?: string }) => {
   const { t } = useTranslation();
-  const currentThemeColors = useThemedColors();
-  const { isDark, palette } = currentThemeColors;
   const router = useRouter();
   const segments = useSegments();
   const [internalLastMessage, setInternalLastMessage] = useState<DocumentData | null>(null);
   const [internalUnreadCount, setInternalUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [roomMeta, setRoomMeta] = useState<{ type?: string; eventId?: string } | null>(null);
-  // Start as null (unknown) to avoid flicker; only decide after we load event end time
   const [eventActive, setEventActive] = useState<boolean | null>(null);
   const [eventEndMs, setEventEndMs] = useState<number | null>(null);
   const { user: viewer } = useAuth();
   const viewerShowOnline = viewer?.showOnlineStatus !== false;
   const expiryTimerRef = useRef<any>(null);
-  const maxLength = 25;
 
-  const normalizePreviewText = (value: string = '') => {
-    const text = normalizeDisplayText(String(value || ''));
-    const hasMojibake = /[\u00C3\u00C2\uFFFD]/.test(text);
-    const isHotSpotMatch = /match/i.test(text) && /hot\s*spot/i.test(text);
-    if (hasMojibake && isHotSpotMatch) {
-      return 'Hai ban da match tai Hot Spot nay! Cung tro chuyen va len keo di cung nhe!';
-    }
-    return text;
-  };
   const lastMessage = externalLastMessage ?? internalLastMessage;
   const unreadCount = typeof externalUnreadCount === 'number' ? externalUnreadCount : internalUnreadCount;
   const hasEventMeta = Boolean(roomMeta?.eventId) || roomMeta?.type === 'event_match';
-  // Check if it's a Hot Spot chat from props or room meta
   const isHotSpot = chatType === 'hotspot' || (hasEventMeta && eventActive === true);
 
-  // Use passed props for room meta instead of fetching again
   useEffect(() => {
     if (roomType || eventId) {
       setRoomMeta({ type: roomType, eventId: eventId });
     }
   }, [roomType, eventId]);
 
-  // When we know eventId, fetch its end time and auto-expire the badge/card
   useEffect(() => {
     const clearTimer = () => { if (expiryTimerRef.current) { clearTimeout(expiryTimerRef.current); expiryTimerRef.current = null; } };
     clearTimer();
@@ -62,7 +40,6 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
     const setupFromEndMs = (endMs?: number) => {
       setEventEndMs(endMs || null);
       if (!endMs || isNaN(endMs)) {
-        // No end time -> treat as active to show badge
         setEventActive(true);
         return;
       }
@@ -78,13 +55,11 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
     const extractEndMs = (data: any): number | undefined => {
       try {
         const d: any = data || {};
-        // Prefer nested eventInfo.endDate (ISO)
         const iso = d?.eventInfo?.endDate || d?.endDate || d?.endsAt || d?.endTime;
         if (iso && typeof iso === 'string') {
           const t = Date.parse(iso);
           if (!isNaN(t)) return t;
         }
-        // Support Firestore Timestamp-like
         const ts = d?.endAt || d?.eventInfo?.endAt;
         if (ts?.toMillis) return ts.toMillis();
         if (typeof ts?.seconds === 'number') return ts.seconds * 1000;
@@ -93,27 +68,22 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
     };
 
     const loadEndTime = async (eventId?: string) => {
-      // If we don't yet have an eventId, don't force-hide; keep unknown to avoid flicker
       if (!eventId) { setEventActive(null); return; }
       try {
-        // Try hotSpots/{eventId} first
         const hotRef = doc(db, 'hotSpots', eventId);
         const hotSnap = await getDoc(hotRef);
         if (hotSnap.exists()) {
           setupFromEndMs(extractEndMs(hotSnap.data()));
           return;
         }
-        // Fallback: events/{eventId}
         const evRef = doc(db, 'events', eventId);
         const evSnap = await getDoc(evRef);
         if (evSnap.exists()) {
           setupFromEndMs(extractEndMs(evSnap.data()));
           return;
         }
-        // Unknown event -> hide badge
         setEventActive(false);
       } catch {
-        // On error, hide badge conservatively
         setEventActive(false);
       }
     };
@@ -122,417 +92,70 @@ const ChatItem = ({ item, noBorder = false, currenUser, lastMessage: externalLas
     return clearTimer;
   }, [roomMeta?.eventId]);
 
-  // Subscribe to latest message ONLY if parent didn't provide data
   useEffect(() => {
     let unsub: (() => void) | null = null;
-
-    if (!item?.id || !currenUser?.uid) {
-      setIsLoading(false);
-      return;
-    }
-
-    if (externalLastMessage !== null && typeof externalUnreadCount === 'number') {
-      // Parent controls data; skip subscription
-      setIsLoading(false);
-      return;
-    }
-
+    if (!item?.id || !currenUser?.uid) { setIsLoading(false); return; }
+    if (externalLastMessage !== null && typeof externalUnreadCount === 'number') { setIsLoading(false); return; }
     try {
       const roomId = getRoomId(currenUser.uid, item.id);
       const docRef = doc(db, 'rooms', roomId);
       const messagesRef = collection(docRef, 'messages');
       const q = query(messagesRef, orderBy('createdAt', 'desc'), limit(1));
 
-      unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          try {
-            const lmDoc = snapshot.docs[0];
-            const lm = lmDoc ? lmDoc.data() : null;
-            setInternalLastMessage(lm);
-            // We cannot cheaply compute unreadCount here without scanning; default to 0
-            setInternalUnreadCount(0);
-            setIsLoading(false);
-          } catch (error) {
-            console.error('Error processing messages:', error);
-            setIsLoading(false);
-          }
-        },
-        (error) => {
-          console.error('Error fetching messages:', error);
+      unsub = onSnapshot(q, (snapshot) => {
+        try {
+          const lmDoc = snapshot.docs[0];
+          setInternalLastMessage(lmDoc ? lmDoc.data() : null);
+          setInternalUnreadCount(0);
           setIsLoading(false);
-        }
-      );
-    } catch (error) {
-      console.error('Error setting up listener:', error);
-      setIsLoading(false);
-    }
+        } catch (error) { setIsLoading(false); }
+      }, () => { setIsLoading(false); });
+    } catch (error) { setIsLoading(false); }
 
-    return () => {
-      if (unsub) {
-        try { unsub(); } catch (error) { console.error('Error unsubscribing:', error); }
-      }
-    };
+    return () => { if (unsub) { try { unsub(); } catch (error) {} } };
   }, [item?.id, currenUser?.uid, externalLastMessage, externalUnreadCount]);
 
-  if (!item?.id || !currenUser?.uid) {
-    return null;
-  }
+  if (!item?.id || !currenUser?.uid) return null;
 
   const genderIconColor = item.gender === 'male' ? '#0EA5E9' : item.gender === 'female' ? '#06B6D4' : '#999';
-  const cardBackground = isHotSpot
-    ? (isDark ? 'rgba(249,115,22,0.12)' : 'rgba(255,247,237,0.92)')
-    : (isDark ? 'rgba(255,255,255,0.055)' : 'rgba(255,255,255,0.76)');
-  const cardBorder = isHotSpot
-    ? (isDark ? 'rgba(251,146,60,0.42)' : 'rgba(251,146,60,0.32)')
-    : currentThemeColors.border;
-  const softIconSurface = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.045)';
-
-  const renderTime = () => {
-    if (isLoading) return '';
-    if (lastMessage) {
-      try {
-        return formatTime(lastMessage.createdAt || lastMessage.lastMessageTime);
-      } catch (error) {
-        console.error('Error formatting time:', error);
-        return '';
-      }
-    }
-    return '';
-  };
-
-  const renderLastMessage = () => {
-    if (isLoading) return t('common.loading');
-
-    if (lastMessage) {
-      try {
-        const prefix = currenUser?.uid === lastMessage?.uid ? `${t('common.you')}: ` : '';
-        const statusIcon = getLastMessageStatusIcon();
-        const text = normalizePreviewText(lastMessage?.text || (lastMessage?.imageUrl ? t('chat.image') : ''));
-        return `${prefix}${text} ${statusIcon}`.trim();
-      } catch (error) {
-        console.error('Error rendering last message:', error);
-        return t('chat.error_generic');
-      }
-    } else {
-      return t('chat.say_hi', { defaultValue: 'Say hi' });
-    }
-  };
-
-  const getLastMessageStatusIcon = () => {
-    if (!lastMessage || currenUser?.uid !== lastMessage?.uid) return '';
-
-    switch (lastMessage?.status) {
-      case 'sent':
-        return '\u2713';
-      case 'delivered':
-        return '\u2713\u2713';
-      case 'read':
-        return '\u2713\u2713';
-      default:
-        return '';
-    }
-  };
-
-  const renderUsername = () => {
-    const displayName = normalizeDisplayText(item?.username || item?.displayName || item?.name);
-    if (!displayName) return t('chat.unknown_user', { defaultValue: 'Unknown User' });
-    try {
-      return displayName.length > maxLength ? `${displayName.slice(0, maxLength)}...` : displayName;
-    } catch (error) {
-      console.error('Error rendering username:', error);
-      return t('chat.unknown_user', { defaultValue: 'Unknown User' });
-    }
-  };
 
   const handlePress = () => {
     try {
-      if (!item?.id) {
-        console.error('Cannot navigate: item.id is missing');
-        return;
-      }
-
-      // Update read status (mark all as read now)
+      if (!item?.id) return;
       try {
         const roomId = getRoomId(currenUser.uid, item.id);
         const readStatusRef = doc(db, 'rooms', roomId, 'readStatus', currenUser.uid);
         setDoc(readStatusRef, { lastReadAt: serverTimestamp() }, { merge: true }).catch(() => { });
       } catch { }
 
-      // Navigate to Hot Spot chat if it's a hot spot conversation
       if (chatType === 'hotspot' && chatRoomId) {
         router.push({
           pathname: '/(screens)/hotspots/HotSpotChatScreen',
-          params: {
-            chatRoomId,
-            hotSpotId: hotSpotId || '',
-            hotSpotTitle: hotSpotTitle || '',
-          },
+          params: { chatRoomId, hotSpotId: hotSpotId || '', hotSpotTitle: hotSpotTitle || '' },
         });
       } else {
-        // Navigate to regular chat - always use /chat/[id] path
         router.push(`/chat/${item.id}` as any);
       }
-    } catch (error) {
-      console.error('Error navigating to chat:', error);
-    }
+    } catch (error) { console.error(error); }
   };
 
   return (
-    <TouchableOpacity
-      style={[styles.container, { backgroundColor: 'transparent' }]}
+    <UnifiedChatItem
+      item={item}
+      isGroup={false}
+      currentUser={currenUser}
+      lastMessage={lastMessage}
+      unreadCount={unreadCount}
       onPress={handlePress}
       onLongPress={onLongPress}
-    >
-      <View style={[
-        styles.chatCard,
-        isHotSpot && styles.hotSpotCard,
-        { 
-          backgroundColor: cardBackground,
-          borderColor: cardBorder,
-          shadowColor: isHotSpot ? '#F97316' : currentThemeColors.shadow,
-        }
-      ]}>
-        <LinearGradient
-          colors={isHotSpot
-            ? ['rgba(249,115,22,0.14)', 'transparent']
-            : [currentThemeColors.primary + '10', 'transparent']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFillObject}
-          pointerEvents="none"
-        />
-        {/* Avatar Section */}
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatarWrapper}>
-            <VibeAvatar
-              avatarUrl={item.profileUrl}
-              size={56}
-              currentVibe={item.currentVibe || null}
-              showAddButton={false}
-              frameType={item.activeFrame}
-              storyUser={{ id: item.id, username: item.username, profileUrl: item.profileUrl }}
-            />
-            {viewerShowOnline && (
-              <View style={[
-                styles.statusIndicator,
-                item.isOnline
-                  ? {
-                    backgroundColor: currentThemeColors.success,
-                    borderColor: currentThemeColors.cardBackground,
-                    shadowColor: currentThemeColors.success,
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.4,
-                    shadowRadius: 4,
-                  }
-                  : {
-                    backgroundColor: currentThemeColors.warning,
-                    borderColor: currentThemeColors.cardBackground,
-                    shadowColor: currentThemeColors.warning,
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 2,
-                    elevation: 2,
-                  }
-              ]} />
-            )}
-          </View>
-        </View>
-        {/* Content Section */}
-        <View style={styles.contentContainer}>
-          <View style={styles.headerRow}>
-            <View style={styles.userInfoRow}>
-              <Text style={[styles.username, { color: currentThemeColors.text }]}>
-                {renderUsername()}
-              </Text>
-              {(isHotSpot || chatType === 'hotspot') && (
-                <View style={[styles.hotSpotBadge, { backgroundColor: isDark ? 'rgba(249,115,22,0.16)' : 'rgba(255,237,213,0.9)', borderColor: '#F97316' }]}>
-                  <MaterialCommunityIcons name="fire" size={12} color="#F97316" />
-                  <Text style={[styles.hotSpotBadgeText, { color: '#EA580C' }]}>Hot Spot</Text>
-                </View>
-              )}
-              {item.gender && (
-                <View style={[styles.genderContainer, { backgroundColor: softIconSurface, borderColor: currentThemeColors.border }]}>
-                  <MaterialCommunityIcons
-                    name={item.gender === 'male' ? 'gender-male' : 'gender-female'}
-                    size={16}
-                    color={genderIconColor}
-                  />
-                  {typeof item.age === 'number' && (
-                    <Text style={[styles.age, { color: genderIconColor }]}>
-                      {item.age}
-                    </Text>
-                  )}
-                </View>
-              )}
-              {/* Vibe Pill in Chat List */}
-              {item.currentVibe?.vibe && (
-                <View style={[styles.vibeBadge, { backgroundColor: item.currentVibe.vibe.color + '20', borderColor: item.currentVibe.vibe.color }]}>
-                  <Text style={styles.vibeBadgeEmoji}>{item.currentVibe.vibe.emoji}</Text>
-                  <Text style={[styles.vibeBadgeText, { color: item.currentVibe.vibe.color }]}>{item.currentVibe.vibe.name}</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.rightSection}>
-              <Text style={[styles.time, { color: currentThemeColors.subtleText }]}>
-                {renderTime()}
-              </Text>
-
-            </View>
-            {unreadCount > 0 && (
-              <View style={[styles.unreadBadge, { backgroundColor: currentThemeColors.error || '#F43F5E', position: 'absolute', top: 30, right: 0 }]}>
-                <Text style={styles.unreadText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-              </View>
-            )}
-            {isPinned && (
-              <MaterialCommunityIcons name="pin" size={16} color={currentThemeColors.tint} style={{ marginLeft: 4 }} />
-            )}
-          </View>
-          <Text style={[styles.lastMessage, { color: currentThemeColors.subtleText }]} numberOfLines={1}>
-            {renderLastMessage()}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
+      isPinned={isPinned}
+      isHotSpot={isHotSpot}
+      genderIconColor={genderIconColor}
+      viewerShowOnline={viewerShowOnline}
+      noBorder={noBorder}
+    />
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  chatCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 16,
-    padding: 8,
-    borderWidth: 1,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    marginVertical: 2,
-  },
-  hotSpotCard: {
-    backgroundColor: '#FFF8E1',
-    borderWidth: 1,
-    borderColor: '#FFCC80',
-  },
-  avatarContainer: {
-    marginRight: 12,
-  },
-  avatarWrapper: {
-    position: 'relative',
-  },
-  avatar: {
-    backgroundColor: '#f0f4ff',
-  },
-  statusIndicator: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    position: 'absolute',
-    top: -6,
-    right: -6,
-    borderWidth: 3,
-    zIndex: 2,
-  },
-  contentContainer: {
-    flex: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  userInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 6,
-  },
-  username: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginRight: 4,
-  },
-  hotSpotBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    backgroundColor: '#FFF3E0',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#FFB74D',
-  },
-  hotSpotBadgeText: {
-    fontSize: 10,
-    color: '#FB8C00',
-    fontWeight: '700',
-  },
-  genderContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  age: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 2,
-  },
-  rightSection: {
-    alignItems: 'flex-end',
-  },
-  time: {
-    fontSize: 12,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  lastMessage: {
-    fontSize: 15,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-  unreadBadge: {
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  unreadText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  vibeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 2,
-  },
-  vibeBadgeEmoji: {
-    fontSize: 10,
-  },
-  vibeBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-});
+export default React.memo(ChatItem);
 
-export default ChatItem;

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { EventInvite, UserProfile } from '@/types/eventInvites';
 import { eventInviteService } from '@/services/eventInviteService';
@@ -32,6 +33,13 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { t } = useTranslation();
+  
+  // Fallback helper
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
+
   const [activeTab, setActiveTab] = useState<'received' | 'sent'>('received');
   const [invites, setInvites] = useState<(EventInvite & { inviterProfile?: UserProfile; eventTitle?: string })[]>([]);
   const [sentInvites, setSentInvites] = useState<(EventInvite & { inviteeProfile?: UserProfile; eventTitle?: string })[]>([]);
@@ -59,7 +67,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             return {
               ...invite,
               inviterProfile,
-              eventTitle: eventDetails?.title || t('event_invites.default_event_title'),
+              eventTitle: eventDetails?.title || tf('event_invites.default_event_title', 'Sự kiện'),
             } as any;
           } catch {
             return invite as any;
@@ -69,7 +77,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       setInvites(enrichedInvites);
     } catch (error) {
       console.error('Error loading invites:', error);
-      Alert.alert(t('common.error'), t('event_invites.load_received_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), tf('event_invites.load_received_error', 'Không thể tải lời mời'));
     } finally {
       setLoading(false);
     }
@@ -86,7 +94,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
               fetchUserProfile(inv.inviteeId),
               fetchEventDetails(inv.eventId),
             ]);
-            return { ...inv, inviteeProfile, eventTitle: eventDetails?.title || t('event_invites.default_event_title') } as any;
+            return { ...inv, inviteeProfile, eventTitle: eventDetails?.title || tf('event_invites.default_event_title', 'Sự kiện') } as any;
           } catch {
             return inv as any;
           }
@@ -101,10 +109,10 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
   const handleCancelInvite = async (inviteId: string) => {
     try {
       await eventInviteService.cancelInvite(inviteId, user!.uid);
-      Alert.alert(t('event_invites.recalled_title'), t('event_invites.recalled_message'));
+      Alert.alert(tf('event_invites.recalled_title', 'Đã thu hồi'), tf('event_invites.recalled_message', 'Lời mời đã được thu hồi'));
       await loadSentInvites();
     } catch (e: any) {
-      Alert.alert(t('common.error'), e.message || t('event_invites.recall_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), e.message || tf('event_invites.recall_error', 'Lỗi thu hồi'));
     }
   };
 
@@ -115,7 +123,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       const d: any = snap.data();
       return {
         id: userId,
-        name: d?.displayName || d?.name || d?.username || t('event_invites.default_user_name'),
+        name: d?.displayName || d?.name || d?.username || tf('event_invites.default_user_name', 'Người dùng'),
         avatar: d?.avatar || d?.photoURL || d?.profileUrl,
         age: typeof d?.age === 'number' ? d.age : undefined,
         bio: typeof d?.bio === 'string' ? d.bio : undefined,
@@ -130,15 +138,15 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       const hot = await getDoc(doc(db, 'hotSpots', eventId));
       if (hot.exists()) {
         const d: any = hot.data();
-        return { title: d?.title || d?.name || t('event_invites.default_event_title') };
+        return { title: d?.title || d?.name || tf('event_invites.default_event_title', 'Sự kiện') };
       }
       const ev = await getDoc(doc(db, 'events', eventId));
       if (ev.exists()) {
         const d: any = ev.data();
-        return { title: d?.title || d?.name || t('event_invites.default_event_title') };
+        return { title: d?.title || d?.name || tf('event_invites.default_event_title', 'Sự kiện') };
       }
     } catch {}
-    return { title: t('event_invites.default_event_title') };
+    return { title: tf('event_invites.default_event_title', 'Sự kiện') };
   };
 
   const getCreatedAtDate = (ts: any): Date => {
@@ -152,7 +160,8 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
   };
 
   const formatInviteTime = (date: Date) => {
-    return `${date.toLocaleDateString()} ${t('event_invites.at_time')} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    const atTime = tf('event_invites.at_time', 'lúc');
+    return `${date.toLocaleDateString()} ${atTime} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   const handleRespondToInvite = async (inviteId: string, response: 'accepted' | 'declined') => {
@@ -169,10 +178,14 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
           onInviteAccepted?.(chatRoomId);
         }
       } else if (response === 'declined') {
-        Alert.alert(t('event_invites.declined_title'), t('event_invites.declined_message'), [{ text: t('common.ok'), onPress: () => loadInvites() }]);
+        Alert.alert(
+          tf('event_invites.declined_title', 'Đã từ chối'),
+          tf('event_invites.declined_message', 'Bạn đã từ chối lời mời'),
+          [{ text: tf('common.ok', 'OK'), onPress: () => loadInvites() }]
+        );
       }
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message || t('event_invites.respond_error'));
+      Alert.alert(tf('common.error', 'Lỗi'), error.message || tf('event_invites.respond_error', 'Lỗi phản hồi'));
     } finally {
       setRespondingTo(prev => ({ ...prev, [inviteId]: false }));
     }
@@ -195,7 +208,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
 
           <View style={styles.inviteInfo}>
             <Text style={styles.inviterName}>
-              {t('event_invites.invited_you_by', { name: item.inviterProfile?.name || t('event_invites.default_user_name') })}
+              {tf('event_invites.invited_you_by', '{{name}} đã mời bạn').replace('{{name}}', item.inviterProfile?.name || tf('event_invites.default_user_name', 'Người dùng'))}
             </Text>
             <Text style={styles.eventTitle}>{item.eventTitle}</Text>
             <Text style={styles.inviteTime}>{formatInviteTime(createdAtDate)}</Text>
@@ -213,7 +226,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             ) : (
               <>
                 <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
-                <Text style={styles.declineButtonText}>{t('event_invites.decline')}</Text>
+                <Text style={styles.declineButtonText}>{tf('event_invites.decline', 'Từ chối')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -229,7 +242,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={20} color="white" />
-                  <Text style={styles.acceptButtonText}>{t('event_invites.accept')}</Text>
+                  <Text style={styles.acceptButtonText}>{tf('event_invites.accept', 'Chấp nhận')}</Text>
                 </>
               )}
             </LinearGradient>
@@ -254,7 +267,9 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             )}
           </View>
           <View style={styles.inviteInfo}>
-            <Text style={styles.inviterName}>{t('event_invites.you_invited', { name: item.inviteeProfile?.name || t('event_invites.default_user_name') })}</Text>
+            <Text style={styles.inviterName}>
+              {tf('event_invites.you_invited', 'Bạn đã mời {{name}}').replace('{{name}}', item.inviteeProfile?.name || tf('event_invites.default_user_name', 'Người dùng'))}
+            </Text>
             <Text style={styles.eventTitle}>{item.eventTitle}</Text>
             <Text style={styles.inviteTime}>{formatInviteTime(createdAtDate)}</Text>
           </View>
@@ -262,7 +277,7 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
         <View style={styles.actionButtons}>
           <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => handleCancelInvite(item.id!)}>
             <Ionicons name="trash-outline" size={20} color="#EF4444" />
-            <Text style={styles.declineButtonText}>{t('event_invites.recall')}</Text>
+            <Text style={styles.declineButtonText}>{tf('event_invites.recall', 'Thu hồi')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -274,10 +289,14 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
       <View style={styles.container}>
         <View style={styles.headerTabs}>
           <TouchableOpacity onPress={() => setActiveTab('received')} style={[styles.tabBtn, activeTab === 'received' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'received' && styles.tabTextActive]}>{t('event_invites.tab_received')}</Text>
+            <Text style={[styles.tabText, activeTab === 'received' && styles.tabTextActive]}>
+              {tf('event_invites.tab_received', 'Đã nhận')}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setActiveTab('sent')} style={[styles.tabBtn, activeTab === 'sent' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'sent' && styles.tabTextActive]}>{t('event_invites.tab_sent')}</Text>
+            <Text style={[styles.tabText, activeTab === 'sent' && styles.tabTextActive]}>
+              {tf('event_invites.tab_sent', 'Đã gửi')}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerClose} onPress={onClose}>
             <MaterialIcons name="close" size={22} color="#333" />
@@ -288,14 +307,14 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
           {loading && activeTab === 'received' ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#EC4899" />
-              <Text style={styles.loadingText}>{t('common.loading')}</Text>
+              <Text style={styles.loadingText}>{tf('common.loading', 'Đang tải...')}</Text>
             </View>
           ) : activeTab === 'received' ? (
             invites.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="mail-outline" size={64} color="#ccc" />
-                <Text style={styles.emptyTitle}>{t('event_invites.empty_received_title')}</Text>
-                <Text style={styles.emptySubtitle}>{t('event_invites.empty_received_subtitle')}</Text>
+                <Text style={styles.emptyTitle}>{tf('event_invites.empty_received_title', 'Không có lời mời')}</Text>
+                <Text style={styles.emptySubtitle}>{tf('event_invites.empty_received_subtitle', 'Bạn chưa nhận được lời mời nào')}</Text>
               </View>
             ) : (
               <FlatList
@@ -310,8 +329,8 @@ const EventInvitesModal: React.FC<EventInvitesModalProps> = ({
             sentInvites.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <MaterialIcons name="send" size={64} color="#ccc" />
-                <Text style={styles.emptyTitle}>{t('event_invites.empty_sent_title')}</Text>
-                <Text style={styles.emptySubtitle}>{t('event_invites.empty_sent_subtitle')}</Text>
+                <Text style={styles.emptyTitle}>{tf('event_invites.empty_sent_title', 'Chưa gửi lời mời')}</Text>
+                <Text style={styles.emptySubtitle}>{tf('event_invites.empty_sent_subtitle', 'Bạn chưa gửi lời mời nào')}</Text>
               </View>
             ) : (
               <FlatList

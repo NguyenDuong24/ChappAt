@@ -2,7 +2,7 @@ import { getAuth } from 'firebase/auth';
 
 const API_BASE_URL =
   (process.env.EXPO_PUBLIC_SAIGON_SERVER_API_URL ||
-    'https://saigondating-server.onrender.com/api').replace(/\/$/, '');
+    'https://saigonmatch.com.vn/api').replace(/\/$/, '');
 
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -39,15 +39,23 @@ export interface AiMatchmakerMatch {
   distanceKm?: number;
 }
 
+export interface AiMatchmakerSuggestedAction {
+  type: 'search' | 'refine' | 'chat';
+  label: string;
+  prompt: string;
+  summary?: string;
+}
+
 export interface AiMatchmakerResponse {
   success: boolean;
   prompt: string;
   intent: Record<string, any>;
-  source: 'ai' | 'heuristic';
+  source: 'ai' | 'heuristic' | 'system';
   mode?: 'chat' | 'clarify' | 'results';
   needsMoreInfo?: boolean;
   assistantMessage: string;
   suggestedReplies?: string[];
+  suggestedAction?: AiMatchmakerSuggestedAction | null;
   count: number;
   matches: AiMatchmakerMatch[];
 }
@@ -107,12 +115,14 @@ export async function findAiMatches(params: {
   limit?: number;
   location?: AiMatchmakerLocation | null;
   messages?: AiMatchmakerMessage[];
+  excludeIds?: string[];
 }) {
   return postJson<AiMatchmakerResponse>('/ai-matchmaker/search', {
     prompt: params.prompt,
     limit: params.limit ?? 6,
     location: params.location ?? null,
     messages: params.messages ?? [],
+    excludeIds: params.excludeIds ?? [],
   });
 }
 

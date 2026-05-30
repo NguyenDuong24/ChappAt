@@ -1,93 +1,147 @@
-import React, { useEffect, useRef, useState } from 'react';
+﻿import React, { useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, Platform } from 'react-native';
-import { InterstitialAd, AdEventType, TestIds } from 'react-native-google-mobile-ads';
+import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads';
+import { coinServerApi } from '../../src/services/coinServerApi';
 
-// Use TestIds.INTERSTITIAL for development, replace with your production ID
-const AD_UNIT_ID = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-9844251118980104/xxxxxxxxxx'; // Replace with actual prod ID if available
+const DEFAULT_ANDROID_AD_UNIT_ID = '';
+const DEFAULT_IOS_AD_UNIT_ID = '';
 
 const InterstitialAdManager = () => {
     const [loaded, setLoaded] = useState(false);
-    const loadedRef = useRef(false); // Use ref for synchronous access in callbacks
+    const loadedRef = useRef(false);
     const interstitialRef = useRef<InterstitialAd | null>(null);
+    const adUnsubscribesRef = useRef<(() => void)[]>([]);
     const appState = useRef(AppState.currentState);
+    const isMountedRef = useRef(true);
+    
+    // Config states
+    const configRef = useRef({
+        enabled: false,
+        showRate: 0.25, // default 1/4
+        minSecondsBetween: 180,
+        unitId: Platform.OS === 'ios' ? DEFAULT_IOS_AD_UNIT_ID : DEFAULT_ANDROID_AD_UNIT_ID,
+    });
+    
+    const lastShowTimeRef = useRef(0);
 
     useEffect(() => {
-        console.log('InterstitialAdManager mounted');
-        // Initialize the ad
-        loadAd();
+        isMountedRef.current = true;
+
+        // Fetch config once on mount
+        const fetchConfig = async () => {
+            try {
+                const res = await coinServerApi.getAppConfig();
+                if (res?.ads) {
+                    configRef.current = {
+                        enabled: res.ads.interstitialEnabled !== false,
+                        showRate: res.ads.interstitialShowRate ?? 0.25,
+                        minSecondsBetween: res.ads.minSecondsBetweenInterstitials ?? 180,
+                        unitId: Platform.OS === 'ios'
+                            ? (res.ads.iosInterstitialAdUnitId || DEFAULT_IOS_AD_UNIT_ID)
+                            : (res.ads.androidInterstitialAdUnitId || DEFAULT_ANDROID_AD_UNIT_ID),
+                    };
+                    console.log('AdManager configured:', configRef.current);
+                }
+            } catch (err) {
+                console.warn('AdManager config fetch failed, using defaults', err);
+            }
+            
+            // Only load ad if enabled
+            if (isMountedRef.current && configRef.current.enabled && configRef.current.unitId) {
+                loadAd();
+            }
+        };
+
+        fetchConfig();
 
         const subscription = AppState.addEventListener('change', handleAppStateChange);
-
         return () => {
-            console.log('InterstitialAdManager unmounted');
+            isMountedRef.current = false;
             subscription.remove();
+            adUnsubscribesRef.current.forEach(unsubscribe => unsubscribe());
+            adUnsubscribesRef.current = [];
             interstitialRef.current = null;
         };
     }, []);
 
     const loadAd = () => {
-        console.log('Loading Interstitial Ad...');
-        const interstitial = InterstitialAd.createForAdRequest(AD_UNIT_ID, {
+        if (!isMountedRef.current || !configRef.current.enabled || !configRef.current.unitId || interstitialRef.current) return;
+        adUnsubscribesRef.current.forEach(unsubscribe => unsubscribe());
+        adUnsubscribesRef.current = [];
+        
+        console.log('Loading Interstitial Ad with unit:', configRef.current.unitId);
+        const interstitial = InterstitialAd.createForAdRequest(configRef.current.unitId, {
             requestNonPersonalizedAdsOnly: true,
         });
 
-        interstitial.addAdEventListener(AdEventType.LOADED, () => {
-            console.log('Interstitial Ad LOADED');
+        adUnsubscribesRef.current.push(interstitial.addAdEventListener(AdEventType.LOADED, () => {
+            if (!isMountedRef.current) return;
             setLoaded(true);
             loadedRef.current = true;
-        });
+        }));
 
-        interstitial.addAdEventListener(AdEventType.CLOSED, () => {
-            console.log('Interstitial Ad CLOSED');
+        adUnsubscribesRef.current.push(interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+            if (!isMountedRef.current) return;
             setLoaded(false);
             loadedRef.current = false;
-            // Load the next ad
+            interstitialRef.current = null;
+            // Preload next ad
             loadAd();
-        });
+        }));
 
-        interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
+        adUnsubscribesRef.current.push(interstitial.addAdEventListener(AdEventType.ERROR, (error) => {
+            if (!isMountedRef.current) return;
             console.warn('Interstitial Ad Error:', error);
             setLoaded(false);
             loadedRef.current = false;
-        });
+            interstitialRef.current = null;
+        }));
 
-        interstitial.load();
-        interstitialRef.current = interstitial;
+        try {
+            interstitial.load();
+            interstitialRef.current = interstitial;
+        } catch (e) {
+            console.warn('Ad load catch:', e);
+        }
     };
 
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-        console.log(`AppState changed: ${appState.current} -> ${nextAppState}`);
         if (
             appState.current.match(/inactive|background/) &&
             nextAppState === 'active'
         ) {
-            // App has come to the foreground
-            console.log('App came to foreground, checking ad trigger...');
             checkAndShowAd();
         }
-
         appState.current = nextAppState;
     };
 
     const checkAndShowAd = () => {
-        // 33% chance to show ad
+        const conf = configRef.current;
+        if (!conf.enabled) return;
+
+        const now = Date.now() / 1000;
+        const secondsSinceLastShow = now - lastShowTimeRef.current;
+        
+        if (secondsSinceLastShow < conf.minSecondsBetween) {
+            console.log(`Ad skipped: Too soon (${secondsSinceLastShow.toFixed(1)}s < ${conf.minSecondsBetween}s)`);
+            return;
+        }
+
         const randomValue = Math.random();
-        const shouldShow = randomValue < 0.33;
+        const shouldShow = randomValue < conf.showRate;
         const isLoaded = loadedRef.current;
 
-        console.log(`Ad Check: random=${randomValue.toFixed(2)}, threshold=0.33, shouldShow=${shouldShow}, loaded=${isLoaded}`);
+        console.log(`Ad Check: rand=${randomValue.toFixed(2)}, rate=${conf.showRate}, show=${shouldShow}, loaded=${isLoaded}`);
 
         if (shouldShow) {
             if (isLoaded && interstitialRef.current) {
                 try {
-                    console.log('Showing Interstitial Ad now');
+                    lastShowTimeRef.current = now;
                     interstitialRef.current.show();
                 } catch (error) {
                     console.error('Failed to show interstitial ad:', error);
                 }
             } else {
-                console.log('Ad should show but is NOT LOADED yet. Reloading...');
-                // If it's not loaded, try to load it again for next time
                 if (!interstitialRef.current) {
                     loadAd();
                 }
@@ -95,7 +149,8 @@ const InterstitialAdManager = () => {
         }
     };
 
-    return null; // This component doesn't render anything visible
+    return null;
 };
 
 export default InterstitialAdManager;
+

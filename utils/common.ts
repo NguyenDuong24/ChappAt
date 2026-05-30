@@ -1,23 +1,6 @@
-export const formatTime = (timestamp: any) => {
-  if (!timestamp) return '';
-  let date;
-  try {
-    date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  } catch {
-    date = new Date(timestamp);
-  }
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diff < 60) return 'Vừa xong';
-  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
-  if (diff < 2592000) return `${Math.floor(diff / 86400)} ngày trước`;
-  return date.toLocaleDateString('vi-VN');
-};
+const timestampToDate = (timestamp: any): Date | null => {
+  if (!timestamp) return null;
 
-// NEW: detailed time formatter (parity with utils/common.js)
-export const formatDetailedTime = (timestamp: any): string => {
-  if (!timestamp) return '';
   let date: Date;
   try {
     if (timestamp.toDate) {
@@ -30,6 +13,27 @@ export const formatDetailedTime = (timestamp: any): string => {
   } catch {
     date = new Date(timestamp);
   }
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const formatTime = (timestamp: any) => {
+  const date = timestampToDate(timestamp);
+  if (!date) return '';
+
+  const now = new Date();
+  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diff < 60) return 'Vừa xong';
+  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+  if (diff < 2592000) return `${Math.floor(diff / 86400)} ngày trước`;
+  return date.toLocaleDateString('vi-VN');
+};
+
+// NEW: detailed time formatter (parity with utils/common.js)
+export const formatDetailedTime = (timestamp: any): string => {
+  const date = timestampToDate(timestamp);
+  if (!date) return '';
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();

@@ -187,7 +187,7 @@ export const MessageService = {
       
       return { success: true };
     } catch (error) {
-      console.error('Error updating message status:', error);
+      console.error('Error upmatch message status:', error);
       throw error;
     }
   }

@@ -1,27 +1,42 @@
-import { Unsubscribe } from 'firebase/firestore';
+import { Unsubscribe } from "firebase/firestore";
 
 interface ConnectionInfo {
   unsubscribe: Unsubscribe;
   lastActivity: number;
   roomId: string;
-  type: 'messages' | 'status' | 'typing' | 'presence';
+  type: "messages" | "status" | "typing" | "presence" | "posts" | "location";
 }
 
 class ConnectionManager {
   private connections = new Map<string, ConnectionInfo>();
   private readonly MAX_CONNECTIONS = 10;
   private readonly INACTIVE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
-  private cleanupInterval: NodeJS.Timeout | null = null;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor() {
-    // Start cleanup interval
+  private ensureCleanupInterval() {
+    if (this.cleanupInterval) return;
+
     this.cleanupInterval = setInterval(() => {
       this.cleanupInactiveConnections();
-    }, 60 * 1000); // Check every minute
+    }, 60 * 1000);
+  }
+
+  private stopCleanupIntervalIfIdle() {
+    if (this.connections.size > 0 || !this.cleanupInterval) return;
+
+    clearInterval(this.cleanupInterval);
+    this.cleanupInterval = null;
   }
 
   // Add a new connection
-  addConnection(key: string, unsubscribe: Unsubscribe, roomId: string, type: ConnectionInfo['type']) {
+  addConnection(
+    key: string,
+    unsubscribe: Unsubscribe,
+    roomId: string,
+    type: ConnectionInfo["type"],
+  ) {
+    this.ensureCleanupInterval();
+
     // Remove existing connection if exists
     this.removeConnection(key);
 
@@ -34,14 +49,19 @@ class ConnectionManager {
       unsubscribe,
       lastActivity: Date.now(),
       roomId,
-      type
+      type,
     });
 
-    console.log('📡 Connection added:', key, 'Total:', this.connections.size);
+    console.log("📡 Connection added:", key, "Total:", this.connections.size);
   }
 
   // Register a listener with automatic connection management
-  registerListener(key: string, unsubscribe: Unsubscribe, roomId: string = 'global', type: ConnectionInfo['type'] = 'messages') {
+  registerListener(
+    key: string,
+    unsubscribe: Unsubscribe,
+    roomId: string = "global",
+    type: ConnectionInfo["type"] = "messages",
+  ) {
     this.addConnection(key, unsubscribe, roomId, type);
     return unsubscribe;
   }
@@ -52,7 +72,12 @@ class ConnectionManager {
     if (connection) {
       connection.unsubscribe();
       this.connections.delete(key);
-      console.log('📡 Connection removed:', key, 'Total:', this.connections.size);
+      console.log(
+        "📡 Connection removed:",
+        key,
+        "Total:",
+        this.connections.size,
+      );
       return true;
     }
     return false;
@@ -69,15 +94,20 @@ class ConnectionManager {
   // Remove connections for a specific room
   removeRoomConnections(roomId: string) {
     const keysToRemove: string[] = [];
-    
+
     this.connections.forEach((connection, key) => {
       if (connection.roomId === roomId) {
         keysToRemove.push(key);
       }
     });
 
-    keysToRemove.forEach(key => this.removeConnection(key));
-    console.log('📡 Removed', keysToRemove.length, 'connections for room:', roomId);
+    keysToRemove.forEach((key) => this.removeConnection(key));
+    console.log(
+      "📡 Removed",
+      keysToRemove.length,
+      "connections for room:",
+      roomId,
+    );
   }
 
   // Clean up inactive connections
@@ -92,8 +122,8 @@ class ConnectionManager {
     });
 
     if (keysToRemove.length > 0) {
-      keysToRemove.forEach(key => this.removeConnection(key));
-      console.log('🧹 Cleaned up', keysToRemove.length, 'inactive connections');
+      keysToRemove.forEach((key) => this.removeConnection(key));
+      console.log("🧹 Cleaned up", keysToRemove.length, "inactive connections");
     }
   }
 
@@ -111,7 +141,7 @@ class ConnectionManager {
 
     if (oldestKey) {
       this.removeConnection(oldestKey);
-      console.log('🚫 Removed oldest connection due to limit');
+      console.log("🚫 Removed oldest connection due to limit");
     }
   }
 
@@ -122,7 +152,7 @@ class ConnectionManager {
       byType: new Map<string, number>(),
       byRoom: new Map<string, number>(),
       oldestConnection: 0,
-      newestConnection: 0
+      newestConnection: 0,
     };
 
     let oldest = Date.now();
@@ -164,7 +194,7 @@ class ConnectionManager {
       this.cleanupInterval = null;
     }
 
-    console.log('📡 All connections cleaned up');
+    console.log("📡 All connections cleaned up");
   }
 
   // Get active connections for debugging
@@ -179,7 +209,7 @@ class ConnectionManager {
 
   // Priority cleanup - remove non-essential connections
   priorityCleanup() {
-    const nonEssentialTypes: ConnectionInfo['type'][] = ['typing', 'presence'];
+    const nonEssentialTypes: ConnectionInfo["type"][] = ["typing", "presence"];
     const keysToRemove: string[] = [];
 
     this.connections.forEach((connection, key) => {
@@ -188,8 +218,12 @@ class ConnectionManager {
       }
     });
 
-    keysToRemove.forEach(key => this.removeConnection(key));
-    console.log('🚨 Priority cleanup removed', keysToRemove.length, 'non-essential connections');
+    keysToRemove.forEach((key) => this.removeConnection(key));
+    console.log(
+      "🚨 Priority cleanup removed",
+      keysToRemove.length,
+      "non-essential connections",
+    );
   }
 }
 

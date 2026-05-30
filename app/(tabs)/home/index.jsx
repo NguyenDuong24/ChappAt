@@ -15,9 +15,9 @@ import LiquidScreen from '@/components/liquid/LiquidScreen';
 import HomeHeader, { HOME_HEADER_HEIGHT } from '@/components/home/HomeHeader';
 import { RevealScalableView } from '@/components/reveal';
 import AppDrawer from '@/components/drawer/AppDrawer';
-import FeatureActionDrawer from '@/components/drawer/FeatureActionDrawer';
 import { db } from '@/firebaseConfig';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { useRefresh } from '@/context/RefreshContext';
 
 // Premium Loading State using Skeletons
 const LoadingView = ({ theme, currentThemeColors }) => (
@@ -40,27 +40,33 @@ const LoadingView = ({ theme, currentThemeColors }) => (
 );
 
 // Empty State with Premium Feel
-const EmptyView = ({ theme, currentThemeColors, t }) => (
+const EmptyView = ({ theme, currentThemeColors, t: translateFn }) => (
   <View style={[styles.centerContainer, { backgroundColor: 'transparent' }]}>
     <View style={[styles.emptyGlassContainer, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
       <View style={[styles.emptyIconCircle, { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)' }]}>
         <MaterialIcons name="person-search" size={60} color={currentThemeColors.subtleText} />
       </View>
-      <Text style={[styles.emptyText, { color: currentThemeColors.text }]}>{t('home.no_users')}</Text>
-      <Text style={[styles.emptySubText, { color: currentThemeColors.subtleText }]}>{t('home.no_users_desc')}</Text>
+      <Text style={[styles.emptyText, { color: currentThemeColors.text }]}>
+        {typeof translateFn === 'function' ? translateFn('home.no_users', 'Không có người dùng') : 'Không có người dùng'}
+      </Text>
+      <Text style={[styles.emptySubText, { color: currentThemeColors.subtleText }]}>
+        {typeof translateFn === 'function' ? translateFn('home.no_users_desc', 'Thử điều chỉnh bộ lọc') : 'Thử điều chỉnh bộ lọc'}
+      </Text>
     </View>
   </View>
 );
 
 // Error State with Retry logic
-const ErrorView = ({ error, onRetry, currentThemeColors, t }) => (
+const ErrorView = ({ error, onRetry, currentThemeColors, t: translateFn }) => (
   <View style={[styles.centerContainer, { backgroundColor: 'transparent' }]}>
     <View style={[styles.errorGlassContainer, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
       <MaterialIcons name="error-outline" size={50} color={Colors.warning} />
       <Text style={[styles.errorText, { color: currentThemeColors.text }]}>{error}</Text>
       <TouchableOpacity onPress={onRetry} style={styles.retryButton} activeOpacity={0.8}>
         <LinearGradient colors={['#FF5F6D', '#FFC371']} style={styles.retryGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-          <Text style={styles.retryText}>{t('home.retry')}</Text>
+          <Text style={styles.retryText}>
+            {typeof translateFn === 'function' ? translateFn('home.retry', 'Thử lại') : 'Thử lại'}
+          </Text>
           <MaterialIcons name="refresh" size={18} color="white" />
         </LinearGradient>
       </TouchableOpacity>
@@ -80,6 +86,12 @@ function Home() {
     [theme]
   );
 
+  // Fallback helper cho i18n
+  const tf = useCallback((key: string, fallback: string) => {
+    const translated = t(key);
+    return translated !== key ? translated : fallback;
+  }, [t]);
+
   const isFocused = useIsFocused();
   const { width } = useWindowDimensions();
   const lastPressRef = useRef(0);
@@ -89,7 +101,10 @@ function Home() {
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const drawerOffset = useMemo(() => Math.min(width * 0.62, 250), [width]);
   const revealActive = drawerVisible || !!featureDrawer;
-  const { users, loading, refreshing, error, loadMore, hasMore, handleRefresh } = useHome(isFocused);
+  const listRef = useRef(null);
+  const scrollOffsetRef = useRef(0);
+  const { registerRefreshHandler } = useRefresh();
+  const { users, loading, loadingMore, refreshing, error, loadMore, hasMore, handleRefresh } = useHome(isFocused);
   const activeFiltersCount = useMemo(() => {
     const f = stateCommon?.filter || {};
     let count = 0;
@@ -133,7 +148,7 @@ function Home() {
   }, []);
 
   const openRadar = useCallback(() => {
-    router.push('/ProximityRadar');
+    router.push('/nearby-match');
   }, [router]);
 
   const openNotificationDrawer = useCallback(() => {
@@ -177,35 +192,54 @@ function Home() {
         return true;
       }
       lastPressRef.current = now;
-      ToastAndroid.show(t('home.exit_app'), ToastAndroid.SHORT);
+      ToastAndroid.show(tf('home.exit_app', 'Nhấn thêm lần nữa để thoát'), ToastAndroid.SHORT);
       return true;
     };
 
-    BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-  }, [drawerVisible, featureDrawer, isFocused, t]);
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backHandler.remove();
+  }, [drawerVisible, featureDrawer, isFocused, tf]);
 
   const onRefresh = useCallback(async () => {
     await handleRefresh();
   }, [handleRefresh]);
 
+  const handleHomeScroll = useCallback((event) => {
+    scrollOffsetRef.current = event?.nativeEvent?.contentOffset?.y || 0;
+  }, []);
+
+  const handleHomeTabPress = useCallback(() => {
+    if (scrollOffsetRef.current > 8) {
+      listRef.current?.scrollToOffset?.({ offset: 0, animated: true });
+      return;
+    }
+    handleRefresh();
+  }, [handleRefresh]);
+
+  useEffect(() => {
+    registerRefreshHandler('home', handleHomeTabPress);
+  }, [registerRefreshHandler, handleHomeTabPress]);
+
   const content = useMemo(() => {
     if (loading && users.length === 0) return <LoadingView theme={theme} currentThemeColors={currentThemeColors} />;
-    if (error && users.length === 0) return <ErrorView error={error} onRetry={handleRefresh} currentThemeColors={currentThemeColors} t={t} />;
-    if (!loading && users.length === 0) return <EmptyView theme={theme} currentThemeColors={currentThemeColors} t={t} />;
+    if (error && users.length === 0) return <ErrorView error={error} onRetry={handleRefresh} currentThemeColors={currentThemeColors} t={tf} />;
+    if (!loading && users.length === 0) return <EmptyView theme={theme} currentThemeColors={currentThemeColors} t={tf} />;
 
     return (
       <ListUser
+        ref={listRef}
         users={users}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        onScroll={handleHomeScroll}
         loadMore={loadMore}
         hasMore={hasMore}
         loading={loading}
+        loadingMore={loadingMore}
         onOpenFilter={openFilterDrawer}
       />
     );
-  }, [loading, users, error, refreshing, handleRefresh, theme, currentThemeColors, onRefresh, loadMore, hasMore, t, openFilterDrawer]);
+  }, [loading, users, error, refreshing, handleRefresh, theme, currentThemeColors, onRefresh, handleHomeScroll, loadMore, hasMore, tf, openFilterDrawer]);
 
   return (
     <LiquidScreen themeMode={theme}>
@@ -216,12 +250,12 @@ function Home() {
         offset={drawerOffset}
         style={styles.revealContainer}
       >
-        <HomeHeader
-          activeFiltersCount={unreadNotificationsCount}
-          onOpenFilter={openNotificationDrawer}
-          onOpenSettings={openSettingsDrawer}
-          onOpenRadar={openRadar}
-        />
+         <HomeHeader
+            activeFiltersCount={unreadNotificationsCount}
+            onOpenFilter={openNotificationDrawer}
+            onOpenSettings={openSettingsDrawer}
+            onOpenRadar={openRadar}
+          />
         <View style={styles.contentContainer}>
           <View style={styles.contentBody}>
             {content}
@@ -235,7 +269,7 @@ function Home() {
         onClose={closeDrawer}
       />
 
-      <FeatureActionDrawer
+      <AppDrawer
         visible={!!featureDrawer}
         drawerKey={featureDrawer}
         onClose={closeFeatureDrawer}

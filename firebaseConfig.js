@@ -3,7 +3,6 @@ import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/aut
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore, collection } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import * as Notifications from 'expo-notifications';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -32,13 +31,19 @@ try {
   }
 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+try {
+  const Notifications = require('expo-notifications');
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+} catch (error) {
+  console.warn('[notifications] Native module unavailable in firebaseConfig:', error?.message || error);
+}
 
 // Initialize Firestore / Storage once per app instance
 // Note: Firebase Cloud Functions removed - using custom coin server instead
@@ -52,3 +57,5 @@ export const groupsRef = collection(db, 'groups');
 
 // Exports
 export { app, auth };
+
+

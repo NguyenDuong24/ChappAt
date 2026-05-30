@@ -135,7 +135,10 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       }
       return null;
     } catch (error) {
-      console.error('Error fetching user info:', error);
+      const errorStr = String(error?.message || error?.code || error);
+      if (!errorStr.includes('permission-denied') && !errorStr.includes('Missing or insufficient permissions')) {
+        console.error('Error fetching user info:', error);
+      }
       return null;
     }
   }, []); // No dependencies!

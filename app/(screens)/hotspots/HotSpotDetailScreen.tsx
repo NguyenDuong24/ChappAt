@@ -22,7 +22,10 @@ import { useHotSpotDetails, useHotSpots } from '@/hooks/useHotSpots';
 import { getDistance } from 'geolib';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialIcons, FontAwesome5, FontAwesome } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { BlurView } from 'expo-blur';
 
 import ErrorComponent from '@/components/common/ErrorComponent';
@@ -139,7 +142,7 @@ const HotSpotDetailScreen = () => {
     if (!hotSpot) return;
     try {
       await Share.share({
-        message: `Check out this hot spot: ${hotSpot.title}! Find it on ChappAt.`,
+        message: `Check out this hot spot: ${hotSpot.title}! Find it on SaiGon Match.`,
       });
     } catch (error) {
       console.error('Error sharing:', error);

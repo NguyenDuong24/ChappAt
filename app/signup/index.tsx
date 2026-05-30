@@ -3,10 +3,12 @@ import { View, StyleSheet, Text, TouchableOpacity, Alert } from 'react-native';
 import { TextInput, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
-import { FontAwesome } from '@expo/vector-icons';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next';
 
 const SignUpScreen = () => {
+  const { t } = useTranslation();
   const [username, setUsername] = React.useState('');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -16,9 +18,9 @@ const SignUpScreen = () => {
   const { register } = useAuth();
   const router = useRouter();
 
-  // Auto redirect to gender selection for new signup flow
+  // Auto redirect to email input for new signup flow
   React.useEffect(() => {
-    router.replace('/signup/GenderSelectionScreen');
+    router.replace('/signup/EmailInputScreen');
   }, []);
 
   const handleLogin = () => {
@@ -27,12 +29,12 @@ const SignUpScreen = () => {
 
   const handleSignUp = async () => {
     if (!username || !password || !email || !confirmPassword) {
-      Alert.alert('Sign Up', "Please fill all the fields");
+      Alert.alert(t('signup.signup_button'), t('signup.fill_all_fields', { defaultValue: 'Please fill all the fields' }));
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Sign Up', "Passwords do not match");
+      Alert.alert(t('signup.signup_button'), t('signup.password_mismatch_message'));
       return;
     }
 
@@ -40,7 +42,7 @@ const SignUpScreen = () => {
     let response = await register(email, password, username);
     setLoading(false);
     if (!response.success) {
-      Alert.alert('Sign Up', response.msg);
+      Alert.alert(t('signup.signup_button'), response.msg || t('common.error'));
     }
   };
 
@@ -58,13 +60,13 @@ const SignUpScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Join us to explore the world of opportunities</Text>
-      
+      <Text style={styles.title}>{t('signup.create_account_title')}</Text>
+      <Text style={styles.subtitle}>{t('signup.create_account_subtitle')}</Text>
+
       <View style={styles.inputContainer}>
         <FontAwesome name="user" size={20} style={styles.icon} />
         <TextInput
-          label="Username"
+          label={t('signup.username_label')}
           value={username}
           onChangeText={text => setUsername(text)}
           style={styles.input}
@@ -77,7 +79,7 @@ const SignUpScreen = () => {
       <View style={styles.inputContainer}>
         <FontAwesome name="envelope" size={20} style={styles.icon} />
         <TextInput
-          label="Email"
+          label={t('signup.email_label')}
           value={email}
           onChangeText={text => setEmail(text)}
           keyboardType="email-address"
@@ -92,7 +94,7 @@ const SignUpScreen = () => {
       <View style={styles.inputContainer}>
         <FontAwesome name="lock" size={20} style={styles.icon} />
         <TextInput
-          label="Password"
+          label={t('signup.password_label')}
           value={password}
           onChangeText={text => setPassword(text)}
           secureTextEntry
@@ -106,7 +108,7 @@ const SignUpScreen = () => {
       <View style={styles.inputContainer}>
         <FontAwesome name="lock" size={20} style={styles.icon} />
         <TextInput
-          label="Confirm Password"
+          label={t('signup.confirm_password_label')}
           value={confirmPassword}
           onChangeText={text => setConfirmPassword(text)}
           secureTextEntry
@@ -118,21 +120,20 @@ const SignUpScreen = () => {
         />
       </View>
 
-
       <View style={styles.buttonContainer}>
         {loading ? (
-          <Text style={{ color: Colors.dark.text }}>Loading...</Text>
+          <Text style={{ color: Colors.dark.text }}>{t('common.loading')}</Text>
         ) : (
           <Button mode="contained" onPress={handleSignUp} style={styles.button} labelStyle={{ color: Colors.white, fontWeight: '700' }}>
-            Sign Up
+            {t('signup.signup_button')}
           </Button>
         )}
       </View>
 
       <View style={styles.signUpTextContainer}>
-        <Text style={styles.signUpText}>Already have an account? </Text>
+        <Text style={styles.signUpText}>{t('signup.have_account')}</Text>
         <TouchableOpacity onPress={handleLogin}>
-          <Text style={styles.signUpLink}>Login</Text>
+          <Text style={styles.signUpLink}>{t('signup.login_now')}</Text>
         </TouchableOpacity>
       </View>
     </View>

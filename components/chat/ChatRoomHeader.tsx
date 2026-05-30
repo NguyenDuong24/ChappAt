@@ -1,10 +1,11 @@
 import React, { useContext, useState, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Alert, ActivityIndicator } from 'react-native';
 // import { Appbar } from 'react-native-paper'; // not used
 import { ThemeContext } from '@/context/ThemeContext';
 import { useAuth } from '@/context/authContext';
 // removed unused: addDoc, collection, db, createMeeting, token
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { createCall, CALL_TYPE } from '@/services/firebaseCallService';
 import { useCallNavigation } from '@/hooks/useNewCallNavigation';
@@ -27,11 +28,11 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const menuButtonBackground = chatTheme
     ? 'rgba(30, 41, 59, 0.46)'
-    : (theme === 'dark' ? 'rgba(255, 255, 255, 0.16)' : '#4F46E5');
+    : (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.05)');
   const menuButtonBorderColor = chatTheme
     ? 'rgba(255, 255, 255, 0.34)'
-    : (theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : '#6366F1');
-  const menuButtonIconColor = '#FFFFFF';
+    : (theme === 'dark' ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.08)');
+  const menuButtonIconColor = chatTheme ? '#FFFFFF' : currentThemeColors.text;
   const menuBackgroundColor = currentThemeColors.palette?.menuBackground || (theme === 'dark' ? '#111827' : '#FFFFFF');
   const menuBorderColor = currentThemeColors.border;
   const menuTextColor = currentThemeColors.text;
@@ -40,28 +41,40 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
   const headerGradientColors = useMemo<readonly [string, string, ...string[]]>(() => {
     const colors = chatTheme
       ? (chatTheme.sentMessageGradient || chatTheme.gradientColors || [chatTheme.backgroundColor, chatTheme.backgroundColor])
-      : (theme === 'dark' ? ['#1E293B', '#334155'] : ['#FFFFFF', '#F8FAFC']);
+      : (currentThemeColors.palette?.cardGradient || (theme === 'dark' ? ['#1E293B', '#334155'] : ['#FFFFFF', '#F8FAFC']));
     if (colors.length >= 2) return colors as [string, string, ...string[]];
     return [colors[0] || '#FFFFFF', colors[0] || '#FFFFFF'];
-  }, [chatTheme, theme]);
+  }, [chatTheme, theme, currentThemeColors.palette?.cardGradient]);
+
+  const [isCalling, setIsCalling] = useState(false);
 
   const handleAudioCall = async () => {
+    if (isCalling) return;
     try {
+      setIsCalling(true);
       if (!userCurrent?.uid) return;
       const callData = await createCall(userCurrent.uid, userId, CALL_TYPE.AUDIO);
       navigateToListenCallScreen(callData);
-    } catch (error) {
-      console.error('Error starting audio call:', error);
+    } catch (error: any) {
+      const msg = error?.userMessage || 'Không thể bắt đầu cuộc gọi. Vui lòng thử lại.';
+      Alert.alert('Thông báo', msg);
+    } finally {
+      setIsCalling(false);
     }
   };
 
   const handleVideoCall = async () => {
+    if (isCalling) return;
     try {
+      setIsCalling(true);
       if (!userCurrent?.uid) return;
       const callData = await createCall(userCurrent.uid, userId, CALL_TYPE.VIDEO);
       navigateToListenCallScreen(callData);
-    } catch (error) {
-      console.error('Error starting video call:', error);
+    } catch (error: any) {
+      const msg = error?.userMessage || 'Không thể bắt đầu cuộc gọi video. Vui lòng thử lại.';
+      Alert.alert('Thông báo', msg);
+    } finally {
+      setIsCalling(false);
     }
   };
 
@@ -178,7 +191,6 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
       },
       shadowOpacity: 0.2,
       shadowRadius: 1.41,
-      elevation: 2,
     },
     menuOverlay: {
       position: 'absolute',
@@ -198,7 +210,6 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.34,
       shadowRadius: 16,
-      elevation: 14,
       borderWidth: 1,
       overflow: 'hidden',
     },
@@ -246,7 +257,13 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
               <View
                 style={[
                   styles.onlineIndicator,
-                  { backgroundColor: user?.isOnline ? currentThemeColors.success : currentThemeColors.warning, width: 10, height: 10, borderRadius: 5 }
+                  {
+                    backgroundColor: user?.isOnline ? currentThemeColors.success : currentThemeColors.warning,
+                    borderColor: chatTheme ? chatTheme.backgroundColor : currentThemeColors.palette?.cardGradient?.[0] || currentThemeColors.surface || '#FFFFFF',
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5
+                  }
                 ]}
               />
             )}
@@ -256,8 +273,14 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
             params: { userId: userId }
           })}>
             <Text style={[styles.userName, { color: chatTheme?.textColor || currentThemeColors.text, fontSize: 16 }]}>{displayName}</Text>
-            <Text style={[styles.userStatus, { color: chatTheme?.textColor || currentThemeColors.subtleText }]}
-            >
+            <Text style={[
+              styles.userStatus,
+              {
+                color: user?.isOnline
+                  ? (chatTheme?.textColor || currentThemeColors.success)
+                  : (chatTheme?.textColor || currentThemeColors.subtleText)
+              }
+            ]}>
               {viewerShowOnline ? (user?.isOnline ? 'Online' : 'Last seen recently') : ''}
             </Text>
           </TouchableOpacity>
@@ -268,14 +291,24 @@ export default function ChatRoomHeader({ user, router, userId, onThemePress, cha
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: chatTheme?.receivedMessageColor || currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
             onPress={handleAudioCall}
+            disabled={isCalling}
           >
-            <Ionicons name="call" size={16} color={currentThemeColors.success} />
+            {isCalling ? (
+              <ActivityIndicator size="small" color={currentThemeColors.success} />
+            ) : (
+              <Ionicons name="call" size={16} color={currentThemeColors.success} />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: chatTheme?.receivedMessageColor || currentThemeColors.surface, width: 32, height: 32, borderRadius: 16 }]}
             onPress={handleVideoCall}
+            disabled={isCalling}
           >
-            <Ionicons name="videocam" size={16} color={currentThemeColors.primary} />
+            {isCalling ? (
+              <ActivityIndicator size="small" color={currentThemeColors.primary} />
+            ) : (
+              <Ionicons name="videocam" size={16} color={currentThemeColors.primary} />
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             ref={menuButtonRef}

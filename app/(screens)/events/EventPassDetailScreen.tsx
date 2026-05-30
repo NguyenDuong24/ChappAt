@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -12,7 +12,9 @@ import {
     Platform
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import QRCode from 'react-native-qrcode-svg';
@@ -63,7 +65,7 @@ const EventPassDetailScreen = () => {
                 price: '2,500,000 VND',
                 status: 'active',
                 description: t('event_pass.mock_description'),
-                organizer: 'ChappAt Events'
+                organizer: 'SaiGon Match Events'
             });
             setLoading(false);
         };
@@ -293,7 +295,6 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         overflow: 'hidden',
         marginBottom: 20,
-        elevation: 10,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 5 },
         shadowOpacity: 0.3,

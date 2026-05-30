@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, Alert, ActivityIndicator, Platform
 } from 'react-native';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 import { ThemeContext } from '@/context/ThemeContext';
@@ -112,7 +113,7 @@ export default function GiftsInboxScreen() {
           <TouchableOpacity
             style={styles.cardContent}
             activeOpacity={0.8}
-            onPress={() => router.push({ pathname: '/(tabs)/chat/[id]', params: { id: item.fromUid } })}
+            onPress={() => router.push({ pathname: '/chat/[id]', params: { id: item.fromUid } })}
           >
             <View style={[styles.emojiContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }]}>
               <Text style={styles.emoji}>{item.gift?.icon || '🎁'}</Text>
@@ -175,7 +176,7 @@ export default function GiftsInboxScreen() {
   };
 
   return (
-    <LiquidGlassBackground theme={theme} style={styles.container}>
+    <LiquidGlassBackground themeMode={theme} style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Premium Header */}

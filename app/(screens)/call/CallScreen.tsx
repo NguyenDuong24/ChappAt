@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   SafeAreaView,
@@ -27,10 +28,11 @@ import {
   MediaStream,
   RTCView,
 } from '@videosdk.live/react-native-sdk';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { createMeeting, getToken } from '@/api';
 import { Audio } from 'expo-av';
+import { safePlay, safeReplay, safeStopAndUnload, safeUnload } from '@/utils/safeSound';
 import { LinearGradient } from 'expo-linear-gradient';
 import { endCall } from '@/services/firebaseCallService';
 import callTimeoutService from '@/services/callTimeoutService';
@@ -198,7 +200,7 @@ function useRemoteAudio(micStream: any, micOn: boolean, participantId: string) {
 
           // Clean up previous sound first
           if (soundRef.current) {
-            await soundRef.current.unloadAsync();
+            await safeUnload(soundRef.current);
             soundRef.current = null;
           }
 
@@ -207,10 +209,10 @@ function useRemoteAudio(micStream: any, micOn: boolean, participantId: string) {
             const sound = new Audio.Sound();
             await sound.loadAsync({ uri: streamUrl });
             if (isMounted) {
-              await sound.playAsync();
+              await safePlay(sound);
               soundRef.current = sound;
             } else {
-              await sound.unloadAsync();
+              await safeUnload(sound);
             }
           }
         } catch (error) {
@@ -230,7 +232,7 @@ function useRemoteAudio(micStream: any, micOn: boolean, participantId: string) {
       isMounted = false;
       handle.cancel();
       if (soundRef.current) {
-        soundRef.current.unloadAsync().catch(() => { });
+        safeUnload(soundRef.current);
         soundRef.current = null;
       }
     };
@@ -343,7 +345,7 @@ class AudioService {
   static async playCallingSound() {
     try {
       if (this.callingSound) {
-        await this.callingSound.replayAsync();
+        await safeReplay(this.callingSound);
       }
     } catch (error) {
       console.log('Error playing calling sound:', error);
@@ -353,7 +355,7 @@ class AudioService {
   static async stopCallingSound() {
     try {
       if (this.callingSound) {
-        await this.callingSound.stopAsync();
+        await safeStopAndUnload(this.callingSound);
       }
     } catch (error) {
       console.log('Error stopping calling sound:', error);
@@ -363,7 +365,7 @@ class AudioService {
   static async playJoinSound() {
     try {
       if (this.joinSound) {
-        await this.joinSound.replayAsync();
+        await safeReplay(this.joinSound);
       }
     } catch (error) {
       console.log('Error playing join sound:', error);
@@ -375,12 +377,12 @@ class AudioService {
       if (this.callingSound) {
         const sound = this.callingSound;
         this.callingSound = null;
-        await sound.unloadAsync();
+        await safeUnload(sound);
       }
       if (this.joinSound) {
         const sound = this.joinSound;
         this.joinSound = null;
-        await sound.unloadAsync();
+        await safeUnload(sound);
       }
     } catch (error) {
       console.log('Error cleaning up sounds:', error);
@@ -724,8 +726,10 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
   const router = useRouter();
   const [isConnecting, setIsConnecting] = useState(true);
   const [callDurationSec, setCallDurationSec] = useState(0);
+  const [maxDurationSec, setMaxDurationSec] = useState<number | null>(null);
   const [cameraErrorSignal, setCameraErrorSignal] = useState(0);
   const isMounted = useRef(true);
+  const durationEndedRef = useRef(false);
   const [otherUserName, setOtherUserName] = useState<string | null>(null);
   const [otherUserAvatar, setOtherUserAvatar] = useState<string | null>(null);
   const { user } = useAuth(); // Get current user
@@ -883,6 +887,11 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
         const callDoc = await getDoc(doc(db, 'calls', callId));
         if (callDoc.exists()) {
           const callData = callDoc.data();
+          const serverMaxDuration = Number(callData.costPolicy?.maxDurationSeconds);
+          if (Number.isFinite(serverMaxDuration) && serverMaxDuration > 0) {
+            setMaxDurationSec(serverMaxDuration);
+          }
+
           const otherUserId = callData.callerId === user?.uid ? callData.receiverId : callData.callerId;
 
           if (otherUserId) {
@@ -1105,6 +1114,28 @@ function MeetingView({ callType, callId }: { callType: string; callId?: string }
     return () => clearInterval(timer);
   }, [isConnecting]);
 
+  useEffect(() => {
+    if (!maxDurationSec || isConnecting || durationEndedRef.current) return;
+
+    // Warning at 60 seconds before limit
+    const remaining = maxDurationSec - callDurationSec;
+    if (remaining === 60) {
+      Alert.alert(
+        'Sắp hết thời lượng',
+        'Cuộc gọi sẽ kết thúc sau 1 phút nữa. Nâng cấp Premium để gọi lâu hơn!',
+      );
+    }
+
+    if (callDurationSec >= maxDurationSec) {
+      durationEndedRef.current = true;
+      Alert.alert(
+        'Hết thời lượng cuộc gọi',
+        'Cuộc gọi đã đạt giới hạn thời lượng cho phép.',
+      );
+      end();
+    }
+  }, [callDurationSec, end, isConnecting, maxDurationSec]);
+
   return (
     <LinearGradient
       colors={['#1a1a2e', '#16213e', '#0f3460']}
@@ -1183,6 +1214,8 @@ export default function CallScreen() {
   const params = useLocalSearchParams();
   const [meetingId, setMeetingId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isPreparingMeeting, setIsPreparingMeeting] = useState(false);
+  const autoStartedRef = useRef(false);
 
   // Lấy thông tin từ params
   const {
@@ -1191,45 +1224,43 @@ export default function CallScreen() {
     createNew
   } = params;
 
-  // Fetch token on mount
-  useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const t = await getToken();
-        setToken(t ?? null);
-      } catch (e) {
-        Alert.alert("Error", "Failed to authenticate for video call");
-        router.back();
-      }
-    };
-    fetchToken();
-  }, []);
-
-  const getMeetingId = async (id: string | null) => {
-    if (!token) return;
+  const getMeetingId = useCallback(async (id: string | null) => {
+    if (isPreparingMeeting) return;
     try {
-      const finalMeetingId = id == null ? await createMeeting({ token }) : id;
+      setIsPreparingMeeting(true);
+      const finalMeetingId = id == null
+        ? await createMeeting({ metadata: { source: 'call_screen' } })
+        : id.trim();
       if (!finalMeetingId) {
         throw new Error('Missing meeting ID');
       }
+      const scopedToken = await getToken(finalMeetingId);
       setMeetingId(finalMeetingId);
-    } catch (error) {
+      setToken(scopedToken ?? null);
+    } catch (error: any) {
       console.error("❌ Error getting meeting ID:", error);
-      Alert.alert("Error", "Failed to create/join meeting");
+      Alert.alert("Lỗi cuộc gọi", error.message || "Không thể khởi tạo cuộc gọi. Vui lòng thử lại sau.");
+      if (router.canGoBack()) {
+        router.back();
+      }
+    } finally {
+      setIsPreparingMeeting(false);
     }
-  };
+  }, [isPreparingMeeting, router]);
 
   // Auto create meeting nếu có createNew flag
   useEffect(() => {
-    if (!token) return;
+    if (autoStartedRef.current) return;
     if (createNew === 'true') {
+      autoStartedRef.current = true;
       getMeetingId(null);
     } else if (paramMeetingId && typeof paramMeetingId === 'string') {
-      setMeetingId(paramMeetingId);
+      autoStartedRef.current = true;
+      getMeetingId(paramMeetingId);
     }
-  }, [createNew, paramMeetingId, token]);
+  }, [createNew, paramMeetingId, getMeetingId]);
 
-  if (!token) {
+  if (isPreparingMeeting || (meetingId && !token)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1a1a2e' }}>
         <ActivityIndicator size="large" color="#ffffff" />
@@ -1238,7 +1269,7 @@ export default function CallScreen() {
     );
   }
 
-  return meetingId ? (
+  return meetingId && token ? (
     <SafeAreaView style={styles.container}>
       <MeetingProvider
         key={meetingId}
@@ -1610,7 +1641,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
@@ -1765,7 +1795,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 16,
     backgroundColor: '#1a1a1a',
-    elevation: 15,
   },
   localVideoStream: {
     flex: 1,

@@ -12,6 +12,10 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const messaging = admin.messaging();
 
+function hasDoNotDisturbEnabled(userData) {
+  return userData?.doNotDisturb === true || userData?.notificationSettings?.doNotDisturb === true;
+}
+
 // Cloud Function để gửi notification
 exports.sendNotification = functions.https.onCall(async (data, context) => {
   try {
@@ -34,6 +38,11 @@ exports.sendNotification = functions.https.onCall(async (data, context) => {
     }
 
     const userData = userDoc.data();
+    if (hasDoNotDisturbEnabled(userData)) {
+      console.log('User has Do Not Disturb enabled:', targetUserId);
+      return { success: true, message: 'Suppressed by user settings' };
+    }
+
     const fcmTokens = userData.fcmTokens;
 
     if (!fcmTokens || Object.keys(fcmTokens).length === 0) {
@@ -51,7 +60,7 @@ exports.sendNotification = functions.https.onCall(async (data, context) => {
       android: {
         priority: 'high',
         notification: {
-          sound: 'default',
+          sound: undefined,
           channelId: getChannelId(notification.data?.type),
           clickAction: 'FLUTTER_NOTIFICATION_CLICK',
         },
@@ -59,7 +68,7 @@ exports.sendNotification = functions.https.onCall(async (data, context) => {
       apns: {
         payload: {
           aps: {
-            sound: 'default',
+            sound: undefined,
             badge: 1,
             category: notification.categoryId,
           },
@@ -145,7 +154,7 @@ exports.onNewMessage = functions.firestore
       const receiverDoc = await db.collection('users').doc(receiverId).get();
       const receiverData = receiverDoc.data();
       
-      if (receiverData?.notificationSettings?.messageNotifications === false) {
+      if (hasDoNotDisturbEnabled(receiverData) || receiverData?.notificationSettings?.messageNotifications === false) {
         console.log('User has disabled message notifications');
         return;
       }
@@ -207,6 +216,11 @@ async function sendNotificationToUser(userId, notification) {
   }
 
   const userData = userDoc.data();
+  if (hasDoNotDisturbEnabled(userData)) {
+    console.log('User has Do Not Disturb enabled:', userId);
+    return { success: true, message: 'Suppressed by user settings' };
+  }
+
   const fcmTokens = userData.fcmTokens;
 
   if (!fcmTokens || Object.keys(fcmTokens).length === 0) {
@@ -222,14 +236,14 @@ async function sendNotificationToUser(userId, notification) {
     android: {
       priority: 'high',
       notification: {
-        sound: 'default',
+        sound: undefined,
         channelId: getChannelId(notification.data?.type),
       },
     },
     apns: {
       payload: {
         aps: {
-          sound: 'default',
+          sound: undefined,
           badge: 1,
         },
       },

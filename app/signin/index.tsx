@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ImageBackground, TouchableOpacity, ActivityIndi
 import { Image } from 'expo-image';
 import { TextInput } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AntDesign, MaterialCommunityIcons } from '@expo/vector-icons';
+import AntDesign from '@expo/vector-icons/AntDesign';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
 
@@ -12,6 +13,7 @@ const LoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
@@ -70,80 +72,119 @@ const LoginScreen = () => {
   const ringStyle = { transform: [{ rotate: ringRotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] };
 
   return (
-    <ImageBackground source={require('../../assets/images/cover.png')} style={styles.bg} resizeMode="cover">
+    <ImageBackground source={require('../../assets/images/cover.webp')} style={styles.bg} resizeMode="cover">
       <View style={styles.dim} />
-      <LinearGradient colors={["#335dff30", "#8228ff25", "#00ffc815"]} style={styles.aura} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+      <View style={styles.headerRight}>
+        <TouchableOpacity style={styles.langBtn}>
+          <Text style={styles.langText}>VI</Text>
+          <MaterialCommunityIcons name="chevron-down" size={16} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, width: '100%' }}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps='handled'>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps='handled' showsVerticalScrollIndicator={false}>
+          <View style={styles.logoContainer}>
+            <Image source={require('@/assets/images/logo.png')} style={styles.mainLogo} contentFit="contain" />
+            <Text style={styles.brandSubtitle}>KẾT NỐI TỪ TRÁI TIM</Text>
+            <View style={styles.heartDivider}>
+              <View style={styles.divLine} />
+              <MaterialCommunityIcons name="heart" size={14} color="#FB7185" style={{ marginHorizontal: 8 }} />
+              <View style={styles.divLine} />
+            </View>
+          </View>
+
           <Animated.View style={[styles.outerCard, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-            <LinearGradient colors={["#ffffff40", "#ffffff08"]} style={styles.borderLayer} locations={[0, 1]}>
-              <View style={[styles.blurWrap, { backgroundColor: 'rgba(0,0,0,0.8)' }]}>
+            <LinearGradient colors={["rgba(255,255,255,0.15)", "rgba(255,255,255,0.02)"]} style={styles.borderLayer}>
+              <View style={styles.blurWrap}>
                 <View style={styles.inner}>
-                  <View style={styles.header}>
-                    <View style={styles.logoWrap}>
-                      <Animated.View style={[styles.glow, { transform: [{ scale: glowScale }], opacity: glowOpacity }]} />
-                      <Animated.View style={[styles.ring, ringStyle]} />
-                      <Image source={require('@/assets/images/logo.png')} style={styles.logo} contentFit="contain" />
-                    </View>
-                    <Text style={styles.brand}>ChappAt</Text>
-                  </View>
-                  <Text style={styles.title}>Welcome Back</Text>
-                  <Text style={styles.subtitle}>Sign in to continue</Text>
+                  <Text style={styles.title}>
+                    Chào mừng <Text style={styles.titleHighlight}>trở lại</Text>
+                  </Text>
+                  <Text style={styles.subtitle}>Đăng nhập để tiếp tục hành trình kết nối</Text>
 
                   <View style={styles.form}>
                     <TextInput
-                      label="Email"
+                      placeholder="Email"
                       value={email}
                       onChangeText={(t) => { setEmail(t); if (error) setError(''); }}
                       style={styles.input}
                       keyboardType="email-address"
                       autoCapitalize="none"
-                      left={<TextInput.Icon icon={() => <MaterialCommunityIcons name="email-outline" size={20} color="#9ecbff" />} />}
-                      theme={{ colors: { primary: '#81a8ff', text: '#fff', placeholder: 'rgba(255,255,255,0.5)' } }}
+                      left={<TextInput.Icon icon={() => <MaterialCommunityIcons name="email-outline" size={20} color="rgba(255,255,255,0.6)" />} />}
+                      theme={{ colors: { primary: '#FB7185', text: '#fff', placeholder: 'rgba(255,255,255,0.4)', outline: 'rgba(255,255,255,0.1)' } }}
                       mode="outlined"
                       textColor="#fff"
+                      outlineStyle={{ borderRadius: 18, borderWidth: 1 }}
+                      placeholderTextColor="rgba(255,255,255,0.4)"
                     />
                     <TextInput
-                      label="Password"
+                      placeholder="Mật khẩu"
                       value={password}
                       onChangeText={(t) => { setPassword(t); if (error) setError(''); }}
                       secureTextEntry={!showPassword}
-                      left={<TextInput.Icon icon={() => <MaterialCommunityIcons name="lock-outline" size={20} color="#9ecbff" />} />}
-                      right={<TextInput.Icon icon={showPassword ? 'eye-off' : 'eye'} onPress={() => setShowPassword(!showPassword)} forceTextInputFocus={false} color="#fff" />}
+                      left={<TextInput.Icon icon={() => <MaterialCommunityIcons name="lock-outline" size={20} color="rgba(255,255,255,0.6)" />} />}
+                      right={<TextInput.Icon icon={showPassword ? 'eye-off' : 'eye'} onPress={() => setShowPassword(!showPassword)} forceTextInputFocus={false} color="rgba(255,255,255,0.6)" />}
                       style={styles.input}
-                      theme={{ colors: { primary: '#81a8ff', text: '#fff', placeholder: 'rgba(255,255,255,0.5)' } }}
+                      theme={{ colors: { primary: '#FB7185', text: '#fff', placeholder: 'rgba(255,255,255,0.4)', outline: 'rgba(255,255,255,0.1)' } }}
                       mode="outlined"
                       textColor="#fff"
+                      outlineStyle={{ borderRadius: 18, borderWidth: 1 }}
+                      placeholderTextColor="rgba(255,255,255,0.4)"
                     />
+
+                    <View style={styles.optionsRow}>
+                      <TouchableOpacity style={styles.rememberRow} onPress={() => setRememberMe(!rememberMe)}>
+                        <MaterialCommunityIcons 
+                          name={rememberMe ? "record-circle-outline" : "circle-outline"} 
+                          size={20} 
+                          color={rememberMe ? "#FB7185" : "rgba(255,255,255,0.4)"} 
+                        />
+                        <Text style={styles.rememberText}>Ghi nhớ đăng nhập</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { }}>
+                        <Text style={styles.forgotText}>Quên mật khẩu?</Text>
+                      </TouchableOpacity>
+                    </View>
+
                     {error ? <Text style={styles.error}>{error}</Text> : null}
-                    <TouchableOpacity style={styles.btnPrimary} activeOpacity={0.9} onPress={handleLogin} disabled={loading}>
-                      <LinearGradient colors={['#5d9dff', '#4f72ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.btnPrimaryGrad}>
-                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>Login</Text>}
-                        <Animated.View pointerEvents='none' style={[styles.shimmer, { opacity: shimmerAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.55, 0] }), transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [-140, 140] }) }] }]} />
+
+                    <TouchableOpacity style={styles.btnPrimary} activeOpacity={0.85} onPress={handleLogin} disabled={loading}>
+                      <LinearGradient colors={['#E91E63', '#FB7185']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.btnPrimaryGrad}>
+                        {loading ? <ActivityIndicator color="#fff" /> : (
+                          <View style={styles.btnContent}>
+                            <Text style={styles.btnPrimaryText}>Đăng nhập</Text>
+                            <AntDesign name="arrow-right" size={20} color="#fff" style={styles.btnIcon} />
+                          </View>
+                        )}
+                        <Animated.View pointerEvents='none' style={[styles.shimmer, { opacity: shimmerAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.4, 0] }), transform: [{ translateX: shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [-180, 180] }) }] }]} />
                       </LinearGradient>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.forgot} onPress={() => { }}>
-                      <Text style={styles.forgotText}>Forgot Password?</Text>
-                    </TouchableOpacity>
                   </View>
+
                   <View style={styles.separatorRow}>
                     <View style={styles.sepLine} />
-                    <Text style={styles.sepText}>OR</Text>
+                    <Text style={styles.sepText}>HOẶC</Text>
                     <View style={styles.sepLine} />
                   </View>
-                  <TouchableOpacity style={styles.googleBtn} onPress={handleGoogle} activeOpacity={0.92} disabled={googleLoading}>
+
+                  <TouchableOpacity style={styles.googleBtn} onPress={handleGoogle} activeOpacity={0.9} disabled={googleLoading}>
                     {googleLoading ? <ActivityIndicator color="#1a1d21" /> : <>
-                      <View style={styles.googleIconWrap}><AntDesign name='google' size={22} color='#4285F4' /></View>
-                      <Text style={styles.googleText}>Continue with Google</Text>
+                      <AntDesign name='google' size={20} color='#EA4335' />
+                      <Text style={styles.googleText}>Tiếp tục với Google</Text>
                     </>}
                   </TouchableOpacity>
-                  <View style={styles.footerRow}>
-                    <Text style={styles.footerText}>Don't have an account?</Text>
-                    <TouchableOpacity onPress={goSignup}><Text style={styles.signUpLink}>  Sign Up</Text></TouchableOpacity>
-                  </View>
+
                 </View>
               </View>
             </LinearGradient>
+
+            <View style={styles.footerRow}>
+              <Text style={styles.footerText}>Chưa có tài khoản?</Text>
+              <TouchableOpacity onPress={goSignup} style={styles.signupBtn}>
+                <Text style={styles.signUpLink}> Đăng ký ngay</Text>
+                <MaterialCommunityIcons name="chevron-right" size={18} color="#FB7185" />
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -153,39 +194,45 @@ const LoginScreen = () => {
 
 const styles = StyleSheet.create({
   bg: { flex: 1, width: '100%' },
-  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,10,22,0.55)' },
-  aura: { position: 'absolute', width: '90%', height: '70%', borderRadius: 50, opacity: 0.45, alignSelf: 'center', top: '15%' },
-  scroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
-  outerCard: { width: '90%', maxWidth: 440 },
-  borderLayer: { borderRadius: 34, padding: 1.2 },
-  blurWrap: { borderRadius: 33, overflow: 'hidden' },
-  inner: { borderRadius: 33, paddingVertical: 40, paddingHorizontal: 30, backgroundColor: 'rgba(18,26,40,0.55)' },
-  header: { alignItems: 'center', marginBottom: 10 },
-  logoWrap: { width: 96, height: 96, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  glow: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: '#4f8bff55' },
-  ring: { position: 'absolute', width: 128, height: 128, borderRadius: 64, borderWidth: 2, borderColor: '#4f8bff40' },
-  logo: { width: 82, height: 82, borderRadius: 22 },
-  brand: { fontSize: 18, letterSpacing: 3, fontWeight: '700', color: '#b5d8ff', textTransform: 'uppercase' },
-  title: { fontSize: 30, fontWeight: '800', color: '#fff', marginTop: 8, textAlign: 'center', letterSpacing: 0.5 },
-  subtitle: { fontSize: 15, color: 'rgba(255,255,255,0.72)', marginTop: 8, marginBottom: 30, textAlign: 'center', fontWeight: '500' },
+  dim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,7,12,0.45)' },
+  scroll: { flexGrow: 1, alignItems: 'center', paddingVertical: 60 },
+  headerRight: { position: 'absolute', top: 50, right: 20, zIndex: 10 },
+  langBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  langText: { color: '#fff', fontSize: 13, fontWeight: '700', marginRight: 4 },
+  logoContainer: { alignItems: 'center', marginBottom: 40, marginTop: 20 },
+  mainLogo: { width: 180, height: 100 },
+  brandSubtitle: { fontSize: 13, color: '#fff', letterSpacing: 4, marginTop: 10, fontWeight: '500', opacity: 0.9 },
+  heartDivider: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  divLine: { width: 25, height: 1.5, backgroundColor: 'rgba(255,255,255,0.3)' },
+  outerCard: { width: '92%', maxWidth: 400 },
+  borderLayer: { borderRadius: 32, padding: 1 },
+  blurWrap: { borderRadius: 31, overflow: 'hidden', backgroundColor: 'rgba(28, 22, 34, 0.85)' },
+  inner: { paddingVertical: 35, paddingHorizontal: 25 },
+  title: { fontSize: 28, fontWeight: '700', color: '#fff', textAlign: 'center' },
+  titleHighlight: { color: '#FB7185', fontWeight: '400', fontStyle: 'italic' },
+  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 10, marginBottom: 30, textAlign: 'center', lineHeight: 20 },
   form: { width: '100%' },
-  input: { marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16 },
-  error: { color: '#ff6b6b', fontSize: 13, marginBottom: 6, fontWeight: '600' },
-  btnPrimary: { marginTop: 4, borderRadius: 20, overflow: 'hidden' },
-  btnPrimaryGrad: { paddingVertical: 16, alignItems: 'center', borderRadius: 20, overflow: 'hidden' },
+  input: { marginBottom: 16, backgroundColor: 'rgba(255,255,255,0.03)', height: 58 },
+  optionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 24 },
+  rememberRow: { flexDirection: 'row', alignItems: 'center' },
+  rememberText: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginLeft: 8 },
+  forgotText: { color: '#FB7185', fontSize: 13, fontWeight: '500' },
+  error: { color: '#FF5252', fontSize: 13, marginBottom: 15, textAlign: 'center', fontWeight: '600' },
+  btnPrimary: { borderRadius: 30, overflow: 'hidden', height: 58, shadowColor: '#FB7185', shadowOpacity: 0.4, shadowRadius: 15, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
+  btnPrimaryGrad: { flex: 1, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  shimmer: { position: 'absolute', top: 0, bottom: 0, width: 100, backgroundColor: 'rgba(255,255,255,0.3)', transform: [{ skewX: '-20deg' }] },
+  btnContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' },
   btnPrimaryText: { color: '#fff', fontSize: 17, fontWeight: '700', letterSpacing: 0.5 },
-  shimmer: { position: 'absolute', top: 0, bottom: 0, width: 120, backgroundColor: '#ffffff55', borderRadius: 20 },
-  forgot: { marginTop: 16, alignSelf: 'center' },
-  forgotText: { color: '#81a8ff', fontSize: 13, fontWeight: '600' },
-  separatorRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 28 },
-  sepLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.18)' },
-  sepText: { marginHorizontal: 12, color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
-  googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', paddingVertical: 15, borderRadius: 18, width: '100%', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 22, shadowOffset: { width: 0, height: 8 }, elevation: 6 },
-  googleIconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#f2f5ff', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
-  googleText: { fontSize: 15.5, fontWeight: '600', color: '#1a1d21' },
-  footerRow: { flexDirection: 'row', marginTop: 34, justifyContent: 'center', alignItems: 'center' },
-  footerText: { color: 'rgba(255,255,255,0.68)', fontSize: 13, fontWeight: '500' },
-  signUpLink: { color: '#b5d8ff', fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' }
+  btnIcon: { marginLeft: 10 },
+  separatorRow: { flexDirection: 'row', alignItems: 'center', width: '100%', marginVertical: 30 },
+  sepLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
+  sepText: { marginHorizontal: 15, color: 'rgba(255,255,255,0.4)', fontSize: 12, fontWeight: '600' },
+  googleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', height: 58, borderRadius: 20, width: '100%' },
+  googleText: { fontSize: 16, fontWeight: '600', color: '#1a1d21', marginLeft: 12 },
+  footerRow: { flexDirection: 'row', marginTop: 40, justifyContent: 'center', alignItems: 'center' },
+  footerText: { color: 'rgba(255,255,255,0.7)', fontSize: 14 },
+  signupBtn: { flexDirection: 'row', alignItems: 'center' },
+  signUpLink: { color: '#FB7185', fontSize: 14, fontWeight: '700' }
 });
 
 export default LoginScreen;

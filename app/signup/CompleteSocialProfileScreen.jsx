@@ -1,85 +1,179 @@
-﻿import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Alert, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ImageBackground,
+  Alert,
+  ScrollView,
+  Platform,
+  ActivityIndicator,
+  StatusBar,
+} from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/context/authContext';
-import { useLogoState } from '@/context/LogoStateContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTranslation } from 'react-i18next';
+import { BlurView } from 'expo-blur';
+import { auth } from '@/firebaseConfig';
 
 const CompleteSocialProfileScreen = () => {
   const {
-    user, gender, name, age, icon, bio,
-    cancelRegistration, updateUserProfile,
-    educationLevel, university, job, email,
-    signupType, clearSignupState,
+    user,
+    gender,
+    setGender,
+    name,
+    age,
+    setAge,
+    icon,
+    bio,
+    cancelRegistration,
+    updateUserProfile,
+    register,
+    educationLevel,
+    university,
+    job,
+    email,
+    password,
+    hometown,
+    district,
+    interests,
+    signupType,
+    clearSignupState,
   } = useAuth();
+
   const { t } = useTranslation();
   const router = useRouter();
-  const logoUrl = useLogoState();
+
   const [loading, setLoading] = useState(false);
+
+  const [birthDate, setBirthDate] = useState(() => {
+    if (age) {
+      const d = new Date(age);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 20);
+    return d;
+  });
+
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const onDateChange = (event, selected) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+
+    if (selected) {
+      setBirthDate(selected);
+      setAge(selected.toISOString());
+    }
+  };
 
   const normalizeGender = (g) => {
     const s = (g || '').toString().toLowerCase().trim();
-    if (['male', 'nam', 'man', 'boy', 'm'].includes(s)) return 'male';
-    if (['female', 'nu', 'nữ', 'woman', 'girl', 'f'].includes(s)) return 'female';
+
+    if (['male', 'nam', 'man', 'boy', 'm'].includes(s)) {
+      return 'male';
+    }
+
+    if (['female', 'nu', 'nữ', 'woman', 'girl', 'f'].includes(s)) {
+      return 'female';
+    }
+
     return '';
   };
 
   const getAgeNumber = (val) => {
-    if (val == null) return 0;
-    if (val instanceof Date) {
-      const now = new Date();
-      let years = now.getFullYear() - val.getFullYear();
-      const m = now.getMonth() - val.getMonth();
-      if (m < 0 || (m === 0 && now.getDate() < val.getDate())) years--;
-      return years > 0 ? years : 0;
-    }
-    if (typeof val === 'number') return val > 0 ? val : 0;
-    const str = String(val);
-    const d = new Date(str);
+    if (!val) return 0;
+
+    const d = new Date(val);
+
     if (!Number.isNaN(d.getTime())) {
       const now = new Date();
+
       let years = now.getFullYear() - d.getFullYear();
+
       const m = now.getMonth() - d.getMonth();
-      if (m < 0 || (m === 0 && now.getDate() < d.getDate())) years--;
-      return years > 0 ? years : 0;
+
+      if (m < 0 || (m === 0 && now.getDate() < d.getDate())) {
+        years--;
+      }
+
+      return years;
     }
-    const num = Number(str);
-    return Number.isFinite(num) && num > 0 ? num : 0;
+
+    return 0;
   };
 
-  const avatarUri = icon || user?.photoURL || '';
-  const normalizedGender = normalizeGender(gender);
-  const displayGender = normalizedGender === 'male'
-    ? t('signup.male')
-    : normalizedGender === 'female'
-      ? t('signup.female')
-      : t('complete_social.not_updated');
-  const ageNumber = getAgeNumber(age);
-  const displayAge = ageNumber > 0 ? ageNumber : t('complete_social.not_updated');
+  // Chỉ dùng thông tin user đã nhập/chọn trong signup.
+  // Không fallback sang displayName/photoURL từ Google/email auth vì user không muốn hồ sơ bị lấy từ mail.
+  const effectiveName = (name || '').trim();
 
-  const isProfileComplete = Boolean(
-    normalizedGender && (name && name.trim().length > 0) && ageNumber > 0 && !!avatarUri
-  );
+  const avatarUri = icon || '';
+
+  const normalizedGender = normalizeGender(gender);
+
+  const ageNumber = getAgeNumber(age);
+
+  const displayGender =
+    normalizedGender === 'male'
+      ? 'Nam'
+      : normalizedGender === 'female'
+      ? 'Nữ'
+      : '---';
+
+  const fullLocation = useMemo(() => {
+    if (district && hometown) {
+      return `${district}, ${hometown}`;
+    }
+
+    return hometown || '';
+  }, [district, hometown]);
+
+  const isProfileComplete = useMemo(() => {
+    return Boolean(
+      normalizedGender &&
+        effectiveName?.trim() &&
+        ageNumber > 0 &&
+        avatarUri
+    );
+  }, [
+    normalizedGender,
+    effectiveName,
+    ageNumber,
+    avatarUri,
+  ]);
+
+  const handleGenderPress = () => {
+        Alert.alert(
+        t('signup.gender_selection_title'),
+        '', [
+          { text: t('signup.male_option'), onPress: () => setGender('male') },
+          { text: t('signup.female_option'), onPress: () => setGender('female') },
+          { text: t('signup.cancel_option'), style: 'cancel' },
+        ])
+  };
 
   const handleCompleteProfile = async () => {
     try {
       if (!isProfileComplete) {
-        const missing = [];
-        if (!normalizedGender) missing.push(t('complete_social.field_gender'));
-        if (!name || !name.trim()) missing.push(t('complete_social.field_name'));
-        if (!(ageNumber > 0)) missing.push(t('complete_social.field_age'));
-        if (!avatarUri) missing.push(t('complete_social.field_avatar'));
-        Alert.alert(t('complete_social.missing_title'), t('complete_social.missing_message', { fields: missing.join(', ') }));
+        Alert.alert(
+          t('signup.profile_incomplete_title'),
+          t('signup.profile_incomplete_msg_2')
+        );
         return;
       }
 
       setLoading(true);
 
       const profileData = {
-        username: name,
+        username: effectiveName,
         gender: normalizedGender,
         age,
         profileUrl: avatarUri,
@@ -87,22 +181,57 @@ const CompleteSocialProfileScreen = () => {
         educationLevel: educationLevel || '',
         university: university || '',
         job: job || '',
+        hometown: hometown || '',
+        district: district || '',
+        interests: interests || [],
         profileCompleted: true,
       };
 
-      const response = await updateUserProfile(profileData);
+      const hasSignedInUser = Boolean(
+        user?.uid || auth.currentUser?.uid
+      );
+
+      if (!hasSignedInUser && (!email || !password)) {
+        Alert.alert(
+          'Lỗi',
+          'Phiên đăng ký đã hết hạn.'
+        );
+
+        router.replace('/signup/EmailInputScreen');
+
+        setLoading(false);
+        return;
+      }
+
+      const response = hasSignedInUser
+        ? await updateUserProfile(profileData)
+        : await register(email, password, profileData);
+
       if (!response?.success) {
-        Alert.alert(t('common.error'), response?.msg || t('complete_social.update_error'));
+        Alert.alert(
+          'Lỗi',
+          response?.msg || 'Có lỗi xảy ra'
+        );
+
         setLoading(false);
         return;
       }
 
       clearSignupState();
+
       router.replace('/(tabs)/home');
-      Alert.alert(t('complete_social.completed_title'), t('complete_social.completed_message'));
+
+      Alert.alert(
+        'Hoàn tất',
+        'Hồ sơ của bạn đã sẵn sàng 🎉'
+      );
     } catch (error) {
-      console.error('Error completing profile:', error);
-      Alert.alert(t('common.error'), t('complete_social.complete_error'));
+      console.log(error);
+
+      Alert.alert(
+        'Lỗi',
+        'Không thể hoàn tất hồ sơ'
+      );
     } finally {
       setLoading(false);
     }
@@ -110,16 +239,22 @@ const CompleteSocialProfileScreen = () => {
 
   const handleCancel = () => {
     Alert.alert(
-      t('signup.cancel_title'),
-      t('complete_social.cancel_confirm'),
+      t('signup.registration_cancel_title'),
+      t('signup.cancel_dialog_message'),
       [
-        { text: t('common.no'), style: 'cancel' },
         {
-          text: t('common.cancel'),
+          text: t('signup.stay_option'),
+          style: 'cancel',
+        },
+        {
+          text: t('signup.exit_option'),
           style: 'destructive',
           onPress: async () => {
             try {
-              await cancelRegistration({ deleteAccount: signupType === 'email', navigateTo: '/signin' });
+              await cancelRegistration({
+                deleteAccount: signupType === 'email',
+                navigateTo: '/signin',
+              });
             } catch {}
           },
         },
@@ -127,385 +262,640 @@ const CompleteSocialProfileScreen = () => {
     );
   };
 
-  const InfoRow = ({ icon, label, value, iconColor = '#9370db' }) => (
-    <View style={styles.infoRow}>
+  const InfoItem = ({
+    icon,
+    label,
+    value,
+    onPress,
+    multiline = false,
+  }) => (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      disabled={!onPress}
+      onPress={onPress}
+      style={styles.infoCard}
+    >
       <View style={styles.infoLeft}>
-        <View style={[styles.infoIconContainer, { backgroundColor: `${iconColor}15` }]}>
-          <Ionicons name={icon} size={20} color={iconColor} />
+        <LinearGradient
+          colors={['#FF4D8D', '#FF77A8']}
+          style={styles.infoIcon}
+        >
+          <Ionicons
+            name={icon}
+            size={18}
+            color="#fff"
+          />
+        </LinearGradient>
+
+        <View style={{ flex: 1 }}>
+          <Text style={styles.infoLabel}>
+            {label}
+          </Text>
+
+          <Text
+            style={[
+              styles.infoValue,
+              multiline && {
+                lineHeight: 22,
+              },
+            ]}
+            numberOfLines={multiline ? 3 : 1}
+          >
+            {value || '---'}
+          </Text>
         </View>
-        <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <Text style={styles.infoValue}>{value}</Text>
-    </View>
+
+      {onPress && (
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color="rgba(255,255,255,0.35)"
+        />
+      )}
+    </TouchableOpacity>
   );
 
   return (
-    <ImageBackground source={require('../../assets/images/cover.png')} style={styles.background} resizeMode="cover">
-      <LinearGradient colors={['rgba(147,112,219,0.85)', 'rgba(255,20,147,0.85)']} style={styles.backdrop} />
+    <ImageBackground
+      source={require('../../assets/images/cover.webp')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <StatusBar barStyle="light-content" />
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          {logoUrl ? (
-            <View style={styles.logoContainer}>
-              <Image source={{ uri: logoUrl }} style={styles.logo} contentFit="contain" />
-              <View style={styles.logoGlow} />
-            </View>
-          ) : (
-            <View style={styles.logoPlaceholder}>
-              <Ionicons name="heart" size={40} color="#fff" />
-            </View>
-          )}
-          <View style={styles.headerBadge}>
-            <Ionicons name="checkmark-circle" size={16} color="#00ff88" />
-            <Text style={styles.badgeText}>{t('complete_social.final_step')}</Text>
-          </View>
-          <Text style={styles.title}>{t('complete_social.confirm_title')}</Text>
-          <Text style={styles.subtitle}>{t('complete_social.confirm_subtitle')}</Text>
-        </View>
+      <LinearGradient
+        colors={[
+          'rgba(0,0,0,0.55)',
+          'rgba(10,10,20,0.9)',
+        ]}
+        style={styles.overlay}
+      />
 
-        <View style={styles.profileCard}>
-          <View style={styles.avatarSection}>
-            {avatarUri ? (
-              <View style={styles.avatarWrapper}>
-                <Image source={{ uri: avatarUri }} style={styles.profileImage} contentFit="cover" />
-                <View style={styles.avatarBorder} />
-                <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark" size={16} color="#fff" />
-                </View>
-              </View>
-            ) : (
-              <View style={[styles.profileImage, styles.profileImagePlaceholder]}>
-                <Ionicons name="person" size={50} color="#ccc" />
-              </View>
-            )}
-            <Text style={styles.profileName}>{name || user?.displayName || t('complete_social.not_updated')}</Text>
-            {bio ? <Text style={styles.profileBio}>{bio}</Text> : null}
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoSection}>
-            <Text style={styles.sectionTitle}>{t('complete_social.personal_info')}</Text>
-
-            <InfoRow icon="mail" label={t('complete_social.email')} value={email || user?.email || t('complete_social.not_updated')} iconColor="#3b82f6" />
-            <InfoRow
-              icon={normalizedGender === 'male' ? 'male' : 'female'}
-              label={t('complete_social.gender')}
-              value={displayGender}
-              iconColor={normalizedGender === 'male' ? '#3b82f6' : '#ec4899'}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
+        <View style={styles.top}>
+          <View style={styles.logoWrap}>
+            <Image
+              source={require('@/assets/images/logo.png')}
+              style={styles.logo}
+              contentFit="contain"
             />
-            <InfoRow icon="calendar" label={t('complete_social.age')} value={displayAge} iconColor="#8b5cf6" />
-
-            {(educationLevel || university || job) && (
-              <>
-                <View style={styles.divider} />
-                <Text style={styles.sectionTitle}>{t('complete_social.education_career')}</Text>
-
-                {educationLevel ? <InfoRow icon="school" label={t('complete_social.education_level')} value={educationLevel} iconColor="#10b981" /> : null}
-                {university ? <InfoRow icon="business" label={t('complete_social.university')} value={university} iconColor="#f59e0b" /> : null}
-                {job ? <InfoRow icon="briefcase" label={t('complete_social.job')} value={job} iconColor="#ef4444" /> : null}
-              </>
-            )}
           </View>
+
+          <View style={styles.badge}>
+            <Ionicons
+              name="sparkles"
+              size={14}
+              color="#FF77A8"
+            />
+
+          <Text style={styles.badgeText}>
+            {t('signup.profile_badge_readiness')}
+          </Text>
+          </View>
+
+          <Text style={styles.title}>
+            Hoàn thiện hồ sơ
+          </Text>
+
+          <Text style={styles.subtitle}>
+            Match để gặp, không chỉ để chat
+          </Text>
         </View>
 
-        {!isProfileComplete && (
-          <View style={styles.warningCard}>
-            <Ionicons name="alert-circle" size={24} color="#fbbf24" />
-            <Text style={styles.warningText}>{t('complete_social.warning_required_fields')}</Text>
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={[styles.completeButton, (!isProfileComplete || loading) && styles.disabledButton]}
-          onPress={handleCompleteProfile}
-          disabled={!isProfileComplete || loading}
-          activeOpacity={0.8}
+        <BlurView
+          intensity={50}
+          tint="dark"
+          style={styles.card}
         >
           <LinearGradient
-            colors={isProfileComplete && !loading ? ['#ff1493', '#9370db'] : ['#94a3b8', '#64748b']}
-            style={styles.buttonGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            colors={[
+              'rgba(255,255,255,0.12)',
+              'rgba(255,255,255,0.03)',
+            ]}
+            style={styles.cardBorder}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-done" size={24} color="#fff" />
-                <Text style={styles.completeButtonText}>{t('complete_social.complete_and_start')}</Text>
-              </>
+            <View style={styles.profileArea}>
+              <View style={styles.avatarContainer}>
+                <LinearGradient
+                  colors={['#FF4D8D', '#FF77A8']}
+                  style={styles.avatarGlow}
+                />
+
+                <Image
+                  source={{
+                    uri:
+                      avatarUri ||
+                      'https://i.pravatar.cc/300',
+                  }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+
+                <View style={styles.onlineDot} />
+              </View>
+
+              <Text style={styles.name}>
+                {effectiveName || t('complete_social.not_updated')}
+              </Text>
+
+              {!!bio && (
+                <Text style={styles.bio}>
+                  {bio}
+                </Text>
+              )}
+            </View>
+
+            {/* BASIC INFO */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                {t('signup.profile_summary_basic_section')}
+              </Text>
+
+              <InfoItem
+                icon="mail-outline"
+                label={t('signup.info_item_email')}
+                value={email || user?.email}
+              />
+
+              <InfoItem
+                icon={
+                  normalizedGender === 'male'
+                    ? 'male-outline'
+                    : 'female-outline'
+                }
+                label={t('signup.info_item_gender')}
+                value={displayGender}
+                onPress={handleGenderPress}
+              />
+
+              <InfoItem
+                icon="calendar-outline"
+                label={t('signup.info_item_age')}
+                value={`${ageNumber} ${t('common.years_old', { count: ageNumber })}`}
+                onPress={() =>
+                  setShowDatePicker(true)
+                }
+              />
+
+              {!!fullLocation && (
+                <InfoItem
+                  icon="location-outline"
+                  label={t('signup.info_item_hometown')}
+                  value={fullLocation}
+                  multiline
+                />
+              )}
+            </View>
+
+            {/* EDUCATION */}
+            {(educationLevel ||
+              university ||
+              job) && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {t('signup.profile_summary_education_section')}
+                </Text>
+
+                {!!educationLevel && (
+                  <InfoItem
+                    icon="school-outline"
+                    label={t('signup.info_item_education')}
+                    value={educationLevel}
+                  />
+                )}
+
+                {!!university && (
+                  <InfoItem
+                    icon="business-outline"
+                    label={t('signup.info_item_school')}
+                    value={university}
+                    multiline
+                  />
+                )}
+
+                {!!job && (
+                  <InfoItem
+                    icon="briefcase-outline"
+                    label={t('signup.info_item_job')}
+                    value={job}
+                  />
+                )}
+              </View>
             )}
+
+            {/* INTERESTS */}
+            {!!interests?.length && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {t('signup.profile_summary_interests_section')}
+                </Text>
+
+                <View style={styles.interestsWrap}>
+                  {interests.map(
+                    (item, index) => (
+                      <View
+                        key={`${item}-${index}`}
+                        style={styles.interestTag}
+                      >
+                        <Text
+                          style={
+                            styles.interestText
+                          }
+                        >
+                          {item}
+                        </Text>
+                      </View>
+                    )
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* BIO */}
+            {!!bio && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>
+                  {t('signup.profile_summary_bio_section')}
+                </Text>
+
+                <View style={styles.bioCard}>
+                  <Text style={styles.bioText}>
+                    {bio}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {!isProfileComplete && (
+              <View style={styles.warningBox}>
+                <Ionicons
+                  name="alert-circle"
+                  size={18}
+                  color="#FF7DAF"
+                />
+
+                <Text style={styles.warningText}>
+                  {t('signup.profile_summary_warning')}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              activeOpacity={0.88}
+              disabled={loading}
+              onPress={handleCompleteProfile}
+              style={styles.button}
+            >
+              <LinearGradient
+                colors={
+                  loading
+                    ? ['#334155', '#1E293B']
+                    : ['#FF4D8D', '#FF77A8']
+                }
+                style={styles.buttonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.buttonText}>
+                      {t('signup.complete_profile_finish')}
+                    </Text>
+
+                    <Ionicons
+                      name="arrow-forward"
+                      size={20}
+                      color="#fff"
+                    />
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              disabled={loading}
+              onPress={handleCancel}
+              style={styles.cancelButton}
+            >
+              <Text style={styles.cancelText}>
+                {t('signup.cancel_social_confirm')}
+              </Text>
+            </TouchableOpacity>
           </LinearGradient>
-        </TouchableOpacity>
+        </BlurView>
 
-        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton} disabled={loading}>
-          <Ionicons name="close-circle-outline" size={20} color="rgba(255,255,255,0.8)" />
-          <Text style={styles.cancelButtonText}>{t('complete_social.cancel_signup')}</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 40 }} />
+        <View style={{ height: 70 }} />
       </ScrollView>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={birthDate}
+          mode="date"
+          display={
+            Platform.OS === 'ios'
+              ? 'spinner'
+              : 'default'
+          }
+          maximumDate={new Date()}
+          minimumDate={new Date(1940, 0, 1)}
+          onChange={onDateChange}
+          themeVariant="dark"
+        />
+      )}
     </ImageBackground>
   );
 };
 
+export default CompleteSocialProfileScreen;
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    backgroundColor: '#05060A',
   },
-  backdrop: {
+
+  overlay: {
     ...StyleSheet.absoluteFillObject,
   },
-  scrollView: {
-    flex: 1,
-  },
-  container: {
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 20,
-  },
-  header: {
+
+  content: {
+    paddingTop: 70,
+    paddingBottom: 40,
     alignItems: 'center',
+  },
+
+  top: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 26,
+  },
+
+  logoWrap: {
     marginBottom: 24,
   },
-  logoContainer: {
-    position: 'relative',
-    marginBottom: 16,
-  },
+
   logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#fff',
+    width: 130,
+    height: 78,
   },
-  logoGlow: {
-    position: 'absolute',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#fff',
-    opacity: 0.3,
-    top: 0,
-    left: 0,
-  },
-  logoPlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: '#fff',
-  },
-  headerBadge: {
+
+  badge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,255,136,0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginBottom: 12,
+    backgroundColor: 'rgba(255,119,168,0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(0,255,136,0.3)',
+    borderColor: 'rgba(255,119,168,0.28)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginBottom: 18,
   },
+
   badgeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
-  },
-  title: {
-    fontSize: 32,
+    color: '#FF77A8',
+    fontSize: 11,
     fontWeight: '800',
-    color: '#fff',
-    marginBottom: 8,
-    textAlign: 'center',
-    letterSpacing: 0.5,
+    marginLeft: 6,
+    letterSpacing: 1,
   },
+
+  title: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
+    marginTop: 10,
+    color: 'rgba(255,255,255,0.68)',
+    fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,
   },
-  profileCard: {
-    backgroundColor: 'rgba(255,255,255,0.98)',
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 8,
+
+  card: {
+    width: '92%',
+    borderRadius: 34,
+    overflow: 'hidden',
   },
-  avatarSection: {
+
+  cardBorder: {
+    padding: 1,
+    borderRadius: 34,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+
+  profileArea: {
     alignItems: 'center',
-    marginBottom: 20,
+    paddingTop: 34,
+    paddingBottom: 24,
+    paddingHorizontal: 22,
   },
-  avatarWrapper: {
-    position: 'relative',
-    marginBottom: 16,
-  },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
-  profileImagePlaceholder: {
-    backgroundColor: '#f1f5f9',
+
+  avatarContainer: {
+    width: 126,
+    height: 126,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 18,
   },
-  avatarBorder: {
+
+  avatarGlow: {
     position: 'absolute',
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    borderWidth: 3,
-    borderColor: '#ff1493',
-    top: -4,
-    left: -4,
+    width: 124,
+    height: 124,
+    borderRadius: 999,
+    opacity: 0.5,
   },
-  verifiedBadge: {
+
+  avatar: {
+    width: 112,
+    height: 112,
+    borderRadius: 999,
+  },
+
+  onlineDot: {
     position: 'absolute',
-    bottom: 4,
-    right: 4,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#00ff88',
-    justifyContent: 'center',
-    alignItems: 'center',
+    bottom: 10,
+    right: 12,
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: '#22C55E',
     borderWidth: 3,
-    borderColor: '#fff',
+    borderColor: '#111827',
   },
-  profileName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1e293b',
+
+  name: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#fff',
     textAlign: 'center',
-    marginBottom: 4,
   },
-  profileBio: {
+
+  bio: {
+    marginTop: 10,
+    color: 'rgba(255,255,255,0.68)',
     fontSize: 14,
-    color: '#64748b',
     textAlign: 'center',
-    fontStyle: 'italic',
+    lineHeight: 22,
+    paddingHorizontal: 10,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#e2e8f0',
-    marginVertical: 20,
+
+  section: {
+    paddingHorizontal: 18,
+    marginBottom: 24,
   },
-  infoSection: {
-    gap: 4,
-  },
+
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 16,
+    color: '#FF77A8',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1.6,
+    marginBottom: 14,
   },
-  infoRow: {
+
+  infoCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    marginBottom: 10,
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 14,
+    marginBottom: 12,
   },
+
   infoLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  infoIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+
+  infoIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
+
   infoLabel: {
-    fontSize: 15,
-    color: '#64748b',
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+    marginBottom: 4,
     fontWeight: '600',
   },
+
   infoValue: {
+    color: '#fff',
     fontSize: 15,
-    color: '#1e293b',
-    fontWeight: '700',
-    maxWidth: '45%',
-    textAlign: 'right',
+    fontWeight: '800',
+    maxWidth: 230,
   },
-  warningCard: {
+
+  interestsWrap: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(251,191,36,0.15)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(251,191,36,0.3)',
+    flexWrap: 'wrap',
   },
-  warningText: {
-    flex: 1,
+
+  interestTag: {
+    backgroundColor: 'rgba(255,119,168,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,119,168,0.25)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginRight: 10,
+    marginBottom: 10,
+  },
+
+  interestText: {
+    color: '#FF9AC0',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  bioCard: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    padding: 18,
+  },
+
+  bioText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 12,
-    lineHeight: 20,
+    lineHeight: 24,
   },
-  completeButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 12,
-    shadowColor: '#ff1493',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  disabledButton: {
-    shadowOpacity: 0.2,
-  },
-  buttonGradient: {
+
+  warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
+    backgroundColor: 'rgba(255,119,168,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,119,168,0.18)',
+    marginHorizontal: 18,
+    padding: 14,
+    borderRadius: 18,
+    marginBottom: 24,
   },
-  completeButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
+
+  warningText: {
+    color: '#FF7DAF',
+    fontWeight: '700',
+    fontSize: 12,
     marginLeft: 10,
-    letterSpacing: 0.5,
+    flex: 1,
   },
-  cancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+
+  button: {
+    marginHorizontal: 18,
+    borderRadius: 22,
+    overflow: 'hidden',
+    marginBottom: 18,
+    shadowColor: '#FF4D8D',
+    shadowOpacity: 0.45,
+    shadowRadius: 20,
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    elevation: 12,
+  },
+
+  buttonGradient: {
+    height: 62,
     justifyContent: 'center',
-    paddingVertical: 14,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
   },
-  cancelButtonText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 15,
-    fontWeight: '600',
-    marginLeft: 6,
+
+  buttonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+
+  cancelButton: {
+    alignItems: 'center',
+    paddingBottom: 26,
+  },
+
+  cancelText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 13,
+    textDecorationLine: 'underline',
   },
 });
-
-export default CompleteSocialProfileScreen;

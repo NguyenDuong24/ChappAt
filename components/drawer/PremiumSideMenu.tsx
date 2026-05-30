@@ -7,7 +7,6 @@ import {
   Switch,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Image } from 'expo-image';
 
@@ -61,15 +60,15 @@ const PremiumSideMenu = ({
           <View>
             <Text style={styles.helloText}>Hello</Text>
             <Text style={styles.nameText} numberOfLines={1}>
-              {userName || 'ChappAt User'}
+              {userName || 'SaiGon Match User'}
             </Text>
           </View>
         </View>
 
         <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.85}>
-          <BlurView intensity={30} tint="dark" style={styles.closeBlur}>
+          <View style={styles.closeBlur}>
             <MaterialCommunityIcons name="close" size={20} color="#E8FFF7" />
-          </BlurView>
+          </View>
         </TouchableOpacity>
       </View>
 

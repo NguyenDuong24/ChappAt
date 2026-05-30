@@ -7,12 +7,14 @@ import {
     Alert,
     Dimensions,
     TextInput,
-    Animated
+    Animated,
+    ActivityIndicator
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import EvilIcons from '@expo/vector-icons/EvilIcons';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { formatTime } from '@/utils/common';
@@ -31,6 +33,7 @@ import PostHeader from '../common/PostHeader';
 import { removeHashtagStats } from '@/utils/hashtagUtils';
 import { updatePostPrivacy, PrivacyLevel } from '@/utils/postPrivacyUtils';
 import optimizedSocialService from '@/services/optimizedSocialService';
+import { POST_COST_LIMITS } from '@/config/costControls';
 import { useFollowingIds, useExploreActions } from '@/context/ExploreContext';
 import { useTranslation } from 'react-i18next';
 
@@ -75,7 +78,10 @@ interface PostCardProps {
     owner: boolean;
     postUserInfo?: UserInfo;
     isFollowing?: boolean;
+    hideFollowButton?: boolean;
+    isDetailScreen?: boolean;
     onToggleFollow?: () => void;
+    onExternalCommentToggle?: () => void;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -83,6 +89,8 @@ const containerPadding = 12;
 const containerMargin = 12;
 const innerWidth = screenWidth - (containerMargin * 2) - (containerPadding * 2);
 const imageGap = 6;
+const singleImageHeight = Math.min(300, Math.round(screenWidth * 0.72));
+const multiImageHeight = Math.min(240, Math.round(screenWidth * 0.58));
 
 const PostImages = memo(({ images }: { images: string[] }) => {
     if (!images || images.length === 0) return null;
@@ -213,7 +221,8 @@ const PostActions = memo(({
     onLike,
     onCommentToggle,
     showComments,
-    colors
+    colors,
+    onQuickChat
 }: {
     isLiked: boolean;
     likesCount: number;
@@ -222,6 +231,7 @@ const PostActions = memo(({
     onCommentToggle: () => void;
     showComments: boolean;
     colors: any;
+    onQuickChat?: () => void;
 }) => {
     const likeScale = useRef(new Animated.Value(1)).current;
 
@@ -235,48 +245,33 @@ const PostActions = memo(({
 
     return (
         <View style={[styles.actionsContainer, { borderTopColor: colors.border }]}>
-            <TouchableOpacity
-                style={[
-                    styles.actionButton,
-                    {
-                        backgroundColor: isLiked ? '#EC48991A' : colors.isDark ? 'rgba(255,255,255,0.06)' : '#F8FAFC',
-                        borderColor: isLiked ? '#EC489933' : colors.border,
-                    },
-                ]}
-                onPress={handleLikePress}
-                activeOpacity={0.72}
-            >
-                <Animated.View style={[styles.actionIconWrap, { transform: [{ scale: likeScale }] }]}>
-                    <Feather
-                        name="heart"
-                        size={19}
-                        color={isLiked ? '#EC4899' : colors.icon}
-                    />
+
+
+            <TouchableOpacity style={styles.actionMinimalBtn} onPress={handleLikePress}>
+                <Animated.View style={[{ transform: [{ scale: likeScale }] }]}>
+                    <Feather name="heart" size={20} color={isLiked ? '#EC4899' : colors.subtleText} />
                 </Animated.View>
-                <Text style={[styles.actionCount, { color: isLiked ? '#EC4899' : colors.text }]}>
-                    {likesCount > 0 ? likesCount : '0'}
-                </Text>
+                <Text style={[styles.actionMinimalText, { color: isLiked ? '#EC4899' : colors.subtleText }]}>{likesCount > 0 ? likesCount : '0'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-                style={[
-                    styles.actionButton,
-                    {
-                        backgroundColor: showComments ? colors.primary + '14' : colors.isDark ? 'rgba(255,255,255,0.06)' : '#F8FAFC',
-                        borderColor: showComments ? colors.primary + '30' : colors.border,
-                    },
-                ]}
-                onPress={onCommentToggle}
-                activeOpacity={0.72}
-            >
-                <View style={styles.actionIconWrap}>
-                    <Feather name="message-circle" size={19} color={showComments ? colors.primary : colors.icon} />
-                </View>
-                <Text style={[styles.actionCount, { color: showComments ? colors.primary : colors.text }]}>
-                    {commentsCount > 0 ? commentsCount : '0'}
-                </Text>
+            <TouchableOpacity style={styles.actionMinimalBtn} onPress={onCommentToggle}>
+                <Feather name="message-circle" size={20} color={showComments ? colors.primary : colors.subtleText} />
+                <Text style={[styles.actionMinimalText, { color: showComments ? colors.primary : colors.subtleText }]}>{commentsCount > 0 ? commentsCount : '0'}</Text>
             </TouchableOpacity>
 
+            <View style={{ flex: 1 }} />
+
+            <TouchableOpacity style={styles.actionMinimalBtn}>
+                <Feather name="share" size={20} color={colors.subtleText} />
+            </TouchableOpacity>
+            {onQuickChat ? (
+                <TouchableOpacity
+                    style={[styles.quickChatButton, { borderColor: colors.primary + '40', backgroundColor: colors.primary + '10' }]}
+                    onPress={onQuickChat}
+                >
+                    <Ionicons name="chatbubble-ellipses" size={16} color={colors.primary} />
+                </TouchableOpacity>
+            ) : null}
         </View>
     );
 });
@@ -289,7 +284,10 @@ const PostCard: React.FC<PostCardProps> = ({
     owner,
     postUserInfo,
     isFollowing: propIsFollowing,
-    onToggleFollow
+    onToggleFollow,
+    hideFollowButton = false,
+    isDetailScreen = false,
+    onExternalCommentToggle
 }) => {
     const { t } = useTranslation();
     const { user: authUser, activeFrame: authActiveFrame, currentVibe: authCurrentVibe } = useAuth();
@@ -304,7 +302,7 @@ const PostCard: React.FC<PostCardProps> = ({
     const router = useRouter();
     const currentUserId = authUser?.uid;
 
-    // ÃƒÂ¢Ã…Â¡Ã‚Â¡ÃƒÂ¯Ã‚Â¸Ã‚Â Stable userInfo - only re-compute when specific user ID changes, not entire userCache map
+    // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â Stable userInfo - only re-compute when specific user ID changes, not entire userCache map
     const cachedUserInfo = userCache.get(post.userID) || null;
     const userInfo = useMemo(() => {
         if (postUserInfo) return postUserInfo;
@@ -325,6 +323,8 @@ const PostCard: React.FC<PostCardProps> = ({
     const [commentText, setCommentText] = useState('');
     const [showComments, setShowComments] = useState(false);
     const ignoreNextCommentsSync = useRef(false);
+    const loadedCommentsRef = useRef(false);
+    const [commentsLoading, setCommentsLoading] = useState(false);
 
     const isFollowing = useMemo(() =>
         propIsFollowing !== undefined ? propIsFollowing : (followingIds.includes(post.userID) || internalIsFollowing),
@@ -353,8 +353,12 @@ const PostCard: React.FC<PostCardProps> = ({
             ignoreNextCommentsSync.current = false;
             return;
         }
-        const sorted = normalizeComments(post.comments || []).sort((a: any, b: any) => b.timestamp - a.timestamp);
-        setLocalComments(sorted);
+        const legacyComments = Array.isArray(post.comments) ? post.comments : [];
+        if (legacyComments.length > 0) {
+            const sorted = normalizeComments(legacyComments).sort((a: any, b: any) => b.timestamp - a.timestamp);
+            setLocalComments(sorted);
+            loadedCommentsRef.current = true;
+        }
     }, [post.comments, normalizeComments]);
 
     const handleFollow = useCallback(async () => {
@@ -385,7 +389,7 @@ const PostCard: React.FC<PostCardProps> = ({
 
     const handleCommentSubmit = useCallback(async () => {
         if (!commentText.trim() || !currentUserId) return;
-        const trimmedText = commentText.trim();
+        const trimmedText = commentText.trim().slice(0, POST_COST_LIMITS.maxCommentLength);
         const newComment: Comment = {
             id: Date.now().toString(),
             userId: currentUserId,
@@ -437,68 +441,41 @@ const PostCard: React.FC<PostCardProps> = ({
 
     const handlePrivacySelectorToggle = useCallback(() => setShowPrivacySelector(true), []);
     const handlePrivacySelectorClose = useCallback(() => setShowPrivacySelector(false), []);
-    const handleCommentToggle = useCallback(() => setShowComments(prev => !prev), []);
-    const cardEntrance = useRef(new Animated.Value(0)).current;
+    const handleCommentToggle = useCallback(async () => {
+        if (onExternalCommentToggle) { onExternalCommentToggle(); return; }
+        const willOpen = !showComments;
+        setShowComments(willOpen);
 
-    useEffect(() => {
-        cardEntrance.setValue(0);
-        Animated.spring(cardEntrance, {
-            toValue: 1,
-            damping: 18,
-            stiffness: 170,
-            mass: 0.9,
-            useNativeDriver: true,
-        }).start();
-    }, [post.id, cardEntrance]);
+        if (!willOpen || loadedCommentsRef.current) return;
+
+        setCommentsLoading(true);
+        try {
+            const remoteComments = await optimizedSocialService.getPostComments(post.id, POST_COST_LIMITS.commentsPreviewLimit);
+            if (remoteComments.length > 0) {
+                const sorted = normalizeComments(remoteComments).sort((a: any, b: any) => b.timestamp - a.timestamp);
+                setLocalComments(sorted);
+            }
+            loadedCommentsRef.current = true;
+        } catch (error) {
+            console.warn('Failed to load post comments:', error);
+        } finally {
+            setCommentsLoading(false);
+        }
+    }, [showComments, post.id, normalizeComments]);
+    const effectiveCommentsCount = Math.max(
+        post.commentsCount ?? 0,
+        Array.isArray(post.comments) ? post.comments.length : 0,
+        localComments.length
+    );
+    const effectiveLikesCount = post.likesCount ?? post.likes.length;
 
 
     return (
-        <Animated.View
-            style={[
-                styles.cardMotion,
-                {
-                    opacity: cardEntrance,
-                    transform: [
-                        {
-                            translateY: cardEntrance.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [14, 0],
-                            }),
-                        },
-                        {
-                            scale: cardEntrance.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.985, 1],
-                            }),
-                        },
-                    ],
-                },
-            ]}
-        >
+        <View style={styles.cardMotion}>
             <View style={[styles.container, {
-                borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)',
-                backgroundColor: isDark ? 'rgba(17,24,39,0.94)' : '#FFFFFF'
+                borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.08)',
+                backgroundColor: isDark ? 'rgba(22,22,34,0.6)' : '#FFFFFF'
             }]}>
-                <LinearGradient
-                    colors={isDark ? ['rgba(30,41,59,0.98)', 'rgba(15,23,42,0.96)'] : ['#FFFFFF', '#FFFDFC']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFillObject}
-                />
-                <LinearGradient
-                    colors={isDark ? ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.00)'] : ['rgba(255,255,255,0.88)', 'rgba(255,255,255,0.00)']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0.4, y: 1 }}
-                    style={styles.cardHighlight}
-                    pointerEvents="none"
-                />
-                <LinearGradient
-                    colors={[colors.primary + (isDark ? '18' : '0D'), 'transparent']}
-                    start={{ x: 0.2, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.cardAccent}
-                    pointerEvents="none"
-                />
                 <View style={styles.cardBody}>
                     <PostHeader
                         userInfo={userInfo}
@@ -511,6 +488,7 @@ const PostCard: React.FC<PostCardProps> = ({
                         onPrivacyChange={handlePrivacySelectorToggle}
                         isFollowing={isFollowing}
                         onFollowPress={handleFollow}
+                        hideFollowButton={hideFollowButton}
                     />
 
                     <View style={styles.contentColumn}>
@@ -555,15 +533,21 @@ const PostCard: React.FC<PostCardProps> = ({
 
                 <PostActions
                     isLiked={post.likes.includes(currentUserId || '')}
-                    likesCount={post.likes.length}
-                    commentsCount={localComments.length}
+                    likesCount={effectiveLikesCount}
+                    commentsCount={effectiveCommentsCount}
                     onLike={handleLikeWithNotification}
                     onCommentToggle={handleCommentToggle}
                     showComments={showComments}
                     colors={colors}
+                    onQuickChat={currentUserId !== post.userID ? () => {
+                        router.push({
+                            pathname: `/chat/${post.userID}`,
+                            params: { postId: post.id }
+                        } as any);
+                    } : undefined}
                 />
 
-                {showComments && (
+                {showComments && !isDetailScreen && (
                     <View style={[styles.commentsSection, { borderTopColor: colors.border }]}>
                     <View style={[styles.commentInputContainer, {
                         backgroundColor: colors.surface || 'rgba(0,0,0,0.03)',
@@ -601,6 +585,9 @@ const PostCard: React.FC<PostCardProps> = ({
                         </TouchableOpacity>
                     </View>
                     <View style={styles.commentsList}>
+                        {commentsLoading && (
+                            <ActivityIndicator size="small" color={colors.primary} style={{ marginVertical: 8 }} />
+                        )}
                         {localComments.slice(0, 5).map((c, i) => <CommentItem key={c.id || i} comment={c} colors={colors} />)}
                     </View>
                     </View>
@@ -618,7 +605,7 @@ const PostCard: React.FC<PostCardProps> = ({
                     />
                 )}
             </View>
-        </Animated.View>
+        </View>
     );
 };
 
@@ -628,15 +615,15 @@ const styles = StyleSheet.create({
     },
     container: {
         marginBottom: 16,
-        borderRadius: 24,
-        marginHorizontal: 12,
+        borderRadius: 28,
+        marginHorizontal: 16,
         borderWidth: 1,
         overflow: 'hidden',
-        shadowColor: '#0F172A',
-        shadowOpacity: 0.10,
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
         shadowRadius: 20,
-        shadowOffset: { width: 0, height: 10 },
-        elevation: 5,
+        shadowOffset: { width: 0, height: 8 },
+        elevation: 6,
         // Theme-aware border color applied dynamically
     },
     cardBody: {
@@ -677,20 +664,20 @@ const styles = StyleSheet.create({
         gap: 8
     },
     imageContainer: {
-        marginTop: 4,
-        marginBottom: 2,
+        marginTop: 8,
+        marginHorizontal: 14,
+        marginBottom: 4,
+        borderRadius: 14,
+        overflow: 'hidden',
         backgroundColor: 'rgba(15,23,42,0.04)',
     },
     multiImageContainer: {
         flexDirection: 'row',
-        height: 260,
-        borderRadius: 0,
-        overflow: 'hidden'
+        height: multiImageHeight,
     },
     singleImage: {
         width: '100%',
-        height: 320,
-        borderRadius: 0
+        height: singleImageHeight,
     },
     twoImages: {
         flex: 1,
@@ -771,31 +758,33 @@ const styles = StyleSheet.create({
     actionsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'flex-start',
-        paddingTop: 12,
-        paddingBottom: 14,
-        borderTopWidth: 1,
+        paddingVertical: 14,
         marginHorizontal: 16,
-        marginTop: 12,
-        paddingHorizontal: 0,
-        gap: 10,
-        // Theme-aware border color applied dynamically
+        borderTopWidth: 1,
     },
-    actionButton: {
+    quickChatButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        minWidth: 74,
-        height: 38,
-        paddingHorizontal: 13,
-        borderRadius: 19,
-        borderWidth: 1,
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 16,
+        borderWidth: 1.5,
+        marginRight: 10,
     },
-    actionIconWrap: {
-        width: 22,
-        height: 22,
+    quickChatText: {
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    actionMinimalBtn: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        marginRight: 24,
+    },
+    actionMinimalText: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginLeft: 6,
     },
     actionCount: {
         marginLeft: 6,
@@ -885,7 +874,7 @@ const styles = StyleSheet.create({
 });
 
 export default memo(PostCard, (prev, next) => {
-    // ÃƒÂ¢Ã…Â¡Ã‚Â¡ÃƒÂ¯Ã‚Â¸Ã‚Â Stricter comparison - use likesCount from server if available, otherwise array length
+    // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã‚Â¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¸Ãƒâ€šÃ‚Â Stricter comparison - use likesCount from server if available, otherwise array length
     // Avoids re-render when the same data comes back from Firestore with new array references
     const prevLikes = prev.post.likesCount ?? prev.post.likes.length;
     const nextLikes = next.post.likesCount ?? next.post.likes.length;
@@ -903,3 +892,5 @@ export default memo(PostCard, (prev, next) => {
         (prev.post.images || []).length === (next.post.images || []).length
     );
 });
+
+

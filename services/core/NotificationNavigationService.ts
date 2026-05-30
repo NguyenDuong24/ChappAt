@@ -34,7 +34,7 @@ class NotificationNavigationService {
         const last = await Notifications.getLastNotificationResponseAsync();
         if (last && !this.hasHandledInitialTap) {
           this.hasHandledInitialTap = true;
-          const data = last.notification.request.content.data as NotificationData;
+          const data = last.notification.request.content.data as unknown as NotificationData;
           if (data && (data as any).type) {
             console.log('🧭 Handling cold-start notification tap');
             await this.handleNotificationTap(data);
@@ -55,7 +55,7 @@ class NotificationNavigationService {
   private async handleNotificationResponse(response: Notifications.NotificationResponse): Promise<void> {
     console.log('🧭 Notification tapped:', response);
     this.hasHandledInitialTap = true;
-    const data = response.notification.request.content.data as NotificationData;
+    const data = response.notification.request.content.data as unknown as NotificationData;
 
     if (!data || !data.type) {
       console.log('❌ No navigation data in notification');
@@ -325,7 +325,7 @@ class NotificationNavigationService {
    */
   cleanup(): void {
     if (this.navigationListener) {
-      Notifications.removeNotificationSubscription(this.navigationListener);
+      this.navigationListener.remove();
       this.navigationListener = null;
     }
     this.isInitialized = false;
